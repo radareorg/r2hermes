@@ -1,0 +1,188 @@
+#include "../../include/decompilation/decompiler.h"
+#include "../../include/decompilation/token.h"
+#include "../../include/parsers/hbc_file_parser.h"
+#include "../../include/parsers/hbc_bytecode_parser.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+Result decompiler_init(HermesDecompiler* decompiler) {
+    if (!decompiler) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler pointer");
+    }
+    
+    decompiler->calldirect_function_ids = NULL;
+    decompiler->calldirect_function_ids_count = 0;
+    decompiler->calldirect_function_ids_capacity = 0;
+    decompiler->indent_level = 0;
+    
+    // Initialize string buffer for output
+    string_buffer_init(&decompiler->output, 4096);  // Start with 4KB buffer
+    
+    return SUCCESS_RESULT();
+}
+
+Result decompiler_cleanup(HermesDecompiler* decompiler) {
+    if (!decompiler) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler pointer");
+    }
+    
+    // Free calldirect function ids array
+    if (decompiler->calldirect_function_ids) {
+        free(decompiler->calldirect_function_ids);
+        decompiler->calldirect_function_ids = NULL;
+    }
+    
+    // Cleanup string buffer
+    string_buffer_free(&decompiler->output);
+    
+    return SUCCESS_RESULT();
+}
+
+Result decompile_file(const char* input_file, const char* output_file) {
+    Result result;
+    HermesDecompiler decompiler;
+    HBCReader reader;
+    
+    // Initialize structs
+    result = decompiler_init(&decompiler);
+    if (result.code != RESULT_SUCCESS) {
+        return result;
+    }
+    
+    result = hbc_reader_init(&reader);
+    if (result.code != RESULT_SUCCESS) {
+        decompiler_cleanup(&decompiler);
+        return result;
+    }
+    
+    // Store file paths
+    decompiler.input_file = (char*)input_file;
+    decompiler.output_file = (char*)output_file;
+    decompiler.hbc_reader = &reader;
+    
+    // Read and parse the file
+    result = hbc_reader_read_file(&reader, input_file);
+    if (result.code != RESULT_SUCCESS) {
+        hbc_reader_cleanup(&reader);
+        decompiler_cleanup(&decompiler);
+        return result;
+    }
+    
+    // Read header
+    result = hbc_reader_read_header(&reader);
+    if (result.code != RESULT_SUCCESS) {
+        hbc_reader_cleanup(&reader);
+        decompiler_cleanup(&decompiler);
+        return result;
+    }
+    
+    // TODO: Implement actual decompilation logic here
+    // For now, just produce a placeholder output file
+    
+    // Open output file or use stdout
+    FILE* out = stdout;
+    if (output_file) {
+        out = fopen(output_file, "w");
+        if (!out) {
+            hbc_reader_cleanup(&reader);
+            decompiler_cleanup(&decompiler);
+            return ERROR_RESULT(RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file for writing");
+        }
+    }
+    
+    // Write placeholder output
+    fprintf(out, "// Decompiled from %s\n", input_file);
+    fprintf(out, "// Bytecode version: %u\n\n", reader.header.version);
+    fprintf(out, "// TODO: Full decompilation not yet implemented\n");
+    fprintf(out, "console.log('This is a placeholder for decompiled code');\n");
+    
+    // Close output file if needed
+    if (output_file && out != stdout) {
+        fclose(out);
+    }
+    
+    // Cleanup
+    hbc_reader_cleanup(&reader);
+    decompiler_cleanup(&decompiler);
+    
+    return SUCCESS_RESULT();
+}
+
+// These functions can be implemented later as needed
+Result pass1_set_metadata(HermesDecompiler* state, DecompiledFunctionBody* function_body) {
+    // Stub implementation
+    (void)state;
+    (void)function_body;
+    return SUCCESS_RESULT();
+}
+
+Result pass2_transform_code(HermesDecompiler* state, DecompiledFunctionBody* function_body) {
+    // Stub implementation
+    (void)state;
+    (void)function_body;
+    return SUCCESS_RESULT();
+}
+
+Result pass3_parse_forin_loops(HermesDecompiler* state, DecompiledFunctionBody* function_body) {
+    // Stub implementation
+    (void)state;
+    (void)function_body;
+    return SUCCESS_RESULT();
+}
+
+Result pass4_name_closure_vars(HermesDecompiler* state, DecompiledFunctionBody* function_body) {
+    // Stub implementation
+    (void)state;
+    (void)function_body;
+    return SUCCESS_RESULT();
+}
+
+Result output_code(HermesDecompiler* state, DecompiledFunctionBody* function_body) {
+    // Stub implementation
+    (void)state;
+    (void)function_body;
+    return SUCCESS_RESULT();
+}
+
+Result decompile_function(HermesDecompiler* state, u32 function_id, Environment* parent_environment, 
+                         int environment_id, bool is_closure, bool is_generator, bool is_async) {
+    // Stub implementation
+    (void)state;
+    (void)function_id;
+    (void)parent_environment;
+    (void)environment_id;
+    (void)is_closure;
+    (void)is_generator;
+    (void)is_async;
+    return SUCCESS_RESULT();
+}
+
+Result function_body_init(DecompiledFunctionBody* body, u32 function_id, FunctionHeader* function_object, bool is_global) {
+    // Stub implementation
+    (void)body;
+    (void)function_id;
+    (void)function_object;
+    (void)is_global;
+    return SUCCESS_RESULT();
+}
+
+void function_body_cleanup(DecompiledFunctionBody* body) {
+    // Stub implementation
+    (void)body;
+}
+
+Result add_jump_target(DecompiledFunctionBody* body, u32 address) {
+    // Stub implementation
+    (void)body;
+    (void)address;
+    return SUCCESS_RESULT();
+}
+
+Result create_basic_block(DecompiledFunctionBody* body, u32 start_address, u32 end_address) {
+    // Stub implementation
+    (void)body;
+    (void)start_address;
+    (void)end_address;
+    return SUCCESS_RESULT();
+}
