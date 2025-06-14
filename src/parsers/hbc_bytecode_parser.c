@@ -370,8 +370,12 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
     FunctionHeader* function_header = &reader->function_headers[function_id];
     
     /* Check if bytecode exists and has reasonable size */
-    if (!function_header->bytecode || function_header->bytecodeSizeInBytes == 0) {
-        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Function has no bytecode");
+    if (!function_header->bytecode) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Function bytecode is NULL");
+    }
+    
+    if (function_header->bytecodeSizeInBytes == 0) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Function has zero bytecode size");
     }
     
     /* Initialize instruction list */

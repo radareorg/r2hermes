@@ -358,20 +358,20 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     /* Print bytecode listing header */
     RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing:\n\n"));
     
-    /* Check if function has bytecode */
-    if (!function_header->bytecode || function_header->bytecodeSizeInBytes == 0) {
-        /* Validate bytecode parameters */
-        if (function_header->offset == 0 || function_header->bytecodeSizeInBytes == 0) {
+    /* Only try to fetch bytecode if we don't have it yet but have valid size & offset */
+    if (function_header->bytecodeSizeInBytes > 0 && !function_header->bytecode) {
+        /* Skip functions with suspicious sizes */
+        if (function_header->bytecodeSizeInBytes > 1024 * 1024) {
             RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
-                "[No bytecode available for this function (invalid offset or size)]\n"));
+                "[Skipping function with unreasonably large bytecode size]\n"));
             return SUCCESS_RESULT();
         }
         
-        /* Check if bytecode size is reasonable */
-        if (function_header->bytecodeSizeInBytes > 1024 * 1024) {
+        /* Skip functions with offset 0 (likely invalid) */
+        if (function_header->offset == 0) {
             RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
-                "[Unreasonably large bytecode size, possible corruption]\n"));
-            return ERROR_RESULT(RESULT_ERROR_INVALID_FORMAT, "Unreasonably large bytecode size");
+                "[No bytecode available for this function (invalid offset)]\n"));
+            return SUCCESS_RESULT();
         }
         
         /* Verify offset is within file bounds */
@@ -437,10 +437,17 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     Result result = parse_function_bytecode(reader, function_id, &instructions);
     
     if (result.code != RESULT_SUCCESS) {
-        /* Handle parsing error */
-        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Error parsing bytecode: "));
-        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, result.error_message));
-        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "]\n"));
+        /* Handle parsing error - Print more debug info */
+        char debug_info[256];
+        snprintf(debug_info, sizeof(debug_info), 
+                "[Error parsing bytecode for function #%u: %s - Offset: %u, Size: %u]\n", 
+                function_id, result.error_message[0] != '\0' ? result.error_message : "Unknown error",
+                function_header->offset, function_header->bytecodeSizeInBytes);
+                
+        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, debug_info));
+        
+        /* Skip this function but continue with others */
+        return SUCCESS_RESULT();
     } else {
         /* Print raw bytecode if requested */
         if (disassembler->options.show_bytecode) {
@@ -485,9 +492,23 @@ Result disassemble_all_functions(Disassembler* disassembler) {
     
     HBCReader* reader = disassembler->reader;
     
-    /* Disassemble each function */
-    for (u32 i = 0; i < reader->header.functionCount; i++) {
-        RETURN_IF_ERROR(disassemble_function(disassembler, i));
+    /* Try to disassemble global function (index 0) first, since Python does this */
+    if (reader->header.functionCount > 0) {
+        Result result = disassemble_function(disassembler, 0);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Warning: Failed to disassemble global function: %s\n", 
+                   result.error_message[0] != '\0' ? result.error_message : "Unknown error");
+        }
+    }
+    
+    /* Disassemble each remaining function, ignoring errors */
+    for (u32 i = 1; i < reader->header.functionCount; i++) {
+        Result result = disassemble_function(disassembler, i);
+        if (result.code != RESULT_SUCCESS) {
+            /* Just log and continue with next function */
+            fprintf(stderr, "Warning: Failed to disassemble function #%u: %s\n", 
+                   i, result.error_message[0] != '\0' ? result.error_message : "Unknown error");
+        }
     }
     
     return SUCCESS_RESULT();
