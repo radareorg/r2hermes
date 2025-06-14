@@ -360,44 +360,75 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     
     /* Check if function has bytecode */
     if (!function_header->bytecode || function_header->bytecodeSizeInBytes == 0) {
-        /* Attempt to load the bytecode data if it's missing */
-        if (function_header->offset > 0 && function_header->bytecodeSizeInBytes > 0) {
-            /* Allocate bytecode buffer */
-            function_header->bytecode = (u8*)malloc(function_header->bytecodeSizeInBytes);
-            if (!function_header->bytecode) {
-                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Memory allocation failed for bytecode]\n"));
-                return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
-            }
-            
-            /* Save current position */
-            size_t saved_pos = reader->file_buffer.position;
-            
-            /* Seek to bytecode offset */
-            Result seek_result = buffer_reader_seek(&reader->file_buffer, function_header->offset);
-            if (seek_result.code != RESULT_SUCCESS) {
-                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Failed to seek to bytecode location]\n"));
-                free(function_header->bytecode);
-                function_header->bytecode = NULL;
-                return seek_result;
-            }
-            
-            /* Read bytecode data */
-            Result read_result = buffer_reader_read_bytes(&reader->file_buffer, 
-                                                     function_header->bytecode, 
-                                                     function_header->bytecodeSizeInBytes);
-            
-            /* Restore original position */
-            buffer_reader_seek(&reader->file_buffer, saved_pos);
-            
-            if (read_result.code != RESULT_SUCCESS) {
-                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Failed to read bytecode data]\n"));
-                free(function_header->bytecode);
-                function_header->bytecode = NULL;
-                return read_result;
-            }
-        } else {
-            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[No bytecode available for this function]\n"));
+        /* Validate bytecode parameters */
+        if (function_header->offset == 0 || function_header->bytecodeSizeInBytes == 0) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
+                "[No bytecode available for this function (invalid offset or size)]\n"));
             return SUCCESS_RESULT();
+        }
+        
+        /* Check if bytecode size is reasonable */
+        if (function_header->bytecodeSizeInBytes > 1024 * 1024) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
+                "[Unreasonably large bytecode size, possible corruption]\n"));
+            return ERROR_RESULT(RESULT_ERROR_INVALID_FORMAT, "Unreasonably large bytecode size");
+        }
+        
+        /* Verify offset is within file bounds */
+        if (function_header->offset >= reader->file_buffer.size) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
+                "[Bytecode offset beyond file size]\n"));
+            return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
+        }
+        
+        /* Verify we can read the full bytecode from the file */
+        if (function_header->offset + function_header->bytecodeSizeInBytes > reader->file_buffer.size) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
+                "[Bytecode extends beyond file size, truncating]\n"));
+            function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
+        }
+        
+        /* Allocate bytecode buffer */
+        function_header->bytecode = (u8*)malloc(function_header->bytecodeSizeInBytes);
+        if (!function_header->bytecode) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Memory allocation failed for bytecode]\n"));
+            return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
+        }
+        
+        /* Save current position */
+        size_t saved_pos = reader->file_buffer.position;
+        
+        /* Seek to bytecode offset */
+        Result seek_result = buffer_reader_seek(&reader->file_buffer, function_header->offset);
+        if (seek_result.code != RESULT_SUCCESS) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Failed to seek to bytecode location]\n"));
+            free(function_header->bytecode);
+            function_header->bytecode = NULL;
+            return seek_result;
+        }
+        
+        /* Read bytecode data */
+        Result read_result = buffer_reader_read_bytes(&reader->file_buffer, 
+                                                 function_header->bytecode, 
+                                                 function_header->bytecodeSizeInBytes);
+        
+        /* Restore original position */
+        buffer_reader_seek(&reader->file_buffer, saved_pos);
+        
+        if (read_result.code != RESULT_SUCCESS) {
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Failed to read bytecode data]\n"));
+            free(function_header->bytecode);
+            function_header->bytecode = NULL;
+            return read_result;
+        }
+        
+        /* Verify the first byte looks like a valid opcode */
+        if (function_header->bytecodeSizeInBytes > 0) {
+            u8 first_opcode = function_header->bytecode[0];
+            if (first_opcode == 0 || first_opcode > 0xA2) { // Using known opcode range
+                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
+                    "[Warning: First byte doesn't look like a valid opcode]\n"));
+            }
         }
     }
     

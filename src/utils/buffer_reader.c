@@ -66,10 +66,26 @@ Result buffer_reader_read_u8(BufferReader* reader, u8* out_value) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u8");
     }
     
+    /* Safety check - is the reader data valid? */
+    if (!reader->data) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
+    }
+    
+    /* Extra validation for position */
+    if (reader->position >= reader->size) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Buffer position at or beyond buffer size");
+    }
+    
+    /* Now check if we can read a byte */
     if (reader->position + sizeof(u8) > reader->size) {
+        /* Provide a default but warn */
+        fprintf(stderr, "Warning: Buffer overflow prevented in read_u8 at position %zu of %zu bytes\n",
+               reader->position, reader->size);
+        *out_value = 0;
         return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u8");
     }
     
+    /* All good, proceed with read */
     *out_value = reader->data[reader->position];
     reader->position += sizeof(u8);
     
@@ -81,7 +97,22 @@ Result buffer_reader_read_u16(BufferReader* reader, u16* out_value) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u16");
     }
     
+    /* Safety check - is the reader data valid? */
+    if (!reader->data) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
+    }
+    
+    /* Extra validation for position */
+    if (reader->position >= reader->size) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Buffer position at or beyond buffer size");
+    }
+    
+    /* Now check if we can read 2 bytes */
     if (reader->position + sizeof(u16) > reader->size) {
+        /* Provide a default but warn */
+        fprintf(stderr, "Warning: Buffer overflow prevented in read_u16 at position %zu of %zu bytes\n",
+               reader->position, reader->size);
+        *out_value = 0;
         return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u16");
     }
     
@@ -98,9 +129,25 @@ Result buffer_reader_read_u32(BufferReader* reader, u32* out_value) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u32");
     }
     
+    /* Safety check - is the reader data valid? */
+    if (!reader->data) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
+    }
+    
+    /* Extra validation for position */
+    if (reader->position >= reader->size) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Buffer position at or beyond buffer size");
+    }
+    
+    /* Now check if we can read 4 bytes */
     if (reader->position + sizeof(u32) > reader->size) {
+        /* Provide a default but warn */
+        fprintf(stderr, "Warning: Buffer overflow prevented in read_u32 at position %zu of %zu bytes\n",
+               reader->position, reader->size);
+        *out_value = 0;
         return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u32");
     }
+    
     /* Read in little-endian format */
     *out_value = (u32)reader->data[reader->position] |
                 ((u32)reader->data[reader->position + 1] << 8) |
@@ -154,7 +201,15 @@ Result buffer_reader_seek(BufferReader* reader, size_t position) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
     }
     
+    /* Safety check - is the reader data valid? */
+    if (!reader->data) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
+    }
+    
+    /* Validate position */
     if (position > reader->size) {
+        fprintf(stderr, "Warning: Attempted to seek beyond buffer bounds (pos: %zu, size: %zu)\n", 
+                position, reader->size);
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Seek position beyond buffer size");
     }
     
