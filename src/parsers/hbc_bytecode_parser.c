@@ -77,12 +77,19 @@ void parsed_instruction_list_free(ParsedInstructionList* list) {
 
 /* Initialize the instruction set for the given bytecode version */
 static Result initialize_instruction_set(u32 bytecode_version) {
-    /* Currently we only support bytecode version 96 */
-    if (bytecode_version > 96) {
-        fprintf(stderr, "Warning: Bytecode version %u is newer than supported version (96). Using v96 opcodes.\n", 
-            bytecode_version);
+    /* Check bytecode version compatibility */
+    if (bytecode_version < 72) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_FORMAT, 
+                          "Bytecode version too old (< 72) - not supported");
     }
     
+    if (bytecode_version > 96) {
+        fprintf(stderr, "Warning: Bytecode version %u is newer than supported version (96).\n", 
+            bytecode_version);
+        fprintf(stderr, "This may cause parsing errors. Proceed with caution.\n");
+    }
+    
+    /* Currently we only support bytecode version 96 */
     if (!g_instruction_set_v96) {
         g_instruction_set_v96 = get_instruction_set_v96(&g_instruction_set_v96_count);
         if (!g_instruction_set_v96) {
@@ -98,12 +105,19 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
     u32 count;
     Instruction* instruction_set = NULL;
     
+    /* Validate bytecode version */
+    if (bytecode_version < 72) {
+        fprintf(stderr, "Error: Bytecode version %u not supported (minimum supported: 72)\n", bytecode_version);
+        return NULL;
+    }
+    
     /* Select the appropriate instruction set based on bytecode version */
     if (bytecode_version <= 96) {
         instruction_set = g_instruction_set_v96;
         count = g_instruction_set_v96_count;
     } else {
-        /* Default to the latest version we support */
+        /* For newer versions, use version 96 but warn */
+        fprintf(stderr, "Warning: Using v96 opcodes for bytecode version %u\n", bytecode_version);
         instruction_set = g_instruction_set_v96;
         count = g_instruction_set_v96_count;
     }
@@ -164,16 +178,9 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
     /* Find instruction definition */
     const Instruction* inst = find_instruction(opcode, reader->header.version);
     if (!inst) {
-        /* Unknown opcode - create a placeholder instruction */
-        static Instruction unknown_instruction = {
-            0xFF, "UnknownOpcode", 
-            {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}}, 1
-        };
-        
-        inst = &unknown_instruction;
-        unknown_instruction.opcode = opcode;
-        
-        fprintf(stderr, "Warning: Unknown opcode 0x%02x at offset 0x%08x\n", opcode, offset);
+        /* Unknown opcode - fail explicitly instead of creating a placeholder */
+        fprintf(stderr, "Error: Unknown opcode 0x%02x encountered at offset 0x%08x\n", opcode, offset);
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Unknown opcode encountered");
     }
     
     out_instruction->inst = inst;
@@ -229,14 +236,32 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
     /* Handle special cases for specific instructions */
     if (opcode == OP_SwitchImm) {
         /* SwitchImm has a jump table following the immediate operands */
-        u32 jump_table_size = out_instruction->arg5 - out_instruction->arg4 + 1;
+        
+        /* Ensure min and max values are reasonable */
+        if (out_instruction->arg4 > out_instruction->arg5) {
+            fprintf(stderr, "Error: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x\n", 
+                    out_instruction->arg4, out_instruction->arg5, offset);
+            return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Invalid jump table range");
+        }
+        
+        /* Calculate jump table size with overflow protection */
+        u32 jump_table_size;
+        if (out_instruction->arg5 > UINT32_MAX - 1 || 
+            out_instruction->arg5 - out_instruction->arg4 > 10000) {
+            fprintf(stderr, "Error: Jump table size overflow or unreasonably large at offset 0x%08x\n", offset);
+            return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Jump table size overflow");
+        }
+        
+        jump_table_size = out_instruction->arg5 - out_instruction->arg4 + 1;
+        
         /* Get the offset to the jump table */
         u32 jump_table_offset = function_header->offset + offset + out_instruction->arg2;
         
         /* Safety check for jump table size */
         if (jump_table_size > 1000) {
-            fprintf(stderr, "Warning: Unreasonably large jump table size (%u). Limiting to 1000.\n", jump_table_size);
-            jump_table_size = 1000;
+            fprintf(stderr, "Error: Unreasonably large jump table size (%u) at offset 0x%08x. Failing.\n", 
+                    jump_table_size, offset);
+            return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Unreasonably large jump table size");
         }
         
         /* Allocate jump table */
@@ -306,13 +331,13 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
         Result result = parse_instruction(reader, function_header, offset, &instruction);
         
         if (result.code != RESULT_SUCCESS) {
-            /* Log the error but try to continue with the next instruction */
+            /* Log the error and stop processing - prevents cascading errors */
             fprintf(stderr, "Error parsing instruction at offset 0x%08x: %s\n", 
                    offset, result.error_message);
             
-            /* Skip to the next byte and try again */
-            offset++;
-            continue;
+            /* Don't attempt to continue - return the error */
+            parsed_instruction_list_free(out_instructions);
+            return result;
         }
         
         /* Add instruction to list */
