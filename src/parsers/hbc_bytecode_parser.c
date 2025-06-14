@@ -130,6 +130,11 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
         return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Instruction offset out of bounds");
     }
     
+    /* Check if bytecode is loaded */
+    if (!function_header->bytecode) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Function bytecode is not loaded");
+    }
+    
     /* Initialize instruction fields */
     memset(out_instruction, 0, sizeof(ParsedInstruction));
     out_instruction->original_pos = offset;
@@ -175,7 +180,6 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
     
     /* Parse operands based on instruction type */
     u32 operand_values[6] = {0};
-    u32 operand_count = 0;
     
     for (int i = 0; i < 6; i++) {
         if (inst->operands[i].operand_type == OPERAND_TYPE_NONE) {
@@ -212,22 +216,28 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
             default:
                 break;
         }
-        
-        operand_count++;
     }
     
     /* Store operand values in instruction */
-    if (operand_count >= 1) out_instruction->arg1 = operand_values[0];
-    if (operand_count >= 2) out_instruction->arg2 = operand_values[1];
-    if (operand_count >= 3) out_instruction->arg3 = operand_values[2];
-    if (operand_count >= 4) out_instruction->arg4 = operand_values[3];
-    if (operand_count >= 5) out_instruction->arg5 = operand_values[4];
-    if (operand_count >= 6) out_instruction->arg6 = operand_values[5];
+    out_instruction->arg1 = operand_values[0];
+    out_instruction->arg2 = operand_values[1];
+    out_instruction->arg3 = operand_values[2];
+    out_instruction->arg4 = operand_values[3];
+    out_instruction->arg5 = operand_values[4];
+    out_instruction->arg6 = operand_values[5];
     
     /* Handle special cases for specific instructions */
     if (opcode == OP_SwitchImm) {
         /* SwitchImm has a jump table following the immediate operands */
-        u32 jump_table_size = out_instruction->arg2;
+        u32 jump_table_size = out_instruction->arg5 - out_instruction->arg4 + 1;
+        /* Get the offset to the jump table */
+        u32 jump_table_offset = function_header->offset + offset + out_instruction->arg2;
+        
+        /* Safety check for jump table size */
+        if (jump_table_size > 1000) {
+            fprintf(stderr, "Warning: Unreasonably large jump table size (%u). Limiting to 1000.\n", jump_table_size);
+            jump_table_size = 1000;
+        }
         
         /* Allocate jump table */
         out_instruction->switch_jump_table = (u32*)malloc(jump_table_size * sizeof(u32));
@@ -237,12 +247,28 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
         
         out_instruction->switch_jump_table_size = jump_table_size;
         
+        /* Save current position */
+        size_t current_pos = reader->file_buffer.position;
+        
+        /* Seek to jump table in the file */
+        RETURN_IF_ERROR(buffer_reader_seek(&reader->file_buffer, jump_table_offset));
+        
+        /* Align to 4-byte boundary */
+        size_t remainder = reader->file_buffer.position % 4;
+        if (remainder != 0) {
+            RETURN_IF_ERROR(buffer_reader_seek(&reader->file_buffer, 
+                                        reader->file_buffer.position + (4 - remainder)));
+        }
+        
         /* Read jump table entries */
         for (u32 i = 0; i < jump_table_size; i++) {
             u32 jump_offset;
-            RETURN_IF_ERROR(buffer_reader_read_u32(&bytecode_reader, &jump_offset));
-            out_instruction->switch_jump_table[i] = jump_offset;
+            RETURN_IF_ERROR(buffer_reader_read_u32(&reader->file_buffer, &jump_offset));
+            out_instruction->switch_jump_table[i] = offset + jump_offset;
         }
+        
+        /* Restore original position */
+        RETURN_IF_ERROR(buffer_reader_seek(&reader->file_buffer, current_pos));
     }
     
     /* Store next position */
@@ -312,83 +338,103 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
     
     /* Add address */
     RETURN_IF_ERROR(string_buffer_append(out_string, offset_str));
-    RETURN_IF_ERROR(string_buffer_append(out_string, ": "));
-    
-    /* Add opcode name */
+    RETURN_IF_ERROR(string_buffer_append(out_string, ": <"));
     RETURN_IF_ERROR(string_buffer_append(out_string, instruction->inst->name));
+    RETURN_IF_ERROR(string_buffer_append(out_string, ">: <"));
     
-    /* Add operands if any */
-    bool has_operands = false;
+    /* Get operands */
+    bool first = true;
     for (int i = 0; i < 6; i++) {
-        if (instruction->inst->operands[i].operand_type != OPERAND_TYPE_NONE) {
-            has_operands = true;
-            break;
+        if (instruction->inst->operands[i].operand_type == OPERAND_TYPE_NONE) {
+            continue;
         }
-    }
-    
-    if (has_operands) {
-        RETURN_IF_ERROR(string_buffer_append(out_string, " "));
         
-        /* Format each operand */
-        bool first = true;
-        for (int i = 0; i < 6; i++) {
-            if (instruction->inst->operands[i].operand_type == OPERAND_TYPE_NONE) {
-                continue;
+        if (!first) {
+            RETURN_IF_ERROR(string_buffer_append(out_string, ", "));
+        }
+        first = false;
+        
+        /* Get operand value */
+        u32 value;
+        switch (i) {
+            case 0: value = instruction->arg1; break;
+            case 1: value = instruction->arg2; break;
+            case 2: value = instruction->arg3; break;
+            case 3: value = instruction->arg4; break;
+            case 4: value = instruction->arg5; break;
+            case 5: value = instruction->arg6; break;
+            default: value = 0;
+        }
+        
+        /* Get operand name */
+        const char* operand_name;
+        if (instruction->inst->operands[i].operand_meaning != OPERAND_MEANING_NONE) {
+            switch (instruction->inst->operands[i].operand_meaning) {
+                case OPERAND_MEANING_STRING_ID:
+                    operand_name = "string_id";
+                    break;
+                case OPERAND_MEANING_BIGINT_ID:
+                    operand_name = "bigint_id";
+                    break;
+                case OPERAND_MEANING_FUNCTION_ID:
+                    operand_name = "function_id";
+                    break;
+                case OPERAND_MEANING_BUILTIN_ID:
+                    operand_name = "builtin_id";
+                    break;
+                case OPERAND_MEANING_ARRAY_ID:
+                    operand_name = "array_id";
+                    break;
+                case OPERAND_MEANING_OBJ_KEY_ID:
+                    operand_name = "obj_key_id";
+                    break;
+                case OPERAND_MEANING_OBJ_VAL_ID:
+                    operand_name = "obj_val_id";
+                    break;
+                default:
+                    operand_name = "unknown";
+                    break;
             }
-            
-            if (!first) {
-                RETURN_IF_ERROR(string_buffer_append(out_string, ", "));
-            }
-            first = false;
-            
-            /* Get operand value */
-            u32 value;
-            switch (i) {
-                case 0: value = instruction->arg1; break;
-                case 1: value = instruction->arg2; break;
-                case 2: value = instruction->arg3; break;
-                case 3: value = instruction->arg4; break;
-                case 4: value = instruction->arg5; break;
-                case 5: value = instruction->arg6; break;
-                default: value = 0;
-            }
-            
-            /* Format based on operand type */
+        } else {
             switch (instruction->inst->operands[i].operand_type) {
                 case OPERAND_TYPE_REG8:
                 case OPERAND_TYPE_REG32:
-                    RETURN_IF_ERROR(string_buffer_append(out_string, "r"));
-                    RETURN_IF_ERROR(string_buffer_append_int(out_string, value));
+                    operand_name = "Reg";
                     break;
-                    
                 case OPERAND_TYPE_IMM8:
                 case OPERAND_TYPE_IMM16:
-                case OPERAND_TYPE_IMM32: {
-                    char imm_str[16];
-                    snprintf(imm_str, sizeof(imm_str), "%u", value);
-                    RETURN_IF_ERROR(string_buffer_append(out_string, imm_str));
+                case OPERAND_TYPE_IMM32:
+                    operand_name = "Imm";
                     break;
-                }
-                
                 case OPERAND_TYPE_ADDR8:
-                case OPERAND_TYPE_ADDR32: {
-                    char addr_str[16];
-                    snprintf(addr_str, sizeof(addr_str), "0x%x", value);
-                    RETURN_IF_ERROR(string_buffer_append(out_string, addr_str));
+                case OPERAND_TYPE_ADDR32:
+                    operand_name = "Addr";
                     break;
-                }
-                
                 default:
+                    operand_name = "Unknown";
                     break;
             }
         }
+        
+        /* Print operand name and value */
+        RETURN_IF_ERROR(string_buffer_append(out_string, operand_name));
+        RETURN_IF_ERROR(string_buffer_append(out_string, ": "));
+        
+        /* Format value based on operand type */
+        char value_str[32];
+        snprintf(value_str, sizeof(value_str), "%u", value);
+        RETURN_IF_ERROR(string_buffer_append(out_string, value_str));
     }
     
-    /* Add comments for special operands like strings, bigints, function IDs */
+    /* Close operands bracket */
+    RETURN_IF_ERROR(string_buffer_append(out_string, ">"));
+    
+    /* Add comments for special operands */
     HBCReader* reader = instruction->hbc_reader;
     if (reader) {
         for (int i = 0; i < 6; i++) {
-            if (instruction->inst->operands[i].operand_meaning == OPERAND_MEANING_NONE) {
+            OperandMeaning operand_meaning = instruction->inst->operands[i].operand_meaning;
+            if (operand_meaning == OPERAND_MEANING_NONE) {
                 continue;
             }
             
@@ -403,26 +449,49 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
                 default: value = 0;
             }
             
-            switch (instruction->inst->operands[i].operand_meaning) {
+            switch (operand_meaning) {
                 case OPERAND_MEANING_STRING_ID:
                     if (value < reader->header.stringCount) {
-                        RETURN_IF_ERROR(string_buffer_append(out_string, " # \""));
+                        RETURN_IF_ERROR(string_buffer_append(out_string, "  # String: \""));
                         RETURN_IF_ERROR(string_buffer_append(out_string, reader->strings[value]));
-                        RETURN_IF_ERROR(string_buffer_append(out_string, "\""));
+                        RETURN_IF_ERROR(string_buffer_append(out_string, "\" ("));
+                        RETURN_IF_ERROR(string_buffer_append(out_string, string_kind_to_string(reader->string_kinds[value])));
+                        RETURN_IF_ERROR(string_buffer_append(out_string, ")"));
+                    }
+                    break;
+                    
+                case OPERAND_MEANING_BIGINT_ID:
+                    if (value < reader->bigint_count) {
+                        RETURN_IF_ERROR(string_buffer_append(out_string, "  # BigInt: "));
+                        char bigint_str[32];
+                        snprintf(bigint_str, sizeof(bigint_str), "%lld", (long long)reader->bigint_values[value]);
+                        RETURN_IF_ERROR(string_buffer_append(out_string, bigint_str));
                     }
                     break;
                     
                 case OPERAND_MEANING_FUNCTION_ID:
                     if (value < reader->header.functionCount) {
                         FunctionHeader* func = &reader->function_headers[value];
+                        const char* func_name = "unknown";
                         if (func->functionName < reader->header.stringCount) {
-                            RETURN_IF_ERROR(string_buffer_append(out_string, " # function \""));
-                            RETURN_IF_ERROR(string_buffer_append(out_string, reader->strings[func->functionName]));
-                            RETURN_IF_ERROR(string_buffer_append(out_string, "\""));
-                        } else {
-                            RETURN_IF_ERROR(string_buffer_append(out_string, " # function"));
+                            func_name = reader->strings[func->functionName];
                         }
+                        
+                        char func_info[256];
+                        snprintf(func_info, sizeof(func_info), 
+                                "  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x",
+                                value, func_name, func->bytecodeSizeInBytes, 
+                                func->paramCount, func->offset);
+                        RETURN_IF_ERROR(string_buffer_append(out_string, func_info));
                     }
+                    break;
+                    
+                case OPERAND_MEANING_BUILTIN_ID:
+                    /* Add support for builtin functions when available */
+                    RETURN_IF_ERROR(string_buffer_append(out_string, "  # Built-in function: "));
+                    char builtin_id_str[16];
+                    snprintf(builtin_id_str, sizeof(builtin_id_str), "#%u", value);
+                    RETURN_IF_ERROR(string_buffer_append(out_string, builtin_id_str));
                     break;
                     
                 default:
@@ -430,32 +499,53 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
             }
         }
         
-        /* For jump instructions, add target address */
-        if (is_jump_instruction(instruction->inst->opcode)) {
-            u32 target_offset = 0;
-            /* Find the address operand */
-            for (int i = 0; i < 6; i++) {
-                if (instruction->inst->operands[i].operand_type == OPERAND_TYPE_ADDR8 ||
-                    instruction->inst->operands[i].operand_type == OPERAND_TYPE_ADDR32) {
-                    
-                    switch (i) {
-                        case 0: target_offset = instruction->arg1; break;
-                        case 1: target_offset = instruction->arg2; break;
-                        case 2: target_offset = instruction->arg3; break;
-                        case 3: target_offset = instruction->arg4; break;
-                        case 4: target_offset = instruction->arg5; break;
-                        case 5: target_offset = instruction->arg6; break;
-                        default: break;
-                    }
-                    
-                    /* For relative jumps, calculate absolute target */
-                    u32 absolute_target = instruction->original_pos + instruction->inst->binary_size + target_offset;
-                    char target_str[32];
-                    snprintf(target_str, sizeof(target_str), " # target: 0x%08x", absolute_target);
-                    RETURN_IF_ERROR(string_buffer_append(out_string, target_str));
-                    break;
-                }
+        /* Add comments for address operands */
+        for (int i = 0; i < 6; i++) {
+            OperandType operand_type = instruction->inst->operands[i].operand_type;
+            if (operand_type != OPERAND_TYPE_ADDR8 && operand_type != OPERAND_TYPE_ADDR32) {
+                continue;
             }
+            
+            u32 value;
+            switch (i) {
+                case 0: value = instruction->arg1; break;
+                case 1: value = instruction->arg2; break;
+                case 2: value = instruction->arg3; break;
+                case 3: value = instruction->arg4; break;
+                case 4: value = instruction->arg5; break;
+                case 5: value = instruction->arg6; break;
+                default: value = 0;
+            }
+            
+            /* For addresses, calculate absolute target address */
+            u32 absolute_address = instruction->original_pos + value;
+            if (is_jump_instruction(instruction->inst->opcode)) {
+                /* For jump instructions, adjust for instruction size */
+                absolute_address = instruction->original_pos + instruction->inst->binary_size + value;
+            }
+            
+            char addr_comment[32];
+            snprintf(addr_comment, sizeof(addr_comment), "  # Address: %08x", absolute_address);
+            RETURN_IF_ERROR(string_buffer_append(out_string, addr_comment));
+        }
+        
+        /* Add jump table for switch instructions */
+        if (strcmp(instruction->inst->name, "SwitchImm") == 0 && 
+            instruction->switch_jump_table && instruction->switch_jump_table_size > 0) {
+            
+            RETURN_IF_ERROR(string_buffer_append(out_string, "  # Jump table: ["));
+            
+            for (u32 i = 0; i < instruction->switch_jump_table_size; i++) {
+                if (i > 0) {
+                    RETURN_IF_ERROR(string_buffer_append(out_string, ", "));
+                }
+                
+                char table_entry[16];
+                snprintf(table_entry, sizeof(table_entry), "%08x", instruction->switch_jump_table[i]);
+                RETURN_IF_ERROR(string_buffer_append(out_string, table_entry));
+            }
+            
+            RETURN_IF_ERROR(string_buffer_append(out_string, "]"));
         }
     }
     
