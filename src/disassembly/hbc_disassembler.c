@@ -358,9 +358,65 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     /* Print bytecode listing header */
     RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing:\n\n"));
     
-    /* This is a placeholder - we need to implement the instruction parser */
-    RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
-        "[Bytecode parsing not yet implemented - will be added in the next phase]\n"));
+    /* Check if function has bytecode */
+    if (!function_header->bytecode || function_header->bytecodeSizeInBytes == 0) {
+        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[No bytecode available for this function]\n"));
+    } else {
+        /* Parse the bytecode */
+        ParsedInstructionList instructions;
+        Result result = parse_function_bytecode(reader, function_id, &instructions);
+        
+        if (result.code != RESULT_SUCCESS) {
+            /* Handle parsing error */
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "[Error parsing bytecode: "));
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, result.error_message));
+            RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "]\n"));
+        } else {
+            /* Print raw bytecode if requested */
+            if (disassembler->options.show_bytecode) {
+                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Raw bytecode: "));
+                for (u32 i = 0; i < function_header->bytecodeSizeInBytes; i++) {
+                    char hex[8];
+                    snprintf(hex, sizeof(hex), "%02x ", function_header->bytecode[i]);
+                    RETURN_IF_ERROR(string_buffer_append(&disassembler->output, hex));
+                    
+                    /* Line break every 16 bytes */
+                    if ((i + 1) % 16 == 0 && i + 1 < function_header->bytecodeSizeInBytes) {
+                        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "\n               "));
+                    }
+                }
+                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "\n\n"));
+            }
+            
+            /* Print instructions */
+            for (u32 i = 0; i < instructions.count; i++) {
+                ParsedInstruction* instruction = &instructions.instructions[i];
+                
+                /* Initialize a temporary string buffer for the instruction */
+                StringBuffer instr_str;
+                RETURN_IF_ERROR(string_buffer_init(&instr_str, 256));
+                
+                /* Format the instruction */
+                result = instruction_to_string(instruction, &instr_str);
+                if (result.code != RESULT_SUCCESS) {
+                    string_buffer_free(&instr_str);
+                    RETURN_IF_ERROR(string_buffer_append(&disassembler->output, 
+                        "[Error formatting instruction]\n"));
+                    continue;
+                }
+                
+                /* Add to main output */
+                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, instr_str.data));
+                RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "\n"));
+                
+                /* Clean up temporary buffer */
+                string_buffer_free(&instr_str);
+            }
+            
+            /* Free instruction list */
+            parsed_instruction_list_free(&instructions);
+        }
+    }
     
     /* End the function disassembly */
     RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "\n\n"));
