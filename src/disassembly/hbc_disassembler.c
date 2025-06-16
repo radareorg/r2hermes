@@ -358,6 +358,13 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     /* Print bytecode listing header */
     RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing:\n\n"));
     
+    /* Debug mode - always show function offset info */
+    fprintf(stderr, "Function #%u: name=%s, offset=0x%08x, size=%u\n",
+           function_id, 
+           function_header->functionName < reader->header.stringCount ? 
+           reader->strings[function_header->functionName] : "unknown",
+           function_header->offset, function_header->bytecodeSizeInBytes);
+           
     /* Only try to fetch bytecode if we don't have it yet but have valid size & offset */
     if (function_header->bytecodeSizeInBytes > 0 && !function_header->bytecode) {
         /* Skip functions with suspicious sizes */

@@ -89,7 +89,8 @@ static Result initialize_instruction_set(u32 bytecode_version) {
         fprintf(stderr, "This may cause parsing errors. Proceed with caution.\n");
     }
     
-    /* Currently we only support bytecode version 96 */
+    /* Initialize the instruction set for versions 92-96 */
+    /* Based on Python implementation, version 94 uses the same opcodes as version 92 */
     if (!g_instruction_set_v96) {
         g_instruction_set_v96 = get_instruction_set_v96(&g_instruction_set_v96_count);
         if (!g_instruction_set_v96) {
@@ -113,8 +114,16 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
     
     /* Select the appropriate instruction set based on bytecode version */
     if (bytecode_version <= 96) {
+        /* Based on Python implementation, version 94 also uses opcodes from version 92 */
         instruction_set = g_instruction_set_v96;
         count = g_instruction_set_v96_count;
+        
+        if (bytecode_version == 94 || bytecode_version == 92) {
+            fprintf(stderr, "Info: Using v96 opcodes for bytecode version %u (may require conversion)\n", bytecode_version);
+            /* For version 94/92, we may need to convert opcode values... we can extend this in future */
+        } else if (bytecode_version != 96 && bytecode_version != 95) {
+            fprintf(stderr, "Warning: Using v96 opcodes for bytecode version %u (best match)\n", bytecode_version);
+        }
     } else {
         /* For newer versions, use version 96 but warn */
         fprintf(stderr, "Warning: Using v96 opcodes for bytecode version %u\n", bytecode_version);
@@ -129,6 +138,7 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
         }
     }
     
+    fprintf(stderr, "Error: Unknown opcode 0x%02x for bytecode version %u\n", opcode, bytecode_version);
     return NULL;
 }
 
@@ -377,6 +387,10 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
     if (function_header->bytecodeSizeInBytes == 0) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Function has zero bytecode size");
     }
+    
+    /* Debug info to verify offsets */
+    fprintf(stderr, "Function #%u bytecode: offset=0x%08x, size=%u\n", 
+            function_id, function_header->offset, function_header->bytecodeSizeInBytes);
     
     /* Initialize instruction list */
     RETURN_IF_ERROR(parsed_instruction_list_init(out_instructions, 32));  /* Start with space for 32 instructions */
@@ -819,14 +833,56 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
 /* Helper function - check if an opcode is a jump instruction */
 bool is_jump_instruction(u8 opcode) {
     switch (opcode) {
-        case OP_Jmp:
-        case OP_JmpTrue:
-        case OP_JmpFalse:
-        case OP_JmpUndefined:
-        case OP_JmpLong:
-        case OP_JmpTrueLong:
-        case OP_JmpFalseLong:
-        case OP_JmpUndefinedLong:
+        case OP_Jmp: /* 142 */
+        case OP_JmpLong: /* 143 */
+        case OP_JmpTrue: /* 144 */
+        case OP_JmpTrueLong: /* 145 */
+        case OP_JmpFalse: /* 146 */
+        case OP_JmpFalseLong: /* 147 */
+        case OP_JmpUndefined: /* 148 */
+        case OP_JmpUndefinedLong: /* 149 */
+        case OP_SaveGenerator: /* 150 */
+        case OP_SaveGeneratorLong: /* 151 */
+        case OP_JLess: /* 152 */
+        case OP_JLessLong: /* 153 */
+        case OP_JNotLess: /* 154 */
+        case OP_JNotLessLong: /* 155 */
+        case OP_JLessN: /* 156 */
+        case OP_JLessNLong: /* 157 */
+        case OP_JNotLessN: /* 158 */
+        case OP_JNotLessNLong: /* 159 */
+        case OP_JLessEqual: /* 160 */
+        case OP_JLessEqualLong: /* 161 */
+        case OP_JNotLessEqual: /* 162 */
+        case OP_JNotLessEqualLong: /* 163 */
+        case OP_JLessEqualN: /* 164 */
+        case OP_JLessEqualNLong: /* 165 */
+        case OP_JNotLessEqualN: /* 166 */
+        case OP_JNotLessEqualNLong: /* 167 */
+        case OP_JGreater: /* 168 */
+        case OP_JGreaterLong: /* 169 */
+        case OP_JNotGreater: /* 170 */
+        case OP_JNotGreaterLong: /* 171 */
+        case OP_JGreaterN: /* 172 */
+        case OP_JGreaterNLong: /* 173 */
+        case OP_JNotGreaterN: /* 174 */
+        case OP_JNotGreaterNLong: /* 175 */
+        case OP_JGreaterEqual: /* 176 */
+        case OP_JGreaterEqualLong: /* 177 */
+        case OP_JNotGreaterEqual: /* 178 */
+        case OP_JNotGreaterEqualLong: /* 179 */
+        case OP_JGreaterEqualN: /* 180 */
+        case OP_JGreaterEqualNLong: /* 181 */
+        case OP_JNotGreaterEqualN: /* 182 */
+        case OP_JNotGreaterEqualNLong: /* 183 */
+        case OP_JEqual: /* 184 */
+        case OP_JEqualLong: /* 185 */
+        case OP_JNotEqual: /* 186 */
+        case OP_JNotEqualLong: /* 187 */
+        case OP_JStrictEqual: /* 188 */
+        case OP_JStrictEqualLong: /* 189 */
+        case OP_JStrictNotEqual: /* 190 */
+        case OP_JStrictNotEqualLong: /* 191 */
             return true;
         default:
             return false;
@@ -836,15 +892,18 @@ bool is_jump_instruction(u8 opcode) {
 /* Helper function - check if an opcode is a call instruction */
 bool is_call_instruction(u8 opcode) {
     switch (opcode) {
-        case OP_Call:
-        case OP_CallLong:
-        case OP_Construct:
-        case OP_ConstructLong:
-        case OP_CallN:
-        case OP_ConstructN:
-        case OP_CallDirect:
-        case OP_CallDirectLongIndex:
-        case OP_CallBuiltin:
+        case OP_Call: /* 79 */
+        case OP_Construct: /* 80 */
+        case OP_Call1: /* 81 */
+        case OP_CallDirect: /* 82 */
+        case OP_Call2: /* 83 */
+        case OP_Call3: /* 84 */
+        case OP_Call4: /* 85 */
+        case OP_CallLong: /* 86 */
+        case OP_ConstructLong: /* 87 */
+        case OP_CallDirectLongIndex: /* 88 */
+        case OP_CallBuiltin: /* 89 */
+        case OP_CallBuiltinLong: /* 90 */
             return true;
         default:
             return false;

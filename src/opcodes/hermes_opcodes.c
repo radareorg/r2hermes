@@ -20,17 +20,21 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         };
     }
     
-    /* Control flow instructions */
-    instructions[OP_Ret] = (Instruction) {
-        OP_Ret, "Ret", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
-        2 /* opcode + reg */
-    };
-    
-    instructions[OP_RetUndefined] = (Instruction) {
-        OP_RetUndefined, "RetUndefined", 
+    /* Add basic instructions based on hbc95.py */
+    instructions[OP_Unreachable] = (Instruction) {
+        OP_Unreachable, "Unreachable", 
         {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}},
         1 /* opcode only */
+    };
+    
+    instructions[OP_NewObjectWithBuffer] = (Instruction) {
+        OP_NewObjectWithBuffer, "NewObjectWithBuffer", 
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_KEY_ID},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_VAL_ID}},
+        8 /* opcode + 5 operands */
     };
     
     instructions[OP_Jmp] = (Instruction) {
@@ -145,26 +149,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         6 /* opcode + 4 operands (with 2-byte arg count) */
     };
     
-    instructions[OP_CallN] = (Instruction) {
-        OP_CallN, "CallN", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Target function */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* 'this' value */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Argument count */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count including 'this' */
-        7 /* opcode + 6 operands */
-    };
+    /* CallN is not present in the current opcode set */
     
-    instructions[OP_ConstructN] = (Instruction) {
-        OP_ConstructN, "ConstructN", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Target function */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Argument count */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count including 'this' */
-        6 /* opcode + 5 operands */
-    };
+    /* ConstructN is not present in the current opcode set */
     
     instructions[OP_CallDirect] = (Instruction) {
         OP_CallDirect, "CallDirect", 
@@ -245,8 +232,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         6 /* opcode + reg + 4-byte string ID */
     };
     
-    instructions[OP_LoadConstNumber] = (Instruction) {
-        OP_LoadConstNumber, "LoadConstNumber", 
+    /* Using OP_LoadConstDouble instead of LoadConstNumber */
+    instructions[OP_LoadConstDouble] = (Instruction) {
+        OP_LoadConstDouble, "LoadConstDouble", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
          {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Number value (encoded as u32) */
         6 /* opcode + reg + 4-byte number */
@@ -265,8 +253,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         2 /* opcode + 1 operand */
     };
     
-    instructions[OP_LoadThis] = (Instruction) {
-        OP_LoadThis, "LoadThis", 
+    /* Using OP_LoadThisNS instead of LoadThis */
+    instructions[OP_LoadThisNS] = (Instruction) {
+        OP_LoadThisNS, "LoadThisNS", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Destination register */
         2 /* opcode + 1 operand */
     };
@@ -352,24 +341,27 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         4 /* opcode + 3 regs */
     };
     
-    instructions[OP_BitShl] = (Instruction) {
-        OP_BitShl, "BitShl", 
+    /* Using OP_LShift instead of BitShl */
+    instructions[OP_LShift] = (Instruction) {
+        OP_LShift, "LShift", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Left operand */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Right operand */
         4 /* opcode + 3 regs */
     };
     
-    instructions[OP_BitShr] = (Instruction) {
-        OP_BitShr, "BitShr", 
+    /* Using OP_RShift instead of BitShr */
+    instructions[OP_RShift] = (Instruction) {
+        OP_RShift, "RShift", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Left operand */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Right operand */
         4 /* opcode + 3 regs */
     };
     
-    instructions[OP_BitUshr] = (Instruction) {
-        OP_BitUshr, "BitUshr", 
+    /* Using OP_URshift instead of BitUshr */
+    instructions[OP_URshift] = (Instruction) {
+        OP_URshift, "URshift", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Left operand */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Right operand */
