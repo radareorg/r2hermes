@@ -31,6 +31,9 @@ Result disassemble_all_functions(Disassembler* disassembler);
 
 Result output_disassembly(Disassembler* disassembler, const char* output_file);
 
+/* r2 script generation function */
+Result generate_r2_script(const char* input_file, const char* output_file);
+
 /* Utility functions */
 Result print_function_header(Disassembler* disassembler, FunctionHeader* function_header, u32 function_id);
 Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruction);

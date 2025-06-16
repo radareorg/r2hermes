@@ -14,7 +14,8 @@ static void print_usage(const char* program_name) {
     printf("  disassemble, dis, d    Disassemble a Hermes bytecode file\n");
     printf("  decompile, dec, c      Decompile a Hermes bytecode file\n");
     printf("  header, h              Display the header information only\n");
-    printf("  validate, v           Validate file format and display detailed info\n");
+    printf("  validate, v            Validate file format and display detailed info\n");
+    printf("  r2script, r2, r        Generate an r2 script with function flags\n");
     printf("\n");
     printf("Options:\n");
     printf("  --verbose, -v          Show detailed metadata\n");
@@ -110,6 +111,16 @@ int main(int argc, char** argv) {
         result = decompile_file(input_file, output_file);
         if (result.code != RESULT_SUCCESS) {
             fprintf(stderr, "Decompilation error: %s\n", result.error_message);
+            return 1;
+        }
+    }
+    else if (strcmp(command, "r2script") == 0 || 
+             strcmp(command, "r2") == 0 || 
+             strcmp(command, "r") == 0) {
+        
+        result = generate_r2_script(input_file, output_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "R2 script generation error: %s\n", result.error_message);
             return 1;
         }
     }
