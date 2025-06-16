@@ -32,10 +32,14 @@ Result print_function_header(Disassembler* disassembler, FunctionHeader* functio
     StringBuffer* output = &disassembler->output;
     bool verbose = disassembler->options.verbose;
     
-    /* Get function name */
+    /* Get function name with validation */
     const char* function_name = "unknown";
-    if (function_header->functionName < reader->header.stringCount) {
+    if (function_header->functionName < reader->header.stringCount && 
+        reader->strings && reader->strings[function_header->functionName]) {
         function_name = reader->strings[function_header->functionName];
+    } else if (function_header->functionName >= reader->header.stringCount) {
+        fprintf(stderr, "Warning: Function #%u has invalid name index %u (max %u)\n", 
+            function_id, function_header->functionName, reader->header.stringCount);
     }
     
     /* Basic function information */
@@ -240,11 +244,16 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
         
         switch (operand_meaning) {
             case OPERAND_MEANING_STRING_ID:
-                if (value < reader->header.stringCount) {
+                if (value < reader->header.stringCount && 
+                    reader->strings && reader->strings[value]) {
                     RETURN_IF_ERROR(string_buffer_append(output, "  # String: \""));
                     RETURN_IF_ERROR(string_buffer_append(output, reader->strings[value]));
                     RETURN_IF_ERROR(string_buffer_append(output, "\" ("));
-                    RETURN_IF_ERROR(string_buffer_append(output, string_kind_to_string(reader->string_kinds[value])));
+                    if (value < reader->header.stringCount && reader->string_kinds) {
+                        RETURN_IF_ERROR(string_buffer_append(output, string_kind_to_string(reader->string_kinds[value])));
+                    } else {
+                        RETURN_IF_ERROR(string_buffer_append(output, "Unknown"));
+                    }
                     RETURN_IF_ERROR(string_buffer_append(output, ")"));
                 }
                 break;
@@ -257,10 +266,11 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
                 break;
                 
             case OPERAND_MEANING_FUNCTION_ID:
-                if (value < reader->header.functionCount) {
+                if (value < reader->header.functionCount && reader->function_headers) {
                     FunctionHeader* func = &reader->function_headers[value];
                     const char* func_name = "unknown";
-                    if (func->functionName < reader->header.stringCount) {
+                    if (func->functionName < reader->header.stringCount && 
+                        reader->strings && reader->strings[func->functionName]) {
                         func_name = reader->strings[func->functionName];
                     }
                     
@@ -359,11 +369,15 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing:\n\n"));
     
     /* Debug mode - always show function offset info */
+    const char* debug_func_name = "unknown";
+    if (function_header->functionName < reader->header.stringCount && 
+        reader->strings && reader->strings[function_header->functionName]) {
+        debug_func_name = reader->strings[function_header->functionName];
+    }
+    
     fprintf(stderr, "Function #%u: name=%s, offset=0x%08x, size=%u\n",
-           function_id, 
-           function_header->functionName < reader->header.stringCount ? 
-           reader->strings[function_header->functionName] : "unknown",
-           function_header->offset, function_header->bytecodeSizeInBytes);
+           function_id, debug_func_name, function_header->offset, 
+           function_header->bytecodeSizeInBytes);
            
     /* Only try to fetch bytecode if we don't have it yet but have valid size & offset */
     if (function_header->bytecodeSizeInBytes > 0 && !function_header->bytecode) {
