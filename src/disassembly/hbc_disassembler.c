@@ -860,51 +860,22 @@ Result generate_r2_script(const char* input_file, const char* output_file) {
     fprintf(stderr, "Successfully read %zu function headers\n", successful_functions);
     fprintf(out, "# Successfully read %zu function headers\n\n", successful_functions);
     
-    /* Try to read string tables for better function names */
-    char** string_table = NULL;
+    /* ==== READ STRING TABLES AND CREATE STRING FLAGS ==== */
+    /* Structure to store string info temporarily */
+    typedef struct {
+        u32 offset;   /* Offset in string storage */
+        u32 length;   /* Length of string */
+        bool isUTF16; /* Whether the string is UTF-16 encoded */
+    } StringInfo;
     
-    /* Align buffer */
-    if (buffer_reader_seek(&reader.file_buffer, sizeof(HBCHeader) + sizeof(u32)).code == RESULT_SUCCESS) {
-        /* Skip past function headers - read string table locations */
-        size_t function_headers_size = reader.header.functionCount * 16; /* 16 bytes per small function header */
-        if (buffer_reader_seek(&reader.file_buffer, sizeof(HBCHeader) + function_headers_size).code == RESULT_SUCCESS) {
-            /* Try reading string kinds */
-            if (reader.header.stringKindCount > 0) {
-                size_t string_kinds_size = reader.header.stringKindCount * sizeof(u32);
-                if (buffer_reader_seek(&reader.file_buffer, reader.file_buffer.position + string_kinds_size).code == RESULT_SUCCESS) {
-                    /* Skip past identifier hashes if any */
-                    if (reader.header.identifierCount > 0) {
-                        size_t identifier_hashes_size = reader.header.identifierCount * sizeof(u32);
-                        if (buffer_reader_seek(&reader.file_buffer, reader.file_buffer.position + identifier_hashes_size).code != RESULT_SUCCESS) {
-                            fprintf(stderr, "Warning: Failed to seek past identifier hashes\n");
-                        }
-                    }
-                    
-                    /* Align buffer for string tables */
-                    if (buffer_reader_align(&reader.file_buffer, 4).code == RESULT_SUCCESS) {
-                        /* Try to read string tables directly */
-                        u32 str_count = reader.header.stringCount;
-                        
-                        /* Keep string count reasonable */
-                        if (str_count > 100000) {
-                            str_count = 100000;
-                        }
-                        
-                        /* Allocate temporary string table */
-                        string_table = (char**)calloc(str_count, sizeof(char*));
-                        if (string_table) {
-                            fprintf(stderr, "Successfully allocated string table for %u strings\n", str_count);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    StringInfo* string_infos = NULL;
+    u8* string_storage = NULL;
+    size_t string_storage_size = 0;
     
-    /* Output function flags with best available names */
+    /* Output function flags */
     fprintf(out, "# Function flags\n");
     for (size_t i = 0; i < successful_functions; i++) {
-        /* Try to use string table name if available (which it won't be in this direct pass) */
+        /* Use function names we generated earlier */
         const char* function_name = function_names[i] ? function_names[i] : "unknown";
         
         /* Generate sanitized name for r2 */
@@ -931,17 +902,237 @@ Result generate_r2_script(const char* input_file, const char* output_file) {
         }
         
         /* Write the function flag */
-        fprintf(out, "f func.hermes.%s=0x%x\n", sanitized_name, function_offsets[i]);
         
         /* Add size info if available */
         if (function_sizes[i] > 0) {
-            fprintf(out, "f func.hermes.%s.size=0x%x\n", sanitized_name, function_sizes[i]);
+            fprintf(out, "'f func.hermes.%s 0x%x 0x%x\n", sanitized_name, 
+			    function_sizes[i], function_offsets[i]);
+        } else {
+            fprintf(out, "'f func.hermes.%s=0x%x\n", sanitized_name, function_offsets[i]);
+	}
+    }
+    
+    /* Now try to parse string tables based on Python implementation */
+    fprintf(out, "\n# String flags\n");
+    bool strings_parsed = false;
+    
+    /* First try to locate and read the string tables */
+    /* Reset file position */
+    if (buffer_reader_seek(&reader.file_buffer, sizeof(HBCHeader)).code == RESULT_SUCCESS) {
+        /* Skip over functions section */
+        u32 function_headers_bytes = reader.header.functionCount * 16; /* 16 bytes per small header */
+        result = buffer_reader_seek(&reader.file_buffer, reader.file_buffer.position + function_headers_bytes);
+        
+        if (result.code == RESULT_SUCCESS) {
+            /* Align for string kinds */
+            result = buffer_reader_align(&reader.file_buffer, 4);
+            if (result.code == RESULT_SUCCESS) {
+                /* Skip over string kinds section */
+                if (reader.header.stringKindCount > 0) {
+                    result = buffer_reader_seek(&reader.file_buffer, 
+                        reader.file_buffer.position + reader.header.stringKindCount * sizeof(u32));
+                }
+                
+                if (result.code == RESULT_SUCCESS) {
+                    /* Skip over identifier hashes section */
+                    if (reader.header.identifierCount > 0) {
+                        result = buffer_reader_align(&reader.file_buffer, 4);
+                        if (result.code == RESULT_SUCCESS) {
+                            result = buffer_reader_seek(&reader.file_buffer, 
+                                reader.file_buffer.position + reader.header.identifierCount * sizeof(u32));
+                        }
+                    }
+                    
+                    if (result.code == RESULT_SUCCESS) {
+                        /* Prepare to read string tables */
+                        result = buffer_reader_align(&reader.file_buffer, 4);
+                        
+                        if (result.code == RESULT_SUCCESS && reader.header.stringCount > 0) {
+                            fprintf(stderr, "Reading string tables at position %zu\n", reader.file_buffer.position);
+                            
+                            /* Allocate storage for string info */
+                            u32 safe_string_count = reader.header.stringCount;
+                            if (safe_string_count > 100000) {
+                                safe_string_count = 100000; /* Safety limit */
+                            }
+                            
+                            string_infos = (StringInfo*)calloc(safe_string_count, sizeof(StringInfo));
+                            if (!string_infos) {
+                                fprintf(stderr, "Failed to allocate memory for string infos\n");
+                            } else {
+                                /* Read the small string table entries */
+                                bool read_success = true;
+                                for (u32 i = 0; i < safe_string_count; i++) {
+                                    u32 entry;
+                                    result = buffer_reader_read_u32(&reader.file_buffer, &entry);
+                                    if (result.code != RESULT_SUCCESS) {
+                                        read_success = false;
+                                        break;
+                                    }
+                                    
+                                    /* Parse entry fields */
+                                    string_infos[i].isUTF16 = entry & 0x1;
+                                    string_infos[i].offset = (entry >> 1) & 0x7FFFFF; /* 23 bits */
+                                    string_infos[i].length = (entry >> 24) & 0xFF; /* 8 bits */
+                                }
+                                
+                                /* Skip overflow string table if present */
+                                if (read_success && reader.header.overflowStringCount > 0) {
+                                    result = buffer_reader_align(&reader.file_buffer, 4);
+                                    if (result.code == RESULT_SUCCESS) {
+                                        /* Skip past each overflow entry (8 bytes each) */
+                                        result = buffer_reader_seek(&reader.file_buffer, 
+                                            reader.file_buffer.position + reader.header.overflowStringCount * 8);
+                                    }
+                                }
+                                
+                                /* Now read the actual string data */
+                                if (read_success && result.code == RESULT_SUCCESS) {
+                                    /* Align buffer for string storage */
+                                    result = buffer_reader_align(&reader.file_buffer, 4);
+                                    if (result.code == RESULT_SUCCESS && reader.header.stringStorageSize > 0) {
+                                        /* Safety check - limit large string storage */
+                                        size_t storage_size = reader.header.stringStorageSize;
+                                        if (storage_size > 10 * 1024 * 1024) { /* 10MB limit */
+                                            storage_size = 10 * 1024 * 1024;
+                                        }
+                                        
+                                        /* Make sure we have room to read */
+                                        if (reader.file_buffer.position + storage_size <= reader.file_buffer.size) {
+                                            /* Allocate space for string storage */
+                                            string_storage = (u8*)malloc(storage_size);
+                                            if (string_storage) {
+                                                /* Read entire string storage section */
+                                                result = buffer_reader_read_bytes(&reader.file_buffer, string_storage, storage_size);
+                                                if (result.code == RESULT_SUCCESS) {
+                                                    string_storage_size = storage_size;
+                                                    strings_parsed = true;
+                                                    fprintf(stderr, "Successfully read %zu bytes of string data\n", storage_size);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
-    /* Clean up */
-    if (string_table) {
-        free(string_table);
+    /* Generate string flags if we managed to read the string data */
+    if (strings_parsed && string_infos && string_storage) {
+        u32 safe_string_count = reader.header.stringCount;
+        if (safe_string_count > 100000) {
+            safe_string_count = 100000;
+        }
+        
+        /* Create flags for each string */
+        u32 successful_strings = 0;
+        for (u32 i = 0; i < safe_string_count; i++) {
+            u32 offset = string_infos[i].offset;
+            u32 length = string_infos[i].length;
+            bool isUTF16 = string_infos[i].isUTF16;
+            
+            /* Skip strings with obviously invalid offsets/lengths */
+            if (offset >= string_storage_size || 
+                (isUTF16 && offset + (length * 2) > string_storage_size) ||
+                (!isUTF16 && offset + length > string_storage_size)) {
+                continue;
+            }
+            
+            /* For very long strings, truncate for flag name purposes */
+            u32 display_length = length;
+            if (display_length > 32) {
+                display_length = 32;
+            }
+            
+            /* Generate a string value for the flag name */
+            char str_value[64] = {0};
+            if (isUTF16) {
+                /* UTF-16 string - simplified handling */
+                u32 chars_added = 0;
+                for (u32 j = 0; j < display_length && chars_added < sizeof(str_value) - 1; j++) {
+                    /* Read 16-bit character */
+                    u16 c = (u16)(string_storage[offset + (j * 2)] | (string_storage[offset + (j * 2) + 1] << 8));
+                    
+                    /* Only add ASCII-printable characters to name */
+                    if (c >= 32 && c < 127) {
+                        str_value[chars_added++] = (char)c;
+                    } else {
+                        str_value[chars_added++] = '_';
+                    }
+                }
+                str_value[chars_added] = '\0';
+            } else {
+                /* ASCII string */
+                u32 chars_added = 0;
+                for (u32 j = 0; j < display_length && chars_added < sizeof(str_value) - 1; j++) {
+                    char c = (char)string_storage[offset + j];
+                    
+                    /* Only add printable characters to name */
+                    if (c >= 32 && c < 127) {
+                        str_value[chars_added++] = c;
+                    } else {
+                        str_value[chars_added++] = '_';
+                    }
+                }
+                str_value[chars_added] = '\0';
+            }
+            
+            /* Generate sanitized name for r2 - only include alphanumeric and underscores */
+            char sanitized_name[64] = {0};
+            size_t name_len = strlen(str_value);
+            size_t sanitized_idx = 0;
+            
+            for (size_t j = 0; j < name_len && sanitized_idx < sizeof(sanitized_name) - 1; j++) {
+                char c = str_value[j];
+                if ((c >= 'a' && c <= 'z') || 
+                    (c >= 'A' && c <= 'Z') || 
+                    (c >= '0' && c <= '9') || 
+                    c == '_') {
+                    sanitized_name[sanitized_idx++] = c;
+                } else {
+                    sanitized_name[sanitized_idx++] = '_';
+                }
+            }
+            sanitized_name[sanitized_idx] = '\0';
+            
+            /* Add index to name to ensure uniqueness */
+            char unique_name[96];
+            snprintf(unique_name, sizeof(unique_name), "%s_%u", 
+                     sanitized_name[0] ? sanitized_name : "str", i);
+            
+            /* Write the string flag - offset is relative to string storage base */
+            uint32_t size = (isUTF16)? length * 2: length;
+	    uint32_t addr = (unsigned long)(reader.file_buffer.position - string_storage_size + offset);
+            fprintf(out, "'f str.%s %d 0x%08x\n", unique_name, size, addr);
+#if 0
+            /* Add flag for string length */
+            if (isUTF16) {
+                fprintf(out, "f str.%s.size=0x%x\n", unique_name, length * 2);
+            } else {
+                fprintf(out, "f str.%s.size=0x%x\n", unique_name, length);
+            }
+#endif
+            
+            successful_strings++;
+        }
+        
+        fprintf(stderr, "Generated flags for %u strings\n", successful_strings);
+        fprintf(out, "# Generated %u string flags\n", successful_strings);
+    } else {
+        fprintf(stderr, "Could not parse strings\n");
+        fprintf(out, "# Could not parse string data\n");
+    }
+    
+    /* Clean up string parsing resources */
+    if (string_infos) {
+        free(string_infos);
+    }
+    if (string_storage) {
+        free(string_storage);
     }
     
     /* Free function names */
