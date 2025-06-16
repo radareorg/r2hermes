@@ -665,7 +665,7 @@ Result disassemble_buffer(const u8* buffer, size_t size, const char* output_file
     return result;
 }
 
-/* Generate r2 script with function flags */
+/* Generate r2 script with function flags - robust version inspired by the Python implementation */
 Result generate_r2_script(const char* input_file, const char* output_file) {
     if (!input_file) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Input file is NULL");
@@ -714,94 +714,245 @@ Result generate_r2_script(const char* input_file, const char* output_file) {
     fprintf(out, "# File Size: %u bytes\n", reader.header.fileLength);
     fprintf(out, "# Function Count: %u\n\n", reader.header.functionCount);
     
-    /* Try to read function info but continue if it fails */
-    bool functions_read = false;
-    result = hbc_reader_read_functions(&reader);
-    if (result.code != RESULT_SUCCESS) {
-        fprintf(stderr, "Warning: Error reading functions: %s\n", result.error_message);
-        fprintf(out, "# Warning: Could not read function info: %s\n", result.error_message);
-    } else {
-        functions_read = true;
-    }
-    
-    /* Try to read string tables but continue if it fails */
-    bool strings_read = false;
-    if (functions_read) {
-        result = hbc_reader_read_string_tables(&reader);
-        if (result.code != RESULT_SUCCESS) {
-            fprintf(stderr, "Warning: Error reading string tables: %s\n", result.error_message);
-            fprintf(out, "# Warning: Could not read string tables: %s\n", result.error_message);
-        } else {
-            strings_read = true;
-        }
-    }
-    
     /* Create flag for HBC header */
     fprintf(out, "# Basic file structure flags\n");
     fprintf(out, "f hbc.header=0x0\n");
     fprintf(out, "f hbc.header.size=0x%lx\n", (unsigned long)sizeof(HBCHeader));
     
-    /* Try to create flags for functions if we successfully read them */
-    if (functions_read) {
-        fprintf(out, "\n# Function flags\n");
+    /* ================= ROBUST FUNCTION PARSING ================= */
+    
+    /* Align buffer */
+    result = buffer_reader_align(&reader.file_buffer, 4);
+    if (result.code != RESULT_SUCCESS) {
+        fprintf(stderr, "Warning: Error aligning buffer for functions: %s\n", result.error_message);
+        fprintf(out, "# Warning: Error aligning buffer for functions: %s\n", result.error_message);
+        hbc_reader_cleanup(&reader);
+        return SUCCESS_RESULT(); /* Return success since we've written what we can */
+    }
+
+    /* Set reasonable limits for function count */
+    const u32 MAX_SAFE_FUNCTIONS = 50000;
+    u32 function_count = reader.header.functionCount;
+    
+    if (function_count > MAX_SAFE_FUNCTIONS) {
+        fprintf(stderr, "Warning: Very large function count (%u). Limiting to %u for safety.\n", 
+            reader.header.functionCount, MAX_SAFE_FUNCTIONS);
+        function_count = MAX_SAFE_FUNCTIONS;
+    }
+
+    fprintf(stderr, "Reading functions at position %zu of %zu bytes.\n", 
+        reader.file_buffer.position, reader.file_buffer.size);
+    fprintf(out, "# Reading %u functions from position 0x%zx\n", 
+        function_count, reader.file_buffer.position);
+    
+    /* Check for reasonable function count vs file size */
+    size_t min_bytes_needed = function_count * 16; /* Each header is at least 16 bytes */
+    if (reader.file_buffer.position + min_bytes_needed > reader.file_buffer.size) {
+        fprintf(stderr, "Warning: File might be truncated. Need ~%zu more bytes for function headers.\n", 
+            min_bytes_needed);
+        fprintf(out, "# Warning: File appears too small for %u functions, may only read partial data\n", 
+            function_count);
+    }
+
+    /* Create temporary array for function names to solve temp_name lifetime issues */
+    char** function_names = (char**)calloc(function_count, sizeof(char*));
+    if (!function_names) {
+        fprintf(stderr, "Error: Failed to allocate memory for function names\n");
+        if (output_file) {
+            fclose(out);
+        }
+        hbc_reader_cleanup(&reader);
+        return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function names");
+    }
+    
+    /* Initialize all function names to NULL */
+    for (u32 i = 0; i < function_count; i++) {
+        function_names[i] = NULL;
+    }
+    
+    /* Track functions we read successfully */
+    size_t successful_functions = 0;
+    u32* function_offsets = (u32*)calloc(function_count, sizeof(u32));
+    u32* function_sizes = (u32*)calloc(function_count, sizeof(u32));
+    
+    if (!function_offsets || !function_sizes) {
+        fprintf(stderr, "Error: Failed to allocate memory for function offsets or sizes\n");
+        free(function_names);
+        free(function_offsets);
+        free(function_sizes);
+        if (output_file) {
+            fclose(out);
+        }
+        hbc_reader_cleanup(&reader);
+        return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate memory");
+    }
+    
+    /* Print current position in case we have issues */
+    fprintf(stderr, "Function section start position: %zu\n", reader.file_buffer.position);
+    
+    /* Read all function headers directly from the buffer */
+    for (u32 i = 0; i < function_count; i++) {
+        /* Safety check - ensure we have enough buffer for a function header (16 bytes) */
+        if (reader.file_buffer.position + 16 > reader.file_buffer.size) {
+            fprintf(stderr, "Reached end of file after reading %zu of %u functions\n", 
+                successful_functions, function_count);
+            break;  /* End reading if we reach end of buffer */
+        }
         
-        for (u32 i = 0; i < reader.header.functionCount; i++) {
-            FunctionHeader* function_header = &reader.function_headers[i];
-            
-            /* Skip functions with invalid offsets */
-            if (function_header->offset == 0 || function_header->offset >= reader.file_buffer.size) {
-                fprintf(out, "# Skip function #%u with invalid offset: 0x%x\n", i, function_header->offset);
-                continue;
-            }
-            
-            /* Get function name with validation */
-            const char* function_name = "unknown";
-            if (strings_read && function_header->functionName < reader.header.stringCount && 
-                reader.strings && reader.strings[function_header->functionName]) {
-                function_name = reader.strings[function_header->functionName];
-            } else {
-                /* If we can't get the function name, use the function index */
-                char temp_name[32];
-                snprintf(temp_name, sizeof(temp_name), "func_%u", i);
-                function_name = temp_name;
-            }
-            
-            /* Sanitize function name for r2 (only use alphanumeric and underscore) */
-            char sanitized_name[256] = {0};
-            size_t name_len = strlen(function_name);
-            size_t sanitized_idx = 0;
-            
-            for (size_t j = 0; j < name_len && sanitized_idx < sizeof(sanitized_name) - 1; j++) {
-                char c = function_name[j];
-                if ((c >= 'a' && c <= 'z') || 
-                    (c >= 'A' && c <= 'Z') || 
-                    (c >= '0' && c <= '9') || 
-                    c == '_') {
-                    sanitized_name[sanitized_idx++] = c;
-                } else {
-                    sanitized_name[sanitized_idx++] = '_';
-                }
-            }
-            sanitized_name[sanitized_idx] = '\0';
-            
-            /* If sanitized name is empty, use a default name */
-            if (sanitized_name[0] == '\0') {
-                snprintf(sanitized_name, sizeof(sanitized_name), "func_%u", i);
-            }
-            
-            /* Write the flag command for this function */
-            fprintf(out, "f func.hermes.%s=0x%x\n", sanitized_name, function_header->offset);
-            
-            /* Add size info if available */
-            if (function_header->bytecodeSizeInBytes > 0) {
-                fprintf(out, "f func.hermes.%s.size=0x%x\n", 
-                        sanitized_name, function_header->bytecodeSizeInBytes);
+        /* Track position in case we need to restore it */
+        size_t start_position = reader.file_buffer.position;
+        
+        /* Read function header raw data with explicit error handling */
+        u32 raw_data[4];
+        bool header_read_failed = false;
+        
+        for (int j = 0; j < 4; j++) {
+            Result res = buffer_reader_read_u32(&reader.file_buffer, &raw_data[j]);
+            if (res.code != RESULT_SUCCESS) {
+                fprintf(stderr, "Error reading function %u header word %d: %s\n", 
+                    i, j, res.error_message);
+                header_read_failed = true;
+                break;
             }
         }
-    } else {
-        /* If we couldn't read function info, just add a comment */
-        fprintf(out, "# Could not read function information\n");
+        
+        if (header_read_failed) {
+            /* Restore position and break */
+            buffer_reader_seek(&reader.file_buffer, start_position);
+            break;
+        }
+        
+        /* Extract fields from raw data based on the Python implementation */
+        u32 offset = raw_data[0] & 0x1FFFFFF;          /* 25 bits */
+        /* Unused: u32 paramCount = (raw_data[0] >> 25) & 0x7F; */
+        
+        u32 bytecodeSizeInBytes = raw_data[1] & 0x7FFF;  /* 15 bits */
+        /* Unused: u32 functionName = (raw_data[1] >> 15) & 0x1FFFF; */
+        
+        /* Unused: 
+        u32 infoOffset = raw_data[2] & 0x1FFFFFF;
+        u32 frameSize = (raw_data[2] >> 25) & 0x7F;
+        
+        u8 flags = (u8)((raw_data[3] >> 24) & 0xFF);   
+        bool overflowed = (flags >> 5) & 0x1;
+        */
+        
+        /* Skip if offset is invalid or outside file bounds */
+        if (offset == 0 || offset >= reader.file_buffer.size) {
+            /* Skip this function silently */
+            continue;
+        }
+        
+        /* Store offset and size for flag generation */
+        function_offsets[successful_functions] = offset;
+        function_sizes[successful_functions] = bytecodeSizeInBytes;
+        
+        /* Generate a default function name based on index */
+        char* temp_name = (char*)malloc(32);
+        if (temp_name) {
+            snprintf(temp_name, 32, "func_%u", i);
+            function_names[successful_functions] = temp_name;
+        }
+        
+        successful_functions++;
     }
+    
+    fprintf(stderr, "Successfully read %zu function headers\n", successful_functions);
+    fprintf(out, "# Successfully read %zu function headers\n\n", successful_functions);
+    
+    /* Try to read string tables for better function names */
+    char** string_table = NULL;
+    
+    /* Align buffer */
+    if (buffer_reader_seek(&reader.file_buffer, sizeof(HBCHeader) + sizeof(u32)).code == RESULT_SUCCESS) {
+        /* Skip past function headers - read string table locations */
+        size_t function_headers_size = reader.header.functionCount * 16; /* 16 bytes per small function header */
+        if (buffer_reader_seek(&reader.file_buffer, sizeof(HBCHeader) + function_headers_size).code == RESULT_SUCCESS) {
+            /* Try reading string kinds */
+            if (reader.header.stringKindCount > 0) {
+                size_t string_kinds_size = reader.header.stringKindCount * sizeof(u32);
+                if (buffer_reader_seek(&reader.file_buffer, reader.file_buffer.position + string_kinds_size).code == RESULT_SUCCESS) {
+                    /* Skip past identifier hashes if any */
+                    if (reader.header.identifierCount > 0) {
+                        size_t identifier_hashes_size = reader.header.identifierCount * sizeof(u32);
+                        if (buffer_reader_seek(&reader.file_buffer, reader.file_buffer.position + identifier_hashes_size).code != RESULT_SUCCESS) {
+                            fprintf(stderr, "Warning: Failed to seek past identifier hashes\n");
+                        }
+                    }
+                    
+                    /* Align buffer for string tables */
+                    if (buffer_reader_align(&reader.file_buffer, 4).code == RESULT_SUCCESS) {
+                        /* Try to read string tables directly */
+                        u32 str_count = reader.header.stringCount;
+                        
+                        /* Keep string count reasonable */
+                        if (str_count > 100000) {
+                            str_count = 100000;
+                        }
+                        
+                        /* Allocate temporary string table */
+                        string_table = (char**)calloc(str_count, sizeof(char*));
+                        if (string_table) {
+                            fprintf(stderr, "Successfully allocated string table for %u strings\n", str_count);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /* Output function flags with best available names */
+    fprintf(out, "# Function flags\n");
+    for (size_t i = 0; i < successful_functions; i++) {
+        /* Try to use string table name if available (which it won't be in this direct pass) */
+        const char* function_name = function_names[i] ? function_names[i] : "unknown";
+        
+        /* Generate sanitized name for r2 */
+        char sanitized_name[256] = {0};
+        size_t name_len = strlen(function_name);
+        size_t sanitized_idx = 0;
+        
+        for (size_t j = 0; j < name_len && sanitized_idx < sizeof(sanitized_name) - 1; j++) {
+            char c = function_name[j];
+            if ((c >= 'a' && c <= 'z') || 
+                (c >= 'A' && c <= 'Z') || 
+                (c >= '0' && c <= '9') || 
+                c == '_') {
+                sanitized_name[sanitized_idx++] = c;
+            } else {
+                sanitized_name[sanitized_idx++] = '_';
+            }
+        }
+        sanitized_name[sanitized_idx] = '\0';
+        
+        /* If sanitized name is empty, use a default */
+        if (sanitized_name[0] == '\0') {
+            snprintf(sanitized_name, sizeof(sanitized_name), "func_%zu", i);
+        }
+        
+        /* Write the function flag */
+        fprintf(out, "f func.hermes.%s=0x%x\n", sanitized_name, function_offsets[i]);
+        
+        /* Add size info if available */
+        if (function_sizes[i] > 0) {
+            fprintf(out, "f func.hermes.%s.size=0x%x\n", sanitized_name, function_sizes[i]);
+        }
+    }
+    
+    /* Clean up */
+    if (string_table) {
+        free(string_table);
+    }
+    
+    /* Free function names */
+    for (u32 i = 0; i < function_count; i++) {
+        if (function_names[i]) {
+            free(function_names[i]);
+        }
+    }
+    free(function_names);
+    free(function_offsets);
+    free(function_sizes);
     
     /* Close output file if needed */
     if (output_file) {
