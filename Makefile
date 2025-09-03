@@ -60,7 +60,10 @@ TEST_BIN = $(BIN_DIR)/run_tests
 
 .PHONY: test
 
-test: prepare $(TEST_BIN)
+test:
+	./bin/hermes-dec d ../main.jsbundle 2>&1 |head -n 100
+
+otest: prepare $(TEST_BIN)
 	$(TEST_BIN)
 
 $(TEST_BIN): $(filter-out $(BUILD_DIR)/main.o,$(OBJ_FILES)) $(TEST_SRC:.c=.o)

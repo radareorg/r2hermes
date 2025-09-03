@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /* Print usage information */
 static void print_usage(const char* program_name) {
@@ -16,6 +17,11 @@ static void print_usage(const char* program_name) {
     printf("  header, h              Display the header information only\n");
     printf("  validate, v            Validate file format and display detailed info\n");
     printf("  r2script, r2, r        Generate an r2 script with function flags\n");
+    printf("  funcs                  Dump first N function headers (id, nameIdx, offset, size)\n");
+    printf("  cmp, compare           Compare first N funcs (offset/size) with parser.txt\n");
+    printf("  str                    Print a string by index (use N as [output_file])\n");
+    printf("  findstr                Find string by substring (use needle as [output_file])\n");
+    printf("  strmeta                Show string entry meta (index -> isUTF16, off, len)\n");
     printf("\n");
     printf("Options:\n");
     printf("  --verbose, -v          Show detailed metadata\n");
@@ -256,6 +262,229 @@ int main(int argc, char** argv) {
         
         hbc_reader_cleanup(&reader);
     }
+    else if (strcmp(command, "cmp") == 0 || strcmp(command, "compare") == 0) {
+        /* Compare first N function headers (offset/size) against parser.txt */
+        u32 N = 100; /* default count */
+        if (output_file && output_file[0] && isdigit((unsigned char)output_file[0])) {
+            N = (u32)atoi(output_file);
+            if (N == 0) N = 100;
+        }
+
+        /* Initialize HBC reader */
+        HBCReader reader;
+        Result result = hbc_reader_init(&reader);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error: %s\n", result.error_message);
+            return 1;
+        }
+
+        /* Read whole file */
+        result = hbc_reader_read_whole_file(&reader, input_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error reading file: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+
+        u32 count = reader.header.functionCount < N ? reader.header.functionCount : N;
+
+        /* Load Python parser output from parser.txt in current dir */
+        const char *py_path = "parser.txt";
+        FILE *py = fopen(py_path, "r");
+        if (!py) {
+            fprintf(stderr, "Error: could not open %s for comparison\n", py_path);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+
+        /* Prepare arrays for Python offsets/sizes */
+        u32 *py_sizes = (u32*)calloc(count, sizeof(u32));
+        u32 *py_offs  = (u32*)calloc(count, sizeof(u32));
+        if (!py_sizes || !py_offs) {
+            fprintf(stderr, "Error: memory allocation failure\n");
+            fclose(py);
+            hbc_reader_cleanup(&reader);
+            free(py_sizes); free(py_offs);
+            return 1;
+        }
+
+        /* Parse lines like: => [Function #ID name of SIZE bytes]: ... @ offset 0xHEX */
+        char line[4096];
+        while (fgets(line, sizeof(line), py)) {
+            const char *needle = "=> [Function #";
+            char *p = strstr(line, needle);
+            if (!p) continue;
+            p += strlen(needle);
+            char *end = NULL;
+            long id = strtol(p, &end, 10);
+            if (end == p || id < 0) continue;
+            if ((u32)id >= count) continue;
+
+            /* Find " of " then number then " bytes]" */
+            char *ofp = strstr(end, " of ");
+            if (!ofp) continue;
+            ofp += 4;
+            long sz = strtol(ofp, &end, 10);
+            if (end == ofp || sz < 0) continue;
+
+            /* Find " offset " then hex */
+            char *offp = strstr(end, " offset ");
+            if (!offp) continue;
+            offp += 8;
+            unsigned int off = 0;
+            if (sscanf(offp, "%x", &off) != 1) continue;
+
+            py_sizes[id] = (u32)sz;
+            py_offs[id]  = (u32)off;
+        }
+        fclose(py);
+
+        /* Compare and print compact report */
+        for (u32 i = 0; i < count; i++) {
+            FunctionHeader *fh = &reader.function_headers[i];
+            u32 co = fh->offset;
+            u32 cs = fh->bytecodeSizeInBytes;
+            u32 po = py_offs[i];
+            u32 ps = py_sizes[i];
+            const char *res = (co == po && cs == ps) ? "OK" : "MISMATCH";
+            printf("id=%u C(off=0x%08x,sz=%u) PY(off=0x%08x,sz=%u) => %s\n", i, co, cs, po, ps, res);
+        }
+
+        /* Cleanup */
+        free(py_sizes);
+        free(py_offs);
+        hbc_reader_cleanup(&reader);
+    }
+    else if (strcmp(command, "str") == 0) {
+        /* Print string by index passed in output_file param */
+        if (!output_file) {
+            fprintf(stderr, "Usage: %s str <input_file> <index>\n", argv[0]);
+            return 1;
+        }
+        long idx = strtol(output_file, NULL, 10);
+        if (idx < 0) {
+            fprintf(stderr, "Invalid index\n");
+            return 1;
+        }
+
+        HBCReader reader;
+        Result result = hbc_reader_init(&reader);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error: %s\n", result.error_message);
+            return 1;
+        }
+        result = hbc_reader_read_whole_file(&reader, input_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error reading file: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+
+        if ((u32)idx >= reader.header.stringCount) {
+            fprintf(stderr, "Index out of range (max %u)\n", reader.header.stringCount);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        const char *s = reader.strings[idx];
+        printf("idx=%ld kind=%u name=%s\n", idx, (unsigned)reader.string_kinds[idx], s ? s : "");
+        hbc_reader_cleanup(&reader);
+    }
+    else if (strcmp(command, "findstr") == 0) {
+        if (!output_file) {
+            fprintf(stderr, "Usage: %s findstr <input_file> <needle>\n", argv[0]);
+            return 1;
+        }
+        const char *needle = output_file;
+        HBCReader reader;
+        Result result = hbc_reader_init(&reader);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error: %s\n", result.error_message);
+            return 1;
+        }
+        result = hbc_reader_read_whole_file(&reader, input_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error reading file: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        for (u32 i = 0; i < reader.header.stringCount; i++) {
+            const char *s = reader.strings[i];
+            if (!s) continue;
+            if (strstr(s, needle)) {
+                printf("idx=%u kind=%u name=%s\n", i, (unsigned)reader.string_kinds[i], s);
+            }
+        }
+        hbc_reader_cleanup(&reader);
+    }
+    else if (strcmp(command, "strmeta") == 0) {
+        if (!output_file) {
+            fprintf(stderr, "Usage: %s strmeta <input_file> <index>\n", argv[0]);
+            return 1;
+        }
+        long idx = strtol(output_file, NULL, 10);
+        if (idx < 0) {
+            fprintf(stderr, "Invalid index\n");
+            return 1;
+        }
+        HBCReader reader;
+        Result result = hbc_reader_init(&reader);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error: %s\n", result.error_message);
+            return 1;
+        }
+        result = hbc_reader_read_whole_file(&reader, input_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error reading file: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        if ((u32)idx >= reader.header.stringCount) {
+            fprintf(stderr, "Index out of range (max %u)\n", reader.header.stringCount);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        u32 is_utf16 = reader.small_string_table[idx].isUTF16;
+        u32 length = reader.small_string_table[idx].length;
+        u32 off = reader.small_string_table[idx].offset;
+        if (length == 0xFF) {
+            u32 oi = off;
+            off = reader.overflow_string_table[oi].offset;
+            length = reader.overflow_string_table[oi].length;
+        }
+        printf("idx=%ld isUTF16=%u off=0x%x len=%u\n", idx, is_utf16, off, length);
+        hbc_reader_cleanup(&reader);
+    }
+    else if (strcmp(command, "funcs") == 0) {
+        /* Dump first N function headers for comparison */
+        const u32 N = 50; /* default count */
+
+        /* Initialize HBC reader */
+        HBCReader reader;
+        Result result = hbc_reader_init(&reader);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error: %s\n", result.error_message);
+            return 1;
+        }
+
+        /* Read whole file so strings are available */
+        result = hbc_reader_read_whole_file(&reader, input_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error reading file: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+
+        u32 count = reader.header.functionCount < N ? reader.header.functionCount : N;
+        for (u32 i = 0; i < count; i++) {
+            FunctionHeader *fh = &reader.function_headers[i];
+            const char *fname = (fh->functionName < reader.header.stringCount && reader.strings && reader.strings[fh->functionName]) ?
+                reader.strings[fh->functionName] : "";
+            printf("C  id=%u nameIdx=%u offset=0x%08x size=%u name=%s\n",
+                   i, fh->functionName, fh->offset, fh->bytecodeSizeInBytes, fname);
+        }
+
+        hbc_reader_cleanup(&reader);
+    }
     else {
         fprintf(stderr, "Unknown command: %s\n", command);
         print_usage(argv[0]);
@@ -264,4 +493,3 @@ int main(int argc, char** argv) {
     
     return 0;
 }
-

@@ -406,9 +406,9 @@ Result hbc_reader_read_functions(HBCReader* reader) {
 
 		/* Read the raw data with explicit error handling */
 		bool read_error = false;
-		for (int j = 0; j < 4; j++) {
-			Result res = buffer_reader_read_u32(&reader->file_buffer, &raw_data[j]);
-			if (res.code != RESULT_SUCCESS) {
+        for (int j = 0; j < 4; j++) {
+            Result res = buffer_reader_read_u32(&reader->file_buffer, &raw_data[j]);
+            if (res.code != RESULT_SUCCESS) {
 				fprintf(stderr, "Error reading function %u header word %d: %s\n", 
 					i, j, res.error_message);
 				read_error = true;
@@ -1606,29 +1606,140 @@ Result hbc_reader_read_functions_robust(HBCReader* reader) {
 			break;
 		}
 		
-		/* Process function header data */
-		FunctionHeader* header = &reader->function_headers[i];
-		
-		/* Extract fields from raw data */
-		header->offset = raw_data[0] & 0x1FFFFFF;  /* 25 bits */
-		header->paramCount = (raw_data[0] >> 25) & 0x7F;  /* 7 bits */
-		
-		header->bytecodeSizeInBytes = raw_data[1] & 0x7FFF;  /* 15 bits */
-		header->functionName = (raw_data[1] >> 15) & 0x1FFFF;  /* 17 bits */
-		
-		header->infoOffset = raw_data[2] & 0x1FFFFFF;  /* 25 bits */
-		header->frameSize = (raw_data[2] >> 25) & 0x7F;  /* 7 bits */
-		
-		header->environmentSize = (u8)(raw_data[3] & 0xFF);
-		header->highestReadCacheIndex = (u8)((raw_data[3] >> 8) & 0xFF);
-		header->highestWriteCacheIndex = (u8)((raw_data[3] >> 16) & 0xFF);
-		
-		header->prohibitInvoke = (raw_data[3] >> 24) & 0x3;
-		header->strictMode = (raw_data[3] >> 26) & 0x1;
-		header->hasExceptionHandler = (raw_data[3] >> 27) & 0x1;
-		header->hasDebugInfo = (raw_data[3] >> 28) & 0x1;
-		header->overflowed = (raw_data[3] >> 29) & 0x1;
-		header->unused = (raw_data[3] >> 30) & 0x3;
+        /* Debug: dump first header raw data to validate bit layout */
+        if (i == 0) {
+            fprintf(stderr, "Func0 raw: %08x %08x %08x %08x\n", raw_data[0], raw_data[1], raw_data[2], raw_data[3]);
+        }
+
+        /* Process function header data */
+        FunctionHeader* header = &reader->function_headers[i];
+
+        /* Extract fields from raw data (small header) */
+        u32 small_offset = raw_data[0] & 0x1FFFFFF;  /* 25 bits */
+        u32 small_paramCount = (raw_data[0] >> 25) & 0x7F;  /* 7 bits */
+
+        u32 small_bytecodeSizeInBytes = raw_data[1] & 0x7FFF;  /* 15 bits */
+        u32 small_functionName = (raw_data[1] >> 15) & 0x1FFFF;  /* 17 bits */
+
+        u32 small_infoOffset = raw_data[2] & 0x1FFFFFF;  /* 25 bits */
+        u32 small_frameSize = (raw_data[2] >> 25) & 0x7F;  /* 7 bits */
+
+        u8  small_environmentSize = (u8)(raw_data[3] & 0xFF);
+        u8  small_highestReadCacheIndex = (u8)((raw_data[3] >> 8) & 0xFF);
+        u8  small_highestWriteCacheIndex = (u8)((raw_data[3] >> 16) & 0xFF);
+
+        u8  small_prohibitInvoke = (raw_data[3] >> 24) & 0x3;
+        u8  small_strictMode = (raw_data[3] >> 26) & 0x1;
+        u8  small_hasExceptionHandler = (raw_data[3] >> 27) & 0x1;
+        u8  small_hasDebugInfo = (raw_data[3] >> 28) & 0x1;
+        u8  small_overflowed = (raw_data[3] >> 29) & 0x1;
+        u8  small_unused = (raw_data[3] >> 30) & 0x3;
+
+        /* If the small header overflowed OR looks truncated (e.g. size==0), load the large header as Python does */
+        if (small_overflowed || small_bytecodeSizeInBytes == 0) {
+            /* Calculate absolute offset of the large header */
+            u32 large_header_offset = (small_infoOffset << 16) | small_offset;
+
+            /* Seek to large header */
+            Result sr = buffer_reader_seek(&reader->file_buffer, large_header_offset);
+            if (sr.code == RESULT_SUCCESS) {
+                /* Read large function header fields explicitly */
+                LargeFunctionHeader large_header;
+                memset(&large_header, 0, sizeof(large_header));
+
+                /* Read in the same order as in the non-robust path */
+                if (buffer_reader_read_u32(&reader->file_buffer, &large_header.offset).code == RESULT_SUCCESS &&
+                    buffer_reader_read_u32(&reader->file_buffer, &large_header.paramCount).code == RESULT_SUCCESS &&
+                    buffer_reader_read_u32(&reader->file_buffer, &large_header.bytecodeSizeInBytes).code == RESULT_SUCCESS &&
+                    buffer_reader_read_u32(&reader->file_buffer, &large_header.functionName).code == RESULT_SUCCESS &&
+                    buffer_reader_read_u32(&reader->file_buffer, &large_header.infoOffset).code == RESULT_SUCCESS &&
+                    buffer_reader_read_u32(&reader->file_buffer, &large_header.frameSize).code == RESULT_SUCCESS &&
+                    buffer_reader_read_u32(&reader->file_buffer, &large_header.environmentSize).code == RESULT_SUCCESS) {
+                    /* Read tail bytes */
+                    buffer_reader_read_u8(&reader->file_buffer, &large_header.highestReadCacheIndex);
+                    buffer_reader_read_u8(&reader->file_buffer, &large_header.highestWriteCacheIndex);
+                    u8 flags = 0;
+                    buffer_reader_read_u8(&reader->file_buffer, &flags);
+                    large_header.prohibitInvoke = flags & 0x3;
+                    large_header.strictMode = (flags >> 2) & 0x1;
+                    large_header.hasExceptionHandler = (flags >> 3) & 0x1;
+                    large_header.hasDebugInfo = (flags >> 4) & 0x1;
+                    large_header.overflowed = (flags >> 5) & 0x1;
+                    large_header.unused = (flags >> 6) & 0x3;
+
+                    /* Copy into combined header */
+                    header->offset = large_header.offset;
+                    header->paramCount = large_header.paramCount;
+                    header->bytecodeSizeInBytes = large_header.bytecodeSizeInBytes;
+                    header->functionName = large_header.functionName;
+                    header->infoOffset = large_header.infoOffset;
+                    header->frameSize = large_header.frameSize;
+                    header->environmentSize = (u8)large_header.environmentSize;
+                    header->highestReadCacheIndex = large_header.highestReadCacheIndex;
+                    header->highestWriteCacheIndex = large_header.highestWriteCacheIndex;
+                    header->prohibitInvoke = large_header.prohibitInvoke;
+                    header->strictMode = large_header.strictMode;
+                    header->hasExceptionHandler = large_header.hasExceptionHandler;
+                    header->hasDebugInfo = large_header.hasDebugInfo;
+                    header->overflowed = large_header.overflowed;
+                    header->unused = large_header.unused;
+
+                    /* Restore to next small header position */
+                    buffer_reader_seek(&reader->file_buffer, start_position + 16);
+                } else {
+                    /* Fallback to small header values on read error */
+                    header->offset = small_offset;
+                    header->paramCount = small_paramCount;
+                    header->bytecodeSizeInBytes = small_bytecodeSizeInBytes;
+                    header->functionName = small_functionName;
+                    header->infoOffset = small_infoOffset;
+                    header->frameSize = small_frameSize;
+                    header->environmentSize = small_environmentSize;
+                    header->highestReadCacheIndex = small_highestReadCacheIndex;
+                    header->highestWriteCacheIndex = small_highestWriteCacheIndex;
+                    header->prohibitInvoke = small_prohibitInvoke;
+                    header->strictMode = small_strictMode;
+                    header->hasExceptionHandler = small_hasExceptionHandler;
+                    header->hasDebugInfo = small_hasDebugInfo;
+                    header->overflowed = small_overflowed;
+                    header->unused = small_unused;
+                }
+            } else {
+                /* Fallback to small header values if we can't seek */
+                header->offset = small_offset;
+                header->paramCount = small_paramCount;
+                header->bytecodeSizeInBytes = small_bytecodeSizeInBytes;
+                header->functionName = small_functionName;
+                header->infoOffset = small_infoOffset;
+                header->frameSize = small_frameSize;
+                header->environmentSize = small_environmentSize;
+                header->highestReadCacheIndex = small_highestReadCacheIndex;
+                header->highestWriteCacheIndex = small_highestWriteCacheIndex;
+                header->prohibitInvoke = small_prohibitInvoke;
+                header->strictMode = small_strictMode;
+                header->hasExceptionHandler = small_hasExceptionHandler;
+                header->hasDebugInfo = small_hasDebugInfo;
+                header->overflowed = small_overflowed;
+                header->unused = small_unused;
+            }
+        } else {
+            /* No overflow: use small header values directly */
+            header->offset = small_offset;
+            header->paramCount = small_paramCount;
+            header->bytecodeSizeInBytes = small_bytecodeSizeInBytes;
+            header->functionName = small_functionName;
+            header->infoOffset = small_infoOffset;
+            header->frameSize = small_frameSize;
+            header->environmentSize = small_environmentSize;
+            header->highestReadCacheIndex = small_highestReadCacheIndex;
+            header->highestWriteCacheIndex = small_highestWriteCacheIndex;
+            header->prohibitInvoke = small_prohibitInvoke;
+            header->strictMode = small_strictMode;
+            header->hasExceptionHandler = small_hasExceptionHandler;
+            header->hasDebugInfo = small_hasDebugInfo;
+            header->overflowed = small_overflowed;
+            header->unused = small_unused;
+        }
 		
 		/* Validation - check for unreasonable values */
 		if (header->bytecodeSizeInBytes > 10 * 1024 * 1024) {  /* > 10MB */
@@ -1642,21 +1753,18 @@ Result hbc_reader_read_functions_robust(HBCReader* reader) {
 			continue;  /* Skip this function */
 		}
 		
-		/* Save position for next function header */
-		size_t current_pos = reader->file_buffer.position;
-		
-		/* Process bytecode - for simplicity, we skip bytecode content in this robust version */
-		header->bytecode = NULL;  /* Don't allocate actual bytecode to save memory */
-		
-		successful_functions++;
-		
-		/* Restore position for next function header */
-		Result seek_result = buffer_reader_seek(&reader->file_buffer, current_pos);
-		if (seek_result.code != RESULT_SUCCESS) {
-			fprintf(stderr, "Error seeking back after function %u: %s\n", 
-				i, seek_result.error_message);
-			break;
-		}
+        /* For robustness, we don't load bytecode here */
+        header->bytecode = NULL;
+
+        successful_functions++;
+
+        /* Ensure position is at next small header (16 bytes per entry) */
+        Result seek_result = buffer_reader_seek(&reader->file_buffer, start_position + 16);
+        if (seek_result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error seeking to next function header after %u: %s\n", 
+                    i, seek_result.error_message);
+            break;
+        }
 	}
 	
 	/* Adjust function count to what we actually read */
