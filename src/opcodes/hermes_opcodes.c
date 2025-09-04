@@ -672,30 +672,31 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         4 /* opcode + 3 regs */
     };
     
-instructions[OP_GetById] = (Instruction) {
+    instructions[OP_GetById] = (Instruction) {
         OP_GetById, "GetById", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
-        6 /* opcode + 1+1+1+2 */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}, /* Name id */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}},  /* Flags */
+        7
     };
     
     instructions[OP_GetByIdLong] = (Instruction) {
         OP_GetByIdLong, "GetByIdLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
-        8 /* opcode + 1+1+1+4 */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Name id */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}},  /* Flags */
+        9
     };
     
     instructions[OP_GetByIdShort] = (Instruction) {
         OP_GetByIdShort, "GetByIdShort", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}}, /* Property name ID */
-        4 /* opcode + 2 regs + 1-byte string ID */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}, /* Name id */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Flags */
+        5
     };
     
     /* TryGetById family */
@@ -1090,6 +1091,55 @@ instructions[OP_GetById] = (Instruction) {
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj1 */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Obj2 */
         4
+    };
+
+    /* Closures */
+    instructions[OP_CreateClosure] = (Instruction) {
+        OP_CreateClosure, "CreateClosure",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This/Env */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}}, /* Func id */
+        5
+    };
+
+    instructions[OP_CreateClosureLongIndex] = (Instruction) {
+        OP_CreateClosureLongIndex, "CreateClosureLongIndex",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+        7
+    };
+
+    instructions[OP_CreateGeneratorClosure] = (Instruction) {
+        OP_CreateGeneratorClosure, "CreateGeneratorClosure",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}},
+        5
+    };
+
+    instructions[OP_CreateGeneratorClosureLongIndex] = (Instruction) {
+        OP_CreateGeneratorClosureLongIndex, "CreateGeneratorClosureLongIndex",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+        7
+    };
+
+    instructions[OP_CreateAsyncClosure] = (Instruction) {
+        OP_CreateAsyncClosure, "CreateAsyncClosure",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}},
+        5
+    };
+
+    instructions[OP_CreateAsyncClosureLongIndex] = (Instruction) {
+        OP_CreateAsyncClosureLongIndex, "CreateAsyncClosureLongIndex",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+        7
     };
 
     /* Conversions */
