@@ -117,6 +117,12 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
         /* Based on Python implementation, version 94 also uses opcodes from version 92 */
         instruction_set = g_instruction_set_v96;
         count = g_instruction_set_v96_count;
+        if (!instruction_set) {
+            /* Lazy initialize if not done yet */
+            instruction_set = get_instruction_set_v96(&g_instruction_set_v96_count);
+            g_instruction_set_v96 = instruction_set;
+            count = g_instruction_set_v96_count;
+        }
         
         if (bytecode_version == 94 || bytecode_version == 92) {
             fprintf(stderr, "Info: Using v96 opcodes for bytecode version %u (may require conversion)\n", bytecode_version);
@@ -129,8 +135,18 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
         fprintf(stderr, "Warning: Using v96 opcodes for bytecode version %u\n", bytecode_version);
         instruction_set = g_instruction_set_v96;
         count = g_instruction_set_v96_count;
+        if (!instruction_set) {
+            instruction_set = get_instruction_set_v96(&g_instruction_set_v96_count);
+            g_instruction_set_v96 = instruction_set;
+            count = g_instruction_set_v96_count;
+        }
     }
     
+    /* Fallback if count not initialized */
+    if (instruction_set && count == 0) {
+        count = 256; /* full table */
+    }
+
     /* Search for the instruction */
     for (u32 i = 0; i < count; i++) {
         if (instruction_set[i].opcode == opcode) {
@@ -138,7 +154,7 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
         }
     }
     
-    fprintf(stderr, "Error: Unknown opcode 0x%02x for bytecode version %u\n", opcode, bytecode_version);
+    fprintf(stderr, "Error: Unknown opcode 0x%02x for bytecode version %u (count=%u)\n", opcode, bytecode_version, count);
     return NULL;
 }
 
@@ -303,11 +319,25 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
         
         out_instruction->switch_jump_table_size = jump_table_size;
         
-        /* Get the offset to the jump table using same approach as Python */
-        u32 jump_table_offset = function_header->offset + offset + out_instruction->arg2;
+        /* Compute jump table file offset robustly (absolute or relative) */
+        u32 base = out_instruction->arg2; /* encoded table pointer */
+        u32 jump_table_offset = 0;
+        size_t fsz = reader->file_buffer.size;
+        bool jt_ok = false;
+        /* Prefer absolute if it looks valid */
+        if (base < fsz) {
+            jump_table_offset = base;
+            jt_ok = true;
+        } else if ((u64)function_header->offset + (u64)base < (u64)fsz) {
+            jump_table_offset = function_header->offset + base;
+            jt_ok = true;
+        } else if ((u64)function_header->offset + (u64)offset + (u64)base < (u64)fsz) {
+            jump_table_offset = function_header->offset + offset + base;
+            jt_ok = true;
+        }
         
         /* Verify jump table offset is within file bounds */
-        if (jump_table_offset >= reader->file_buffer.size) {
+        if (!jt_ok || jump_table_offset >= reader->file_buffer.size) {
             fprintf(stderr, "Warning: Jump table offset (0x%08x) is beyond file size\n", jump_table_offset);
             /* Initialize with dummy values instead of failing */
             for (u32 i = 0; i < jump_table_size; i++) {
@@ -909,4 +939,3 @@ bool is_call_instruction(u8 opcode) {
             return false;
     }
 }
-

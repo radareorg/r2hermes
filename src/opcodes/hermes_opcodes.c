@@ -20,6 +20,11 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         };
     }
     
+    /* Report count to caller */
+    if (out_count) {
+        *out_count = instruction_count;
+    }
+
     /* Add basic instructions based on hbc95.py */
     instructions[OP_Unreachable] = (Instruction) {
         OP_Unreachable, "Unreachable", 
@@ -527,9 +532,10 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_CreateRegExp] = (Instruction) {
         OP_CreateRegExp, "CreateRegExp", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}, /* Pattern string ID */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Flags */
-        5 /* opcode + reg + 2-byte string ID + flags */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Pattern string ID */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Flags string ID */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Extra */
+        13 /* opcode + reg + 3*u32 */
     };
     
     /* Environment operations */
@@ -538,16 +544,55 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Environment register */
         2 /* opcode + 1 reg */
     };
+
+    instructions[OP_CreateInnerEnvironment] = (Instruction) {
+        OP_CreateInnerEnvironment, "CreateInnerEnvironment",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* New env dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Outer env reg */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Captured count */
+        7 /* opcode + 2 regs + u32 */
+    };
+
+    instructions[OP_GetEnvironment] = (Instruction) {
+        OP_GetEnvironment, "GetEnvironment",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Depth */
+        3 /* opcode + reg + u8 */
+    };
+
+    instructions[OP_GetGlobalObject] = (Instruction) {
+        OP_GetGlobalObject, "GetGlobalObject",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Dest */
+        2 /* opcode + reg */
+    };
+
+    instructions[OP_GetNewTarget] = (Instruction) {
+        OP_GetNewTarget, "GetNewTarget",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Dest */
+        2 /* opcode + reg */
+    };
+
+    instructions[OP_DeclareGlobalVar] = (Instruction) {
+        OP_DeclareGlobalVar, "DeclareGlobalVar",
+        {{OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name string id */
+        5 /* opcode + u32 */
+    };
+
+    instructions[OP_ThrowIfHasRestrictedGlobalProperty] = (Instruction) {
+        OP_ThrowIfHasRestrictedGlobalProperty, "ThrowIfHasRestrictedGlobalProperty",
+        {{OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name string id */
+        5 /* opcode + u32 */
+    };
     
     /* Special instructions */
     instructions[OP_SwitchImm] = (Instruction) {
         OP_SwitchImm, "SwitchImm", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value to switch on */
          {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* Jump table offset */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Default target register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Minimum value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Maximum value */
-        8 /* opcode + reg + 4-byte offset + reg + min + max */
+         {OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE}, /* Default address */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* Minimum value */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Maximum value */
+        17 /* opcode + 1 + 4 + 4 + 4 + 4 = 17 */
     };
     
     instructions[OP_Debugger] = (Instruction) {
@@ -572,6 +617,83 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         4 /* opcode + 3 regs */
     };
     
+    /* Simple loads */
+    instructions[OP_LoadConstUInt8] = (Instruction) {
+        OP_LoadConstUInt8, "LoadConstUInt8",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Value */
+        3
+    };
+
+    instructions[OP_LoadConstInt] = (Instruction) {
+        OP_LoadConstInt, "LoadConstInt",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Value */
+        6
+    };
+
+    /* This + object selection */
+    instructions[OP_CoerceThisNS] = (Instruction) {
+        OP_CoerceThisNS, "CoerceThisNS",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* This */
+        3
+    };
+
+    instructions[OP_CreateThis] = (Instruction) {
+        OP_CreateThis, "CreateThis",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Func */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* NewTarget */
+        4
+    };
+
+    instructions[OP_SelectObject] = (Instruction) {
+        OP_SelectObject, "SelectObject",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj1 */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Obj2 */
+        4
+    };
+
+    /* Conversions */
+    instructions[OP_ToNumber] = (Instruction) {
+        OP_ToNumber, "ToNumber",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_ToNumeric] = (Instruction) {
+        OP_ToNumeric, "ToNumeric",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    /* Iterators */
+    instructions[OP_IteratorBegin] = (Instruction) {
+        OP_IteratorBegin, "IteratorBegin",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_IteratorNext] = (Instruction) {
+        OP_IteratorNext, "IteratorNext",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_IteratorClose] = (Instruction) {
+        OP_IteratorClose, "IteratorClose",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Hint */
+        3
+    };
+    
     /* Count the number of actual defined opcodes */
     u32 defined_count = 0;
     for (u32 i = 0; i < instruction_count; i++) {
@@ -585,4 +707,3 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     fprintf(stderr, "Initialized %u instruction definitions\n", defined_count);
     return instructions;
 }
-
