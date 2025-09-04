@@ -560,24 +560,27 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
         
         /* Handle special cases like SwitchImm */
         if (opcode == OP_SwitchImm) {
-            /* Process jump table similarly to Python implementation */
-            u32 min_val = instruction.arg4;
-            u32 max_val = instruction.arg5;
+            /* Process jump table similarly to Python implementation but with stronger guards */
+            /* Interpret min/max as signed to avoid unsigned wrap issues */
+            int32_t min_s = (int32_t)instruction.arg4;
+            int32_t max_s = (int32_t)instruction.arg5;
             
-            /* Follow Python's behavior for range validation */
-            if (min_val > max_val) {
+            /* Heuristic: if values look implausibly large, treat as suspicious */
+            bool suspicious_range = (min_s < -100000 || min_s > 100000 || max_s < -100000 || max_s > 100000);
+            if (min_s > max_s) {
                 fprintf(stderr, "Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x\n", 
-                        min_val, max_val, (u32)original_pos);
-                max_val = min_val; /* Match Python behavior */
+                        instruction.arg4, instruction.arg5, (u32)original_pos);
+                /* Clamp to a single entry to keep parsing moving */
+                max_s = min_s;
             }
             
-            u32 jump_table_size = max_val - min_val + 1;
+            u32 jump_table_size = (u32)((int64_t)max_s - (int64_t)min_s + 1);
             if (jump_table_size > 1000) {
-                fprintf(stderr, "Warning: Limiting large jump table size (%u) to 1000\n", jump_table_size);
+                fprintf(stderr, "Warning: Limiting large jump table size (%u) to 1000 at offset 0x%08x\n", jump_table_size, (u32)original_pos);
                 jump_table_size = 1000;
             }
             
-            /* Create jump table */
+            /* Allocate table even if suspicious; we'll fill defaults if we can't resolve */
             instruction.switch_jump_table = (u32*)malloc(jump_table_size * sizeof(u32));
             if (!instruction.switch_jump_table) {
                 parsed_instruction_list_free(out_instructions);
@@ -585,55 +588,75 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
             }
             instruction.switch_jump_table_size = jump_table_size;
             
-            /* Go to jump table location in file (not in bytecode buffer) */
-            u32 jump_table_offset = function_header->offset + original_pos + instruction.arg2;
+            /* Resolve jump table base pointer. The Python impl uses func_off + instr_off + arg2 first. */
+            u32 base = instruction.arg2;
+            size_t fsz = reader->file_buffer.size;
+            u32 candidates[3];
+            candidates[0] = function_header->offset + (u32)original_pos + base; /* instruction-relative */
+            candidates[1] = function_header->offset + base;                        /* function-relative */
+            candidates[2] = base;                                                 /* absolute */
+            size_t func_start = function_header->offset;
+            size_t func_end = func_start + function_header->bytecodeSizeInBytes;
             
             /* Save file position */
             size_t saved_pos = reader->file_buffer.position;
+            bool read_ok = false;
             
-            /* Try to read jump table */
-            if (jump_table_offset >= reader->file_buffer.size) {
-                fprintf(stderr, "Warning: Jump table offset (0x%08x) is beyond file size\n", jump_table_offset);
-                /* Fill with dummy values */
-                for (u32 i = 0; i < jump_table_size; i++) {
-                    instruction.switch_jump_table[i] = original_pos;
-                }
-            } else {
-                /* Seek to jump table */
-                Result seek_result = buffer_reader_seek(&reader->file_buffer, jump_table_offset);
-                if (seek_result.code == RESULT_SUCCESS) {
-                    /* Align to 4-byte boundary (match Python's align_over_padding) */
-                    size_t remainder = reader->file_buffer.position % 4;
-                    if (remainder != 0) {
-                        buffer_reader_seek(&reader->file_buffer, reader->file_buffer.position + (4 - remainder));
-                    }
-                    
-                    /* Read jump table entries */
-                    for (u32 i = 0; i < jump_table_size; i++) {
-                        u32 jump_offset;
-                        if (reader->file_buffer.position + sizeof(u32) > reader->file_buffer.size) {
-                            /* Use a safe default */
-                            instruction.switch_jump_table[i] = original_pos;
-                        } else {
-                            Result read_result = buffer_reader_read_u32(&reader->file_buffer, &jump_offset);
-                            if (read_result.code == RESULT_SUCCESS) {
-                                /* Store just like Python does */
-                                instruction.switch_jump_table[i] = original_pos + jump_offset;
-                            } else {
-                                /* Use a safe default */
-                                instruction.switch_jump_table[i] = original_pos;
-                            }
-                        }
-                    }
-                } else {
-                    /* Fill with dummy values on seek failure */
-                    for (u32 i = 0; i < jump_table_size; i++) {
-                        instruction.switch_jump_table[i] = original_pos;
-                    }
+            for (int ci = 0; ci < 3 && !read_ok; ci++) {
+                u32 jt_off = candidates[ci];
+                if (jt_off >= fsz) {
+                    continue;
                 }
                 
-                /* Restore file position */
-                buffer_reader_seek(&reader->file_buffer, saved_pos);
+                /* Seek and align to 4 bytes */
+                Result seek_result = buffer_reader_seek(&reader->file_buffer, jt_off);
+                if (seek_result.code != RESULT_SUCCESS) {
+                    continue;
+                }
+                size_t rem = reader->file_buffer.position % 4;
+                if (rem != 0) {
+                    if (reader->file_buffer.position + (4 - rem) > fsz) {
+                        continue;
+                    }
+                    buffer_reader_seek(&reader->file_buffer, reader->file_buffer.position + (4 - rem));
+                }
+                
+                /* Validate that the whole table fits */
+                size_t table_end = reader->file_buffer.position + (size_t)jump_table_size * sizeof(u32);
+                if (table_end > fsz) {
+                    continue;
+                }
+                /* Also require the table to lie within the function's bytecode region */
+                if (!(reader->file_buffer.position >= func_start && table_end <= func_end)) {
+                    continue;
+                }
+                
+                /* If the range looked totally implausible, skip trying to read and leave defaults */
+                if (suspicious_range) {
+                    break;
+                }
+                
+                /* Read entries */
+                bool fail = false;
+                for (u32 i = 0; i < jump_table_size; i++) {
+                    u32 rel;
+                    Result rr = buffer_reader_read_u32(&reader->file_buffer, &rel);
+                    if (rr.code != RESULT_SUCCESS) { fail = true; break; }
+                    instruction.switch_jump_table[i] = (u32)original_pos + rel;
+                }
+                if (!fail) {
+                    read_ok = true;
+                }
+            }
+            
+            /* Restore file position */
+            buffer_reader_seek(&reader->file_buffer, saved_pos);
+            
+            if (!read_ok) {
+                /* Fill with safe defaults */
+                for (u32 i = 0; i < jump_table_size; i++) {
+                    instruction.switch_jump_table[i] = (u32)original_pos;
+                }
             }
         }
         

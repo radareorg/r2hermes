@@ -358,17 +358,17 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_CallDirect] = (Instruction) {
         OP_CallDirect, "CallDirect", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}, /* Function ID */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Argc */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}}, /* Function ID */
         5
     };
     
     instructions[OP_CallDirectLongIndex] = (Instruction) {
         OP_CallDirectLongIndex, "CallDirectLongIndex", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}, /* Function ID */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
-        6
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Argc */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}}, /* Function ID */
+        7
     };
     
     instructions[OP_CallBuiltin] = (Instruction) {
@@ -382,9 +382,17 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_CallBuiltinLong] = (Instruction) {
         OP_CallBuiltinLong, "CallBuiltinLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
-        5
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Argc (u32) */
+        7
+    };
+
+    /* Builtin closure accessor */
+    instructions[OP_GetBuiltinClosure] = (Instruction) {
+        OP_GetBuiltinClosure, "GetBuiltinClosure",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}},
+        3
     };
     
     /* Load/Store instructions */
@@ -430,6 +438,52 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_LoadConstFalse, "LoadConstFalse", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Destination register */
         2 /* opcode + 1 operand */
+    };
+    
+    /* Additional core ops in v95 */
+    instructions[OP_ToInt32] = (Instruction) {
+        OP_ToInt32, "ToInt32",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_AddEmptyString] = (Instruction) {
+        OP_AddEmptyString, "AddEmptyString",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_GetArgumentsPropByVal] = (Instruction) {
+        OP_GetArgumentsPropByVal, "GetArgumentsPropByVal",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_GetArgumentsLength] = (Instruction) {
+        OP_GetArgumentsLength, "GetArgumentsLength",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_ReifyArguments] = (Instruction) {
+        OP_ReifyArguments, "ReifyArguments",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        2
+    };
+
+    /* Missing PutOwnByVal */
+    instructions[OP_PutOwnByVal] = (Instruction) {
+        OP_PutOwnByVal, "PutOwnByVal",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Key */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Val */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Attrs */
+        5
     };
     
     instructions[OP_LoadConstString] = (Instruction) {
@@ -676,26 +730,26 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_GetById, "GetById", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}, /* Name id */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}},  /* Flags */
-        7
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        6
     };
     
     instructions[OP_GetByIdLong] = (Instruction) {
         OP_GetByIdLong, "GetByIdLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Name id */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}},  /* Flags */
-        9
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        8
     };
     
     instructions[OP_GetByIdShort] = (Instruction) {
         OP_GetByIdShort, "GetByIdShort", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}, /* Name id */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Flags */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Flags */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}}, /* Name id */
         5
     };
     
@@ -882,16 +936,6 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         3
     };
     
-    instructions[OP_NewObjectWithBuffer] = (Instruction) {
-        OP_NewObjectWithBuffer, "NewObjectWithBuffer", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Prototype */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Property count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys index */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values index */
-        8 /* opcode + 2 regs + 1-byte count + 2 2-byte indices */
-    };
-    
     instructions[OP_NewArray] = (Instruction) {
         OP_NewArray, "NewArray", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
@@ -899,34 +943,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         4 /* opcode + 1 + 2 */
     };
     
-    instructions[OP_NewArrayWithBuffer] = (Instruction) {
-        OP_NewArrayWithBuffer, "NewArrayWithBuffer", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
-        8 /* opcode + 1 + 2 + 2 + 2 */
-    };
-
-    instructions[OP_NewArrayWithBufferLong] = (Instruction) {
-        OP_NewArrayWithBufferLong, "NewArrayWithBufferLong",
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
-        10 /* opcode + 1 + 2 + 2 + 4 */
-    };
-
-    /* NewObjectWithBufferLong */
-    instructions[OP_NewObjectWithBufferLong] = (Instruction) {
-        OP_NewObjectWithBufferLong, "NewObjectWithBufferLong", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
-        14 /* opcode + 1 + 2 + 2 + 4 + 4 */
-    };
+    /* Note: NewObjectWithBuffer/NewArrayWithBuffer variants are defined earlier with correct layouts/sizes */
 
     /* Generators */
     instructions[OP_StartGenerator] = (Instruction) {
@@ -1027,7 +1044,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE}, /* Default address */
          {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* Minimum value */
          {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Maximum value */
-        17 /* opcode + 1 + 4 + 4 + 4 + 4 = 17 */
+        18 /* opcode + 1 + 4 + 4 + 4 + 4 = 18 */
     };
     
     instructions[OP_Debugger] = (Instruction) {
@@ -1045,8 +1062,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_DirectEval] = (Instruction) {
         OP_DirectEval, "DirectEval",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
-        3
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}},
+        4
     };
 
     instructions[OP_AsyncBreakCheck] = (Instruction) {
@@ -1241,6 +1259,64 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Hint */
         3
     };
+    
+    /* Compare-and-jump family (Addr, Reg, Reg) */
+    instructions[OP_JLess] = (Instruction) { OP_JLess, "JLess", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JLessLong] = (Instruction) { OP_JLessLong, "JLessLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotLess] = (Instruction) { OP_JNotLess, "JNotLess", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotLessLong] = (Instruction) { OP_JNotLessLong, "JNotLessLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JLessN] = (Instruction) { OP_JLessN, "JLessN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JLessNLong] = (Instruction) { OP_JLessNLong, "JLessNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotLessN] = (Instruction) { OP_JNotLessN, "JNotLessN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotLessNLong] = (Instruction) { OP_JNotLessNLong, "JNotLessNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JLessEqual] = (Instruction) { OP_JLessEqual, "JLessEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JLessEqualLong] = (Instruction) { OP_JLessEqualLong, "JLessEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotLessEqual] = (Instruction) { OP_JNotLessEqual, "JNotLessEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotLessEqualLong] = (Instruction) { OP_JNotLessEqualLong, "JNotLessEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JLessEqualN] = (Instruction) { OP_JLessEqualN, "JLessEqualN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JLessEqualNLong] = (Instruction) { OP_JLessEqualNLong, "JLessEqualNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotLessEqualN] = (Instruction) { OP_JNotLessEqualN, "JNotLessEqualN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotLessEqualNLong] = (Instruction) { OP_JNotLessEqualNLong, "JNotLessEqualNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JGreater] = (Instruction) { OP_JGreater, "JGreater", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JGreaterLong] = (Instruction) { OP_JGreaterLong, "JGreaterLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotGreater] = (Instruction) { OP_JNotGreater, "JNotGreater", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotGreaterLong] = (Instruction) { OP_JNotGreaterLong, "JNotGreaterLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JGreaterN] = (Instruction) { OP_JGreaterN, "JGreaterN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JGreaterNLong] = (Instruction) { OP_JGreaterNLong, "JGreaterNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotGreaterN] = (Instruction) { OP_JNotGreaterN, "JNotGreaterN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotGreaterNLong] = (Instruction) { OP_JNotGreaterNLong, "JNotGreaterNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JGreaterEqual] = (Instruction) { OP_JGreaterEqual, "JGreaterEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JGreaterEqualLong] = (Instruction) { OP_JGreaterEqualLong, "JGreaterEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotGreaterEqual] = (Instruction) { OP_JNotGreaterEqual, "JNotGreaterEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotGreaterEqualLong] = (Instruction) { OP_JNotGreaterEqualLong, "JNotGreaterEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JGreaterEqualN] = (Instruction) { OP_JGreaterEqualN, "JGreaterEqualN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JGreaterEqualNLong] = (Instruction) { OP_JGreaterEqualNLong, "JGreaterEqualNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotGreaterEqualN] = (Instruction) { OP_JNotGreaterEqualN, "JNotGreaterEqualN", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotGreaterEqualNLong] = (Instruction) { OP_JNotGreaterEqualNLong, "JNotGreaterEqualNLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JEqual] = (Instruction) { OP_JEqual, "JEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JEqualLong] = (Instruction) { OP_JEqualLong, "JEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JNotEqual] = (Instruction) { OP_JNotEqual, "JNotEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JNotEqualLong] = (Instruction) { OP_JNotEqualLong, "JNotEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JStrictEqual] = (Instruction) { OP_JStrictEqual, "JStrictEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JStrictEqualLong] = (Instruction) { OP_JStrictEqualLong, "JStrictEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+    instructions[OP_JStrictNotEqual] = (Instruction) { OP_JStrictNotEqual, "JStrictNotEqual", {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_JStrictNotEqualLong] = (Instruction) { OP_JStrictNotEqualLong, "JStrictNotEqualLong", {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 7 };
+
+    /* Typed arithmetic and memory ops */
+    instructions[OP_Add32] = (Instruction) { OP_Add32, "Add32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Sub32] = (Instruction) { OP_Sub32, "Sub32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Mul32] = (Instruction) { OP_Mul32, "Mul32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Divi32] = (Instruction) { OP_Divi32, "Divi32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Divu32] = (Instruction) { OP_Divu32, "Divu32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Loadi8] = (Instruction) { OP_Loadi8, "Loadi8", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Loadu8] = (Instruction) { OP_Loadu8, "Loadu8", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Loadi16] = (Instruction) { OP_Loadi16, "Loadi16", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Loadu16] = (Instruction) { OP_Loadu16, "Loadu16", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Loadi32] = (Instruction) { OP_Loadi32, "Loadi32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Loadu32] = (Instruction) { OP_Loadu32, "Loadu32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Store8] = (Instruction) { OP_Store8, "Store8", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Store16] = (Instruction) { OP_Store16, "Store16", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
+    instructions[OP_Store32] = (Instruction) { OP_Store32, "Store32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
     
     /* Count the number of actual defined opcodes */
     u32 defined_count = 0;
