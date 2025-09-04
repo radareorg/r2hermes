@@ -184,6 +184,15 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
         5 /* opcode + 4 operands */
     };
+
+    instructions[OP_CallBuiltinLong] = (Instruction) {
+        OP_CallBuiltinLong, "CallBuiltinLong",
+        {{OPERAND_TYPE_IMM16, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID (u16) */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
+        6 /* opcode + 2 + 1 + 1 + 1 */
+    };
     
     /* Load/Store instructions */
     instructions[OP_LoadParam] = (Instruction) {
@@ -191,6 +200,13 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
          {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Parameter index */
         3 /* opcode + 2 operands */
+    };
+
+    instructions[OP_LoadParamLong] = (Instruction) {
+        OP_LoadParamLong, "LoadParamLong", 
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Parameter index (u32) */
+        6 /* opcode + 1 + 4 */
     };
     
     instructions[OP_LoadConstZero] = (Instruction) {
@@ -241,8 +257,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_LoadConstDouble] = (Instruction) {
         OP_LoadConstDouble, "LoadConstDouble", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Number value (encoded as u32) */
-        6 /* opcode + reg + 4-byte number */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* low32 */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* high32 */
+        10 /* opcode + reg + 4 + 4 */
     };
     
     instructions[OP_LoadConstBigInt] = (Instruction) {
@@ -250,6 +267,13 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_BIGINT_ID}}, /* BigInt ID */
         4 /* opcode + reg + 2-byte bigint ID */
+    };
+
+    instructions[OP_LoadConstBigIntLongIndex] = (Instruction) {
+        OP_LoadConstBigIntLongIndex, "LoadConstBigIntLongIndex",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_BIGINT_ID}}, /* BigInt ID (u32) */
+        6 /* opcode + reg + 4 */
     };
     
     instructions[OP_LoadConstEmpty] = (Instruction) {
@@ -599,6 +623,31 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_Debugger, "Debugger", 
         {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}},
         1 /* opcode only */
+    };
+
+    instructions[OP_Ret] = (Instruction) {
+        OP_Ret, "Ret",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        2
+    };
+
+    instructions[OP_DirectEval] = (Instruction) {
+        OP_DirectEval, "DirectEval",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_AsyncBreakCheck] = (Instruction) {
+        OP_AsyncBreakCheck, "AsyncBreakCheck",
+        {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}},
+        1
+    };
+
+    instructions[OP_ProfilePoint] = (Instruction) {
+        OP_ProfilePoint, "ProfilePoint",
+        {{OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}},
+        3
     };
     
     /* TypedArrays and other modern features */

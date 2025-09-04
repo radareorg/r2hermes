@@ -481,6 +481,22 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
         
         for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
             OperandType operand_type = inst->operands[i].operand_type;
+            /* Pre-check remaining bytes to avoid tail overreads */
+            size_t need = 0;
+            switch (operand_type) {
+                case OPERAND_TYPE_REG8:
+                case OPERAND_TYPE_IMM8:
+                case OPERAND_TYPE_ADDR8: need = 1; break;
+                case OPERAND_TYPE_IMM16: need = 2; break;
+                case OPERAND_TYPE_REG32:
+                case OPERAND_TYPE_IMM32:
+                case OPERAND_TYPE_ADDR32: need = 4; break;
+                default: need = 0; break;
+            }
+            if (need && (bytecode_buffer.position + need > bytecode_buffer.size)) {
+                parsing_failed = true;
+                break;
+            }
             
             switch (operand_type) {
                 case OPERAND_TYPE_REG8:
@@ -530,9 +546,8 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
         }
         
         if (parsing_failed) {
-            fprintf(stderr, "Error parsing operands at offset 0x%08x\n", (u32)original_pos);
-            parsed_instruction_list_free(out_instructions);
-            return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Error parsing instruction operands");
+            /* Truncated at tail; end cleanly without error spam */
+            break;
         }
         
         /* Store operand values */
