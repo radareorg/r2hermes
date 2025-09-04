@@ -292,9 +292,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     
     instructions[OP_ThrowIfEmpty] = (Instruction) {
         OP_ThrowIfEmpty, "ThrowIfEmpty", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, 
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Error message */
-        4 /* opcode + reg + message id */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
     };
     
     instructions[OP_JmpTrueLong] = (Instruction) {
@@ -321,40 +321,34 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     /* Call instructions */
     instructions[OP_Call] = (Instruction) {
         OP_Call, "Call", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Target function */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* 'this' value */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
-        6 /* opcode + 5 operands */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+        4
     };
     
     instructions[OP_CallLong] = (Instruction) {
         OP_CallLong, "CallLong", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Target function */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* 'this' value */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}}, /* Argument count */
-        7 /* opcode + 5 operands (with 2-byte arg count) */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Argc */
+        6
     };
     
     instructions[OP_Construct] = (Instruction) {
         OP_Construct, "Construct", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Target function */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
-        5 /* opcode + 4 operands */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+        4
     };
     
     instructions[OP_ConstructLong] = (Instruction) {
         OP_ConstructLong, "ConstructLong", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Target function */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}}, /* Argument count */
-        6 /* opcode + 4 operands (with 2-byte arg count) */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Argc */
+        6
     };
     
     /* CallN is not present in the current opcode set */
@@ -363,38 +357,34 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     
     instructions[OP_CallDirect] = (Instruction) {
         OP_CallDirect, "CallDirect", 
-        {{OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}, /* Function ID */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
-        6 /* opcode + 2-byte func ID + 3 operands */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}, /* Function ID */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+        5
     };
     
     instructions[OP_CallDirectLongIndex] = (Instruction) {
         OP_CallDirectLongIndex, "CallDirectLongIndex", 
-        {{OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}, /* Function ID */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
-        8 /* opcode + 4-byte func ID + 3 operands */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}, /* Function ID */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+        6
     };
     
     instructions[OP_CallBuiltin] = (Instruction) {
         OP_CallBuiltin, "CallBuiltin", 
-        {{OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
-        5 /* opcode + 4 operands */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+        4
     };
 
     instructions[OP_CallBuiltinLong] = (Instruction) {
         OP_CallBuiltinLong, "CallBuiltinLong",
-        {{OPERAND_TYPE_IMM16, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID (u16) */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First argument */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Return register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argument count */
-        6 /* opcode + 2 + 1 + 1 + 1 */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+        5
     };
     
     /* Load/Store instructions */
@@ -682,20 +672,22 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         4 /* opcode + 3 regs */
     };
     
-    instructions[OP_GetById] = (Instruction) {
+instructions[OP_GetById] = (Instruction) {
         OP_GetById, "GetById", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Property name ID */
-        5 /* opcode + 2 regs + 2-byte string ID */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        6 /* opcode + 1+1+1+2 */
     };
     
     instructions[OP_GetByIdLong] = (Instruction) {
         OP_GetByIdLong, "GetByIdLong", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Property name ID */
-        7 /* opcode + 2 regs + 4-byte string ID */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        8 /* opcode + 1+1+1+4 */
     };
     
     instructions[OP_GetByIdShort] = (Instruction) {
@@ -860,17 +852,19 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_PutById] = (Instruction) {
         OP_PutById, "PutById", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}, /* Property name ID */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Value */
-        5 /* opcode + reg + 2-byte string ID + reg */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        6
     };
     
     instructions[OP_PutByIdLong] = (Instruction) {
         OP_PutByIdLong, "PutByIdLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Property name ID */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Value */
-        7 /* opcode + reg + 4-byte string ID + reg */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        8
     };
     
     /* Creation/manipulation instructions */
@@ -1002,6 +996,45 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_ProfilePoint, "ProfilePoint",
         {{OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}},
         3
+    };
+
+    /* Fixed-arg call helpers */
+    instructions[OP_Call1] = (Instruction) {
+        OP_Call1, "Call1",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_Call2] = (Instruction) {
+        OP_Call2, "Call2",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        5
+    };
+
+    instructions[OP_Call3] = (Instruction) {
+        OP_Call3, "Call3",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        6
+    };
+
+    instructions[OP_Call4] = (Instruction) {
+        OP_Call4, "Call4",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        7
     };
     
     /* TypedArrays and other modern features */
