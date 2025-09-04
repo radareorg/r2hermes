@@ -1008,6 +1008,19 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
         7
     };
+
+    /* SaveGenerator: stores the resume target (short/long address) */
+    instructions[OP_SaveGenerator] = (Instruction) {
+        OP_SaveGenerator, "SaveGenerator",
+        {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}},
+        2 /* opcode + addr8 */
+    };
+
+    instructions[OP_SaveGeneratorLong] = (Instruction) {
+        OP_SaveGeneratorLong, "SaveGeneratorLong",
+        {{OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE}},
+        5 /* opcode + addr32 */
+    };
     
     instructions[OP_CreateRegExp] = (Instruction) {
         OP_CreateRegExp, "CreateRegExp", 
