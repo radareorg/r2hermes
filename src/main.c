@@ -1,6 +1,7 @@
 #include "../include/common.h"
 #include "../include/parsers/hbc_file_parser.h"
 #include "../include/disassembly/hbc_disassembler.h"
+#include "../include/parsers/hbc_bytecode_parser.h"
 #include "../include/decompilation/decompiler.h"
 
 #include <stdio.h>
@@ -19,6 +20,7 @@ static void print_usage(const char* program_name) {
     printf("  r2script, r2, r        Generate an r2 script with function flags\n");
     printf("  funcs                  Dump first N function headers (id, nameIdx, offset, size)\n");
     printf("  cmp, compare           Compare first N funcs (offset/size) with parser.txt\n");
+    printf("  cmpfunc                Compare instructions for one function vs Python disasm\n");
     printf("  str                    Print a string by index (use N as [output_file])\n");
     printf("  findstr                Find string by substring (use needle as [output_file])\n");
     printf("  strmeta                Show string entry meta (index -> isUTF16, off, len)\n");
@@ -353,6 +355,184 @@ int main(int argc, char** argv) {
         /* Cleanup */
         free(py_sizes);
         free(py_offs);
+        hbc_reader_cleanup(&reader);
+    }
+    else if (strcmp(command, "cmpfunc") == 0) {
+        /* Compare instruction stream for a single function against Python's disassembly file */
+        if (argc < 5) {
+            fprintf(stderr, "Usage: %s cmpfunc <input_file> <python_dis_file> <function_id>\n", argv[0]);
+            return 1;
+        }
+        const char* python_dis_file = argv[3];
+        u32 function_id = (u32)strtoul(argv[4], NULL, 0);
+
+        /* Initialize HBC reader */
+        HBCReader reader;
+        Result result = hbc_reader_init(&reader);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error: %s\n", result.error_message);
+            return 1;
+        }
+
+        /* Read whole file and strings */
+        result = hbc_reader_read_whole_file(&reader, input_file);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error reading file: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+
+        /* Ensure function bytecode is loaded */
+        if (function_id >= reader.header.functionCount) {
+            fprintf(stderr, "Invalid function id %u (max %u)\n", function_id, reader.header.functionCount);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        FunctionHeader* fh = &reader.function_headers[function_id];
+        if (fh->bytecode == NULL && fh->bytecodeSizeInBytes > 0) {
+            if (fh->offset + fh->bytecodeSizeInBytes <= reader.file_buffer.size) {
+                fh->bytecode = (u8*)malloc(fh->bytecodeSizeInBytes);
+                if (!fh->bytecode) {
+                    fprintf(stderr, "OOM allocating bytecode buffer (%u bytes)\n", fh->bytecodeSizeInBytes);
+                    hbc_reader_cleanup(&reader);
+                    return 1;
+                }
+                size_t saved = reader.file_buffer.position;
+                Result sr = buffer_reader_seek(&reader.file_buffer, fh->offset);
+                if (sr.code != RESULT_SUCCESS) {
+                    fprintf(stderr, "Seek failure reading bytecode\n");
+                    free(fh->bytecode); fh->bytecode = NULL;
+                    hbc_reader_cleanup(&reader);
+                    return 1;
+                }
+                sr = buffer_reader_read_bytes(&reader.file_buffer, fh->bytecode, fh->bytecodeSizeInBytes);
+                buffer_reader_seek(&reader.file_buffer, saved);
+                if (sr.code != RESULT_SUCCESS) {
+                    fprintf(stderr, "Read failure reading bytecode\n");
+                    free(fh->bytecode); fh->bytecode = NULL;
+                    hbc_reader_cleanup(&reader);
+                    return 1;
+                }
+            }
+        }
+
+        /* Parse function bytecode in C */
+        ParsedInstructionList cilist;
+        result = parsed_instruction_list_init(&cilist, 64);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error init instruction list: %s\n", result.error_message);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        result = parse_function_bytecode(&reader, function_id, &cilist);
+        if (result.code != RESULT_SUCCESS) {
+            fprintf(stderr, "Error parsing function #%u: %s\n", function_id, result.error_message);
+            parsed_instruction_list_free(&cilist);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+
+        /* Read Python disassembly file and extract function block */
+        FILE* pf = fopen(python_dis_file, "r");
+        if (!pf) {
+            fprintf(stderr, "Error opening Python disassembly file: %s\n", python_dis_file);
+            parsed_instruction_list_free(&cilist);
+            hbc_reader_cleanup(&reader);
+            return 1;
+        }
+        char* line = NULL;
+        size_t n = 0;
+        ssize_t len;
+        char func_hdr[64];
+        snprintf(func_hdr, sizeof(func_hdr), "=> [Function #%u ", function_id);
+
+        /* Find header */
+        int in_func = 0;
+        int in_listing = 0;
+        typedef struct { u32 off; char name[64]; } PyInst;
+        PyInst* py = NULL; size_t pycap = 0; size_t pycnt = 0;
+
+        while ((len = getline(&line, &n, pf)) != -1) {
+            if (!in_func) {
+                if (strstr(line, func_hdr)) {
+                    in_func = 1;
+                }
+                continue;
+            }
+            if (!in_listing) {
+                if (strstr(line, "Bytecode listing:")) {
+                    in_listing = 1;
+                }
+                continue;
+            }
+            if (strncmp(line, "==>", 3) != 0) {
+                if (in_listing && line[0] == '=') break; /* reached separator */
+                /* skip blank lines until we actually start reading instructions */
+                if (in_listing && pycnt > 0 && line[0] == '\n') break; /* end of block */
+                continue;
+            }
+            /* Parse: ==> 0000000d: <MNEMONIC>: ... */
+            char offhex[16] = {0};
+            char mnem[64] = {0};
+            unsigned offu = 0;
+            if (sscanf(line, "==> %8[^:]: <%63[^>]>:", offhex, mnem) == 2) {
+                offu = (unsigned)strtoul(offhex, NULL, 16);
+                if (pycnt == pycap) {
+                    pycap = pycap ? pycap * 2 : 128;
+                    py = (PyInst*)realloc(py, pycap * sizeof(PyInst));
+                    if (!py) { fprintf(stderr, "OOM reading python disasm\n"); break; }
+                }
+                py[pycnt].off = offu;
+                strncpy(py[pycnt].name, mnem, sizeof(py[pycnt].name)-1);
+                py[pycnt].name[sizeof(py[pycnt].name)-1] = '\0';
+                pycnt++;
+            }
+        }
+        if (line) free(line);
+        fclose(pf);
+
+        if (pycnt == 0) {
+            fprintf(stderr, "No Python listing found for function #%u\n", function_id);
+            parsed_instruction_list_free(&cilist);
+            hbc_reader_cleanup(&reader);
+            free(py);
+            return 1;
+        }
+
+        /* Compare streams */
+        size_t i = 0, j = 0; int mismatch = 0;
+        while (i < cilist.count && j < pycnt) {
+            ParsedInstruction* ci = &cilist.instructions[i];
+            const char* cname = ci->inst ? ci->inst->name : "?";
+            if (ci->original_pos != py[j].off || strcmp(cname, py[j].name) != 0) {
+                fprintf(stderr, "Mismatch at index %zu: C(off=%08x,name=%s) vs PY(off=%08x,name=%s)\n",
+                        i, ci->original_pos, cname, py[j].off, py[j].name);
+                /* Print a small window */
+                fprintf(stderr, "Context (C):\n");
+                size_t s = (i>3? i-3:0), e = (i+3<cilist.count? i+3:cilist.count-1);
+                for (size_t k=s; k<=e; k++) {
+                    fprintf(stderr, "  [%zu] %08x %s\n", k, cilist.instructions[k].original_pos, cilist.instructions[k].inst?cilist.instructions[k].inst->name:"?");
+                }
+                fprintf(stderr, "Context (PY):\n");
+                s = (j>3? j-3:0); e = (j+3<pycnt? j+3:pycnt-1);
+                for (size_t k=s; k<=e; k++) {
+                    fprintf(stderr, "  [%zu] %08x %s\n", k, py[k].off, py[k].name);
+                }
+                mismatch = 1;
+                break;
+            }
+            i++; j++;
+        }
+        if (!mismatch && (i != cilist.count || j != pycnt)) {
+            fprintf(stderr, "Length mismatch: C=%u instructions, PY=%zu instructions\n", cilist.count, pycnt);
+            mismatch = 1;
+        }
+        if (!mismatch) {
+            fprintf(stderr, "cmpfunc: Function #%u streams match (%u instrs).\n", function_id, cilist.count);
+        }
+
+        free(py);
+        parsed_instruction_list_free(&cilist);
         hbc_reader_cleanup(&reader);
     }
     else if (strcmp(command, "str") == 0) {

@@ -568,15 +568,15 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
             /* Heuristic: if values look implausibly large, treat as suspicious */
             bool suspicious_range = (min_s < -100000 || min_s > 100000 || max_s < -100000 || max_s > 100000);
             if (min_s > max_s) {
-                fprintf(stderr, "Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x\n", 
-                        instruction.arg4, instruction.arg5, (u32)original_pos);
+                fprintf(stderr, "Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x (Function #%u)\n", 
+                        instruction.arg4, instruction.arg5, (u32)original_pos, function_id);
                 /* Clamp to a single entry to keep parsing moving */
                 max_s = min_s;
             }
             
             u32 jump_table_size = (u32)((int64_t)max_s - (int64_t)min_s + 1);
             if (jump_table_size > 1000) {
-                fprintf(stderr, "Warning: Limiting large jump table size (%u) to 1000 at offset 0x%08x\n", jump_table_size, (u32)original_pos);
+                fprintf(stderr, "Warning: Limiting large jump table size (%u) to 1000 at offset 0x%08x (Function #%u)\n", jump_table_size, (u32)original_pos, function_id);
                 jump_table_size = 1000;
             }
             
