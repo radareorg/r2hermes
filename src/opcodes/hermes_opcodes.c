@@ -26,6 +26,209 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     }
 
     /* Add basic instructions based on hbc95.py */
+    /* Simple moves and unary ops */
+    instructions[OP_Mov] = (Instruction) {
+        OP_Mov, "Mov",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Src */
+        3
+    };
+
+    instructions[OP_MovLong] = (Instruction) {
+        OP_MovLong, "MovLong",
+        {{OPERAND_TYPE_REG32, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG32, OPERAND_MEANING_NONE}}, /* Src */
+        9 /* opcode + 4 + 4 */
+    };
+
+    instructions[OP_Negate] = (Instruction) {
+        OP_Negate, "Negate",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_Not] = (Instruction) {
+        OP_Not, "Not",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_BitNot] = (Instruction) {
+        OP_BitNot, "BitNot",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    /* Equality and relational */
+    instructions[OP_Eq] = (Instruction) {
+        OP_Eq, "Eq",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_Less] = (Instruction) {
+        OP_Less, "Less",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_LessEq] = (Instruction) {
+        OP_LessEq, "LessEq",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_Greater] = (Instruction) {
+        OP_Greater, "Greater",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_GreaterEq] = (Instruction) {
+        OP_GreaterEq, "GreaterEq",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_AddN] = (Instruction) {
+        OP_AddN, "AddN",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_SubN] = (Instruction) {
+        OP_SubN, "SubN",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_MulN] = (Instruction) {
+        OP_MulN, "MulN",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_DivN] = (Instruction) {
+        OP_DivN, "DivN",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_LShift] = (Instruction) {
+        OP_LShift, "LShift",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_RShift] = (Instruction) {
+        OP_RShift, "RShift",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_URshift] = (Instruction) {
+        OP_URshift, "URshift",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_Inc] = (Instruction) {
+        OP_Inc, "Inc",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_Dec] = (Instruction) {
+        OP_Dec, "Dec",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_IsIn] = (Instruction) {
+        OP_IsIn, "IsIn",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    /* Environment load/store */
+    instructions[OP_StoreToEnvironment] = (Instruction) {
+        OP_StoreToEnvironment, "StoreToEnvironment",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Env */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Index */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Value */
+        4
+    };
+
+    instructions[OP_StoreToEnvironmentL] = (Instruction) {
+        OP_StoreToEnvironmentL, "StoreToEnvironmentL",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        6 /* opcode + 1 + 2 + 1 */
+    };
+
+    instructions[OP_StoreNPToEnvironment] = (Instruction) {
+        OP_StoreNPToEnvironment, "StoreNPToEnvironment",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        4
+    };
+
+    instructions[OP_StoreNPToEnvironmentL] = (Instruction) {
+        OP_StoreNPToEnvironmentL, "StoreNPToEnvironmentL",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        6
+    };
+
+    instructions[OP_LoadFromEnvironment] = (Instruction) {
+        OP_LoadFromEnvironment, "LoadFromEnvironment",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Env */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Index */
+        4
+    };
+
+    instructions[OP_LoadFromEnvironmentL] = (Instruction) {
+        OP_LoadFromEnvironmentL, "LoadFromEnvironmentL",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}},
+        5
+    };
     instructions[OP_Unreachable] = (Instruction) {
         OP_Unreachable, "Unreachable", 
         {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}},
@@ -503,6 +706,157 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         4 /* opcode + 2 regs + 1-byte string ID */
     };
     
+    /* TryGetById family */
+    instructions[OP_TryGetById] = (Instruction) {
+        OP_TryGetById, "TryGetById",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        6 /* 1 +1+1+1+2 */
+    };
+
+    instructions[OP_TryGetByIdLong] = (Instruction) {
+        OP_TryGetByIdLong, "TryGetByIdLong",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        8 /* 1 +1+1+1+4 */
+    };
+
+    /* TryPutById family */
+    instructions[OP_TryPutById] = (Instruction) {
+        OP_TryPutById, "TryPutById",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        6
+    };
+
+    instructions[OP_TryPutByIdLong] = (Instruction) {
+        OP_TryPutByIdLong, "TryPutByIdLong",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        8
+    };
+
+    /* PutNewOwnById family */
+    instructions[OP_PutNewOwnByIdShort] = (Instruction) {
+        OP_PutNewOwnByIdShort, "PutNewOwnByIdShort",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        4
+    };
+
+    instructions[OP_PutNewOwnById] = (Instruction) {
+        OP_PutNewOwnById, "PutNewOwnById",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        5
+    };
+
+    instructions[OP_PutNewOwnByIdLong] = (Instruction) {
+        OP_PutNewOwnByIdLong, "PutNewOwnByIdLong",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        7
+    };
+
+    instructions[OP_PutNewOwnNEById] = (Instruction) {
+        OP_PutNewOwnNEById, "PutNewOwnNEById",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        5
+    };
+
+    instructions[OP_PutNewOwnNEByIdLong] = (Instruction) {
+        OP_PutNewOwnNEByIdLong, "PutNewOwnNEByIdLong",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        7
+    };
+
+    /* PutOwnByIndex */
+    instructions[OP_PutOwnByIndex] = (Instruction) {
+        OP_PutOwnByIndex, "PutOwnByIndex",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Index */
+        4
+    };
+
+    instructions[OP_PutOwnByIndexL] = (Instruction) {
+        OP_PutOwnByIndexL, "PutOwnByIndexL",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Index */
+        7
+    };
+
+    /* Delete by id */
+    instructions[OP_DelById] = (Instruction) {
+        OP_DelById, "DelById",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        5
+    };
+
+    instructions[OP_DelByIdLong] = (Instruction) {
+        OP_DelByIdLong, "DelByIdLong",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+        7
+    };
+
+    /* Delete by val */
+    instructions[OP_DelByVal] = (Instruction) {
+        OP_DelByVal, "DelByVal",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Key */
+        4
+    };
+
+    instructions[OP_PutOwnGetterSetterByVal] = (Instruction) {
+        OP_PutOwnGetterSetterByVal, "PutOwnGetterSetterByVal",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Prop */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Getter */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Setter */
+         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Attrs */
+        6
+    };
+
+    /* Property name enumeration */
+    instructions[OP_GetPNameList] = (Instruction) {
+        OP_GetPNameList, "GetPNameList",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        5
+    };
+
+    instructions[OP_GetNextPName] = (Instruction) {
+        OP_GetNextPName, "GetNextPName",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        6
+    };
     instructions[OP_PutById] = (Instruction) {
         OP_PutById, "PutById", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
