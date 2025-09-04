@@ -237,12 +237,12 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     
     instructions[OP_NewObjectWithBuffer] = (Instruction) {
         OP_NewObjectWithBuffer, "NewObjectWithBuffer", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_KEY_ID},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_VAL_ID}},
-        8 /* opcode + 5 operands */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
+        9 /* opcode + 1 + 2 + 2 + 2 + 2 */
     };
     
     instructions[OP_Jmp] = (Instruction) {
@@ -253,23 +253,23 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     
     instructions[OP_JmpTrue] = (Instruction) {
         OP_JmpTrue, "JmpTrue", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, 
-         {OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}},
-        3 /* opcode + reg + offset */
+        {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}, 
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3 /* opcode + offset + reg */
     };
     
     instructions[OP_JmpFalse] = (Instruction) {
         OP_JmpFalse, "JmpFalse", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, 
-         {OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}},
-        3 /* opcode + reg + offset */
+        {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}, 
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3 /* opcode + offset + reg */
     };
     
     instructions[OP_JmpUndefined] = (Instruction) {
         OP_JmpUndefined, "JmpUndefined", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, 
-         {OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}},
-        3 /* opcode + reg + offset */
+        {{OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE}, 
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3 /* opcode + offset + reg */
     };
     
     instructions[OP_JmpLong] = (Instruction) {
@@ -875,6 +875,13 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         2 /* opcode + 1 reg */
     };
     
+    instructions[OP_NewObjectWithParent] = (Instruction) {
+        OP_NewObjectWithParent, "NewObjectWithParent",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Parent */
+        3
+    };
+    
     instructions[OP_NewObjectWithBuffer] = (Instruction) {
         OP_NewObjectWithBuffer, "NewObjectWithBuffer", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
@@ -887,19 +894,27 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     
     instructions[OP_NewArray] = (Instruction) {
         OP_NewArray, "NewArray", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* First element register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Element count */
-        4 /* opcode + 2 regs + count */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}}, /* Count */
+        4 /* opcode + 1 + 2 */
     };
     
     instructions[OP_NewArrayWithBuffer] = (Instruction) {
         OP_NewArrayWithBuffer, "NewArrayWithBuffer", 
-        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Prototype */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Element count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_ARRAY_ID}}, /* Array index */
-        6 /* opcode + 2 regs + 1-byte count + 2-byte index */
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
+        9 /* opcode + 1 + 2 + 2 + 2 */
+    };
+
+    instructions[OP_NewArrayWithBufferLong] = (Instruction) {
+        OP_NewArrayWithBufferLong, "NewArrayWithBufferLong",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
+        11 /* opcode + 1 + 2 + 2 + 4 */
     };
     
     instructions[OP_CreateRegExp] = (Instruction) {
