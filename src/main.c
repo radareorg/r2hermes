@@ -451,7 +451,31 @@ int main(int argc, char** argv) {
             off = reader.overflow_string_table[oi].offset;
             length = reader.overflow_string_table[oi].length;
         }
-        printf("idx=%ld isUTF16=%u off=0x%x len=%u\n", idx, is_utf16, off, length);
+        /* Also recompute raw entry directly from file to inspect discrepancies */
+        BufferReader *br = &reader.file_buffer;
+        size_t saved = br->position;
+        buffer_reader_seek(br, sizeof(HBCHeader));
+        buffer_reader_align(br, 4); /* after header */
+        /* skip function headers */
+        buffer_reader_seek(br, br->position + reader.header.functionCount * 16);
+        buffer_reader_align(br, 4);
+        /* skip string kinds */
+        buffer_reader_seek(br, br->position + reader.header.stringKindCount * 4);
+        buffer_reader_align(br, 4);
+        /* skip identifier hashes */
+        buffer_reader_seek(br, br->position + reader.header.identifierCount * 4);
+        buffer_reader_align(br, 4);
+        /* small string table start */
+        buffer_reader_seek(br, br->position + (size_t)idx * 4);
+        u32 raw_entry = 0;
+        buffer_reader_read_u32(br, &raw_entry);
+        br->position = saved;
+
+        u32 calc_off = (raw_entry >> 1) & 0x7FFFFF;
+        u32 calc_len = (raw_entry >> 24) & 0xFF;
+        u32 calc_utf16 = raw_entry & 1;
+        printf("idx=%ld isUTF16=%u off=0x%x len=%u raw_entry=0x%08x calc(isUTF16=%u, off=0x%x, len=%u)\n",
+               idx, is_utf16, off, length, raw_entry, calc_utf16, calc_off, calc_len);
         hbc_reader_cleanup(&reader);
     }
     else if (strcmp(command, "funcs") == 0) {

@@ -719,8 +719,8 @@ Result hbc_reader_read_string_tables(HBCReader* reader) {
 				reader->header.stringCount);
 	}
 	
-	/* Check if we have enough data in the buffer */
-	size_t min_bytes_needed = reader->header.stringCount * sizeof(StringTableEntry);
+    /* Check if we have enough data in the buffer (4 bytes per entry on disk) */
+    size_t min_bytes_needed = reader->header.stringCount * sizeof(u32);
 	if (reader->file_buffer.position + min_bytes_needed > reader->file_buffer.size) {
 		fprintf(stderr, "Warning: File too small for %u strings, truncating\n", 
 			reader->header.stringCount);

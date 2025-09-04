@@ -140,12 +140,12 @@ typedef struct {
     u32 textified_callees;  /* >=91 */
 } DebugOffsets;
 
-/* String table entry with version-specific bitfield */
+/* String table entry (in-memory representation). On-disk it is one u32 per entry. */
 typedef struct {
-    u32 isUTF16 : 1;
-    u32 isIdentifier : 1;  /* Only for version < 56 */
-    u32 offset : 22;       /* For version < 56, 23 bits for version >= 56 */
-    u32 length : 8;
+    u8  isUTF16;       /* 1 if UTF-16, 0 if ASCII */
+    u8  isIdentifier;  /* Only meaningful for version < 56 */
+    u32 offset;        /* Absolute offset within the string storage area */
+    u32 length;        /* Character count (UTF-16 code units or ASCII bytes) */
 } StringTableEntry;
 
 /* Offset-length pair for various tables */
@@ -285,4 +285,3 @@ const char* string_kind_to_string(StringKind kind);
 BytecodeModule* get_bytecode_module(u32 bytecode_version);
 
 #endif /* HERMES_DEC_HBC_FILE_PARSER_H */
-
