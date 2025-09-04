@@ -242,7 +242,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
-        9 /* opcode + 1 + 2 + 2 + 2 + 2 */
+        10 /* opcode + 1 + 2 + 2 + 2 + 2 */
     };
     
     instructions[OP_Jmp] = (Instruction) {
@@ -905,7 +905,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
-        9 /* opcode + 1 + 2 + 2 + 2 */
+        8 /* opcode + 1 + 2 + 2 + 2 */
     };
 
     instructions[OP_NewArrayWithBufferLong] = (Instruction) {
@@ -914,7 +914,54 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
          {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
          {OPERAND_TYPE_IMM32, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
-        11 /* opcode + 1 + 2 + 2 + 4 */
+        10 /* opcode + 1 + 2 + 2 + 4 */
+    };
+
+    /* NewObjectWithBufferLong */
+    instructions[OP_NewObjectWithBufferLong] = (Instruction) {
+        OP_NewObjectWithBufferLong, "NewObjectWithBufferLong", 
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
+        14 /* opcode + 1 + 2 + 2 + 4 + 4 */
+    };
+
+    /* Generators */
+    instructions[OP_StartGenerator] = (Instruction) {
+        OP_StartGenerator, "StartGenerator",
+        {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}},
+        1
+    };
+
+    instructions[OP_ResumeGenerator] = (Instruction) {
+        OP_ResumeGenerator, "ResumeGenerator",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
+        3
+    };
+
+    instructions[OP_CompleteGenerator] = (Instruction) {
+        OP_CompleteGenerator, "CompleteGenerator",
+        {{OPERAND_TYPE_NONE, OPERAND_MEANING_NONE}},
+        1
+    };
+
+    instructions[OP_CreateGenerator] = (Instruction) {
+        OP_CreateGenerator, "CreateGenerator",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}},
+        5
+    };
+
+    instructions[OP_CreateGeneratorLongIndex] = (Instruction) {
+        OP_CreateGeneratorLongIndex, "CreateGeneratorLongIndex",
+        {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+        7
     };
     
     instructions[OP_CreateRegExp] = (Instruction) {
