@@ -293,6 +293,20 @@ Result hermesdec_disassemble_all_to_buffer(
     return disassemble_into(out, options, r, work_disassemble_all, NULL);
 }
 
+Result hermesdec_decompile_all_to_buffer(HermesDec* hd, StringBuffer* out) {
+    if (!hd || !out) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_decompile_all_to_buffer");
+    }
+    return decompile_all_to_buffer(&hd->reader, out);
+}
+
+Result hermesdec_decompile_function_to_buffer(HermesDec* hd, u32 function_id, StringBuffer* out) {
+    if (!hd || !out) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_decompile_function_to_buffer");
+    }
+    return decompile_function_to_buffer(&hd->reader, function_id, out);
+}
+
 Result hermesdec_decompile_file(const char* input_file, const char* output_file) {
     return decompile_file(input_file, output_file);
 }

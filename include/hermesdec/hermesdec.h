@@ -96,6 +96,12 @@ Result hermesdec_disassemble_all_to_buffer(
     StringBuffer* out);
 
 /* Decompiler wrappers */
+/* Decompiler APIs */
+/* High-level: decompile entire file into provided StringBuffer */
+Result hermesdec_decompile_all_to_buffer(HermesDec* hd, StringBuffer* out);
+/* High-level: decompile single function into provided StringBuffer */
+Result hermesdec_decompile_function_to_buffer(HermesDec* hd, u32 function_id, StringBuffer* out);
+/* Legacy convenience: decompile and write to file (kept for compatibility) */
 Result hermesdec_decompile_file(const char* input_file, const char* output_file);
 
 /* r2 script generation function */

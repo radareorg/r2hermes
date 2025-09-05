@@ -127,7 +127,11 @@ typedef struct {
 /* Function declarations */
 Result decompiler_init(HermesDecompiler* decompiler);
 Result decompiler_cleanup(HermesDecompiler* decompiler);
+/* High-level entry points */
 Result decompile_file(const char* input_file, const char* output_file);
+/* Buffer-based APIs used by hermesdec library */
+Result decompile_all_to_buffer(HBCReader* reader, StringBuffer* out);
+Result decompile_function_to_buffer(HBCReader* reader, u32 function_id, StringBuffer* out);
 Result decompile_function(HermesDecompiler* state, u32 function_id, Environment* parent_environment, 
                          int environment_id, bool is_closure, bool is_generator, bool is_async);
 
@@ -145,4 +149,3 @@ Result add_jump_target(DecompiledFunctionBody* body, u32 address);
 Result create_basic_block(DecompiledFunctionBody* body, u32 start_address, u32 end_address);
 
 #endif /* HERMES_DEC_DECOMPILER_H */
-

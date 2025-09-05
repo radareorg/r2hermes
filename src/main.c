@@ -66,8 +66,14 @@ int main(int argc, char** argv) {
         if (output_file) { fclose(f); printf("\n[+] Disassembly output wrote to \"%s\"\n\n", output_file); }
         string_buffer_free(&out); hermesdec_close(hd);
     } else if (!strcmp(command, "decompile") || !strcmp(command, "dec") || !strcmp(command, "c")) {
-        result = hermesdec_decompile_file(input_file, output_file);
-        if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Decompilation error: %s\n", result.error_message); return 1; }
+        HermesDec* hd = NULL; result = hermesdec_open(input_file, &hd); if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Open error: %s\n", result.error_message); return 1; }
+        StringBuffer out; string_buffer_init(&out, 32 * 1024);
+        result = hermesdec_decompile_all_to_buffer(hd, &out);
+        if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Decompilation error: %s\n", result.error_message); string_buffer_free(&out); hermesdec_close(hd); return 1; }
+        FILE* f = stdout; if (output_file) { f = fopen(output_file, "w"); if (!f) { perror("fopen"); string_buffer_free(&out); hermesdec_close(hd); return 1; }}
+        fputs(out.data, f);
+        if (output_file) { fclose(f); printf("\n[+] Decompilation output wrote to \"%s\"\n\n", output_file); }
+        string_buffer_free(&out); hermesdec_close(hd);
     } else if (!strcmp(command, "r2script") || !strcmp(command, "r2") || !strcmp(command, "r")) {
         result = hermesdec_generate_r2_script(input_file, output_file);
         if (result.code != RESULT_SUCCESS) { fprintf(stderr, "R2 script generation error: %s\n", result.error_message); return 1; }
@@ -143,4 +149,3 @@ int main(int argc, char** argv) {
     } else { fprintf(stderr, "Unknown command: %s\n", command); print_usage(argv[0]); return 1; }
     return 0;
 }
-
