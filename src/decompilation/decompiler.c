@@ -90,6 +90,41 @@ static const char* cmp_op_for_jump(u8 op) {
     }
 }
 
+/* Register naming helpers */
+static Result append_regname(StringBuffer* sb, int r, char** names, u32 cap) {
+    if (r >= 0 && (u32)r < cap && names && names[r]) {
+        return string_buffer_append(sb, names[r]);
+    }
+    char buf[16]; snprintf(buf, sizeof(buf), "r%d", r);
+    return string_buffer_append(sb, buf);
+}
+
+static void apply_register_naming(TokenString* ts, char** names, u32 cap) {
+    if (!ts || !names) return;
+    Token* cur = ts->head; Token* prev = NULL;
+    while (cur) {
+        bool repl = false; int rn = -1;
+        if (cur->type == TOKEN_TYPE_LEFT_HAND_REG) {
+            rn = ((LeftHandRegToken*)cur)->reg_num; repl = true;
+        } else if (cur->type == TOKEN_TYPE_RIGHT_HAND_REG) {
+            rn = ((RightHandRegToken*)cur)->reg_num; repl = true;
+        }
+        if (repl && rn >= 0 && (u32)rn < cap && names[rn]) {
+            Token* rt = create_raw_token(names[rn]);
+            if (rt) {
+                Token* nxt = cur->next;
+                if (prev) prev->next = rt; else ts->head = rt;
+                if (ts->tail == cur) ts->tail = rt;
+                rt->next = nxt;
+                token_free(cur);
+                cur = rt;
+            }
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+}
+
 /* ============= CFG construction ============= */
 static Result bbvec_push(BasicBlock*** arr, u32* count, u32* cap, BasicBlock* bb) {
     if (*count >= *cap) {
@@ -429,7 +464,13 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
     /* Try/catch handling: track a single active handler region for now */
     ExceptionHandlerList* ehlist = (reader->function_id_to_exc_handlers && function_id < reader->header.functionCount)
         ? &reader->function_id_to_exc_handlers[function_id] : NULL;
-    bool try_active = false; u32 try_end_addr = 0; u32 catch_target_addr = 0;
+    bool try_active = false; u32 try_start_addr = 0; u32 try_end_addr = 0; u32 catch_target_addr = 0;
+    /* Build simple register naming table (params -> aN) */
+    u32 max_regs = reader->function_headers[function_id].frameSize + 64;
+    if (max_regs < 64) max_regs = 64;
+    char** reg_names = (char**)calloc(max_regs, sizeof(char*));
+    if (!reg_names) { free(skip); parsed_instruction_list_free(&list); u32set_free(&labels); return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom regnames"); }
+
     for (u32 i = 0; i < list.count; i++) {
         if (skip[i]) continue;
         ParsedInstruction* ins = &list.instructions[i];
@@ -439,7 +480,7 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             for (u32 hi=0; hi<ehlist->count; hi++) {
                 ExceptionHandlerInfo* h = &ehlist->handlers[hi];
                 if (h->start == ins->original_pos) {
-                    try_active = true; try_end_addr = h->end; catch_target_addr = h->target;
+                    try_active = true; try_start_addr = h->start; try_end_addr = h->end; catch_target_addr = h->target;
                     RETURN_IF_ERROR(append_indent(out, base_indent));
                     RETURN_IF_ERROR(string_buffer_append(out, "try {\n"));
                     break;
@@ -447,31 +488,65 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             }
         }
 
-        /* Close try and emit catch header when we reach try end */
+        /* Close try and emit catch body when we reach try end */
         if (try_active && ins->original_pos == try_end_addr) {
             RETURN_IF_ERROR(append_indent(out, base_indent));
             RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
 
-            /* Determine catch variable from target block if it starts with OP_Catch rX */
             int tindex = find_index_by_addr(&list, catch_target_addr);
             int catch_reg = -1;
             if (tindex >= 0) {
                 ParsedInstruction* ci = &list.instructions[tindex];
-                if (ci->inst && ci->inst->opcode == OP_Catch) {
-                    catch_reg = (int)ci->arg1;
+                if (ci->inst && ci->inst->opcode == OP_Catch) catch_reg = (int)ci->arg1;
+            }
+
+            /* Find join label beyond try */
+            u32 join_addr = 0; int join_index = -1;
+            for (u32 si = 0; si < list.count; si++) {
+                ParsedInstruction* ti = &list.instructions[si];
+                if (ti->original_pos < try_start_addr || ti->original_pos >= try_end_addr) continue;
+                if (ti->inst && (ti->inst->opcode == OP_Jmp || ti->inst->opcode == OP_JmpLong)) {
+                    int aidx=-1; for (int j=0;j<6;j++){ if (operand_is_addr(ti->inst, j)) { aidx=j; break; } }
+                    if (aidx>=0) { u32 ta = compute_target_address(ti, aidx); if (ta > try_end_addr) { join_addr = ta; break; } }
                 }
             }
-            RETURN_IF_ERROR(append_indent(out, base_indent));
-            if (catch_reg >= 0) {
-                RETURN_IF_ERROR(string_buffer_append(out, "catch (r"));
-                RETURN_IF_ERROR(string_buffer_append_int(out, catch_reg));
-                RETURN_IF_ERROR(string_buffer_append(out, ") { goto "));
-            } else {
-                RETURN_IF_ERROR(string_buffer_append(out, "catch (e) { goto "));
+            if (join_addr) join_index = find_index_by_addr(&list, join_addr);
+            if (join_index < 0) {
+                for (u32 si = 0; si < list.count; si++) {
+                    if (list.instructions[si].original_pos <= catch_target_addr) continue;
+                    if (u32set_contains(&labels, list.instructions[si].original_pos)) { join_index = (int)si; break; }
+                }
             }
-            char clab[32]; label_name(clab, sizeof(clab), catch_target_addr);
-            RETURN_IF_ERROR(string_buffer_append(out, clab));
-            RETURN_IF_ERROR(string_buffer_append(out, "; }\n"));
+
+            /* Emit catch header */
+            RETURN_IF_ERROR(append_indent(out, base_indent));
+            if (catch_reg >= 0) { RETURN_IF_ERROR(string_buffer_append(out, "catch (r")); RETURN_IF_ERROR(string_buffer_append_int(out, catch_reg)); RETURN_IF_ERROR(string_buffer_append(out, ") {\n")); }
+            else { RETURN_IF_ERROR(string_buffer_append(out, "catch (e) {\n")); }
+
+            if (tindex >= 0) {
+                u32 body_start = (catch_reg >= 0) ? (u32)(tindex + 1) : (u32)tindex;
+                u32 body_end = (join_index >= 0) ? (u32)join_index : body_start;
+                if (body_end > body_start) {
+                    for (u32 k = body_start; k < body_end; k++) {
+                        skip[k] = true;
+                        ParsedInstruction* ci2 = &list.instructions[k];
+                        TokenString ts2; RETURN_IF_ERROR(translate_instruction_to_tokens(ci2, &ts2));
+                        StringBuffer line; RETURN_IF_ERROR(string_buffer_init(&line, 128));
+                        RETURN_IF_ERROR(append_indent(&line, base_indent+1));
+                        RETURN_IF_ERROR(token_string_to_string(&ts2, &line));
+                        RETURN_IF_ERROR(string_buffer_append(&line, ";"));
+                        StringBuffer dline; string_buffer_init(&dline, 64); Result sr2 = instruction_to_string(ci2, &dline); if (sr2.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+                        string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
+                        token_string_cleanup(&ts2);
+                    }
+                } else {
+                    /* Fallback */
+                    RETURN_IF_ERROR(append_indent(out, base_indent+1));
+                    char clab[32]; label_name(clab, sizeof(clab), catch_target_addr);
+                    RETURN_IF_ERROR(string_buffer_append(out, "goto ")); RETURN_IF_ERROR(string_buffer_append(out, clab)); RETURN_IF_ERROR(string_buffer_append(out, ";\n"));
+                }
+            }
+            RETURN_IF_ERROR(append_indent(out, base_indent)); RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
             try_active = false;
         }
 
@@ -480,6 +555,11 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             char lbuf[32]; label_name(lbuf, sizeof(lbuf), ins->original_pos);
             RETURN_IF_ERROR(string_buffer_append(out, lbuf));
             RETURN_IF_ERROR(string_buffer_append(out, ":\n"));
+        }
+
+        /* Learn parameter names on the fly */
+        if (ins->inst->opcode == OP_LoadParam || ins->inst->opcode == OP_LoadParamLong) {
+            /* handled later by reg_names mapping */
         }
 
         /* Try to recognize while-loop pattern: JmpFalse/JmpTrue to forward exit, body ends with Jmp back to header */
@@ -509,7 +589,7 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
                                     int r = (reg_idx>=0)? (int)insn_get_operand_value(ins, reg_idx) : 0;
                                     bool neg = (opw == OP_JmpTrue || opw == OP_JmpTrueLong); /* jump on true to exit => loop while !r */
                                     if (neg) RETURN_IF_ERROR(string_buffer_append(&hdr, "!"));
-                                    RETURN_IF_ERROR(string_buffer_append(&hdr, "r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r));
+                                    RETURN_IF_ERROR(append_regname(&hdr, r, reg_names, max_regs));
                                     RETURN_IF_ERROR(string_buffer_append(&hdr, ") {\n"));
                                     RETURN_IF_ERROR(string_buffer_append(out, hdr.data)); string_buffer_free(&hdr);
 
@@ -662,7 +742,14 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
         }
 
         /* Default single-line printing path */
+        /* Update naming map for params */
+        if (ins->inst->opcode == OP_LoadParam || ins->inst->opcode == OP_LoadParamLong) {
+            int dst = (int)ins->arg1; u32 pidx = ins->arg2; char tmp[32]; snprintf(tmp, sizeof(tmp), "a%u", pidx);
+            if (dst >= 0 && (u32)dst < max_regs) { free(reg_names[dst]); reg_names[dst] = strdup(tmp); }
+        }
+
         TokenString ts; RETURN_IF_ERROR(translate_instruction_to_tokens(ins, &ts));
+        apply_register_naming(&ts, reg_names, max_regs);
         StringBuffer line; RETURN_IF_ERROR(string_buffer_init(&line, 128));
         RETURN_IF_ERROR(append_indent(&line, base_indent));
         bool handled_cf = false;
@@ -677,6 +764,8 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
         token_string_cleanup(&ts);
     }
     free(skip);
+    for (u32 rn=0; rn<max_regs; rn++) free(reg_names[rn]);
+    free(reg_names);
     parsed_instruction_list_free(&list);
     u32set_free(&labels);
 
