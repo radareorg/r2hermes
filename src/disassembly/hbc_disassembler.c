@@ -216,6 +216,12 @@ static Result format_operand_asm(Disassembler* d, ParsedInstruction* ins, int id
 
 static Result print_instruction_asm(Disassembler* disassembler, ParsedInstruction* instruction) {
     StringBuffer* out = &disassembler->output;
+    /* Prefix with absolute file address of the instruction */
+    HBCReader* r = disassembler->reader;
+    FunctionHeader* fh = &r->function_headers[disassembler->current_function_id];
+    char abuf[32];
+    snprintf(abuf, sizeof(abuf), "0x%08x: ", fh->offset + instruction->original_pos);
+    RETURN_IF_ERROR(string_buffer_append(out, abuf));
     /* mnemonic */
     char mnem[64];
     to_snake_lower(instruction->inst->name, mnem, sizeof(mnem));
