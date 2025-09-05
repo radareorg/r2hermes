@@ -526,6 +526,8 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             if (tindex >= 0) {
                 u32 body_start = (catch_reg >= 0) ? (u32)(tindex + 1) : (u32)tindex;
                 u32 body_end = (join_index >= 0) ? (u32)join_index : body_start;
+                /* Do not emit the OP_Catch marker itself later */
+                skip[tindex] = true;
                 if (body_end > body_start) {
                     for (u32 k = body_start; k < body_end; k++) {
                         skip[k] = true;
@@ -654,13 +656,13 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
                     const char* cmp = cmp_op_for_jump(op);
                     if (cmp) {
                         int r1=-1,r2=-1; for (int j=0;j<6;j++){ if (j==addr_idx) continue; OperandType tp = ins->inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ if(r1<0) r1=(int)insn_get_operand_value(ins,j); else if(r2<0) r2=(int)insn_get_operand_value(ins,j);} }
-                        RETURN_IF_ERROR(string_buffer_append(&hdr, "r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r1));
-                        RETURN_IF_ERROR(string_buffer_append(&hdr, " ")); RETURN_IF_ERROR(string_buffer_append(&hdr, cmp)); RETURN_IF_ERROR(string_buffer_append(&hdr, " r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r2));
+                        RETURN_IF_ERROR(append_regname(&hdr, r1, reg_names, max_regs));
+                        RETURN_IF_ERROR(string_buffer_append(&hdr, " ")); RETURN_IF_ERROR(string_buffer_append(&hdr, cmp)); RETURN_IF_ERROR(string_buffer_append(&hdr, " ")); RETURN_IF_ERROR(append_regname(&hdr, r2, reg_names, max_regs));
                     } else {
                         int reg_idx = -1; for (int j=0;j<6;j++){ OperandType tp = ins->inst->operands[j].operand_type; if ((tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32) && j!=addr_idx){ reg_idx=j; break; } }
                         int r = (reg_idx>=0)? (int)insn_get_operand_value(ins, reg_idx) : 0;
                         if (op == OP_JmpFalse || op == OP_JmpFalseLong) RETURN_IF_ERROR(string_buffer_append(&hdr, "!"));
-                        RETURN_IF_ERROR(string_buffer_append(&hdr, "r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r));
+                        RETURN_IF_ERROR(append_regname(&hdr, r, reg_names, max_regs));
                     }
                     RETURN_IF_ERROR(string_buffer_append(&hdr, ") {\n"));
                     RETURN_IF_ERROR(string_buffer_append(out, hdr.data));
@@ -766,8 +768,14 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
                     const char* cmp = cmp_op_for_jump(ins->inst->opcode);
                     if (cmp) {
                         int r1=-1,r2=-1; for (int j=0;j<6;j++){ if (j==aidx) continue; OperandType tp=ins->inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ if(r1<0) r1=(int)insn_get_operand_value(ins,j); else if(r2<0) r2=(int)insn_get_operand_value(ins,j);} }
-                        char expr[64]; snprintf(expr, sizeof(expr), "if (r%d %s r%d) goto %s", r1, cmp, r2, tlabel);
-                        RETURN_IF_ERROR(string_buffer_append(&line, expr));
+                        RETURN_IF_ERROR(string_buffer_append(&line, "if ("));
+                        RETURN_IF_ERROR(append_regname(&line, r1, reg_names, max_regs));
+                        RETURN_IF_ERROR(string_buffer_append(&line, " "));
+                        RETURN_IF_ERROR(string_buffer_append(&line, cmp));
+                        RETURN_IF_ERROR(string_buffer_append(&line, " "));
+                        RETURN_IF_ERROR(append_regname(&line, r2, reg_names, max_regs));
+                        RETURN_IF_ERROR(string_buffer_append(&line, ") goto "));
+                        RETURN_IF_ERROR(string_buffer_append(&line, tlabel));
                         handled_cf = true;
                     } else {
                         /* Handle JmpTrue/JmpFalse/JmpUndefined (+ long) */
@@ -777,15 +785,13 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
                             int rr = (ridx>=0)? (int)insn_get_operand_value(ins,ridx) : 0;
                             RETURN_IF_ERROR(string_buffer_append(&line, "if ("));
                             if (opj == OP_JmpFalse || opj == OP_JmpFalseLong) {
-                                RETURN_IF_ERROR(string_buffer_append(&line, "!r"));
-                                RETURN_IF_ERROR(string_buffer_append_int(&line, rr));
+                                RETURN_IF_ERROR(string_buffer_append(&line, "!"));
+                                RETURN_IF_ERROR(append_regname(&line, rr, reg_names, max_regs));
                             } else if (opj == OP_JmpUndefined || opj == OP_JmpUndefinedLong) {
-                                RETURN_IF_ERROR(string_buffer_append(&line, "r"));
-                                RETURN_IF_ERROR(string_buffer_append_int(&line, rr));
+                                RETURN_IF_ERROR(append_regname(&line, rr, reg_names, max_regs));
                                 RETURN_IF_ERROR(string_buffer_append(&line, " === undefined"));
                             } else {
-                                RETURN_IF_ERROR(string_buffer_append(&line, "r"));
-                                RETURN_IF_ERROR(string_buffer_append_int(&line, rr));
+                                RETURN_IF_ERROR(append_regname(&line, rr, reg_names, max_regs));
                             }
                             RETURN_IF_ERROR(string_buffer_append(&line, ") goto "));
                             RETURN_IF_ERROR(string_buffer_append(&line, tlabel));
