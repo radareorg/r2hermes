@@ -559,6 +559,65 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             RETURN_IF_ERROR(string_buffer_append(out, ":\n"));
         }
 
+        /* Do-while loop detection: find a later conditional jump back to this header */
+        {
+            int back_idx = -1; u8 bop = 0; int b_addr_idx = -1;
+            for (u32 k = i+1; k < list.count; k++) {
+                ParsedInstruction* ji = &list.instructions[k];
+                if (!is_jump_instruction(ji->inst->opcode)) continue;
+                int aidx=-1; for (int j=0;j<6;j++){ if (operand_is_addr(ji->inst, j)){ aidx=j; break; } }
+                if (aidx < 0) continue;
+                u32 taddr = compute_target_address(ji, aidx);
+                if (taddr == ins->original_pos) { back_idx = (int)k; bop = ji->inst->opcode; b_addr_idx = aidx; break; }
+                /* Stop if we hit another leader label (new block) far ahead */
+                if (u32set_contains(&labels, ji->original_pos) && ji->original_pos != ins->original_pos && k > i+1) break;
+            }
+            if (back_idx > (int)i) {
+                /* Only accept compare or boolean cond for do-while */
+                const char* bcmp = cmp_op_for_jump(bop);
+                bool is_bool = (bop==OP_JmpTrue||bop==OP_JmpTrueLong||bop==OP_JmpFalse||bop==OP_JmpFalseLong);
+                if (bcmp || is_bool) {
+                    /* Emit do header */
+                    RETURN_IF_ERROR(append_indent(out, base_indent));
+                    RETURN_IF_ERROR(string_buffer_append(out, "do {\n"));
+                    /* Emit body from i to back_idx-1 */
+                    for (u32 k = i; k < (u32)back_idx; k++) {
+                        skip[k] = true;
+                        ParsedInstruction* bi = &list.instructions[k];
+                        TokenString ts2; RETURN_IF_ERROR(translate_instruction_to_tokens(bi, &ts2));
+                        apply_register_naming(&ts2, reg_names, max_regs);
+                        StringBuffer line; string_buffer_init(&line, 128);
+                        RETURN_IF_ERROR(append_indent(&line, base_indent+1));
+                        RETURN_IF_ERROR(token_string_to_string(&ts2, &line));
+                        RETURN_IF_ERROR(string_buffer_append(&line, ";"));
+                        StringBuffer dline; string_buffer_init(&dline, 64); Result sr2 = instruction_to_string(bi, &dline); if (sr2.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+                        string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
+                        token_string_cleanup(&ts2);
+                    }
+                    /* Emit while tail */
+                    RETURN_IF_ERROR(append_indent(out, base_indent));
+                    RETURN_IF_ERROR(string_buffer_append(out, "} while ("));
+                    if (bcmp) {
+                        int r1=-1,r2=-1; for (int j=0;j<6;j++){ if (j==b_addr_idx) continue; OperandType tp=list.instructions[back_idx].inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ if(r1<0) r1=(int)insn_get_operand_value(&list.instructions[back_idx],j); else if(r2<0) r2=(int)insn_get_operand_value(&list.instructions[back_idx],j);} }
+                        /* Jump back on true => continue on cond */
+                        RETURN_IF_ERROR(append_regname(out, r1, reg_names, max_regs));
+                        RETURN_IF_ERROR(string_buffer_append(out, " ")); RETURN_IF_ERROR(string_buffer_append(out, bcmp)); RETURN_IF_ERROR(string_buffer_append(out, " "));
+                        RETURN_IF_ERROR(append_regname(out, r2, reg_names, max_regs));
+                    } else {
+                        int ridx=-1; for (int j=0;j<6;j++){ if (j==b_addr_idx) continue; OperandType tp=list.instructions[back_idx].inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ ridx=j; break; } }
+                        int rr = (ridx>=0)? (int)insn_get_operand_value(&list.instructions[back_idx],ridx) : 0;
+                        bool is_true = (bop==OP_JmpTrue||bop==OP_JmpTrueLong);
+                        if (!is_true) RETURN_IF_ERROR(string_buffer_append(out, "!"));
+                        RETURN_IF_ERROR(append_regname(out, rr, reg_names, max_regs));
+                    }
+                    RETURN_IF_ERROR(string_buffer_append(out, ");\n"));
+                    /* Skip the back-edge jmp */
+                    skip[back_idx] = true;
+                    continue;
+                }
+            }
+        }
+
         /* Learn parameter names on the fly */
         if (ins->inst->opcode == OP_LoadParam || ins->inst->opcode == OP_LoadParamLong) {
             /* handled later by reg_names mapping */
