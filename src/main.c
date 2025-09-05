@@ -1,5 +1,6 @@
 #include "common.h"
 #include "hermesdec/hermesdec.h"
+#include "decompilation/literals.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,8 @@ static void print_usage(const char* program_name) {
     printf("  --bytecode, -b         Show raw bytecode bytes (disassembler only)\n");
     printf("  --debug, -d            Show debug information (disassembler only)\n");
     printf("  --asmsyntax            Use CPU-like asm syntax (mnemonic operands)\n");
+    printf("  --pretty-literals, -P  Force multi-line formatting of array/object literals (decompiler)\n");
+    printf("  --no-pretty-literals, -N  Force single-line formatting of array/object literals (decompiler)\n");
 }
 
 static Result parse_args(int argc, char** argv, char** command, char** input_file, char** output_file, DisassemblyOptions* options) {
@@ -48,6 +51,9 @@ static Result parse_args(int argc, char** argv, char** command, char** input_fil
             else if (!strcmp(argv[i], "--bytecode") || !strcmp(argv[i], "-b")) options->show_bytecode = true;
             else if (!strcmp(argv[i], "--debug") || !strcmp(argv[i], "-d")) options->show_debug_info = true;
             else if (!strcmp(argv[i], "--asmsyntax")) options->asm_syntax = true;
+            else if (!strcmp(argv[i], "--pretty-literals") || !strcmp(argv[i], "-P")) set_literals_pretty_policy(LITERALS_PRETTY_ALWAYS);
+            else if (!strcmp(argv[i], "--no-pretty-literals") || !strcmp(argv[i], "-N")) set_literals_pretty_policy(LITERALS_PRETTY_NEVER);
+            else if (!strcmp(argv[i], "--pretty-auto")) set_literals_pretty_policy(LITERALS_PRETTY_AUTO);
             else printf("Warning: Unknown option '%s'\n", argv[i]);
         } else { *output_file = argv[i]; break; }
     }
