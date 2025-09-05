@@ -18,6 +18,10 @@ typedef enum {
 void set_literals_pretty_policy(LiteralsPrettyPolicy p);
 LiteralsPrettyPolicy get_literals_pretty_policy(void);
 
+/* Global toggle to suppress comments in decompiled output. */
+void set_decompile_suppress_comments(bool on);
+bool get_decompile_suppress_comments(void);
+
 /* True if the given string is a valid JS identifier (simple heuristic: [A-Za-z_$][A-Za-z0-9_$]*) */
 bool is_js_identifier(const char* s);
 

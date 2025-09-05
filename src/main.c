@@ -29,6 +29,7 @@ static void print_usage(const char* program_name) {
     printf("  --asmsyntax            Use CPU-like asm syntax (mnemonic operands)\n");
     printf("  --pretty-literals, -P  Force multi-line formatting of array/object literals (decompiler)\n");
     printf("  --no-pretty-literals, -N  Force single-line formatting of array/object literals (decompiler)\n");
+    printf("  --no-comments, -C      Suppress comments in decompiled output (no headers, no inline)\n");
 }
 
 static Result parse_args(int argc, char** argv, char** command, char** input_file, char** output_file, DisassemblyOptions* options) {
@@ -54,6 +55,7 @@ static Result parse_args(int argc, char** argv, char** command, char** input_fil
             else if (!strcmp(argv[i], "--pretty-literals") || !strcmp(argv[i], "-P")) set_literals_pretty_policy(LITERALS_PRETTY_ALWAYS);
             else if (!strcmp(argv[i], "--no-pretty-literals") || !strcmp(argv[i], "-N")) set_literals_pretty_policy(LITERALS_PRETTY_NEVER);
             else if (!strcmp(argv[i], "--pretty-auto")) set_literals_pretty_policy(LITERALS_PRETTY_AUTO);
+            else if (!strcmp(argv[i], "--no-comments") || !strcmp(argv[i], "-C")) set_decompile_suppress_comments(true);
             else printf("Warning: Unknown option '%s'\n", argv[i]);
         } else { *output_file = argv[i]; break; }
     }

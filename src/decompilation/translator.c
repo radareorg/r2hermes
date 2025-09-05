@@ -569,21 +569,25 @@ Result translate_instruction_to_tokens(const ParsedInstruction* insn_c, TokenStr
             RETURN_IF_ERROR(add(out, reg_r((int)insn->arg1)));
             RETURN_IF_ERROR(add(out, create_left_parenthesis_token()));
             RETURN_IF_ERROR(add(out, reg_r((int)insn->arg2)));
-            char buf2[32]; snprintf(buf2, sizeof(buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
-            RETURN_IF_ERROR(add(out, create_raw_token(buf2)));
+            if (!get_decompile_suppress_comments()) {
+                char buf2[32]; snprintf(buf2, sizeof(buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
+                RETURN_IF_ERROR(add(out, create_raw_token(buf2)));
+            }
             RETURN_IF_ERROR(add(out, create_right_parenthesis_token()));
             break;
         }
         default: {
-            /* Fallback: emit a comment-like raw token with mnemonic and operands */
-            StringBuffer sb; string_buffer_init(&sb, 64);
-            string_buffer_append(&sb, "/* ");
-            string_buffer_append(&sb, insn->inst->name);
-            string_buffer_append(&sb, " */");
-            Token* t = create_raw_token(sb.data ? sb.data : "/* insn */");
-            string_buffer_free(&sb);
-            if (!t) return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom");
-            RETURN_IF_ERROR(add(out, t));
+            if (!get_decompile_suppress_comments()) {
+                /* Fallback: emit a comment-like raw token with mnemonic */
+                StringBuffer sb; string_buffer_init(&sb, 64);
+                string_buffer_append(&sb, "/* ");
+                string_buffer_append(&sb, insn->inst->name);
+                string_buffer_append(&sb, " */");
+                Token* t = create_raw_token(sb.data ? sb.data : "/* insn */");
+                string_buffer_free(&sb);
+                if (!t) return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+                RETURN_IF_ERROR(add(out, t));
+            }
             break;
         }
     }

@@ -5,6 +5,7 @@
 #include "../../include/disassembly/hbc_disassembler.h"
 #include "../../include/decompilation/translator.h"
 #include "../../include/opcodes/hermes_opcodes.h"
+#include "../../include/decompilation/literals.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -866,7 +867,13 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             if (!handled_cf) { RETURN_IF_ERROR(token_string_to_string(&ts, &line)); }
         }
         RETURN_IF_ERROR(string_buffer_append(&line, ";"));
-        StringBuffer dline; string_buffer_init(&dline, 64); Result sr = instruction_to_string(ins, &dline); if (sr.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+        /* Append trailing disassembly as a comment unless disabled */
+        if (!get_decompile_suppress_comments()) {
+            StringBuffer dline; string_buffer_init(&dline, 64);
+            Result sr = instruction_to_string(ins, &dline);
+            if (sr.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} 
+            string_buffer_free(&dline);
+        }
         string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
         token_string_cleanup(&ts);
     }
@@ -890,12 +897,14 @@ Result decompile_all_to_buffer(HBCReader* reader, StringBuffer* out) {
     if (!reader || !out) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for decompile_all_to_buffer");
     }
-    // File preamble
-    RETURN_IF_ERROR(string_buffer_append(out, "// Decompiled Hermes bytecode\n"));
-    RETURN_IF_ERROR(string_buffer_append(out, "// Version: "));
-    char vbuf[32]; snprintf(vbuf, sizeof(vbuf), "%u", reader->header.version);
-    RETURN_IF_ERROR(string_buffer_append(out, vbuf));
-    RETURN_IF_ERROR(string_buffer_append(out, "\n\n"));
+    // File preamble (comment-only; skip if comments disabled)
+    if (!get_decompile_suppress_comments()) {
+        RETURN_IF_ERROR(string_buffer_append(out, "// Decompiled Hermes bytecode\n"));
+        RETURN_IF_ERROR(string_buffer_append(out, "// Version: "));
+        char vbuf[32]; snprintf(vbuf, sizeof(vbuf), "%u", reader->header.version);
+        RETURN_IF_ERROR(string_buffer_append(out, vbuf));
+        RETURN_IF_ERROR(string_buffer_append(out, "\n\n"));
+    }
 
     for (u32 i = 0; i < reader->header.functionCount; i++) {
         RETURN_IF_ERROR(decompile_function_to_buffer(reader, i, out));

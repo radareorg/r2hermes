@@ -18,6 +18,11 @@ static LiteralsPrettyPolicy g_literals_pretty_policy = LITERALS_PRETTY_AUTO;
 void set_literals_pretty_policy(LiteralsPrettyPolicy p) { g_literals_pretty_policy = p; }
 LiteralsPrettyPolicy get_literals_pretty_policy(void) { return g_literals_pretty_policy; }
 
+/* Global suppression flag for comments in decompiled output */
+static bool g_decompile_suppress_comments = false;
+void set_decompile_suppress_comments(bool on) { g_decompile_suppress_comments = on; }
+bool get_decompile_suppress_comments(void) { return g_decompile_suppress_comments; }
+
 static Result append_quoted(StringBuffer* out, const char* s) {
     RETURN_IF_ERROR(string_buffer_append(out, "\""));
     for (const char* p = s; p && *p; p++) {
@@ -171,6 +176,9 @@ Result format_object_literal(HBCReader* r, u32 key_count, u32 value_count, u32 k
     RETURN_IF_ERROR(string_buffer_append(out, multiline ? "{\n" : "{"));
     if (!r || key_count == 0 || value_count == 0 || !r->object_keys || !r->object_values) {
         /* Fallback placeholder */
+        if (get_decompile_suppress_comments()) {
+            return string_buffer_append(out, "}");
+        }
         char tmp[96]; snprintf(tmp, sizeof(tmp), " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id); return string_buffer_append(out, tmp);
     }
     u32 n = key_count < value_count ? key_count : value_count;
@@ -183,6 +191,9 @@ Result format_object_literal(HBCReader* r, u32 key_count, u32 value_count, u32 k
     bool ok2 = slp_parse_values(r->object_values, r->header.objValueBufferSize, values_id, n, val_vals);
     if (!ok1 || !ok2) {
         free(key_vals); free(val_vals);
+        if (get_decompile_suppress_comments()) {
+            return string_buffer_append(out, "}");
+        }
         char tmp[96]; snprintf(tmp, sizeof(tmp), " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id); return string_buffer_append(out, tmp);
     }
 
@@ -210,6 +221,9 @@ Result format_array_literal(HBCReader* r, u32 value_count, u32 array_id, StringB
     bool multiline = pretty && (value_count > 0);
     RETURN_IF_ERROR(string_buffer_append(out, multiline ? "[\n" : "["));
     if (!r || !r->arrays || value_count == 0) {
+        if (get_decompile_suppress_comments()) {
+            return string_buffer_append(out, "]");
+        }
         char tmp[64]; snprintf(tmp, sizeof(tmp), " /*n:%u id:%u*/ ]", value_count, array_id); return string_buffer_append(out, tmp);
     }
     SLPValue* vals = (SLPValue*)calloc(value_count, sizeof(SLPValue));
@@ -217,6 +231,9 @@ Result format_array_literal(HBCReader* r, u32 value_count, u32 array_id, StringB
     bool ok = slp_parse_values(r->arrays, r->header.arrayBufferSize, array_id, value_count, vals);
     if (!ok) {
         free(vals);
+        if (get_decompile_suppress_comments()) {
+            return string_buffer_append(out, "]");
+        }
         char tmp[64]; snprintf(tmp, sizeof(tmp), " /*n:%u id:%u*/ ]", value_count, array_id); return string_buffer_append(out, tmp);
     }
     for (u32 i = 0; i < value_count; i++) {
