@@ -654,14 +654,18 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
                     /* condition */
                     RETURN_IF_ERROR(string_buffer_append(&hdr, "if ("));
                     const char* cmp = cmp_op_for_jump(op);
+                    bool jump_on_true_hdr = (cmp != NULL) || (op==OP_JmpTrue || op==OP_JmpTrueLong) || (op==OP_JmpUndefined || op==OP_JmpUndefinedLong);
+                    bool invert_hdr = jump_on_true_hdr; /* then is fallthrough if jump taken */
                     if (cmp) {
                         int r1=-1,r2=-1; for (int j=0;j<6;j++){ if (j==addr_idx) continue; OperandType tp = ins->inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ if(r1<0) r1=(int)insn_get_operand_value(ins,j); else if(r2<0) r2=(int)insn_get_operand_value(ins,j);} }
+                        if (invert_hdr) RETURN_IF_ERROR(string_buffer_append(&hdr, "!("));
                         RETURN_IF_ERROR(append_regname(&hdr, r1, reg_names, max_regs));
                         RETURN_IF_ERROR(string_buffer_append(&hdr, " ")); RETURN_IF_ERROR(string_buffer_append(&hdr, cmp)); RETURN_IF_ERROR(string_buffer_append(&hdr, " ")); RETURN_IF_ERROR(append_regname(&hdr, r2, reg_names, max_regs));
+                        if (invert_hdr) RETURN_IF_ERROR(string_buffer_append(&hdr, ")"));
                     } else {
                         int reg_idx = -1; for (int j=0;j<6;j++){ OperandType tp = ins->inst->operands[j].operand_type; if ((tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32) && j!=addr_idx){ reg_idx=j; break; } }
                         int r = (reg_idx>=0)? (int)insn_get_operand_value(ins, reg_idx) : 0;
-                        if (op == OP_JmpFalse || op == OP_JmpFalseLong) RETURN_IF_ERROR(string_buffer_append(&hdr, "!"));
+                        if (invert_hdr || op == OP_JmpFalse || op == OP_JmpFalseLong) RETURN_IF_ERROR(string_buffer_append(&hdr, "!"));
                         RETURN_IF_ERROR(append_regname(&hdr, r, reg_names, max_regs));
                     }
                     RETURN_IF_ERROR(string_buffer_append(&hdr, ") {\n"));
@@ -757,7 +761,7 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
         bool handled_cf = false;
         if (is_jump_instruction(ins->inst->opcode)) {
             int aidx=-1; for (int j=0;j<6;j++){ if (operand_is_addr(ins->inst,j)){ aidx=j; break; } }
-            if (aidx>=0){ u32 taddr=compute_target_address(ins,aidx); char tlabel[32]; label_name(tlabel,sizeof(tlabel),taddr); u8 op=ins->inst->opcode; if (op==OP_Jmp||op==OP_JmpLong){ string_buffer_append(&line, "goto "); string_buffer_append(&line, tlabel); handled_cf=true; } }
+            if (aidx>=0){ u32 taddr=compute_target_address(ins,aidx); char tlabel[32]; label_name(tlabel,sizeof(tlabel),taddr); u8 op=ins->inst->opcode; if (op==OP_Jmp||op==OP_JmpLong){ if (taddr != ins->next_pos) { string_buffer_append(&line, "goto "); string_buffer_append(&line, tlabel); } handled_cf=true; } }
         }
         if (!handled_cf) {
             /* Improve default CF printing for compare-and-jump and simple boolean/undefined jumps */
