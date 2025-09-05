@@ -353,3 +353,129 @@ Result hermesdec_validate_basic(HermesDec* hd, StringBuffer* out) {
     r->file_buffer.position = saved_pos;
     return SUCCESS_RESULT();
 }
+
+/* Build per-instruction details for a function */
+Result hermesdec_decode_function_instructions(
+    HermesDec* hd,
+    u32 function_id,
+    HermesInstruction** out_instructions,
+    u32* out_count) {
+    if (!hd || !out_instructions || !out_count) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_decode_function_instructions");
+    }
+    HBCReader* r = &hd->reader;
+    if (function_id >= r->header.functionCount) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id");
+    }
+    /* Ensure bytecode is loaded */
+    const u8* bc = NULL; u32 bc_sz = 0;
+    Result rr = hermesdec_get_function_bytecode(hd, function_id, &bc, &bc_sz);
+    if (rr.code != RESULT_SUCCESS) return rr;
+
+    ParsedInstructionList list;
+    Result pr = parse_function_bytecode(r, function_id, &list);
+    if (pr.code != RESULT_SUCCESS) return pr;
+
+    HermesInstruction* arr = (HermesInstruction*)calloc(list.count, sizeof(HermesInstruction));
+    if (!arr) {
+        parsed_instruction_list_free(&list);
+        return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "OOM allocating HermesInstruction array");
+    }
+
+    FunctionHeader* fh = &r->function_headers[function_id];
+
+    for (u32 i = 0; i < list.count; i++) {
+        ParsedInstruction* ins = &list.instructions[i];
+        HermesInstruction* hi = &arr[i];
+        hi->rel_addr = ins->original_pos;
+        hi->abs_addr = fh->offset + ins->original_pos;
+        hi->opcode = ins->inst->opcode;
+        hi->mnemonic = ins->inst->name;
+        hi->is_jump = is_jump_instruction(ins->inst->opcode);
+        hi->is_call = is_call_instruction(ins->inst->opcode);
+
+        /* Operands */
+        hi->operand_count = 0;
+        for (u32 j = 0; j < 6; j++) {
+            if (ins->inst->operands[j].operand_type == OPERAND_TYPE_NONE) continue;
+            u32 v = 0;
+            switch (j) {
+                case 0: v = ins->arg1; break; case 1: v = ins->arg2; break; case 2: v = ins->arg3; break;
+                case 3: v = ins->arg4; break; case 4: v = ins->arg5; break; case 5: v = ins->arg6; break;
+            }
+            if (hi->operand_count < 6) {
+                hi->operands[hi->operand_count++] = v;
+            }
+        }
+
+        /* Registers accessed */
+        hi->regs_count = 0;
+        for (u32 j = 0; j < 6; j++) {
+            OperandType t = ins->inst->operands[j].operand_type;
+            if (t == OPERAND_TYPE_REG8 || t == OPERAND_TYPE_REG32) {
+                u32 v = (j==0)?ins->arg1:(j==1)?ins->arg2:(j==2)?ins->arg3:(j==3)?ins->arg4:(j==4)?ins->arg5:ins->arg6;
+                if (hi->regs_count < 6) hi->regs[hi->regs_count++] = v;
+            }
+        }
+
+        /* References */
+        hi->code_targets_count = 0;
+        hi->function_ids_count = 0;
+        hi->string_ids_count = 0;
+
+        for (u32 j = 0; j < 6; j++) {
+            OperandType t = ins->inst->operands[j].operand_type;
+            OperandMeaning m = ins->inst->operands[j].operand_meaning;
+            u32 v = (j==0)?ins->arg1:(j==1)?ins->arg2:(j==2)?ins->arg3:(j==3)?ins->arg4:(j==4)?ins->arg5:ins->arg6;
+
+            if ((t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) && hi->code_targets_count < 8) {
+                u32 rel = ins->original_pos + v;
+                if (is_jump_instruction(ins->inst->opcode)) {
+                    rel = ins->original_pos + ins->inst->binary_size + v;
+                }
+                hi->code_targets[hi->code_targets_count++] = fh->offset + rel;
+            }
+            if (m == OPERAND_MEANING_FUNCTION_ID && hi->function_ids_count < 4) {
+                hi->function_ids[hi->function_ids_count++] = v;
+            }
+            if (m == OPERAND_MEANING_STRING_ID && hi->string_ids_count < 4) {
+                hi->string_ids[hi->string_ids_count++] = v;
+            }
+        }
+        /* Switch tables as extra code targets */
+        if (ins->switch_jump_table && ins->switch_jump_table_size > 0) {
+            for (u32 k = 0; k < ins->switch_jump_table_size && hi->code_targets_count < 8; k++) {
+                hi->code_targets[hi->code_targets_count++] = fh->offset + ins->switch_jump_table[k];
+            }
+        }
+
+        /* Full decoded string */
+        StringBuffer sb;
+        Result sr = string_buffer_init(&sb, 256);
+        if (sr.code == RESULT_SUCCESS) {
+            sr = instruction_to_string(ins, &sb);
+            if (sr.code == RESULT_SUCCESS && sb.data) {
+                size_t len = sb.length;
+                hi->text = (char*)malloc(len + 1);
+                if (hi->text) {
+                    memcpy(hi->text, sb.data, len);
+                    hi->text[len] = '\0';
+                }
+            }
+            string_buffer_free(&sb);
+        }
+    }
+
+    parsed_instruction_list_free(&list);
+    *out_instructions = arr;
+    *out_count = (u32) (arr ? list.count : 0);
+    return SUCCESS_RESULT();
+}
+
+void hermesdec_free_instructions(HermesInstruction* insns, u32 count) {
+    if (!insns) return;
+    for (u32 i = 0; i < count; i++) {
+        free(insns[i].text);
+    }
+    free(insns);
+}

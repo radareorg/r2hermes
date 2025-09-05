@@ -84,5 +84,8 @@ const char** get_builtin_functions(BytecodeModule* module, u32* out_count);
 typedef Result (*OpcodeHandler)(HBCReader* reader, BufferReader* bytecode, 
                               ParsedInstruction* out_instruction);
 
-#endif /* HERMES_DEC_HBC_BYTECODE_PARSER_H */
+/* Helpers to classify opcodes */
+bool is_jump_instruction(u8 opcode);
+bool is_call_instruction(u8 opcode);
 
+#endif /* HERMES_DEC_HBC_BYTECODE_PARSER_H */
