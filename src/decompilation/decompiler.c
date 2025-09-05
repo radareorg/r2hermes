@@ -757,7 +757,45 @@ static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_i
             int aidx=-1; for (int j=0;j<6;j++){ if (operand_is_addr(ins->inst,j)){ aidx=j; break; } }
             if (aidx>=0){ u32 taddr=compute_target_address(ins,aidx); char tlabel[32]; label_name(tlabel,sizeof(tlabel),taddr); u8 op=ins->inst->opcode; if (op==OP_Jmp||op==OP_JmpLong){ string_buffer_append(&line, "goto "); string_buffer_append(&line, tlabel); handled_cf=true; } }
         }
-        if (!handled_cf) { RETURN_IF_ERROR(token_string_to_string(&ts, &line)); }
+        if (!handled_cf) {
+            /* Improve default CF printing for compare-and-jump and simple boolean/undefined jumps */
+            if (is_jump_instruction(ins->inst->opcode)) {
+                int aidx=-1; for (int j=0;j<6;j++){ if (operand_is_addr(ins->inst,j)){ aidx=j; break; } }
+                if (aidx>=0) {
+                    u32 taddr=compute_target_address(ins,aidx); char tlabel[32]; label_name(tlabel,sizeof(tlabel),taddr);
+                    const char* cmp = cmp_op_for_jump(ins->inst->opcode);
+                    if (cmp) {
+                        int r1=-1,r2=-1; for (int j=0;j<6;j++){ if (j==aidx) continue; OperandType tp=ins->inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ if(r1<0) r1=(int)insn_get_operand_value(ins,j); else if(r2<0) r2=(int)insn_get_operand_value(ins,j);} }
+                        char expr[64]; snprintf(expr, sizeof(expr), "if (r%d %s r%d) goto %s", r1, cmp, r2, tlabel);
+                        RETURN_IF_ERROR(string_buffer_append(&line, expr));
+                        handled_cf = true;
+                    } else {
+                        /* Handle JmpTrue/JmpFalse/JmpUndefined (+ long) */
+                        u8 opj = ins->inst->opcode;
+                        if (opj == OP_JmpTrue || opj == OP_JmpTrueLong || opj == OP_JmpFalse || opj == OP_JmpFalseLong || opj == OP_JmpUndefined || opj == OP_JmpUndefinedLong) {
+                            int ridx=-1; for (int j=0;j<6;j++){ if (j==aidx) continue; OperandType tp=ins->inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ ridx=j; break; } }
+                            int rr = (ridx>=0)? (int)insn_get_operand_value(ins,ridx) : 0;
+                            RETURN_IF_ERROR(string_buffer_append(&line, "if ("));
+                            if (opj == OP_JmpFalse || opj == OP_JmpFalseLong) {
+                                RETURN_IF_ERROR(string_buffer_append(&line, "!r"));
+                                RETURN_IF_ERROR(string_buffer_append_int(&line, rr));
+                            } else if (opj == OP_JmpUndefined || opj == OP_JmpUndefinedLong) {
+                                RETURN_IF_ERROR(string_buffer_append(&line, "r"));
+                                RETURN_IF_ERROR(string_buffer_append_int(&line, rr));
+                                RETURN_IF_ERROR(string_buffer_append(&line, " === undefined"));
+                            } else {
+                                RETURN_IF_ERROR(string_buffer_append(&line, "r"));
+                                RETURN_IF_ERROR(string_buffer_append_int(&line, rr));
+                            }
+                            RETURN_IF_ERROR(string_buffer_append(&line, ") goto "));
+                            RETURN_IF_ERROR(string_buffer_append(&line, tlabel));
+                            handled_cf = true;
+                        }
+                    }
+                }
+            }
+            if (!handled_cf) { RETURN_IF_ERROR(token_string_to_string(&ts, &line)); }
+        }
         RETURN_IF_ERROR(string_buffer_append(&line, ";"));
         StringBuffer dline; string_buffer_init(&dline, 64); Result sr = instruction_to_string(ins, &dline); if (sr.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
         string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
