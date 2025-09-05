@@ -8,22 +8,22 @@ INCLUDE_DIR = include
 BUILD_DIR = build
 BIN_DIR = bin
 
-# Source files
+## Source files
 UTILS_SRC = $(wildcard $(SRC_DIR)/utils/*.c)
 PARSERS_SRC = $(wildcard $(SRC_DIR)/parsers/*.c)
 DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(wildcard $(SRC_DIR)/opcodes/*.c)
+LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) $(SRC_DIR)/lib/hermesdec.c
 MAIN_SRC = $(SRC_DIR)/main.c
 
-# All source files
-SRC_FILES = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) $(MAIN_SRC)
+## Object files
+LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
+MAIN_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(MAIN_SRC))
 
-# Object files
-OBJ_FILES = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(SRC_FILES))
-
-# Binary file
+## Artifacts
 BIN_FILE = $(BIN_DIR)/hermes-dec
+STATIC_LIB = $(BUILD_DIR)/libhermesdec.a
 
 # Include paths
 INCLUDES = -I$(INCLUDE_DIR)
@@ -42,10 +42,14 @@ prepare:
 	@mkdir -p $(BUILD_DIR)/disassembly
 	@mkdir -p $(BUILD_DIR)/decompilation
 	@mkdir -p $(BUILD_DIR)/opcodes
+	@mkdir -p $(BUILD_DIR)/lib
 	@mkdir -p $(BIN_DIR)
 
-$(BIN_FILE): $(OBJ_FILES)
-	$(CC) $(CFLAGS) -o $@ $^
+$(STATIC_LIB): $(LIB_OBJ)
+	ar rcs $@ $^
+
+$(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ)
+	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhermesdec
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
@@ -66,8 +70,8 @@ test:
 otest: prepare $(TEST_BIN)
 	$(TEST_BIN)
 
-$(TEST_BIN): $(filter-out $(BUILD_DIR)/main.o,$(OBJ_FILES)) $(TEST_SRC:.c=.o)
-	$(CC) $(CFLAGS) -o $@ $^
+$(TEST_BIN): $(STATIC_LIB) $(TEST_SRC:.c=.o)
+	$(CC) $(CFLAGS) -o $@ $(TEST_SRC:.c=.o) -L$(BUILD_DIR) -lhermesdec
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@

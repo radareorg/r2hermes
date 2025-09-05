@@ -1,0 +1,107 @@
+#ifndef HERMESDEC_API_H
+#define HERMESDEC_API_H
+
+#include "../common.h"
+
+/* Opaque handle to a parsed Hermes bytecode object */
+typedef struct HermesDec HermesDec;
+
+/* Public header summary (stable API independent of internal structs) */
+typedef struct {
+    u64 magic;
+    u32 version;
+    u8  sourceHash[20];
+    u32 fileLength;
+    u32 globalCodeIndex;
+    u32 functionCount;
+    u32 stringKindCount;
+    u32 identifierCount;
+    u32 stringCount;
+    u32 overflowStringCount;
+    u32 stringStorageSize;
+    u32 bigIntCount;
+    u32 bigIntStorageSize;
+    u32 regExpCount;
+    u32 regExpStorageSize;
+    u32 arrayBufferSize;
+    u32 objKeyBufferSize;
+    u32 objValueBufferSize;
+    u32 segmentID;
+    u32 cjsModuleCount;
+    u32 functionSourceCount;
+    u32 debugInfoOffset;
+    bool staticBuiltins;
+    bool cjsModulesStaticallyResolved;
+    bool hasAsync;
+} HermesHeader;
+
+typedef enum {
+    HERMES_STRING_KIND_STRING = 0,
+    HERMES_STRING_KIND_IDENTIFIER = 1,
+    HERMES_STRING_KIND_PREDEFINED = 2
+} HermesStringKind;
+
+typedef struct {
+    bool isUTF16;
+    u32 offset;
+    u32 length;
+    HermesStringKind kind;
+} HermesStringMeta;
+
+/* Public disassembly options (stable, decoupled from internals) */
+typedef struct {
+    bool verbose;           /* Show detailed metadata */
+    bool output_json;       /* Output in JSON format instead of text */
+    bool show_bytecode;     /* Show raw bytecode bytes */
+    bool show_debug_info;   /* Show debug information */
+} DisassemblyOptions;
+#define HERMES_DEC_DISASM_OPTS_DEFINED 1
+
+/* Lifecycle */
+Result hermesdec_open(const char* path, HermesDec** out);
+Result hermesdec_open_from_memory(const u8* data, size_t size, HermesDec** out);
+void hermesdec_close(HermesDec* hd);
+
+/* Introspection */
+u32 hermesdec_function_count(HermesDec* hd);
+u32 hermesdec_string_count(HermesDec* hd);
+Result hermesdec_get_header(HermesDec* hd, HermesHeader* out);
+
+/* Retrieve basic function info and name pointer (valid while hd is alive) */
+Result hermesdec_get_function_info(
+    HermesDec* hd,
+    u32 function_id,
+    const char** out_name,
+    u32* out_offset,
+    u32* out_size,
+    u32* out_param_count);
+
+/* Resolve string by index (pointer valid while hd is alive) */
+Result hermesdec_get_string(HermesDec* hd, u32 index, const char** out_str);
+Result hermesdec_get_string_meta(HermesDec* hd, u32 index, HermesStringMeta* out);
+
+/* Function bytecode access */
+Result hermesdec_get_function_bytecode(HermesDec* hd, u32 function_id, const u8** out_ptr, u32* out_size);
+
+/* Disassembly helpers that append into provided StringBuffer */
+Result hermesdec_disassemble_function_to_buffer(
+    HermesDec* hd,
+    u32 function_id,
+    DisassemblyOptions options,
+    StringBuffer* out);
+
+Result hermesdec_disassemble_all_to_buffer(
+    HermesDec* hd,
+    DisassemblyOptions options,
+    StringBuffer* out);
+
+/* Decompiler wrappers */
+Result hermesdec_decompile_file(const char* input_file, const char* output_file);
+
+/* r2 script generation function */
+Result hermesdec_generate_r2_script(const char* input_file, const char* output_file);
+
+/* Validation/report helpers */
+Result hermesdec_validate_basic(HermesDec* hd, StringBuffer* out);
+
+#endif /* HERMESDEC_API_H */

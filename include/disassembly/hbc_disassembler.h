@@ -6,12 +6,15 @@
 #include "../parsers/hbc_bytecode_parser.h"
 
 /* Disassembly options */
+#ifndef HERMES_DEC_DISASM_OPTS_DEFINED
+#define HERMES_DEC_DISASM_OPTS_DEFINED
 typedef struct {
     bool verbose;           /* Show detailed metadata */
     bool output_json;       /* Output in JSON format instead of text */
     bool show_bytecode;     /* Show raw bytecode bytes */
     bool show_debug_info;   /* Show debug information */
 } DisassemblyOptions;
+#endif
 
 /* Disassembler state */
 typedef struct {
@@ -39,4 +42,3 @@ Result print_function_header(Disassembler* disassembler, FunctionHeader* functio
 Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruction);
 
 #endif /* HERMES_DEC_HBC_DISASSEMBLER_H */
-
