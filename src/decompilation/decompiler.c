@@ -3,9 +3,243 @@
 #include "../../include/parsers/hbc_file_parser.h"
 #include "../../include/parsers/hbc_bytecode_parser.h"
 #include "../../include/disassembly/hbc_disassembler.h"
+#include "../../include/decompilation/translator.h"
+#include "../../include/opcodes/hermes_opcodes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Ensure that the function's bytecode buffer is loaded into memory. */
+static Result ensure_function_bytecode_loaded(HBCReader* reader, u32 function_id) {
+    if (!reader) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "ensure: reader NULL");
+    if (function_id >= reader->header.functionCount) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "ensure: bad fid");
+    FunctionHeader* function_header = &reader->function_headers[function_id];
+    if (function_header->bytecode) return SUCCESS_RESULT();
+
+    /* Skip invalid offsets */
+    if (function_header->offset == 0) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Bytecode offset is zero");
+    }
+    if (function_header->offset >= reader->file_buffer.size) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
+    }
+    if (function_header->offset + function_header->bytecodeSizeInBytes > reader->file_buffer.size) {
+        /* Truncate to file size */
+        function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
+    }
+
+    function_header->bytecode = (u8*)malloc(function_header->bytecodeSizeInBytes);
+    if (!function_header->bytecode) {
+        return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
+    }
+    size_t saved = reader->file_buffer.position;
+    Result sr = buffer_reader_seek(&reader->file_buffer, function_header->offset);
+    if (sr.code != RESULT_SUCCESS) { free(function_header->bytecode); function_header->bytecode = NULL; reader->file_buffer.position = saved; return sr; }
+    sr = buffer_reader_read_bytes(&reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes);
+    reader->file_buffer.position = saved;
+    if (sr.code != RESULT_SUCCESS) { free(function_header->bytecode); function_header->bytecode = NULL; return sr; }
+    return SUCCESS_RESULT();
+}
+
+/* Helpers to work with ParsedInstruction and operands */
+static inline u32 insn_get_operand_value(const ParsedInstruction* insn, int idx) {
+    switch (idx) { case 0: return insn->arg1; case 1: return insn->arg2; case 2: return insn->arg3; case 3: return insn->arg4; case 4: return insn->arg5; default: return insn->arg6; }
+}
+
+static inline bool operand_is_addr(const Instruction* inst, int idx) {
+    OperandType t = inst->operands[idx].operand_type; return t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32;
+}
+
+static u32 compute_target_address(const ParsedInstruction* insn, int op_index) {
+    u32 v = insn_get_operand_value(insn, op_index);
+    u32 base = insn->original_pos;
+    if (is_jump_instruction(insn->inst->opcode)) base += insn->inst->binary_size;
+    return base + v;
+}
+
+/* Small dynamic set of u32 */
+typedef struct { u32* data; u32 count; u32 cap; } U32Set;
+static void u32set_free(U32Set* s) { if (!s) return; free(s->data); s->data = NULL; s->count = s->cap = 0; }
+static bool u32set_contains(const U32Set* s, u32 v) { for (u32 i=0;i<(s?s->count:0);i++) if (s->data[i]==v) return true; return false; }
+static Result u32set_add(U32Set* s, u32 v) { if (!s) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "u32set"); if (u32set_contains(s, v)) return SUCCESS_RESULT(); if (s->count==s->cap){u32 nc = s->cap? s->cap*2:16; u32* nd=(u32*)realloc(s->data, nc*sizeof(u32)); if(!nd) return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom"); s->data=nd; s->cap=nc;} s->data[s->count++]=v; return SUCCESS_RESULT(); }
+static void label_name(char* buf, size_t bufsz, u32 addr) { snprintf(buf, bufsz, "L_%08x", addr); }
+static Result append_indent(StringBuffer* sb, int level) {
+    for (int i=0;i<level;i++) { RETURN_IF_ERROR(string_buffer_append(sb, "  ")); }
+    return SUCCESS_RESULT();
+}
+static int find_index_by_addr(ParsedInstructionList* list, u32 addr) {
+    for (u32 i=0;i<list->count;i++) if (list->instructions[i].original_pos == addr) return (int)i;
+    return -1;
+}
+
+static const char* cmp_op_for_jump(u8 op) {
+    switch (op) {
+        case OP_JEqual: case OP_JEqualLong: return "==";
+        case OP_JNotEqual: case OP_JNotEqualLong: return "!=";
+        case OP_JStrictEqual: case OP_JStrictEqualLong: return "===";
+        case OP_JStrictNotEqual: case OP_JStrictNotEqualLong: return "!==";
+        case OP_JLess: case OP_JLessLong: case OP_JLessN: case OP_JLessNLong: return "<";
+        case OP_JNotLess: case OP_JNotLessLong: case OP_JNotLessN: case OP_JNotLessNLong: return ">=";
+        case OP_JLessEqual: case OP_JLessEqualLong: case OP_JLessEqualN: case OP_JLessEqualNLong: return "<=";
+        case OP_JNotLessEqual: case OP_JNotLessEqualLong: case OP_JNotLessEqualN: case OP_JNotLessEqualNLong: return ">";
+        case OP_JGreater: case OP_JGreaterLong: case OP_JGreaterN: case OP_JGreaterNLong: return ">";
+        case OP_JNotGreater: case OP_JNotGreaterLong: case OP_JNotGreaterN: case OP_JNotGreaterNLong: return "<=";
+        case OP_JGreaterEqual: case OP_JGreaterEqualLong: case OP_JGreaterEqualN: case OP_JGreaterEqualNLong: return ">=";
+        case OP_JNotGreaterEqual: case OP_JNotGreaterEqualLong: case OP_JNotGreaterEqualN: case OP_JNotGreaterEqualNLong: return "<";
+        default: return NULL;
+    }
+}
+
+/* ============= CFG construction ============= */
+static Result bbvec_push(BasicBlock*** arr, u32* count, u32* cap, BasicBlock* bb) {
+    if (*count >= *cap) {
+        u32 nc = *cap ? (*cap * 2) : 8;
+        BasicBlock** na = (BasicBlock**)realloc(*arr, nc * sizeof(BasicBlock*));
+        if (!na) return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom bbvec");
+        *arr = na; *cap = nc;
+    }
+    (*arr)[(*count)++] = bb;
+    return SUCCESS_RESULT();
+}
+
+static BasicBlock* find_block_by_start(DecompiledFunctionBody* fb, u32 start) {
+    for (u32 i=0;i<fb->basic_blocks_count;i++) if (fb->basic_blocks[i].start_address == start) return &fb->basic_blocks[i];
+    return NULL;
+}
+
+Result function_body_init(DecompiledFunctionBody* body, u32 function_id, FunctionHeader* function_object, bool is_global) {
+    if (!body || !function_object) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "fb_init args");
+    memset(body, 0, sizeof(*body));
+    body->is_global = is_global;
+    body->function_id = function_id;
+    body->function_object = function_object;
+    body->statements = NULL;
+    body->statements_count = body->statements_capacity = 0;
+    body->basic_blocks = NULL;
+    body->basic_blocks_count = body->basic_blocks_capacity = 0;
+    body->jump_targets = NULL;
+    body->jump_targets_count = body->jump_targets_capacity = 0;
+    body->instructions.instructions = NULL;
+    body->instructions.count = body->instructions.capacity = 0;
+    /* Exception handlers */
+    return SUCCESS_RESULT();
+}
+
+void function_body_cleanup(DecompiledFunctionBody* body) {
+    if (!body) return;
+    free(body->jump_targets);
+    free(body->basic_blocks);
+    /* statements and token strings cleanup would go here if allocated */
+    memset(body, 0, sizeof(*body));
+}
+
+Result add_jump_target(DecompiledFunctionBody* body, u32 address) {
+    if (!body) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "add_jump_target: body");
+    for (u32 i=0;i<body->jump_targets_count;i++) if (body->jump_targets[i]==address) return SUCCESS_RESULT();
+    if (body->jump_targets_count >= body->jump_targets_capacity) {
+        u32 nc = body->jump_targets_capacity? body->jump_targets_capacity*2:16;
+        u32* na = (u32*)realloc(body->jump_targets, nc*sizeof(u32));
+        if (!na) return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom add_jump_target");
+        body->jump_targets = na; body->jump_targets_capacity = nc;
+    }
+    body->jump_targets[body->jump_targets_count++] = address;
+    return SUCCESS_RESULT();
+}
+
+Result create_basic_block(DecompiledFunctionBody* body, u32 start_address, u32 end_address) {
+    if (!body) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "create_bb body");
+    if (body->basic_blocks_count >= body->basic_blocks_capacity) {
+        u32 nc = body->basic_blocks_capacity? body->basic_blocks_capacity*2:16;
+        BasicBlock* na = (BasicBlock*)realloc(body->basic_blocks, nc*sizeof(BasicBlock));
+        if (!na) return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom create_bb");
+        body->basic_blocks = na; body->basic_blocks_capacity = nc;
+    }
+    BasicBlock* bb = &body->basic_blocks[body->basic_blocks_count++];
+    memset(bb, 0, sizeof(*bb));
+    bb->start_address = start_address;
+    bb->end_address = end_address;
+    bb->stay_visible = true;
+    return SUCCESS_RESULT();
+}
+
+/* Build a control-flow graph using simple leader splitting and edge wiring */
+Result build_control_flow_graph(HBCReader* reader, u32 function_id, ParsedInstructionList* list, DecompiledFunctionBody* out_body) {
+    if (!reader || !list || !out_body) return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "build_cfg args");
+    FunctionHeader* fh = &reader->function_headers[function_id];
+    RETURN_IF_ERROR(function_body_init(out_body, function_id, fh, function_id == reader->header.globalCodeIndex));
+    /* Leaders: entry, jump targets, fallthrough after terminators */
+    U32Set leaders = {0}; u32set_add(&leaders, 0);
+    u32 func_sz = fh->bytecodeSizeInBytes;
+    for (u32 i=0;i<list->count;i++) {
+        ParsedInstruction* ins = &list->instructions[i];
+        if (ins->switch_jump_table && ins->switch_jump_table_size) {
+            for (u32 k=0;k<ins->switch_jump_table_size;k++) if (ins->switch_jump_table[k] < func_sz) u32set_add(&leaders, ins->switch_jump_table[k]);
+        }
+        for (int j=0;j<6;j++) {
+            if (!operand_is_addr(ins->inst, j)) continue;
+            u32 tgt = compute_target_address(ins, j);
+            if (tgt < func_sz) u32set_add(&leaders, tgt);
+            bool term = is_jump_instruction(ins->inst->opcode) || ins->inst->opcode == OP_Ret || ins->inst->opcode == OP_Throw;
+            if (term && ins->next_pos < func_sz) u32set_add(&leaders, ins->next_pos);
+        }
+    }
+    /* Create blocks by scanning instructions and cutting at leaders */
+    for (u32 i=0;i<list->count;i++) {
+        ParsedInstruction* ins = &list->instructions[i];
+        u32 start = ins->original_pos;
+        if (!u32set_contains(&leaders, start)) continue;
+        /* find end = next leader or function end */
+        u32 end = fh->bytecodeSizeInBytes; /* default */
+        for (u32 j=i+1;j<list->count;j++) {
+            if (u32set_contains(&leaders, list->instructions[j].original_pos)) { end = list->instructions[j].original_pos; break; }
+        }
+        RETURN_IF_ERROR(create_basic_block(out_body, start, end));
+    }
+    /* Anchor and wire edges */
+    for (u32 i=0;i<out_body->basic_blocks_count;i++) {
+        BasicBlock* bb = &out_body->basic_blocks[i];
+        /* find last instruction in this block */
+        ParsedInstruction* last = NULL; ParsedInstruction* first = NULL;
+        for (u32 k=0;k<list->count;k++) {
+            ParsedInstruction* ins = &list->instructions[k];
+            if (ins->original_pos >= bb->start_address && ins->original_pos < bb->end_address) {
+                if (!first) first = ins; last = ins;
+            }
+        }
+        bb->anchor_instruction = first; /* store start insn */
+        if (!last) continue;
+        u8 op = last->inst->opcode;
+        if (op == OP_Ret) { bb->is_unconditional_return_end = true; continue; }
+        if (op == OP_Throw) { bb->is_unconditional_throw_anchor = true; continue; }
+        if (is_jump_instruction(op)) {
+            /* compute targets */
+            for (int j=0;j<6;j++) {
+                if (!operand_is_addr(last->inst, j)) continue;
+                u32 tgt = compute_target_address(last, j);
+                BasicBlock* child = find_block_by_start(out_body, tgt);
+                if (child) {
+                    RETURN_IF_ERROR(bbvec_push(&bb->child_nodes, &bb->child_nodes_count, &bb->error_handling_child_nodes_count /*cap reused*/, child));
+                }
+            }
+            /* conditional: also add fallthrough */
+            bool is_uncond = (op == OP_Jmp || op == OP_JmpLong);
+            if (!is_uncond && last->next_pos < fh->bytecodeSizeInBytes) {
+                BasicBlock* fall = find_block_by_start(out_body, last->next_pos);
+                if (fall) RETURN_IF_ERROR(bbvec_push(&bb->child_nodes, &bb->child_nodes_count, &bb->error_handling_child_nodes_count, fall));
+            } else if (is_uncond) {
+                bb->is_unconditional_jump_anchor = true;
+            }
+        } else {
+            /* normal fallthrough */
+            if (last->next_pos < fh->bytecodeSizeInBytes) {
+                BasicBlock* fall = find_block_by_start(out_body, last->next_pos);
+                if (fall) RETURN_IF_ERROR(bbvec_push(&bb->child_nodes, &bb->child_nodes_count, &bb->error_handling_child_nodes_count, fall));
+            }
+        }
+    }
+    u32set_free(&leaders);
+    return SUCCESS_RESULT();
+}
 
 Result decompiler_init(HermesDecompiler* decompiler) {
     if (!decompiler) {
@@ -112,8 +346,9 @@ Result decompile_file(const char* input_file, const char* output_file) {
     return SUCCESS_RESULT();
 }
 
-/* Internal helper to emit a single function stub + disassembly comments */
-static Result emit_function_stub_with_disassembly(HBCReader* reader, u32 function_id, StringBuffer* out) {
+/* Internal helper to emit a minimal decompiled body with per-instruction statements.
+ * Also appends disassembly as comments for debugging. */
+static Result emit_minimal_decompiled_function(HBCReader* reader, u32 function_id, StringBuffer* out) {
     if (!reader || !out) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for emit_function_stub_with_disassembly");
     }
@@ -151,32 +386,299 @@ static Result emit_function_stub_with_disassembly(HBCReader* reader, u32 functio
     RETURN_IF_ERROR(string_buffer_append(out, sz));
     RETURN_IF_ERROR(string_buffer_append(out, " bytes\n"));
 
-    // Use the disassembler to generate per-instruction comments
-    Disassembler d;
-    DisassemblyOptions opts = {0};
-    RETURN_IF_ERROR(disassembler_init(&d, reader, opts));
-    Result res = disassemble_function(&d, function_id);
-    if (res.code == RESULT_SUCCESS) {
-        // Prefix each line with "  // " inside the function body
-        const char* text = d.output.data ? d.output.data : "";
-        const char* cur = text;
-        while (*cur) {
-            const char* nl = strchr(cur, '\n');
-            size_t len = nl ? (size_t)(nl - cur) : strlen(cur);
-            RETURN_IF_ERROR(string_buffer_append(out, "  // "));
-            if (len) {
-                char* tmp = (char*)malloc(len + 1);
-                if (!tmp) { disassembler_cleanup(&d); return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "OOM"); }
-                memcpy(tmp, cur, len); tmp[len] = '\0';
-                RETURN_IF_ERROR(string_buffer_append(out, tmp));
-                free(tmp);
+    /* Ensure bytecode is available */
+    RETURN_IF_ERROR(ensure_function_bytecode_loaded(reader, function_id));
+
+    /* Parse function into instructions */
+    ParsedInstructionList list;
+    RETURN_IF_ERROR(parse_function_bytecode(reader, function_id, &list));
+
+    /* Build CFG (anchors, blocks, edges) to prepare future structuring */
+    DecompiledFunctionBody fbody;
+    Result cfg_res = build_control_flow_graph(reader, function_id, &list, &fbody);
+    if (cfg_res.code == RESULT_SUCCESS) {
+        /* Currently unused in emission, but keeps analysis ready */
+        function_body_cleanup(&fbody);
+    }
+
+    /* Collect label targets */
+    U32Set labels = {0};
+    u32 func_end = fh->bytecodeSizeInBytes;
+    u32set_add(&labels, 0);
+    for (u32 i = 0; i < list.count; i++) {
+        ParsedInstruction* ins = &list.instructions[i];
+        if (ins->switch_jump_table && ins->switch_jump_table_size) {
+            for (u32 k = 0; k < ins->switch_jump_table_size; k++) {
+                if (ins->switch_jump_table[k] < func_end) u32set_add(&labels, ins->switch_jump_table[k]);
             }
-            RETURN_IF_ERROR(string_buffer_append(out, "\n"));
-            if (!nl) break;
-            cur = nl + 1;
+        }
+        for (int j = 0; j < 6; j++) {
+            if (!operand_is_addr(ins->inst, j)) continue;
+            u32 taddr = compute_target_address(ins, j);
+            if (taddr < func_end) u32set_add(&labels, taddr);
+            bool ends = is_jump_instruction(ins->inst->opcode) || ins->inst->opcode == OP_Ret || ins->inst->opcode == OP_Throw;
+            if (ends && ins->next_pos < func_end) u32set_add(&labels, ins->next_pos);
         }
     }
-    disassembler_cleanup(&d);
+
+    /* For each instruction, translate to tokens and print one statement.
+       Recognize simple forward if / if-else and emit structured blocks. */
+    bool* skip = (bool*)calloc(list.count, sizeof(bool));
+    if (!skip) { parsed_instruction_list_free(&list); u32set_free(&labels); return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom skip"); }
+    int base_indent = 1; /* inside function */
+    /* Try/catch handling: track a single active handler region for now */
+    ExceptionHandlerList* ehlist = (reader->function_id_to_exc_handlers && function_id < reader->header.functionCount)
+        ? &reader->function_id_to_exc_handlers[function_id] : NULL;
+    bool try_active = false; u32 try_end_addr = 0; u32 catch_target_addr = 0;
+    for (u32 i = 0; i < list.count; i++) {
+        if (skip[i]) continue;
+        ParsedInstruction* ins = &list.instructions[i];
+
+        /* Open try if this address matches a handler start */
+        if (!try_active && ehlist && ehlist->handlers) {
+            for (u32 hi=0; hi<ehlist->count; hi++) {
+                ExceptionHandlerInfo* h = &ehlist->handlers[hi];
+                if (h->start == ins->original_pos) {
+                    try_active = true; try_end_addr = h->end; catch_target_addr = h->target;
+                    RETURN_IF_ERROR(append_indent(out, base_indent));
+                    RETURN_IF_ERROR(string_buffer_append(out, "try {\n"));
+                    break;
+                }
+            }
+        }
+
+        /* Close try and emit catch header when we reach try end */
+        if (try_active && ins->original_pos == try_end_addr) {
+            RETURN_IF_ERROR(append_indent(out, base_indent));
+            RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
+
+            /* Determine catch variable from target block if it starts with OP_Catch rX */
+            int tindex = find_index_by_addr(&list, catch_target_addr);
+            int catch_reg = -1;
+            if (tindex >= 0) {
+                ParsedInstruction* ci = &list.instructions[tindex];
+                if (ci->inst && ci->inst->opcode == OP_Catch) {
+                    catch_reg = (int)ci->arg1;
+                }
+            }
+            RETURN_IF_ERROR(append_indent(out, base_indent));
+            if (catch_reg >= 0) {
+                RETURN_IF_ERROR(string_buffer_append(out, "catch (r"));
+                RETURN_IF_ERROR(string_buffer_append_int(out, catch_reg));
+                RETURN_IF_ERROR(string_buffer_append(out, ") { goto "));
+            } else {
+                RETURN_IF_ERROR(string_buffer_append(out, "catch (e) { goto "));
+            }
+            char clab[32]; label_name(clab, sizeof(clab), catch_target_addr);
+            RETURN_IF_ERROR(string_buffer_append(out, clab));
+            RETURN_IF_ERROR(string_buffer_append(out, "; }\n"));
+            try_active = false;
+        }
+
+        /* Emit label if leader and not suppressed by a structured region */
+        if (u32set_contains(&labels, ins->original_pos)) {
+            char lbuf[32]; label_name(lbuf, sizeof(lbuf), ins->original_pos);
+            RETURN_IF_ERROR(string_buffer_append(out, lbuf));
+            RETURN_IF_ERROR(string_buffer_append(out, ":\n"));
+        }
+
+        /* Try to recognize while-loop pattern: JmpFalse/JmpTrue to forward exit, body ends with Jmp back to header */
+        int addr_idx = -1; if (is_jump_instruction(ins->inst->opcode)) { for (int j=0;j<6;j++){ if (operand_is_addr(ins->inst,j)) { addr_idx=j; break; } } }
+        if (addr_idx >= 0) {
+            u8 opw = ins->inst->opcode;
+            bool is_simple_bool = (opw == OP_JmpFalse || opw == OP_JmpFalseLong || opw == OP_JmpTrue || opw == OP_JmpTrueLong);
+            if (is_simple_bool) {
+                u32 exit_addr = compute_target_address(ins, addr_idx);
+                int exit_index = find_index_by_addr(&list, exit_addr);
+                if (exit_index > (int)i) {
+                    /* Check that instruction before exit is an unconditional jump back to header */
+                    int back_idx = exit_index - 1;
+                    if (back_idx > (int)i) {
+                        ParsedInstruction* back = &list.instructions[back_idx];
+                        if (back->inst && (back->inst->opcode == OP_Jmp || back->inst->opcode == OP_JmpLong)) {
+                            int bj = -1; for (int j=0;j<6;j++){ if (operand_is_addr(back->inst, j)) { bj=j; break; } }
+                            if (bj >= 0) {
+                                u32 back_addr = compute_target_address(back, bj);
+                                if (back_addr == ins->original_pos) {
+                                    /* Emit while header */
+                                    StringBuffer hdr; RETURN_IF_ERROR(string_buffer_init(&hdr, 64));
+                                    RETURN_IF_ERROR(append_indent(&hdr, base_indent));
+                                    RETURN_IF_ERROR(string_buffer_append(&hdr, "while ("));
+                                    /* build boolean condition from ins */
+                                    int reg_idx = -1; for (int j=0;j<6;j++){ OperandType tp = ins->inst->operands[j].operand_type; if ((tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32) && j!=addr_idx){ reg_idx=j; break; } }
+                                    int r = (reg_idx>=0)? (int)insn_get_operand_value(ins, reg_idx) : 0;
+                                    bool neg = (opw == OP_JmpTrue || opw == OP_JmpTrueLong); /* jump on true to exit => loop while !r */
+                                    if (neg) RETURN_IF_ERROR(string_buffer_append(&hdr, "!"));
+                                    RETURN_IF_ERROR(string_buffer_append(&hdr, "r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r));
+                                    RETURN_IF_ERROR(string_buffer_append(&hdr, ") {\n"));
+                                    RETURN_IF_ERROR(string_buffer_append(out, hdr.data)); string_buffer_free(&hdr);
+
+                                    /* Emit loop body lines from i+1 to back_idx-1 */
+                                    for (u32 k = i+1; k < (u32)back_idx; k++) {
+                                        skip[k] = true;
+                                        ParsedInstruction* bi = &list.instructions[k];
+                                        TokenString ts2; RETURN_IF_ERROR(translate_instruction_to_tokens(bi, &ts2));
+                                        StringBuffer line; RETURN_IF_ERROR(string_buffer_init(&line, 128));
+                                        RETURN_IF_ERROR(append_indent(&line, base_indent+1));
+                                        RETURN_IF_ERROR(token_string_to_string(&ts2, &line));
+                                        RETURN_IF_ERROR(string_buffer_append(&line, ";"));
+                                        StringBuffer dline; string_buffer_init(&dline, 64); Result sr2 = instruction_to_string(bi, &dline); if (sr2.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+                                        string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
+                                        token_string_cleanup(&ts2);
+                                    }
+
+                                    /* Close while */
+                                    RETURN_IF_ERROR(append_indent(out, base_indent)); RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
+                                    /* Skip header, body, back jump */
+                                    skip[i] = true; skip[back_idx] = true; continue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Try to recognize simple if / if-else */
+        if (addr_idx >= 0) {
+            u8 op = ins->inst->opcode;
+            bool is_simple_cond = (op == OP_JmpTrue || op == OP_JmpTrueLong || op == OP_JmpFalse || op == OP_JmpFalseLong || cmp_op_for_jump(op) != NULL);
+            if (is_simple_cond) {
+                u32 taddr = compute_target_address(ins, addr_idx);
+                int tindex = find_index_by_addr(&list, taddr);
+                if (tindex > (int)i) {
+                    /* Check for optional else: last insn of then-region is unconditional jump to end */
+                    int then_begin = (int)i + 1;
+                    int then_end = tindex; /* exclusive */
+                    int else_begin = -1, else_end = -1;
+                    if (then_end - 1 > (int)i) {
+                        ParsedInstruction* last_then = &list.instructions[then_end - 1];
+                        if (last_then->inst && (last_then->inst->opcode == OP_Jmp || last_then->inst->opcode == OP_JmpLong)) {
+                            int jaddr_idx = -1; for (int j=0;j<6;j++){ if (operand_is_addr(last_then->inst, j)) { jaddr_idx=j; break; } }
+                            if (jaddr_idx >= 0) {
+                                u32 end_addr = compute_target_address(last_then, jaddr_idx);
+                                int end_index = find_index_by_addr(&list, end_addr);
+                                if (end_index > tindex) {
+                                    else_begin = tindex;
+                                    else_end = end_index;
+                                }
+                            }
+                        }
+                    }
+
+                    /* Emit if header */
+                    StringBuffer hdr; RETURN_IF_ERROR(string_buffer_init(&hdr, 64));
+                    RETURN_IF_ERROR(append_indent(&hdr, base_indent));
+                    /* condition */
+                    RETURN_IF_ERROR(string_buffer_append(&hdr, "if ("));
+                    const char* cmp = cmp_op_for_jump(op);
+                    if (cmp) {
+                        int r1=-1,r2=-1; for (int j=0;j<6;j++){ if (j==addr_idx) continue; OperandType tp = ins->inst->operands[j].operand_type; if (tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32){ if(r1<0) r1=(int)insn_get_operand_value(ins,j); else if(r2<0) r2=(int)insn_get_operand_value(ins,j);} }
+                        RETURN_IF_ERROR(string_buffer_append(&hdr, "r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r1));
+                        RETURN_IF_ERROR(string_buffer_append(&hdr, " ")); RETURN_IF_ERROR(string_buffer_append(&hdr, cmp)); RETURN_IF_ERROR(string_buffer_append(&hdr, " r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r2));
+                    } else {
+                        int reg_idx = -1; for (int j=0;j<6;j++){ OperandType tp = ins->inst->operands[j].operand_type; if ((tp==OPERAND_TYPE_REG8||tp==OPERAND_TYPE_REG32) && j!=addr_idx){ reg_idx=j; break; } }
+                        int r = (reg_idx>=0)? (int)insn_get_operand_value(ins, reg_idx) : 0;
+                        if (op == OP_JmpFalse || op == OP_JmpFalseLong) RETURN_IF_ERROR(string_buffer_append(&hdr, "!"));
+                        RETURN_IF_ERROR(string_buffer_append(&hdr, "r")); RETURN_IF_ERROR(string_buffer_append_int(&hdr, r));
+                    }
+                    RETURN_IF_ERROR(string_buffer_append(&hdr, ") {\n"));
+                    RETURN_IF_ERROR(string_buffer_append(out, hdr.data));
+                    string_buffer_free(&hdr);
+
+                    /* Emit then-body */
+                    for (int k=then_begin; k<then_end; k++) {
+                        skip[k] = true; /* avoid re-emitting */
+                        ParsedInstruction* ti = &list.instructions[k];
+                        TokenString ts2; RETURN_IF_ERROR(translate_instruction_to_tokens(ti, &ts2));
+                        StringBuffer line; RETURN_IF_ERROR(string_buffer_init(&line, 128));
+                        RETURN_IF_ERROR(append_indent(&line, base_indent+1));
+                        RETURN_IF_ERROR(token_string_to_string(&ts2, &line));
+                        RETURN_IF_ERROR(string_buffer_append(&line, ";"));
+                        StringBuffer dline; string_buffer_init(&dline, 64); Result sr2 = instruction_to_string(ti, &dline); if (sr2.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+                        string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
+                        token_string_cleanup(&ts2);
+                    }
+                    /* If there was an else, skip the trailing unconditional jmp */
+                    if (else_begin >= 0 && then_end - 1 > (int)i) skip[then_end - 1] = true;
+
+                    /* Close then */
+                    RETURN_IF_ERROR(append_indent(out, base_indent));
+                    RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
+
+                    /* Else part */
+                    if (else_begin >= 0 && else_end > else_begin) {
+                        /* Emit else header */
+                        RETURN_IF_ERROR(append_indent(out, base_indent));
+                        RETURN_IF_ERROR(string_buffer_append(out, "else {\n"));
+                        for (int k=else_begin; k<else_end; k++) {
+                            skip[k] = true;
+                            ParsedInstruction* ei = &list.instructions[k];
+                            TokenString ts3; RETURN_IF_ERROR(translate_instruction_to_tokens(ei, &ts3));
+                            StringBuffer line; RETURN_IF_ERROR(string_buffer_init(&line, 128));
+                            RETURN_IF_ERROR(append_indent(&line, base_indent+1));
+                            RETURN_IF_ERROR(token_string_to_string(&ts3, &line));
+                            RETURN_IF_ERROR(string_buffer_append(&line, ";"));
+                            StringBuffer dline; string_buffer_init(&dline, 64); Result sr3 = instruction_to_string(ei, &dline); if (sr3.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+                            string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
+                            token_string_cleanup(&ts3);
+                        }
+                        /* Close else */
+                        RETURN_IF_ERROR(append_indent(out, base_indent));
+                        RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
+                    }
+                    /* Mark current conditional as handled */
+                    skip[i] = true;
+                    continue;
+                }
+            }
+        }
+
+        /* SwitchImm structuring */
+        if (ins->inst->opcode == OP_SwitchImm) {
+            /* arg1: value reg, arg4: min, arg5: max, arg3: default (Addr32), switch_jump_table[] holds case targets (function-relative) */
+            StringBuffer sbh; RETURN_IF_ERROR(string_buffer_init(&sbh, 64));
+            RETURN_IF_ERROR(append_indent(&sbh, base_indent));
+            RETURN_IF_ERROR(string_buffer_append(&sbh, "switch (r")); RETURN_IF_ERROR(string_buffer_append_int(&sbh, (int)ins->arg1)); RETURN_IF_ERROR(string_buffer_append(&sbh, ") {\n"));
+            RETURN_IF_ERROR(string_buffer_append(out, sbh.data)); string_buffer_free(&sbh);
+            u32 minv = ins->arg4, maxv = ins->arg5;
+            for (u32 v = minv; v <= maxv && (v - minv) < ins->switch_jump_table_size; v++) {
+                u32 tgt = ins->switch_jump_table[v - minv]; char lab[32]; label_name(lab, sizeof(lab), tgt);
+                RETURN_IF_ERROR(append_indent(out, base_indent+1));
+                RETURN_IF_ERROR(string_buffer_append(out, "case "));
+                char nbuf[32]; snprintf(nbuf, sizeof(nbuf), "%u", v); RETURN_IF_ERROR(string_buffer_append(out, nbuf));
+                RETURN_IF_ERROR(string_buffer_append(out, ": goto "));
+                RETURN_IF_ERROR(string_buffer_append(out, lab));
+                RETURN_IF_ERROR(string_buffer_append(out, ";\n"));
+            }
+            /* default */
+            int def_idx = -1; for (int j=0;j<6;j++){ if (operand_is_addr(ins->inst, j)) { def_idx = j; break; } }
+            if (def_idx >= 0) {
+                u32 defaddr = compute_target_address(ins, def_idx); char dlab[32]; label_name(dlab, sizeof(dlab), defaddr);
+                RETURN_IF_ERROR(append_indent(out, base_indent+1)); RETURN_IF_ERROR(string_buffer_append(out, "default: goto ")); RETURN_IF_ERROR(string_buffer_append(out, dlab)); RETURN_IF_ERROR(string_buffer_append(out, ";\n"));
+            }
+            RETURN_IF_ERROR(append_indent(out, base_indent)); RETURN_IF_ERROR(string_buffer_append(out, "}\n"));
+            skip[i] = true; continue;
+        }
+
+        /* Default single-line printing path */
+        TokenString ts; RETURN_IF_ERROR(translate_instruction_to_tokens(ins, &ts));
+        StringBuffer line; RETURN_IF_ERROR(string_buffer_init(&line, 128));
+        RETURN_IF_ERROR(append_indent(&line, base_indent));
+        bool handled_cf = false;
+        if (is_jump_instruction(ins->inst->opcode)) {
+            int aidx=-1; for (int j=0;j<6;j++){ if (operand_is_addr(ins->inst,j)){ aidx=j; break; } }
+            if (aidx>=0){ u32 taddr=compute_target_address(ins,aidx); char tlabel[32]; label_name(tlabel,sizeof(tlabel),taddr); u8 op=ins->inst->opcode; if (op==OP_Jmp||op==OP_JmpLong){ string_buffer_append(&line, "goto "); string_buffer_append(&line, tlabel); handled_cf=true; } }
+        }
+        if (!handled_cf) { RETURN_IF_ERROR(token_string_to_string(&ts, &line)); }
+        RETURN_IF_ERROR(string_buffer_append(&line, ";"));
+        StringBuffer dline; string_buffer_init(&dline, 64); Result sr = instruction_to_string(ins, &dline); if (sr.code==RESULT_SUCCESS && dline.length>0){ string_buffer_append(&line, "  // "); string_buffer_append(&line, dline.data);} string_buffer_free(&dline);
+        string_buffer_append(&line, "\n"); string_buffer_append(out, line.data); string_buffer_free(&line);
+        token_string_cleanup(&ts);
+    }
+    free(skip);
+    parsed_instruction_list_free(&list);
+    u32set_free(&labels);
 
     // Close function body
     RETURN_IF_ERROR(string_buffer_append(out, "}\n\n"));
@@ -184,8 +686,8 @@ static Result emit_function_stub_with_disassembly(HBCReader* reader, u32 functio
 }
 
 Result decompile_function_to_buffer(HBCReader* reader, u32 function_id, StringBuffer* out) {
-    // For now emit a JS function stub with disassembly comments
-    return emit_function_stub_with_disassembly(reader, function_id, out);
+    // Emit a JS function stub with minimal decompiled statements and disassembly comments per line
+    return emit_minimal_decompiled_function(reader, function_id, out);
 }
 
 Result decompile_all_to_buffer(HBCReader* reader, StringBuffer* out) {
@@ -254,31 +756,4 @@ Result decompile_function(HermesDecompiler* state, u32 function_id, Environment*
     return SUCCESS_RESULT();
 }
 
-Result function_body_init(DecompiledFunctionBody* body, u32 function_id, FunctionHeader* function_object, bool is_global) {
-    // Stub implementation
-    (void)body;
-    (void)function_id;
-    (void)function_object;
-    (void)is_global;
-    return SUCCESS_RESULT();
-}
-
-void function_body_cleanup(DecompiledFunctionBody* body) {
-    // Stub implementation
-    (void)body;
-}
-
-Result add_jump_target(DecompiledFunctionBody* body, u32 address) {
-    // Stub implementation
-    (void)body;
-    (void)address;
-    return SUCCESS_RESULT();
-}
-
-Result create_basic_block(DecompiledFunctionBody* body, u32 start_address, u32 end_address) {
-    // Stub implementation
-    (void)body;
-    (void)start_address;
-    (void)end_address;
-    return SUCCESS_RESULT();
-}
+/* removed old stubs (replaced above with real implementations) */

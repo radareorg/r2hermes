@@ -113,7 +113,7 @@ struct DecompiledFunctionBody {
 };
 
 /* Main decompiler state */
-typedef struct {
+typedef struct HermesDecompiler {
     char* input_file;
     char* output_file;
     HBCReader* hbc_reader;
@@ -147,5 +147,8 @@ Result function_body_init(DecompiledFunctionBody* body, u32 function_id, Functio
 void function_body_cleanup(DecompiledFunctionBody* body);
 Result add_jump_target(DecompiledFunctionBody* body, u32 address);
 Result create_basic_block(DecompiledFunctionBody* body, u32 start_address, u32 end_address);
+
+/* Internal: build CFG and anchors for a function */
+Result build_control_flow_graph(HBCReader* reader, u32 function_id, ParsedInstructionList* list, DecompiledFunctionBody* out_body);
 
 #endif /* HERMES_DEC_DECOMPILER_H */
