@@ -218,6 +218,9 @@ struct HBCReader {
     OffsetLengthPair* overflow_string_table;
     char** strings;
     
+    /* String storage base (file absolute offset) */
+    u32 string_storage_file_offset;
+    
     /* Array and object data */
     u8* arrays;
     u8* object_keys;

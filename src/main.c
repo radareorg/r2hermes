@@ -25,6 +25,7 @@ static void print_usage(const char* program_name) {
     printf("  --json, -j             Output in JSON format (disassembler only)\n");
     printf("  --bytecode, -b         Show raw bytecode bytes (disassembler only)\n");
     printf("  --debug, -d            Show debug information (disassembler only)\n");
+    printf("  --asmsyntax            Use CPU-like asm syntax (mnemonic operands)\n");
 }
 
 static Result parse_args(int argc, char** argv, char** command, char** input_file, char** output_file, DisassemblyOptions* options) {
@@ -39,12 +40,14 @@ static Result parse_args(int argc, char** argv, char** command, char** input_fil
     options->output_json = false;
     options->show_bytecode = false;
     options->show_debug_info = false;
+    options->asm_syntax = false;
     for (int i = 3; i < argc; i++) {
         if (argv[i][0] == '-') {
             if (!strcmp(argv[i], "--verbose") || !strcmp(argv[i], "-v")) options->verbose = true;
             else if (!strcmp(argv[i], "--json") || !strcmp(argv[i], "-j")) options->output_json = true;
             else if (!strcmp(argv[i], "--bytecode") || !strcmp(argv[i], "-b")) options->show_bytecode = true;
             else if (!strcmp(argv[i], "--debug") || !strcmp(argv[i], "-d")) options->show_debug_info = true;
+            else if (!strcmp(argv[i], "--asmsyntax")) options->asm_syntax = true;
             else printf("Warning: Unknown option '%s'\n", argv[i]);
         } else { *output_file = argv[i]; break; }
     }
@@ -55,6 +58,7 @@ int main(int argc, char** argv) {
     char* command = NULL; char* input_file = NULL; char* output_file = NULL; DisassemblyOptions options; Result result;
     result = parse_args(argc, argv, &command, &input_file, &output_file, &options);
     if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Error: %s\n", result.error_message); return 1; }
+    if (options.asm_syntax) fprintf(stderr, "[hermes-dec] ASM syntax mode enabled\n");
 
     if (!strcmp(command, "disassemble") || !strcmp(command, "dis") || !strcmp(command, "d")) {
         HermesDec* hd = NULL; result = hermesdec_open(input_file, &hd); if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Open error: %s\n", result.error_message); return 1; }

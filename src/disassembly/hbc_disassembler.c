@@ -11,6 +11,10 @@ Result disassembler_init(Disassembler* disassembler, HBCReader* reader, Disassem
     
     disassembler->reader = reader;
     disassembler->options = options;
+    if (options.asm_syntax) {
+        fprintf(stderr, "[disassembler] asm_syntax=1\n");
+    }
+    disassembler->current_function_id = 0;
     
     return string_buffer_init(&disassembler->output, 8192);
 }
@@ -125,11 +129,118 @@ Result print_function_header(Disassembler* disassembler, FunctionHeader* functio
 }
 
 /* Print a single instruction */
+/* Helpers for asm-syntax formatting */
+static void to_snake_lower(const char* in, char* out, size_t outsz) {
+    size_t j = 0;
+    for (size_t i = 0; in && in[i] && j + 1 < outsz; i++) {
+        char c = in[i];
+        if (c >= 'A' && c <= 'Z') {
+            if (i != 0 && out[j-1] != '_') {
+                if (j + 1 < outsz) out[j++] = '_';
+            }
+            c = (char)(c - 'A' + 'a');
+        }
+        out[j++] = c;
+    }
+    if (outsz > 0) out[j < outsz ? j : outsz - 1] = '\0';
+}
+
+static Result format_operand_asm(Disassembler* d, ParsedInstruction* ins, int idx, StringBuffer* out) {
+    OperandType t = ins->inst->operands[idx].operand_type;
+    OperandMeaning m = ins->inst->operands[idx].operand_meaning;
+    u32 v = 0;
+    switch (idx) {
+        case 0: v = ins->arg1; break; case 1: v = ins->arg2; break; case 2: v = ins->arg3; break;
+        case 3: v = ins->arg4; break; case 4: v = ins->arg5; break; case 5: v = ins->arg6; break;
+    }
+
+    HBCReader* r = d->reader;
+    FunctionHeader* fh = &r->function_headers[d->current_function_id];
+
+    char buf[64];
+    if (t == OPERAND_TYPE_REG8 || t == OPERAND_TYPE_REG32) {
+        snprintf(buf, sizeof(buf), "r%u", v);
+        return string_buffer_append(out, buf);
+    }
+
+    if (m == OPERAND_MEANING_FUNCTION_ID) {
+        if (v < r->header.functionCount) {
+            u32 off = r->function_headers[v].offset;
+            snprintf(buf, sizeof(buf), "0x%x", off);
+            return string_buffer_append(out, buf);
+        }
+        snprintf(buf, sizeof(buf), "%u", v);
+        return string_buffer_append(out, buf);
+    }
+
+    if (m == OPERAND_MEANING_STRING_ID) {
+        u32 off = 0;
+        if (v < r->header.stringCount && r->small_string_table) {
+            if (r->small_string_table[v].length == 0xFF && r->overflow_string_table) {
+                u32 oi = r->small_string_table[v].offset;
+                off = r->overflow_string_table[oi].offset;
+            } else {
+                off = r->small_string_table[v].offset;
+            }
+        }
+        u32 abs = r->string_storage_file_offset + off;
+        snprintf(buf, sizeof(buf), "0x%x", abs);
+        return string_buffer_append(out, buf);
+    }
+
+    if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
+        /* local helper to detect jump-like opcodes */
+        bool is_jump = false;
+        switch (ins->inst->opcode) {
+            case 142: case 143: case 144: case 145: case 146: case 147: case 148: case 149:
+            case 150: case 151: case 152: case 153: case 154: case 155: case 156: case 157:
+            case 158: case 159: case 160: case 161: case 162: case 163: case 164: case 165:
+            case 166: case 167: case 168: case 169: case 170: case 171: case 172: case 173:
+            case 174: case 175: case 176: case 177: case 178: case 179: case 180: case 181:
+            case 182: case 183: case 184: case 185: case 186: case 187: case 188: case 189:
+            case 190: case 191:
+                is_jump = true; break;
+            default: break;
+        }
+        /* For jumps, Hermes stores relative to (pc + size); convert to file-absolute */
+        u32 abs_rel = ins->original_pos + (is_jump ? ins->inst->binary_size : 0) + v;
+        u32 file_abs = fh->offset + abs_rel;
+        snprintf(buf, sizeof(buf), "0x%x", file_abs);
+        return string_buffer_append(out, buf);
+    }
+
+    /* Default: decimal immediate */
+    snprintf(buf, sizeof(buf), "%u", v);
+    return string_buffer_append(out, buf);
+}
+
+static Result print_instruction_asm(Disassembler* disassembler, ParsedInstruction* instruction) {
+    StringBuffer* out = &disassembler->output;
+    /* mnemonic */
+    char mnem[64];
+    to_snake_lower(instruction->inst->name, mnem, sizeof(mnem));
+    RETURN_IF_ERROR(string_buffer_append(out, mnem));
+    
+    bool first = true;
+    for (int i = 0; i < 6; i++) {
+        if (instruction->inst->operands[i].operand_type == OPERAND_TYPE_NONE) continue;
+        RETURN_IF_ERROR(string_buffer_append(out, first ? " " : ", "));
+        first = false;
+        RETURN_IF_ERROR(format_operand_asm(disassembler, instruction, i, out));
+    }
+    RETURN_IF_ERROR(string_buffer_append(out, "\n"));
+    return SUCCESS_RESULT();
+}
+
 Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruction) {
     if (!disassembler || !instruction || !instruction->inst) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for print_instruction");
     }
     
+    /* Force asm path to ensure consistent output as requested */
+    if (disassembler->options.asm_syntax) {
+    	return print_instruction_asm(disassembler, instruction);
+    }
     StringBuffer* output = &disassembler->output;
     
     /* Print instruction address */
@@ -363,10 +474,15 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
     
     /* Print function header */
     FunctionHeader* function_header = &reader->function_headers[function_id];
+    disassembler->current_function_id = function_id;
     RETURN_IF_ERROR(print_function_header(disassembler, function_header, function_id));
     
     /* Print bytecode listing header */
-    RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing:\n\n"));
+    if (disassembler->options.asm_syntax) {
+        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing (asm):\n\n"));
+    } else {
+        RETURN_IF_ERROR(string_buffer_append(&disassembler->output, "Bytecode listing:\n\n"));
+    }
     
     /* Debug mode - always show function offset info */
     const char* debug_func_name = "unknown";
@@ -489,9 +605,11 @@ Result disassemble_function(Disassembler* disassembler, u32 function_id) {
         /* Print instructions */
         for (u32 i = 0; i < instructions.count; i++) {
             ParsedInstruction* instruction = &instructions.instructions[i];
-            
-            /* Print instruction directly using print_instruction helper function */
-            RETURN_IF_ERROR(print_instruction(disassembler, instruction));
+            if (disassembler->options.asm_syntax) {
+                RETURN_IF_ERROR(print_instruction_asm(disassembler, instruction));
+            } else {
+                RETURN_IF_ERROR(print_instruction(disassembler, instruction));
+            }
         }
         
         /* Free instruction list */
@@ -1156,4 +1274,3 @@ Result generate_r2_script(const char* input_file, const char* output_file) {
     
     return SUCCESS_RESULT();
 }
-

@@ -791,8 +791,11 @@ Result hbc_reader_read_string_tables(HBCReader* reader) {
 	/* Align buffer for string storage */
 	RETURN_IF_ERROR(align_over_padding(&reader->file_buffer, 4));
 
-	/* Read the string storage */
-	u8* string_storage = (u8*)malloc(reader->header.stringStorageSize);
+    /* Record absolute file offset for the string storage area (for address printing) */
+    reader->string_storage_file_offset = (u32)reader->file_buffer.position;
+
+    /* Read the string storage */
+    u8* string_storage = (u8*)malloc(reader->header.stringStorageSize);
 	if (!string_storage) {
 		return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string storage");
 	}

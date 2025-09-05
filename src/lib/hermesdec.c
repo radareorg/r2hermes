@@ -246,6 +246,9 @@ typedef Result (*DisasmWorkFn)(Disassembler*, void*);
 
 static Result disassemble_into(StringBuffer* out, DisassemblyOptions options, HBCReader* r, DisasmWorkFn work, void* ctx) {
     Disassembler d;
+    if (options.asm_syntax) {
+        fprintf(stderr, "[hermesdec] passing asm_syntax=1 to disassembler\n");
+    }
     Result res = disassembler_init(&d, r, options);
     if (res.code != RESULT_SUCCESS) return res;
     res = work(&d, ctx);

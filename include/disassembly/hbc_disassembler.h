@@ -13,6 +13,7 @@ typedef struct {
     bool output_json;       /* Output in JSON format instead of text */
     bool show_bytecode;     /* Show raw bytecode bytes */
     bool show_debug_info;   /* Show debug information */
+    bool asm_syntax;        /* Output CPU-like asm syntax (mnemonic operands) */
 } DisassemblyOptions;
 #endif
 
@@ -21,6 +22,7 @@ typedef struct {
     HBCReader* reader;      /* The HBC reader with parsed data */
     StringBuffer output;    /* The output buffer */
     DisassemblyOptions options; /* Disassembly options */
+    u32 current_function_id;/* Function currently being disassembled */
 } Disassembler;
 
 /* Function declarations */
