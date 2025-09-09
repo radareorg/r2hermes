@@ -178,91 +178,143 @@ static ut64 baddr(RBinFile *bf) {
 }
 
 static RList *symbols(RBinFile *bf) {
-    RList *symbols = r_list_newf ((RListFree)free);
-    if (!symbols) {
-        return NULL;
-    }
+	RList *symbols = r_list_newf ((RListFree)free);
+	if (!symbols) {
+		return NULL;
+	}
 
-    // Try to parse the file and extract function symbols using the library
-    if (bf->file) {
-        HermesDec *hd = NULL;
-        Result result = hermesdec_open(bf->file, &hd);
-        if (result.code == RESULT_SUCCESS) {
-            u32 func_count = hermesdec_function_count(hd);
+	// Try to parse the file and extract function symbols using the library
+	if (bf->file) {
+		HermesDec *hd = NULL;
+		Result result = hermesdec_open(bf->file, &hd);
+		if (result.code == RESULT_SUCCESS) {
+			u32 func_count = hermesdec_function_count(hd);
 
-            for (u32 i = 0; i < func_count; i++) {
-                const char *name = NULL;
-                u32 offset = 0, size = 0, param_count = 0;
-                Result func_result = hermesdec_get_function_info(hd, i, &name, &offset, &size, &param_count);
-                if (func_result.code == RESULT_SUCCESS) {
-                    RBinSymbol *symbol = R_NEW0 (RBinSymbol);
-                    if (!symbol) {
-                        break;
-                    }
+			for (u32 i = 0; i < func_count; i++) {
+				const char *name = NULL;
+				u32 offset = 0, size = 0, param_count = 0;
+				Result func_result = hermesdec_get_function_info(hd, i, &name, &offset, &size, &param_count);
+				if (func_result.code == RESULT_SUCCESS) {
+					RBinSymbol *symbol = R_NEW0 (RBinSymbol);
+					if (!symbol) {
+						break;
+					}
 
-                    /* Build a unique, sanitized name: [container__]base + _0x<offset> */
-                    const char *base = (name && *name) ? name : NULL;
-                    char *tmpbase = NULL;
-                    if (!base) {
-                        tmpbase = r_str_newf("func_%u", i);
-                        base = tmpbase;
-                    }
-                    /* sanitize to be a valid flag/symbol name */
-                    char *san = r_name_filter_dup(base);
-                    if (!san || !*san) {
-                        free(san);
-                        san = r_str_newf("func_%u", i);
-                    }
-                    /* optional container/source prefix if available */
-                    const char *src = NULL;
-                    if (hermesdec_get_function_source(hd, i, &src).code == RESULT_SUCCESS && src && *src) {
-                        char *sp = r_name_filter_dup(src);
-                        if (sp && *sp) {
-                            char *withpref = r_str_newf("%s__%s", sp, san);
-                            free(san);
-                            san = withpref;
-                        }
-                        free(sp);
-                    }
-                    char *final = r_str_newf("%s_0x%08x", san, offset);
-                    symbol->name = r_bin_name_new(final);
-                    /* Also store filtered (flag) name explicitly */
-                    r_bin_name_filtered(symbol->name, final);
-                    free(final);
-                    free(san);
-                    free(tmpbase);
+					/* Build a unique, sanitized name: [container__]base + _0x<offset> */
+					const char *base = (name && *name) ? name : NULL;
+					char *tmpbase = NULL;
+					if (!base) {
+						tmpbase = r_str_newf("func_%u", i);
+						base = tmpbase;
+					}
+					/* sanitize to be a valid flag/symbol name */
+					char *san = r_name_filter_dup(base);
+					if (!san || !*san) {
+						free(san);
+						san = r_str_newf("func_%u", i);
+					}
+					/* optional container/source prefix if available */
+					const char *src = NULL;
+					if (hermesdec_get_function_source(hd, i, &src).code == RESULT_SUCCESS && src && *src) {
+						char *sp = r_name_filter_dup(src);
+						if (sp && *sp) {
+							char *withpref = r_str_newf("%s__%s", sp, san);
+							free(san);
+							san = withpref;
+						}
+						free(sp);
+					}
+					char *final = r_str_newf("%s_0x%08x", san, offset);
+					symbol->name = r_bin_name_new(final);
+					/* Also store filtered (flag) name explicitly */
+					r_bin_name_filtered(symbol->name, final);
+					free(final);
+					free(san);
+					free(tmpbase);
 
-                    symbol->paddr = offset;
-                    symbol->vaddr = offset;
-                    symbol->size = size;
-                    symbol->ordinal = i;
-                    symbol->type = R_BIN_TYPE_FUNC_STR;
-                    symbol->bits = 32;
-                    r_list_append (symbols, symbol);
-                }
-            }
+					symbol->paddr = offset;
+					symbol->vaddr = offset;
+					symbol->size = size;
+					symbol->ordinal = i;
+					symbol->type = R_BIN_TYPE_FUNC_STR;
+					symbol->bits = 32;
+					r_list_append (symbols, symbol);
+				}
+			}
 
-            hermesdec_close(hd);
-        }
-    }
+			hermesdec_close(hd);
+		}
+	}
 
-    return symbols;
+	return symbols;
+}
+
+static RList *strings(RBinFile *bf) {
+	RList *ret = r_list_newf ((RListFree)free);
+	if (!ret) {
+		return NULL;
+	}
+
+	if (bf->file) {
+		HermesDec *hd = NULL;
+		Result result = hermesdec_open(bf->file, &hd);
+		if (result.code == RESULT_SUCCESS) {
+			u32 string_count = hermesdec_string_count(hd);
+
+			for (u32 i = 0; i < string_count; i++) {
+				const char *str = NULL;
+				Result str_result = hermesdec_get_string(hd, i, &str);
+				if (str_result.code == RESULT_SUCCESS && str) {
+					HermesStringMeta meta;
+					Result meta_result = hermesdec_get_string_meta(hd, i, &meta);
+					if (meta_result.code == RESULT_SUCCESS) {
+						RBinString *ptr = R_NEW0 (RBinString);
+						if (!ptr) {
+							break;
+						}
+
+						size_t str_len = strlen(str);
+						if (str_len > 0 && str_len < R_BIN_SIZEOF_STRINGS) {
+							ptr->string = strdup(str);
+							if (!ptr->string) {
+								free(ptr);
+								break;
+							}
+							ptr->paddr = meta.offset;
+							ptr->vaddr = meta.offset;
+							ptr->size = str_len;
+							ptr->length = str_len;
+							ptr->ordinal = i;
+							r_list_append(ret, ptr);
+						} else {
+							free(ptr);
+						}
+					}
+				}
+			}
+
+			hermesdec_close(hd);
+		}
+	}
+
+	return ret;
 }
 
 RBinPlugin r_bin_plugin_hermes = {
-    .meta = {
-        .name = "hbc",
-        .author = "pancake",
-        .desc = "Hermes bytecode format",
-        .license = "MIT",
-    },
-    .info = &info,
-    .load = &load,
-    .check = &check,
-    .entries = &entries,
-    .sections = &sections,
-    .baddr = &baddr,
-    .symbols = &symbols,
+	.meta = {
+		.name = "hbc",
+		.author = "pancake",
+		.desc = "Hermes bytecode format",
+		.license = "MIT",
+	},
+	.info = &info,
+	.load = &load,
+	.check = &check,
+	.entries = &entries,
+	.sections = &sections,
+	.baddr = &baddr,
+	.symbols = &symbols,
+	.strings = &strings,
 };
 
 #ifndef R2_PLUGIN_INCORE

@@ -220,7 +220,7 @@ Result hermesdec_get_string_meta(HermesDec* hd, u32 index, HermesStringMeta* out
         length = r->overflow_string_table[oi].length;
     }
     out->isUTF16 = is_utf16 != 0;
-    out->offset = off;
+    out->offset = r->string_storage_file_offset + off;  // Return absolute file offset
     out->length = length;
     out->kind = (HermesStringKind)(r->string_kinds ? r->string_kinds[index] : 0);
     return SUCCESS_RESULT();
