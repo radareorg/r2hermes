@@ -178,6 +178,7 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
     /* Initialize ALL instruction fields to zero for safety */
     memset(out_instruction, 0, sizeof(ParsedInstruction));
     out_instruction->original_pos = offset;
+    out_instruction->function_offset = function_header->offset;
     out_instruction->hbc_reader = reader;
     out_instruction->arg1 = 0;
     out_instruction->arg2 = 0;
@@ -467,9 +468,10 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
         /* Create parsed instruction */
         ParsedInstruction instruction;
         memset(&instruction, 0, sizeof(ParsedInstruction));
-        
+
         instruction.inst = inst;
         instruction.original_pos = original_pos;
+        instruction.function_offset = function_header->offset;
         instruction.hbc_reader = reader;
         
         /* Set the expected next position based on instruction size */
@@ -680,7 +682,7 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
     
     /* Format offset */
     char offset_str[16];
-    snprintf(offset_str, sizeof(offset_str), "%08x", instruction->original_pos);
+    snprintf(offset_str, sizeof(offset_str), "%08x", instruction->function_offset + instruction->original_pos);
     
     /* Add address */
     RETURN_IF_ERROR(string_buffer_append(out_string, offset_str));
@@ -864,12 +866,8 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
             }
             
             /* For addresses, calculate absolute target address */
-            u32 absolute_address = instruction->original_pos + value;
-            if (is_jump_instruction(instruction->inst->opcode)) {
-                /* For jump instructions, adjust for instruction size */
-                absolute_address = instruction->original_pos + instruction->inst->binary_size + value;
-            }
-            
+            u32 absolute_address = instruction->function_offset + instruction->original_pos + value;
+
             char addr_comment[32];
             snprintf(addr_comment, sizeof(addr_comment), "  # Address: %08x", absolute_address);
             RETURN_IF_ERROR(string_buffer_append(out_string, addr_comment));
@@ -887,7 +885,7 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
                 }
                 
                 char table_entry[16];
-                snprintf(table_entry, sizeof(table_entry), "%08x", instruction->switch_jump_table[i]);
+                snprintf(table_entry, sizeof(table_entry), "%08x", instruction->function_offset + instruction->switch_jump_table[i]);
                 RETURN_IF_ERROR(string_buffer_append(out_string, table_entry));
             }
             

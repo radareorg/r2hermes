@@ -55,6 +55,7 @@ typedef struct {
     u32 switch_jump_table_size;
     u32 original_pos;
     u32 next_pos;
+    u32 function_offset;
     HBCReader* hbc_reader;
 } ParsedInstruction;
 

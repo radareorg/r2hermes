@@ -467,11 +467,10 @@ Result hermesdec_decode_function_instructions(
             OperandMeaning m = ins->inst->operands[j].operand_meaning;
             u32 v = (j==0)?ins->arg1:(j==1)?ins->arg2:(j==2)?ins->arg3:(j==3)?ins->arg4:(j==4)?ins->arg5:ins->arg6;
 
+            /* Hermes short/long address operands are relative to the current
+             * instruction start (original_pos), not to the end of the instruction. */
             if ((t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) && hi->code_targets_count < 8) {
                 u32 rel = ins->original_pos + v;
-                if (is_jump_instruction(ins->inst->opcode)) {
-                    rel = ins->original_pos + ins->inst->binary_size + v;
-                }
                 hi->code_targets[hi->code_targets_count++] = fh->offset + rel;
             }
             if (m == OPERAND_MEANING_FUNCTION_ID && hi->function_ids_count < 4) {
@@ -641,13 +640,13 @@ Result hermesdec_decode_single_instruction(
     *out_opcode = opc;
     *out_size = isz;
 
-    /* Compute primary jump target for jmp-like insns (using relative pc) */
+    /* Compute primary jump target for jmp-like insns (Hermes uses offsets
+     * relative to the current instruction start, not the end). */
     u64 jtg = 0;
     for (int i = 0; i < 6; i++) {
         OperandType t = inst->operands[i].operand_type;
         if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
-            /* Hermes uses rel to (pc + size) for conditional/unconditional jumps */
-            u64 base = pc + (is_j ? (u64)isz : 0);
+            u64 base = pc; /* instruction-relative */
             jtg = base + (u64)ops[i];
             break;
         }
@@ -683,7 +682,8 @@ Result hermesdec_decode_single_instruction(
             break;
         case OPERAND_TYPE_ADDR8:
         case OPERAND_TYPE_ADDR32: {
-            u64 base = pc + (is_j ? (u64)isz : 0);
+            /* Addresses are relative to instruction start (pc) */
+            u64 base = pc;
             u64 abs = base + (u64)ops[i];
             snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)abs);
             break; }

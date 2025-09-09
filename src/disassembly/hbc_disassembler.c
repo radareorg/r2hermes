@@ -191,22 +191,8 @@ static Result format_operand_asm(Disassembler* d, ParsedInstruction* ins, int id
     }
 
     if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
-        /* local helper to detect jump-like opcodes */
-        bool is_jump = false;
-        switch (ins->inst->opcode) {
-            case 142: case 143: case 144: case 145: case 146: case 147: case 148: case 149:
-            case 150: case 151: case 152: case 153: case 154: case 155: case 156: case 157:
-            case 158: case 159: case 160: case 161: case 162: case 163: case 164: case 165:
-            case 166: case 167: case 168: case 169: case 170: case 171: case 172: case 173:
-            case 174: case 175: case 176: case 177: case 178: case 179: case 180: case 181:
-            case 182: case 183: case 184: case 185: case 186: case 187: case 188: case 189:
-            case 190: case 191:
-                is_jump = true; break;
-            default: break;
-        }
-        /* For jumps, Hermes stores relative to (pc + size); convert to file-absolute */
-        u32 abs_rel = ins->original_pos + (is_jump ? ins->inst->binary_size : 0) + v;
-        u32 file_abs = fh->offset + abs_rel;
+        /* Convert relative address to file-absolute */
+        u32 file_abs = fh->offset + ins->original_pos + v;
         snprintf(buf, sizeof(buf), "0x%x", file_abs);
         return string_buffer_append(out, buf);
     }
@@ -250,13 +236,15 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
     	return print_instruction_asm(disassembler, instruction);
     }
     StringBuffer* output = &disassembler->output;
+    HBCReader* reader = disassembler->reader;
+    FunctionHeader* fh = &reader->function_headers[disassembler->current_function_id];
     
     /* Print instruction address */
     char hex_addr[16];
-    snprintf(hex_addr, sizeof(hex_addr), "%08x", instruction->original_pos);
+    snprintf(hex_addr, sizeof(hex_addr), "%08x", fh->offset + instruction->original_pos);
     RETURN_IF_ERROR(string_buffer_append(output, "==> "));
     RETURN_IF_ERROR(string_buffer_append(output, hex_addr));
-    RETURN_IF_ERROR(string_buffer_append(output, ": <"));
+    RETURN_IF_ERROR(string_buffer_append(output, ">: <"));
     RETURN_IF_ERROR(string_buffer_append(output, instruction->inst->name));
     RETURN_IF_ERROR(string_buffer_append(output, ">: <"));
     
@@ -342,7 +330,6 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
     RETURN_IF_ERROR(string_buffer_append(output, ">"));
     
     /* Add comments for special operands */
-    HBCReader* reader = disassembler->reader;
     
     for (int i = 0; i < 6; i++) {
         OperandMeaning operand_meaning = instruction->inst->operands[i].operand_meaning;
@@ -418,46 +405,46 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
         }
     }
     
-    /* Add address comments for address operands */
-    for (int i = 0; i < 6; i++) {
-        OperandType operand_type = instruction->inst->operands[i].operand_type;
-        if (operand_type != OPERAND_TYPE_ADDR8 && operand_type != OPERAND_TYPE_ADDR32) {
-            continue;
+        /* Add address comments for address operands */
+        for (int i = 0; i < 6; i++) {
+            OperandType operand_type = instruction->inst->operands[i].operand_type;
+            if (operand_type != OPERAND_TYPE_ADDR8 && operand_type != OPERAND_TYPE_ADDR32) {
+                continue;
+            }
+
+            u32 value;
+            switch (i) {
+                case 0: value = instruction->arg1; break;
+                case 1: value = instruction->arg2; break;
+                case 2: value = instruction->arg3; break;
+                case 3: value = instruction->arg4; break;
+                case 4: value = instruction->arg5; break;
+                case 5: value = instruction->arg6; break;
+                default: value = 0;
+            }
+
+            RETURN_IF_ERROR(string_buffer_append(output, "  # Address: "));
+
+            char hex_addr[16];
+            snprintf(hex_addr, sizeof(hex_addr), "%08x", fh->offset + instruction->original_pos + value);
+            RETURN_IF_ERROR(string_buffer_append(output, hex_addr));
         }
-        
-        u32 value;
-        switch (i) {
-            case 0: value = instruction->arg1; break;
-            case 1: value = instruction->arg2; break;
-            case 2: value = instruction->arg3; break;
-            case 3: value = instruction->arg4; break;
-            case 4: value = instruction->arg5; break;
-            case 5: value = instruction->arg6; break;
-            default: value = 0;
-        }
-        
-        RETURN_IF_ERROR(string_buffer_append(output, "  # Address: "));
-        
-        char hex_addr[16];
-        snprintf(hex_addr, sizeof(hex_addr), "%08x", instruction->original_pos + value);
-        RETURN_IF_ERROR(string_buffer_append(output, hex_addr));
-    }
     
     /* Add jump table comment for switch instructions */
     if (strcmp(instruction->inst->name, "SwitchImm") == 0) {
         if (instruction->switch_jump_table && instruction->switch_jump_table_size > 0) {
             RETURN_IF_ERROR(string_buffer_append(output, "  # Jump table: ["));
-            
+
             for (u32 i = 0; i < instruction->switch_jump_table_size; i++) {
                 if (i > 0) {
                     RETURN_IF_ERROR(string_buffer_append(output, ", "));
                 }
-                
+
                 char hex_addr[16];
-                snprintf(hex_addr, sizeof(hex_addr), "%08x", instruction->switch_jump_table[i]);
+                snprintf(hex_addr, sizeof(hex_addr), "%08x", fh->offset + instruction->switch_jump_table[i]);
                 RETURN_IF_ERROR(string_buffer_append(output, hex_addr));
             }
-            
+
             RETURN_IF_ERROR(string_buffer_append(output, "]"));
         }
     }
