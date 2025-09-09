@@ -30,6 +30,25 @@ static ut32 hermes_detect_version_from_bin(RArchSession *s) {
     return 96;
 }
 
+static bool hermes_opcode_is_conditional(u8 opcode) {
+    switch (opcode) {
+    case OP_JmpTrue:
+    case OP_JmpTrueLong:
+    case OP_JmpFalse:
+    case OP_JmpFalseLong:
+    case OP_JmpUndefined:
+    case OP_JmpUndefinedLong:
+        return true;
+    default:
+        break;
+    }
+    /* Relational and equality conditional jumps occupy 152..191 */
+    if (opcode >= OP_JLess && opcode <= OP_JStrictNotEqualLong) {
+        return true;
+    }
+    return false;
+}
+
 static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
     R_RETURN_VAL_IF_FAIL (s && op, false);
     (void)mask;
@@ -75,15 +94,33 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
     op->size = size ? size : 1;
     op->type = R_ANAL_OP_TYPE_UNK;
     op->family = R_ANAL_OP_FAMILY_CPU;
-    if (is_jump) {
+
+    if (opcode == OP_Ret) {
+        op->type = R_ANAL_OP_TYPE_RET;
+        return true;
+    }
+
+    if (hermes_opcode_is_conditional(opcode)) {
+        op->type = R_ANAL_OP_TYPE_CJMP;
+        op->jump = jmp;                 /* taken */
+        op->fail = op->addr + op->size; /* fall-through */
+        return true;
+    }
+
+    if (opcode == OP_Jmp || opcode == OP_JmpLong) {
         op->type = R_ANAL_OP_TYPE_JMP;
         op->jump = jmp;
-    } else if (is_call) {
+        return true;
+    }
+
+    if (is_call) {
         op->type = R_ANAL_OP_TYPE_CALL;
-        op->jump = jmp;
-    } else if (opcode == OP_Ret) {
-        op->type = R_ANAL_OP_TYPE_RET;
-    } else if (opcode == OP_Mov || opcode == OP_MovLong) {
+        op->jump = jmp;                 /* if resolvable */
+        op->fail = op->addr + op->size; /* returns here */
+        return true;
+    }
+
+    if (opcode == OP_Mov || opcode == OP_MovLong) {
         op->type = R_ANAL_OP_TYPE_MOV;
     } else if (opcode == OP_Add || opcode == OP_AddN || opcode == OP_Add32) {
         op->type = R_ANAL_OP_TYPE_ADD;

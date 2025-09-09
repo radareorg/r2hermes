@@ -46,6 +46,7 @@ Result print_function_header(Disassembler* disassembler, FunctionHeader* functio
             function_id, function_header->functionName, reader->header.stringCount);
     }
     
+    if (verbose) {
     /* Basic function information */
     RETURN_IF_ERROR(string_buffer_append(output, "=> [Function #"));
     RETURN_IF_ERROR(string_buffer_append_int(output, function_id));
@@ -59,6 +60,7 @@ Result print_function_header(Disassembler* disassembler, FunctionHeader* functio
     RETURN_IF_ERROR(string_buffer_append_int(output, function_header->frameSize));
     RETURN_IF_ERROR(string_buffer_append(output, ", env size="));
     RETURN_IF_ERROR(string_buffer_append_int(output, function_header->environmentSize));
+    }
     
     /* Verbose information */
     if (verbose) {

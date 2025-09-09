@@ -54,6 +54,11 @@ $(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ)
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+.PHONY: r2 test
+
+r2 test:
+	$(MAKE) -C r2 && $(MAKE) -C r2 user-install
+
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
 
