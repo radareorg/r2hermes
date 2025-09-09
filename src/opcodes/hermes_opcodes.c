@@ -1359,17 +1359,159 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_Store16] = (Instruction) { OP_Store16, "Store16", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
     instructions[OP_Store32] = (Instruction) { OP_Store32, "Store32", {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, 4 };
     
-    /* Count the number of actual defined opcodes */
-    u32 defined_count = 0;
-    for (u32 i = 0; i < instruction_count; i++) {
-        if (strcmp(instructions[i].name, "Unknown") != 0) {
-            defined_count++;
-        }
-    }
-    
     if (out_count) *out_count = instruction_count; /* Return full set for array indexing */
     
     // XXX this is called too many times
     // fprintf(stderr, "Initialized %u instruction definitions\n", defined_count);
     return instructions;
+}
+
+/* Helper function - check if an opcode is an arithmetic instruction */
+bool is_arithmetic_instruction(u8 opcode) {
+    switch (opcode) {
+        case OP_Add:
+        case OP_AddN:
+        case OP_Add32:
+        case OP_AddEmptyString:
+        case OP_Sub:
+        case OP_SubN:
+        case OP_Sub32:
+        case OP_Mul:
+        case OP_MulN:
+        case OP_Mul32:
+        case OP_Div:
+        case OP_DivN:
+        case OP_Divi32:
+        case OP_Divu32:
+        case OP_Mod:
+        case OP_Inc:
+        case OP_Dec:
+        case OP_Negate:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/* Helper function - check if an opcode is a bitwise instruction */
+bool is_bitwise_instruction(u8 opcode) {
+    switch (opcode) {
+        case OP_BitAnd:
+        case OP_BitOr:
+        case OP_BitXor:
+        case OP_BitNot:
+        case OP_LShift:
+        case OP_RShift:
+        case OP_URshift:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/* Helper function - check if an opcode is a load instruction */
+bool is_load_instruction(u8 opcode) {
+    switch (opcode) {
+        case OP_Loadi8:
+        case OP_Loadu8:
+        case OP_Loadi16:
+        case OP_Loadu16:
+        case OP_Loadi32:
+        case OP_Loadu32:
+        case OP_GetById:
+        case OP_GetByIdLong:
+        case OP_GetByIdShort:
+        case OP_GetByVal:
+        case OP_TryGetById:
+        case OP_TryGetByIdLong:
+        case OP_LoadFromEnvironment:
+        case OP_LoadFromEnvironmentL:
+        case OP_GetEnvironment:
+        case OP_LoadParam:
+        case OP_LoadParamLong:
+        case OP_LoadConstUInt8:
+        case OP_LoadConstInt:
+        case OP_LoadConstDouble:
+        case OP_LoadConstBigInt:
+        case OP_LoadConstBigIntLongIndex:
+        case OP_LoadConstString:
+        case OP_LoadConstStringLongIndex:
+        case OP_LoadConstEmpty:
+        case OP_LoadConstUndefined:
+        case OP_LoadConstNull:
+        case OP_LoadConstTrue:
+        case OP_LoadConstFalse:
+        case OP_LoadConstZero:
+        case OP_LoadThisNS:
+        case OP_GetBuiltinClosure:
+        case OP_GetGlobalObject:
+        case OP_GetNewTarget:
+        case OP_GetArgumentsPropByVal:
+        case OP_GetArgumentsLength:
+        case OP_GetPNameList:
+        case OP_GetNextPName:
+        case OP_IteratorBegin:
+        case OP_IteratorNext:
+        case OP_ReifyArguments:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/* Helper function - check if an opcode is a store instruction */
+bool is_store_instruction(u8 opcode) {
+    switch (opcode) {
+        case OP_Store8:
+        case OP_Store16:
+        case OP_Store32:
+        case OP_PutById:
+        case OP_PutByIdLong:
+        case OP_PutByVal:
+        case OP_TryPutById:
+        case OP_TryPutByIdLong:
+        case OP_PutNewOwnById:
+        case OP_PutNewOwnByIdLong:
+        case OP_PutNewOwnByIdShort:
+        case OP_PutNewOwnNEById:
+        case OP_PutNewOwnNEByIdLong:
+        case OP_PutOwnByIndex:
+        case OP_PutOwnByIndexL:
+        case OP_PutOwnByVal:
+        case OP_PutOwnGetterSetterByVal:
+        case OP_StoreToEnvironment:
+        case OP_StoreToEnvironmentL:
+        case OP_StoreNPToEnvironment:
+        case OP_StoreNPToEnvironmentL:
+        case OP_DelById:
+        case OP_DelByIdLong:
+        case OP_DelByVal:
+        case OP_CreateEnvironment:
+        case OP_CreateInnerEnvironment:
+        case OP_DeclareGlobalVar:
+        case OP_ThrowIfHasRestrictedGlobalProperty:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/* Helper function - check if an opcode is a comparison instruction */
+bool is_comparison_instruction(u8 opcode) {
+    switch (opcode) {
+        case OP_Eq:
+        case OP_StrictEq:
+        case OP_Neq:
+        case OP_StrictNeq:
+        case OP_Less:
+        case OP_Greater:
+        case OP_LessEq:
+        case OP_GreaterEq:
+        case OP_IsIn:
+        case OP_InstanceOf:
+        case OP_TypeOf:
+            return true;
+        default:
+            return false;
+    }
 }

@@ -120,12 +120,142 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
         return true;
     }
 
-    if (opcode == OP_Mov || opcode == OP_MovLong) {
-        op->type = R_ANAL_OP_TYPE_MOV;
-    } else if (opcode == OP_Add || opcode == OP_AddN || opcode == OP_Add32) {
+    // Arithmetic operations
+    if (opcode == OP_Add || opcode == OP_AddN || opcode == OP_Add32 ||
+        opcode == OP_AddEmptyString) {
         op->type = R_ANAL_OP_TYPE_ADD;
     } else if (opcode == OP_Sub || opcode == OP_SubN || opcode == OP_Sub32) {
         op->type = R_ANAL_OP_TYPE_SUB;
+    } else if (opcode == OP_Mul || opcode == OP_MulN || opcode == OP_Mul32) {
+        op->type = R_ANAL_OP_TYPE_MUL;
+    } else if (opcode == OP_Div || opcode == OP_DivN || opcode == OP_Divi32 || opcode == OP_Divu32) {
+        op->type = R_ANAL_OP_TYPE_DIV;
+    } else if (opcode == OP_Mod) {
+        op->type = R_ANAL_OP_TYPE_MOD;
+    }
+    // Bitwise operations
+    else if (opcode == OP_BitAnd) {
+        op->type = R_ANAL_OP_TYPE_AND;
+    } else if (opcode == OP_BitOr) {
+        op->type = R_ANAL_OP_TYPE_OR;
+    } else if (opcode == OP_BitXor) {
+        op->type = R_ANAL_OP_TYPE_XOR;
+    } else if (opcode == OP_BitNot || opcode == OP_Not) {
+        op->type = R_ANAL_OP_TYPE_NOT;
+    } else if (opcode == OP_LShift) {
+        op->type = R_ANAL_OP_TYPE_SHL;
+    } else if (opcode == OP_RShift) {
+        op->type = R_ANAL_OP_TYPE_SHR;
+    } else if (opcode == OP_URshift) {
+        op->type = R_ANAL_OP_TYPE_SHR;
+    }
+    // Move operations
+    else if (opcode == OP_Mov || opcode == OP_MovLong) {
+        op->type = R_ANAL_OP_TYPE_MOV;
+    }
+    // Increment/Decrement
+    else if (opcode == OP_Inc) {
+        op->type = R_ANAL_OP_TYPE_ADD;
+    } else if (opcode == OP_Dec) {
+        op->type = R_ANAL_OP_TYPE_SUB;
+    }
+    // Unary operations
+    else if (opcode == OP_Negate) {
+        op->type = R_ANAL_OP_TYPE_NOT;
+    }
+    // Load operations
+    else if (opcode == OP_Loadi8 || opcode == OP_Loadu8 || opcode == OP_Loadi16 ||
+             opcode == OP_Loadu16 || opcode == OP_Loadi32 || opcode == OP_Loadu32 ||
+             opcode == OP_GetById || opcode == OP_GetByIdLong || opcode == OP_GetByIdShort ||
+             opcode == OP_GetByVal || opcode == OP_TryGetById || opcode == OP_TryGetByIdLong ||
+             opcode == OP_LoadFromEnvironment || opcode == OP_LoadFromEnvironmentL ||
+             opcode == OP_GetEnvironment || opcode == OP_LoadParam || opcode == OP_LoadParamLong ||
+             opcode == OP_LoadConstUInt8 || opcode == OP_LoadConstInt ||
+             opcode == OP_LoadConstDouble || opcode == OP_LoadConstBigInt ||
+             opcode == OP_LoadConstBigIntLongIndex || opcode == OP_LoadConstString ||
+             opcode == OP_LoadConstStringLongIndex || opcode == OP_LoadConstEmpty ||
+             opcode == OP_LoadConstUndefined || opcode == OP_LoadConstNull ||
+             opcode == OP_LoadConstTrue || opcode == OP_LoadConstFalse ||
+             opcode == OP_LoadConstZero || opcode == OP_LoadThisNS ||
+             opcode == OP_GetBuiltinClosure || opcode == OP_GetGlobalObject ||
+             opcode == OP_GetNewTarget || opcode == OP_GetArgumentsPropByVal ||
+             opcode == OP_GetArgumentsLength || opcode == OP_GetPNameList ||
+             opcode == OP_GetNextPName) {
+        op->type = R_ANAL_OP_TYPE_LOAD;
+    }
+    // Store operations
+    else if (opcode == OP_Store8 || opcode == OP_Store16 || opcode == OP_Store32 ||
+             opcode == OP_PutById || opcode == OP_PutByIdLong ||
+             opcode == OP_PutByVal || opcode == OP_TryPutById || opcode == OP_TryPutByIdLong ||
+             opcode == OP_PutNewOwnById || opcode == OP_PutNewOwnByIdLong ||
+             opcode == OP_PutNewOwnByIdShort || opcode == OP_PutNewOwnNEById ||
+             opcode == OP_PutNewOwnNEByIdLong || opcode == OP_PutOwnByIndex ||
+             opcode == OP_PutOwnByIndexL || opcode == OP_PutOwnByVal ||
+             opcode == OP_PutOwnGetterSetterByVal ||
+             opcode == OP_StoreToEnvironment || opcode == OP_StoreToEnvironmentL ||
+             opcode == OP_StoreNPToEnvironment || opcode == OP_StoreNPToEnvironmentL) {
+        op->type = R_ANAL_OP_TYPE_STORE;
+    }
+    // Comparison operations
+    else if (opcode == OP_Eq || opcode == OP_StrictEq || opcode == OP_Neq ||
+             opcode == OP_StrictNeq || opcode == OP_Less || opcode == OP_Greater ||
+             opcode == OP_LessEq || opcode == OP_GreaterEq || opcode == OP_IsIn ||
+             opcode == OP_InstanceOf || opcode == OP_TypeOf) {
+        op->type = R_ANAL_OP_TYPE_CMP;
+    }
+    // Object/Array creation
+    else if (opcode == OP_NewObject || opcode == OP_NewObjectWithParent ||
+             opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
+             opcode == OP_NewArray || opcode == OP_NewArrayWithBuffer ||
+             opcode == OP_NewArrayWithBufferLong || opcode == OP_CreateClosure ||
+             opcode == OP_CreateClosureLongIndex || opcode == OP_CreateGeneratorClosure ||
+             opcode == OP_CreateGeneratorClosureLongIndex || opcode == OP_CreateAsyncClosure ||
+             opcode == OP_CreateAsyncClosureLongIndex || opcode == OP_CreateGenerator ||
+             opcode == OP_CreateGeneratorLongIndex || opcode == OP_CreateThis ||
+             opcode == OP_CreateRegExp) {
+        op->type = R_ANAL_OP_TYPE_NEW;
+    }
+    // Type conversion operations
+    else if (opcode == OP_ToNumber || opcode == OP_ToNumeric || opcode == OP_ToInt32 ||
+             opcode == OP_CoerceThisNS) {
+        op->type = R_ANAL_OP_TYPE_CAST;
+    }
+    // Switch operations
+    else if (opcode == OP_SwitchImm) {
+        op->type = R_ANAL_OP_TYPE_SWITCH;
+    }
+    // Iterator operations
+    else if (opcode == OP_IteratorBegin || opcode == OP_IteratorNext || opcode == OP_IteratorClose) {
+        op->type = R_ANAL_OP_TYPE_LOAD; // Iterator operations involve loading values
+    }
+    // Environment operations
+    else if (opcode == OP_CreateEnvironment || opcode == OP_CreateInnerEnvironment ||
+             opcode == OP_DeclareGlobalVar || opcode == OP_ThrowIfHasRestrictedGlobalProperty) {
+        op->type = R_ANAL_OP_TYPE_STORE; // Environment setup involves storing
+    }
+    // Special operations
+    else if (opcode == OP_Unreachable) {
+        op->type = R_ANAL_OP_TYPE_ILL;
+    } else if (opcode == OP_Throw || opcode == OP_ThrowIfEmpty) {
+        op->type = R_ANAL_OP_TYPE_TRAP;
+    } else if (opcode == OP_Catch) {
+        op->type = R_ANAL_OP_TYPE_TRAP; // Exception handling
+    } else if (opcode == OP_Debugger) {
+        op->type = R_ANAL_OP_TYPE_DEBUG;
+    } else if (opcode == OP_AsyncBreakCheck || opcode == OP_ProfilePoint) {
+        op->type = R_ANAL_OP_TYPE_NOP;
+    } else if (opcode == OP_SelectObject) {
+        op->type = R_ANAL_OP_TYPE_MOV; // Object selection is like a move
+    } else if (opcode == OP_DelById || opcode == OP_DelByIdLong || opcode == OP_DelByVal) {
+        op->type = R_ANAL_OP_TYPE_STORE; // Delete operations modify storage
+    } else if (opcode == OP_ReifyArguments) {
+        op->type = R_ANAL_OP_TYPE_LOAD; // Reifying arguments loads them
+    } else if (opcode == OP_StartGenerator || opcode == OP_ResumeGenerator ||
+               opcode == OP_CompleteGenerator || opcode == OP_SaveGenerator ||
+               opcode == OP_SaveGeneratorLong) {
+        op->type = R_ANAL_OP_TYPE_CALL; // Generator operations are like function calls
+    } else if (opcode == OP_DirectEval) {
+        op->type = R_ANAL_OP_TYPE_CALL; // Eval is like a function call
     }
     return true;
 }

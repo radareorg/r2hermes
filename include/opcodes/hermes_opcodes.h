@@ -220,6 +220,11 @@ Instruction* get_instruction_set_v96(u32* out_count);
 /* Helper functions */
 bool is_jump_instruction(u8 opcode);
 bool is_call_instruction(u8 opcode);
+bool is_arithmetic_instruction(u8 opcode);
+bool is_bitwise_instruction(u8 opcode);
+bool is_load_instruction(u8 opcode);
+bool is_store_instruction(u8 opcode);
+bool is_comparison_instruction(u8 opcode);
 
 #endif /* HERMES_DEC_HERMES_OPCODES_H */
 
