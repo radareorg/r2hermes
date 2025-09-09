@@ -11,6 +11,7 @@
 // Include hermesdec headers
 #include "../include/hermesdec/hermesdec.h"
 #include "../include/opcodes/hermes_opcodes.h"
+#include "../include/parsers/hbc_bytecode_parser.h"
 #include "../include/parsers/hbc_file_parser.h"
 
 #define MAX_OP_SIZE 16
@@ -42,6 +43,8 @@ static ut32 hermes_detect_version_from_bin(RArchSession *s) {
     }
     return 96;
 }
+
+
 
 static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
     if (!hs || !s || !s->arch || !s->arch->binb.bin) {
@@ -99,6 +102,82 @@ static bool hermes_opcode_is_conditional(u8 opcode) {
     return false;
 }
 
+static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8* bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
+    // Get instruction set
+    ut32 count;
+    Instruction* inst_set = get_instruction_set_v96(&count);
+    if (!inst_set || opcode >= count) {
+        return;
+    }
+
+    const Instruction* inst = &inst_set[opcode];
+    if (!inst) {
+        return;
+    }
+
+    // Parse operands
+    ut32 operand_values[6] = {0};
+    size_t pos = 1; // Skip opcode byte
+
+    for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+        if (pos >= size) break;
+
+        switch (inst->operands[i].operand_type) {
+            case OPERAND_TYPE_REG8:
+            case OPERAND_TYPE_IMM8:
+            case OPERAND_TYPE_ADDR8:
+                if (pos < size) {
+                    operand_values[i] = bytes[pos];
+                    pos += 1;
+                }
+                break;
+            case OPERAND_TYPE_IMM16:
+                if (pos + 1 < size) {
+                    operand_values[i] = (bytes[pos + 1] << 8) | bytes[pos];
+                    pos += 2;
+                }
+                break;
+            case OPERAND_TYPE_REG32:
+            case OPERAND_TYPE_IMM32:
+            case OPERAND_TYPE_ADDR32:
+                if (pos + 3 < size) {
+                    operand_values[i] = (bytes[pos + 3] << 24) | (bytes[pos + 2] << 16) |
+                                       (bytes[pos + 1] << 8) | bytes[pos];
+                    pos += 4;
+                }
+                break;
+            default:
+                break;
+        }
+
+        // Check if this operand is a string ID
+        if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
+            ut32 string_id = operand_values[i];
+            if (string_id < hs->string_count && hs->hd) {
+                HermesStringMeta meta;
+                Result meta_result = hermesdec_get_string_meta(hs->hd, string_id, &meta);
+                if (meta_result.code == RESULT_SUCCESS) {
+                    // Set op->ptr to the string address
+                    op->ptr = (st64)(hs->string_storage_offset + meta.offset);
+                }
+            }
+        }
+        // Check if this operand is a function ID
+        else if (inst->operands[i].operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
+            ut32 function_id = operand_values[i];
+            if (hs->hd) {
+                const char* name = NULL;
+                ut32 offset = 0, sz = 0, param_count = 0;
+                Result func_result = hermesdec_get_function_info(hs->hd, function_id, &name, &offset, &sz, &param_count);
+                if (func_result.code == RESULT_SUCCESS) {
+                    // Set op->ptr to the function address
+                    op->ptr = (st64)offset;
+                }
+            }
+        }
+    }
+}
+
 static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
     R_RETURN_VAL_IF_FAIL (s && op, false);
     (void)mask;
@@ -154,6 +233,9 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
     op->size = size ? size : 1;
     op->type = R_ANAL_OP_TYPE_UNK;
     op->family = R_ANAL_OP_FAMILY_CPU;
+
+    // Parse operands and set ptr for string/function references
+    hermes_parse_operands_and_set_ptr(op, op->bytes, op->size, opcode, hs);
 
     if (opcode == OP_Ret) {
         op->type = R_ANAL_OP_TYPE_RET;
