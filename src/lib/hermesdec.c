@@ -182,6 +182,27 @@ Result hermesdec_get_string(HermesDec* hd, u32 index, const char** out_str) {
     return SUCCESS_RESULT();
 }
 
+Result hermesdec_get_function_source(HermesDec* hd, u32 function_id, const char** out_str) {
+    if (!hd || !out_str) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_function_source");
+    }
+    *out_str = NULL;
+    HBCReader* r = &hd->reader;
+    if (!r->function_sources || r->function_source_count == 0) {
+        return SUCCESS_RESULT();
+    }
+    for (size_t i = 0; i < r->function_source_count; i++) {
+        if (r->function_sources[i].function_id == function_id) {
+            u32 sid = r->function_sources[i].string_id;
+            if (sid < r->header.stringCount && r->strings) {
+                *out_str = r->strings[sid];
+            }
+            break;
+        }
+    }
+    return SUCCESS_RESULT();
+}
+
 Result hermesdec_get_string_meta(HermesDec* hd, u32 index, HermesStringMeta* out) {
     if (!hd || !out) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_string_meta");

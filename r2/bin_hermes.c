@@ -196,12 +196,49 @@ static RList *symbols(RBinFile *bf) {
                 Result func_result = hermesdec_get_function_info(hd, i, &name, &offset, &size, &param_count);
                 if (func_result.code == RESULT_SUCCESS) {
                     RBinSymbol *symbol = R_NEW0 (RBinSymbol);
-                        symbol->name = r_bin_name_new (name ? strdup(name) : r_str_newf("func_%u", i));
-                        symbol->paddr = offset;
-                        symbol->vaddr = offset;
-                        symbol->size = size;
-                        symbol->ordinal = i;
-                        r_list_append (symbols, symbol);
+                    if (!symbol) {
+                        break;
+                    }
+
+                    /* Build a unique, sanitized name: [container__]base + _0x<offset> */
+                    const char *base = (name && *name) ? name : NULL;
+                    char *tmpbase = NULL;
+                    if (!base) {
+                        tmpbase = r_str_newf("func_%u", i);
+                        base = tmpbase;
+                    }
+                    /* sanitize to be a valid flag/symbol name */
+                    char *san = r_name_filter_dup(base);
+                    if (!san || !*san) {
+                        free(san);
+                        san = r_str_newf("func_%u", i);
+                    }
+                    /* optional container/source prefix if available */
+                    const char *src = NULL;
+                    if (hermesdec_get_function_source(hd, i, &src).code == RESULT_SUCCESS && src && *src) {
+                        char *sp = r_name_filter_dup(src);
+                        if (sp && *sp) {
+                            char *withpref = r_str_newf("%s__%s", sp, san);
+                            free(san);
+                            san = withpref;
+                        }
+                        free(sp);
+                    }
+                    char *final = r_str_newf("%s_0x%08x", san, offset);
+                    symbol->name = r_bin_name_new(final);
+                    /* Also store filtered (flag) name explicitly */
+                    r_bin_name_filtered(symbol->name, final);
+                    free(final);
+                    free(san);
+                    free(tmpbase);
+
+                    symbol->paddr = offset;
+                    symbol->vaddr = offset;
+                    symbol->size = size;
+                    symbol->ordinal = i;
+                    symbol->type = R_BIN_TYPE_FUNC_STR;
+                    symbol->bits = 32;
+                    r_list_append (symbols, symbol);
                 }
             }
 

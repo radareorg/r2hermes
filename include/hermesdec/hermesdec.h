@@ -112,6 +112,10 @@ Result hermesdec_get_function_info(
 /* Resolve string by index (pointer valid while hd is alive) */
 Result hermesdec_get_string(HermesDec* hd, u32 index, const char** out_str);
 Result hermesdec_get_string_meta(HermesDec* hd, u32 index, HermesStringMeta* out);
+/* Optional metadata: map function_id to an associated source string (version >= 84).
+ * This commonly references a string tied to the function, which can sometimes
+ * encode module/container context. Returns SUCCESS with out_str=NULL if not found. */
+Result hermesdec_get_function_source(HermesDec* hd, u32 function_id, const char** out_str);
 
 /* Function bytecode access */
 Result hermesdec_get_function_bytecode(HermesDec* hd, u32 function_id, const u8** out_ptr, u32* out_size);

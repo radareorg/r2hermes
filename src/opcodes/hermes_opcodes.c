@@ -1369,6 +1369,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     
     if (out_count) *out_count = instruction_count; /* Return full set for array indexing */
     
-    fprintf(stderr, "Initialized %u instruction definitions\n", defined_count);
+    // XXX this is called too many times
+    // fprintf(stderr, "Initialized %u instruction definitions\n", defined_count);
     return instructions;
 }
