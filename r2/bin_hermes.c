@@ -33,13 +33,61 @@ static ut64 get_entrypoint(RBuffer *buf) {
     return 0;
 }
 
+// Get entrypoint using the hermesdec library
+static ut64 get_entrypoint_from_file(const char *file_path) {
+    if (!file_path) {
+        return 0;
+    }
+
+    HermesDec *hd = NULL;
+    Result result = hermesdec_open(file_path, &hd);
+    if (result.code != RESULT_SUCCESS) {
+        return 0;
+    }
+
+    HermesHeader hh;
+    result = hermesdec_get_header(hd, &hh);
+    if (result.code != RESULT_SUCCESS) {
+        hermesdec_close(hd);
+        return 0;
+    }
+
+    ut64 entrypoint = hh.globalCodeIndex;
+    hermesdec_close(hd);
+    return entrypoint;
+}
+
 static RBinInfo *info(RBinFile *bf) {
     RBinInfo *ret = R_NEW0 (RBinInfo);
     if (!ret) {
         return NULL;
     }
 
-    // Try to get header information
+    // Try to use the hermesdec library to parse the file
+    if (bf->file) {
+        HermesDec *hd = NULL;
+        Result result = hermesdec_open(bf->file, &hd);
+        if (result.code == RESULT_SUCCESS) {
+            HermesHeader hh;
+            result = hermesdec_get_header(hd, &hh);
+            if (result.code == RESULT_SUCCESS) {
+                ret->file = strdup (bf->file);
+                ret->type = r_str_newf ("Hermes bytecode v%d", hh.version);
+                ret->bclass = strdup ("Hermes bytecode");
+                ret->rclass = strdup ("hermes");
+                ret->arch = strdup ("hermes");
+                ret->machine = r_str_newf ("Hermes VM v%d", hh.version);
+                ret->os = strdup ("any");
+                ret->bits = 32; // Hermes bytecode is typically 32-bit
+                ret->cpu = r_str_newf ("%d", hh.version);
+                hermesdec_close(hd);
+                return ret;
+            }
+            hermesdec_close(hd);
+        }
+    }
+
+    // Fallback to manual parsing
     if (r_buf_size (bf->buf) >= 32) {
         ut64 magic;
         ut32 version;
@@ -54,8 +102,8 @@ static RBinInfo *info(RBinFile *bf) {
             ret->arch = strdup ("hermes");
             ret->machine = r_str_newf ("Hermes VM v%d", version);
             ret->os = strdup ("any");
-            ret->bits = 32; // Hermes bytecode is typically 32-bit
-            ret->cpu = r_str_newf ("%d", version); // Pass version info
+            ret->bits = 32;
+            ret->cpu = r_str_newf ("%d", version);
             return ret;
         }
     }
@@ -107,7 +155,17 @@ static RList *entries(RBinFile *bf) {
         return NULL;
     }
 
-    ut64 entrypoint = get_entrypoint (bf->buf);
+    // Try to get entrypoint using the library first
+    ut64 entrypoint = 0;
+    if (bf->file) {
+        entrypoint = get_entrypoint_from_file(bf->file);
+    }
+
+    // Fallback to buffer parsing
+    if (entrypoint == 0) {
+        entrypoint = get_entrypoint(bf->buf);
+    }
+
     addr->paddr = entrypoint;
     addr->vaddr = entrypoint;
     r_list_append (entries, addr);
@@ -125,19 +183,29 @@ static RList *symbols(RBinFile *bf) {
         return NULL;
     }
 
-    // Try to parse the file and extract function symbols
-    HermesDec *hd = NULL;
-    if (r_buf_size (bf->buf) > 0) {
-        // Create a temporary file or use memory buffer
-        // For now, we'll create a simple symbol for the entry point
-        RBinSymbol *symbol = R_NEW0 (RBinSymbol);
-        if (symbol) {
-            symbol->name = strdup ("entry");
-            symbol->paddr = get_entrypoint (bf->buf);
-            symbol->vaddr = symbol->paddr;
-            symbol->size = 0; // Unknown size
-            symbol->ordinal = 0;
-            r_list_append (symbols, symbol);
+    // Try to parse the file and extract function symbols using the library
+    if (bf->file) {
+        HermesDec *hd = NULL;
+        Result result = hermesdec_open(bf->file, &hd);
+        if (result.code == RESULT_SUCCESS) {
+            u32 func_count = hermesdec_function_count(hd);
+
+            for (u32 i = 0; i < func_count; i++) {
+                const char *name = NULL;
+                u32 offset = 0, size = 0, param_count = 0;
+                Result func_result = hermesdec_get_function_info(hd, i, &name, &offset, &size, &param_count);
+                if (func_result.code == RESULT_SUCCESS) {
+                    RBinSymbol *symbol = R_NEW0 (RBinSymbol);
+                        symbol->name = r_bin_name_new (name ? strdup(name) : r_str_newf("func_%u", i));
+                        symbol->paddr = offset;
+                        symbol->vaddr = offset;
+                        symbol->size = size;
+                        symbol->ordinal = i;
+                        r_list_append (symbols, symbol);
+                }
+            }
+
+            hermesdec_close(hd);
         }
     }
 
@@ -146,7 +214,7 @@ static RList *symbols(RBinFile *bf) {
 
 RBinPlugin r_bin_plugin_hermes = {
     .meta = {
-        .name = "hermes",
+        .name = "hbc",
         .author = "pancake",
         .desc = "Hermes bytecode format",
         .license = "MIT",
