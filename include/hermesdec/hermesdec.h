@@ -55,6 +55,7 @@ typedef struct {
     bool show_bytecode;     /* Show raw bytecode bytes */
     bool show_debug_info;   /* Show debug information */
     bool asm_syntax;        /* Output CPU-like asm syntax (mnemonic operands) */
+    bool resolve_string_ids; /* Resolve string IDs to actual addresses */
 } DisassemblyOptions;
 #define HERMES_DEC_DISASM_OPTS_DEFINED 1
 
@@ -112,6 +113,12 @@ Result hermesdec_get_function_info(
 /* Resolve string by index (pointer valid while hd is alive) */
 Result hermesdec_get_string(HermesDec* hd, u32 index, const char** out_str);
 Result hermesdec_get_string_meta(HermesDec* hd, u32 index, HermesStringMeta* out);
+
+/* Get raw string table data for single-instruction decoding */
+Result hermesdec_get_string_tables(HermesDec* hd, u32* out_string_count,
+                                   const void** out_small_string_table,
+                                   const void** out_overflow_string_table,
+                                   u64* out_string_storage_offset);
 /* Optional metadata: map function_id to an associated source string (version >= 84).
  * This commonly references a string tied to the function, which can sometimes
  * encode module/container context. Returns SUCCESS with out_str=NULL if not found. */
@@ -163,6 +170,11 @@ Result hermesdec_validate_basic(HermesDec* hd, StringBuffer* out);
  * - bytecode_version: Hermes bytecode version (e.g. 96). If 0, defaults to 96 with a warning.
  * - pc: absolute address used only to compute jump targets for pretty printing.
  * - asm_syntax: when true, renders mnemonic and operands like a CPU asm line.
+ * - resolve_string_ids: when true, resolves string IDs to actual addresses using provided tables.
+ * - string_count: number of strings in the string table.
+ * - small_string_table: pointer to small string table entries.
+ * - overflow_string_table: pointer to overflow string table entries.
+ * - string_storage_offset: file offset where string storage begins.
  * Returns allocated text in out_text (caller must free with free()),
  * the decoded size in out_size, and opcode/classification details.
  */
@@ -172,6 +184,11 @@ Result hermesdec_decode_single_instruction(
     u32 bytecode_version,
     u64 pc,
     bool asm_syntax,
+    bool resolve_string_ids,
+    u32 string_count,
+    const void* small_string_table,
+    const void* overflow_string_table,
+    u64 string_storage_offset,
     char** out_text,
     u32* out_size,
     u8* out_opcode,

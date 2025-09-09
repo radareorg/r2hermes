@@ -1,4 +1,5 @@
 #include "hermesdec/hermesdec.h"
+#include "hermesdec/hermesdec.h"
 #include "parsers/hbc_file_parser.h"
 #include "disassembly/hbc_disassembler.h"
 #include "decompilation/decompiler.h"
@@ -223,6 +224,21 @@ Result hermesdec_get_string_meta(HermesDec* hd, u32 index, HermesStringMeta* out
     out->offset = r->string_storage_file_offset + off;  // Return absolute file offset
     out->length = length;
     out->kind = (HermesStringKind)(r->string_kinds ? r->string_kinds[index] : 0);
+    return SUCCESS_RESULT();
+}
+
+Result hermesdec_get_string_tables(HermesDec* hd, u32* out_string_count,
+                                   const void** out_small_string_table,
+                                   const void** out_overflow_string_table,
+                                   u64* out_string_storage_offset) {
+    if (!hd || !out_string_count || !out_small_string_table || !out_overflow_string_table || !out_string_storage_offset) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_string_tables");
+    }
+    HBCReader* r = &hd->reader;
+    *out_string_count = r->header.stringCount;
+    *out_small_string_table = r->small_string_table;
+    *out_overflow_string_table = r->overflow_string_table;
+    *out_string_storage_offset = r->string_storage_file_offset;
     return SUCCESS_RESULT();
 }
 
@@ -545,6 +561,11 @@ Result hermesdec_decode_single_instruction(
     u32 bytecode_version,
     u64 pc,
     bool asm_syntax,
+    bool resolve_string_ids,
+    u32 string_count,
+    const void* small_string_table,
+    const void* overflow_string_table,
+    u64 string_storage_offset,
     char** out_text,
     u32* out_size,
     u8* out_opcode,
@@ -665,9 +686,34 @@ Result hermesdec_decode_single_instruction(
             u64 abs = base + (u64)ops[i];
             snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)abs);
             break; }
-        default:
-            snprintf(buf, sizeof(buf), "%u", ops[i]);
-            break;
+        default: {
+            /* Check if this is a string ID that should be resolved */
+            if (resolve_string_ids && inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
+                u32 string_id = ops[i];
+                u64 resolved_addr = 0;
+
+                if (string_id < string_count && small_string_table) {
+                    const StringTableEntry* entry = (const StringTableEntry*)small_string_table + string_id;
+                    if (entry->length == 0xFF && overflow_string_table) {
+                        /* Use overflow table */
+                        const OffsetLengthPair* overflow_entry = (const OffsetLengthPair*)overflow_string_table + entry->offset;
+                        resolved_addr = string_storage_offset + overflow_entry->offset;
+                    } else {
+                        /* Use small table */
+                        resolved_addr = string_storage_offset + entry->offset;
+                    }
+                }
+
+                if (resolved_addr != 0) {
+                    snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)resolved_addr);
+                } else {
+                    /* Fallback to raw ID if resolution fails */
+                    snprintf(buf, sizeof(buf), "%u", ops[i]);
+                }
+            } else {
+                snprintf(buf, sizeof(buf), "%u", ops[i]);
+            }
+            break; }
         }
         RETURN_IF_ERROR(string_buffer_append(&sb, buf));
     }

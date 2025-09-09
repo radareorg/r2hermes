@@ -14,6 +14,7 @@ typedef struct {
     bool show_bytecode;     /* Show raw bytecode bytes */
     bool show_debug_info;   /* Show debug information */
     bool asm_syntax;        /* Output CPU-like asm syntax (mnemonic operands) */
+    bool resolve_string_ids; /* Resolve string IDs to actual addresses */
 } DisassemblyOptions;
 #endif
 

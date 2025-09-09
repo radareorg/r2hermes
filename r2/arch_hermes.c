@@ -4,17 +4,30 @@
 #include <r_lib.h>
 #include <r_util.h>
 
+#ifndef R2_VERSION
+#define R2_VERSION "6.0.3"
+#endif
+
 // Include hermesdec headers
 #include "../include/hermesdec/hermesdec.h"
 #include "../include/opcodes/hermes_opcodes.h"
+#include "../include/parsers/hbc_file_parser.h"
 
 #define MAX_OP_SIZE 16
 
 typedef struct {
     ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
+    HermesDec* hd; /* Hermes file handle for string table access */
+    u32 string_count;
+    const void* small_string_table;
+    const void* overflow_string_table;
+    u64 string_storage_offset;
 } HermesArchSession;
 
 // Forward declarations
+static ut32 hermes_detect_version_from_bin(RArchSession *s);
+static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s);
+
 static ut32 hermes_detect_version_from_bin(RArchSession *s) {
     if (!s || !s->arch || !s->arch->binb.bin) {
         return 96; /* sane default */
@@ -28,6 +41,43 @@ static ut32 hermes_detect_version_from_bin(RArchSession *s) {
         if (v > 0) return v;
     }
     return 96;
+}
+
+static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
+    if (!hs || !s || !s->arch || !s->arch->binb.bin) {
+        return false;
+    }
+
+    RBin *bin = s->arch->binb.bin;
+    RBinInfo *bi = r_bin_get_info(bin);
+    if (!bi || !bi->file) {
+        return false;
+    }
+
+    /* Try to open the file with hermesdec */
+    if (hs->hd) {
+        hermesdec_close(hs->hd);
+        hs->hd = NULL;
+    }
+
+    Result res = hermesdec_open(bi->file, &hs->hd);
+    if (res.code != RESULT_SUCCESS) {
+        return false;
+    }
+
+    /* Get string count */
+    hs->string_count = hermesdec_string_count(hs->hd);
+
+    /* Extract string tables using the API */
+    Result table_res = hermesdec_get_string_tables(hs->hd, &hs->string_count,
+                                                   &hs->small_string_table,
+                                                   &hs->overflow_string_table,
+                                                   &hs->string_storage_offset);
+    if (table_res.code != RESULT_SUCCESS) {
+        return false;
+    }
+
+    return true;
 }
 
 static bool hermes_opcode_is_conditional(u8 opcode) {
@@ -66,6 +116,11 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
         hs->bytecode_version = hermes_detect_version_from_bin(s);
     }
 
+    /* Load string tables if not already loaded */
+    if (!hs->hd) {
+        hermes_load_string_tables(hs, s);
+    }
+
     /* Decode from the provided bytes directly (no preloading/scanning). */
     char *text = NULL;
     u32 size = 0;
@@ -79,6 +134,11 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
         hs->bytecode_version,
         op->addr,
         true /* asm syntax */,
+        true /* resolve_string_ids */,
+        hs->string_count,
+        hs->small_string_table,
+        hs->overflow_string_table,
+        hs->string_storage_offset,
         &text,
         &size,
         &opcode,
@@ -298,6 +358,10 @@ static bool hermes_fini(RArchSession *s) {
     }
     HermesArchSession *hs = (HermesArchSession *)s->data;
     if (hs) {
+        if (hs->hd) {
+            hermesdec_close(hs->hd);
+            hs->hd = NULL;
+        }
         free(hs);
         s->data = NULL;
     }

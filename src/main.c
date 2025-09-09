@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
         if (bcount == 0) { fprintf(stderr, "Invalid or empty hex bytes string\n"); return 1; }
         char *text = NULL; u32 sz = 0; u8 opc = 0; bool isj=false, isc=false; u64 jmp=0;
         /* Default to version 96 for standalone decoding */
-        Result rr = hermesdec_decode_single_instruction(bytes, bcount, 96, 0, true, &text, &sz, &opc, &isj, &isc, &jmp);
+        Result rr = hermesdec_decode_single_instruction(bytes, bcount, 96, 0, true, false, 0, NULL, NULL, 0, &text, &sz, &opc, &isj, &isc, &jmp);
         if (rr.code != RESULT_SUCCESS) { fprintf(stderr, "Decode error: %s\n", rr.error_message); return 1; }
         printf("%s\n", text ? text : "");
         free(text);
