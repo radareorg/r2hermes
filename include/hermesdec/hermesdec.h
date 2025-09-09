@@ -197,4 +197,24 @@ Result hermesdec_decode_single_instruction(
     u64* out_jump_target
 );
 
+/* Encoding functions */
+
+/* Encode a single instruction from asm text to bytecode */
+Result hermesdec_encode_instruction(
+    const char* asm_line,
+    u32 bytecode_version,
+    u8* out_buffer,
+    size_t buffer_size,
+    size_t* out_bytes_written
+);
+
+/* Encode multiple instructions from asm text to bytecode */
+Result hermesdec_encode_instructions(
+    const char* asm_text,
+    u32 bytecode_version,
+    u8* out_buffer,
+    size_t buffer_size,
+    size_t* out_bytes_written
+);
+
 #endif /* HERMESDEC_API_H */

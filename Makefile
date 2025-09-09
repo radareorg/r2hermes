@@ -14,7 +14,8 @@ PARSERS_SRC = $(wildcard $(SRC_DIR)/parsers/*.c)
 DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(wildcard $(SRC_DIR)/opcodes/*.c)
-LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) $(SRC_DIR)/lib/hermesdec.c
+LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
+          $(SRC_DIR)/lib/hermesdec.c $(SRC_DIR)/hermes_encoder.c
 MAIN_SRC = $(SRC_DIR)/main.c
 
 ## Object files

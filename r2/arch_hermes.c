@@ -344,6 +344,51 @@ static char *hermes_mnemonics(RArchSession *s, int id, bool json) {
     return NULL;
 }
 
+static bool hermes_encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
+    (void)mask;
+    R_RETURN_VAL_IF_FAIL (s && op, false);
+
+    HermesArchSession *hs = (HermesArchSession *)s->data;
+    if (!hs || !op->mnemonic) {
+        return false;
+    }
+
+    if (!hs->bytecode_version) {
+        hs->bytecode_version = hermes_detect_version_from_bin(s);
+        if (!hs->bytecode_version) {
+            hs->bytecode_version = 96;
+        }
+    }
+
+    const char *asm_line = op->mnemonic;
+
+    /* Conservative buffer for a single instruction */
+    ut8 tmp[MAX_OP_SIZE];
+    size_t written = 0;
+
+    Result res = hermesdec_encode_instruction(
+        asm_line,
+        hs->bytecode_version,
+        tmp,
+        sizeof(tmp),
+        &written
+    );
+    if (res.code != RESULT_SUCCESS || written == 0 || written > sizeof(tmp)) {
+        return false;
+    }
+
+    /* Store into op */
+    free(op->bytes);
+    op->bytes = (ut8*)malloc(written);
+    if (!op->bytes) {
+        op->size = 0;
+        return false;
+    }
+    memcpy(op->bytes, tmp, written);
+    op->size = (int)written;
+    return true;
+}
+
 static bool hermes_init(RArchSession *s) {
     R_RETURN_VAL_IF_FAIL (s, false);
     s->data = R_NEW0(HermesArchSession);
@@ -380,6 +425,7 @@ const RArchPlugin r_arch_plugin_hermes = {
     .arch = "hermes",
     .bits = R_SYS_BITS_PACK1(64),
     .decode = &hermes_decode,
+    .encode = &hermes_encode,
     .info = hermes_info,
     .mnemonics = hermes_mnemonics,
     .init = hermes_init,

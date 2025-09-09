@@ -1,9 +1,10 @@
 #include "hermesdec/hermesdec.h"
-#include "hermesdec/hermesdec.h"
-#include "parsers/hbc_file_parser.h"
-#include "disassembly/hbc_disassembler.h"
-#include "decompilation/decompiler.h"
-#include "opcodes/hermes_opcodes.h"
+#include "../include/hermesdec/hermesdec.h"
+#include "../include/hermes_encoder.h"
+#include "../include/parsers/hbc_file_parser.h"
+#include "../include/disassembly/hbc_disassembler.h"
+#include "../include/decompilation/decompiler.h"
+#include "../include/opcodes/hermes_opcodes.h"
 
 struct HermesDec {
     HBCReader reader;
@@ -731,4 +732,64 @@ Result hermesdec_decode_single_instruction(
 
     *out_text = text;
     return SUCCESS_RESULT();
+}
+
+/* Encoding functions */
+Result hermesdec_encode_instruction(
+    const char* asm_line,
+    u32 bytecode_version,
+    u8* out_buffer,
+    size_t buffer_size,
+    size_t* out_bytes_written
+) {
+    if (!asm_line || !out_buffer || !out_bytes_written) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+    }
+
+    /* Initialize encoder */
+    HermesEncoder encoder;
+    Result res = hermes_encoder_init(&encoder, bytecode_version);
+    if (res.code != RESULT_SUCCESS) {
+        return res;
+    }
+
+    /* Parse and encode */
+    EncodedInstruction instruction;
+    res = hermes_encoder_parse_instruction(&encoder, asm_line, &instruction);
+    if (res.code != RESULT_SUCCESS) {
+        hermes_encoder_cleanup(&encoder);
+        return res;
+    }
+
+    res = hermes_encoder_encode_instruction(&encoder, &instruction,
+                                          out_buffer, buffer_size, out_bytes_written);
+
+    hermes_encoder_cleanup(&encoder);
+    return res;
+}
+
+Result hermesdec_encode_instructions(
+    const char* asm_text,
+    u32 bytecode_version,
+    u8* out_buffer,
+    size_t buffer_size,
+    size_t* out_bytes_written
+) {
+    if (!asm_text || !out_buffer || !out_bytes_written) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+    }
+
+    /* Initialize encoder */
+    HermesEncoder encoder;
+    Result res = hermes_encoder_init(&encoder, bytecode_version);
+    if (res.code != RESULT_SUCCESS) {
+        return res;
+    }
+
+    /* Encode all instructions */
+    res = hermes_encoder_encode_instructions(&encoder, asm_text,
+                                           out_buffer, buffer_size, out_bytes_written);
+
+    hermes_encoder_cleanup(&encoder);
+    return res;
 }
