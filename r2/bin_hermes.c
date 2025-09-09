@@ -143,6 +143,32 @@ static RList *sections(RBinFile *bf) {
     return sections;
 }
 
+static ut64 get_entrypoint_from_symbols(const char *file_path) {
+    if (!file_path) {
+        return 0;
+    }
+
+    HermesDec *hd = NULL;
+    Result result = hermesdec_open(file_path, &hd);
+    if (result.code != RESULT_SUCCESS) {
+        return 0;
+    }
+
+    u32 func_count = hermesdec_function_count(hd);
+    for (u32 i = 0; i < func_count; i++) {
+        const char *name = NULL;
+        u32 offset = 0, size = 0, param_count = 0;
+        Result func_result = hermesdec_get_function_info(hd, i, &name, &offset, &size, &param_count);
+        if (func_result.code == RESULT_SUCCESS && name && strcmp(name, "MainAppContent") == 0) {
+            hermesdec_close(hd);
+            return offset;
+        }
+    }
+
+    hermesdec_close(hd);
+    return 0;
+}
+
 static RList *entries(RBinFile *bf) {
     RList *entries = r_list_newf ((RListFree)free);
     if (!entries) {
@@ -155,15 +181,79 @@ static RList *entries(RBinFile *bf) {
         return NULL;
     }
 
-    // Try to get entrypoint using the library first
     ut64 entrypoint = 0;
+
+    // First, try to find MainAppContent symbol
     if (bf->file) {
+        entrypoint = get_entrypoint_from_symbols(bf->file);
+    }
+
+    // If not found, try to get entrypoint using the library
+    if (entrypoint == 0 && bf->file) {
         entrypoint = get_entrypoint_from_file(bf->file);
     }
 
     // Fallback to buffer parsing
     if (entrypoint == 0) {
         entrypoint = get_entrypoint(bf->buf);
+    }
+
+    // Ensure entrypoint is valid: within file boundaries and first 8 bytes are not all zeros
+    if (entrypoint != 0) {
+        ut64 file_size = r_buf_size(bf->buf);
+        if (entrypoint >= file_size || entrypoint + 8 > file_size) {
+            entrypoint = 0; // Invalid: out of bounds
+        } else {
+            ut8 bytes[8];
+            if (r_buf_read_at(bf->buf, entrypoint, bytes, 8) == 8) {
+                bool all_zeros = true;
+                for (int i = 0; i < 8; i++) {
+                    if (bytes[i] != 0) {
+                        all_zeros = false;
+                        break;
+                    }
+                }
+                if (all_zeros) {
+                    entrypoint = 0; // Invalid: first 8 bytes are zeros
+                }
+            } else {
+                entrypoint = 0; // Invalid: couldn't read
+            }
+        }
+    }
+
+    // If entrypoint is still invalid, try to find any valid function offset
+    if (entrypoint == 0 && bf->file) {
+        HermesDec *hd = NULL;
+        Result result = hermesdec_open(bf->file, &hd);
+        if (result.code == RESULT_SUCCESS) {
+            u32 func_count = hermesdec_function_count(hd);
+            if (func_count > 0) {
+                const char *name = NULL;
+                u32 offset = 0, size = 0, param_count = 0;
+                Result func_result = hermesdec_get_function_info(hd, 0, &name, &offset, &size, &param_count);
+                if (func_result.code == RESULT_SUCCESS && offset != 0) {
+                    // Check if this offset is also valid
+                    ut64 file_size = r_buf_size(bf->buf);
+                    if (offset < file_size && offset + 8 <= file_size) {
+                        ut8 bytes[8];
+                        if (r_buf_read_at(bf->buf, offset, bytes, 8) == 8) {
+                            bool all_zeros = true;
+                            for (int i = 0; i < 8; i++) {
+                                if (bytes[i] != 0) {
+                                    all_zeros = false;
+                                    break;
+                                }
+                            }
+                            if (!all_zeros) {
+                                entrypoint = offset;
+                            }
+                        }
+                    }
+                }
+            }
+            hermesdec_close(hd);
+        }
     }
 
     addr->paddr = entrypoint;
