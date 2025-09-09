@@ -12,6 +12,7 @@ static void print_usage(const char* program_name) {
     printf("Commands:\n");
     printf("  disassemble, dis, d    Disassemble a Hermes bytecode file\n");
     printf("  decompile, dec, c      Decompile a Hermes bytecode file\n");
+    printf("  asm                    Disassemble raw bytes (rasm2-like)\n");
     printf("  header, h              Display the header information only\n");
     printf("  validate, v            Validate file format and display detailed info\n");
     printf("  r2script, r2, r        Generate an r2 script with function flags\n");
@@ -68,7 +69,47 @@ int main(int argc, char** argv) {
     if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Error: %s\n", result.error_message); return 1; }
     if (options.asm_syntax) fprintf(stderr, "[hermes-dec] ASM syntax mode enabled\n");
 
-    if (!strcmp(command, "disassemble") || !strcmp(command, "dis") || !strcmp(command, "d")) {
+    if (!strcmp(command, "asm")) {
+        /* rasm2-like: decode raw instruction bytes passed as hex string */
+        const char *hex = input_file; /* third arg is the bytes */
+        size_t len = strlen(hex);
+        /* Allocate buffer up to 64 bytes for convenience */
+        u8 bytes[64];
+        size_t bcount = 0;
+        /* Parse hex bytes; accept spaces/commas and optional 0x prefixes */
+        for (size_t i = 0; i < len && bcount < sizeof(bytes); ) {
+            while (i < len && (hex[i] == ' ' || hex[i] == '\t' || hex[i] == ',')) i++;
+            if (i >= len) break;
+            if (hex[i] == '0' && (i + 1 < len) && (hex[i+1] == 'x' || hex[i+1] == 'X')) i += 2;
+            int n1 = -1, n2 = -1;
+            if (i < len) {
+                char c = hex[i++];
+                if (c >= '0' && c <= '9') n1 = c - '0';
+                else if (c >= 'a' && c <= 'f') n1 = 10 + (c - 'a');
+                else if (c >= 'A' && c <= 'F') n1 = 10 + (c - 'A');
+            }
+            if (i < len) {
+                char c = hex[i++];
+                if (c >= '0' && c <= '9') n2 = c - '0';
+                else if (c >= 'a' && c <= 'f') n2 = 10 + (c - 'a');
+                else if (c >= 'A' && c <= 'F') n2 = 10 + (c - 'A');
+            }
+            if (n1 < 0) break; /* stop on invalid */
+            if (n2 < 0) { /* single nibble, treat as low nibble */
+                bytes[bcount++] = (u8)n1;
+            } else {
+                bytes[bcount++] = (u8)((n1 << 4) | n2);
+            }
+        }
+        if (bcount == 0) { fprintf(stderr, "Invalid or empty hex bytes string\n"); return 1; }
+        char *text = NULL; u32 sz = 0; u8 opc = 0; bool isj=false, isc=false; u64 jmp=0;
+        /* Default to version 96 for standalone decoding */
+        Result rr = hermesdec_decode_single_instruction(bytes, bcount, 96, 0, true, &text, &sz, &opc, &isj, &isc, &jmp);
+        if (rr.code != RESULT_SUCCESS) { fprintf(stderr, "Decode error: %s\n", rr.error_message); return 1; }
+        printf("%s\n", text ? text : "");
+        free(text);
+        return 0;
+    } else if (!strcmp(command, "disassemble") || !strcmp(command, "dis") || !strcmp(command, "d")) {
         HermesDec* hd = NULL; result = hermesdec_open(input_file, &hd); if (result.code != RESULT_SUCCESS) { fprintf(stderr, "Open error: %s\n", result.error_message); return 1; }
         StringBuffer out; string_buffer_init(&out, 16 * 1024);
         result = hermesdec_disassemble_all_to_buffer(hd, options, &out);

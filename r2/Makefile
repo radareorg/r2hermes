@@ -86,6 +86,7 @@ install: $(ALL_TARGETS)
 
 user-install:
 	mkdir -p $(R2_PLUGDIR)
+	rm -f $(R2_PLUGDIR)/*hermes.$(EXT_SO)
 	cp -f $(ARCH_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(BIN_PLUGIN) $(R2_PLUGDIR)
 

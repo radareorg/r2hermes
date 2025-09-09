@@ -2,6 +2,7 @@
 #include "parsers/hbc_file_parser.h"
 #include "disassembly/hbc_disassembler.h"
 #include "decompilation/decompiler.h"
+#include "opcodes/hermes_opcodes.h"
 
 struct HermesDec {
     HBCReader reader;
@@ -478,4 +479,189 @@ void hermesdec_free_instructions(HermesInstruction* insns, u32 count) {
         free(insns[i].text);
     }
     free(insns);
+}
+
+/* --- Single-instruction decode (no file context) --- */
+
+static Instruction* select_instruction_set(u32 ver, u32* out_count) {
+    if (!ver) {
+        fprintf(stderr, "[hermesdec] Warning: bytecode_version not specified, defaulting to v96\n");
+    }
+    /* For now we only expose v96 table; reuse it for nearby versions. */
+    Instruction* set96 = get_instruction_set_v96(out_count);
+    return set96;
+}
+
+static const Instruction* find_inst_in_set(Instruction* set, u32 count, u8 opcode) {
+    if (!set) return NULL;
+    if (!count) count = 256; /* full table fallback */
+    for (u32 i = 0; i < count; i++) {
+        if (set[i].opcode == opcode) {
+            return &set[i];
+        }
+    }
+    return NULL;
+}
+
+static void to_snake_lower_simple(const char* in, char* out, size_t outsz) {
+    size_t j = 0;
+    for (size_t i = 0; in && in[i] && j + 1 < outsz; i++) {
+        char c = in[i];
+        if (c >= 'A' && c <= 'Z') {
+            if (j && out[j - 1] != '_') {
+                out[j++] = '_';
+            }
+            c = (char)(c - 'A' + 'a');
+        }
+        out[j++] = c;
+    }
+    if (outsz > 0) out[j < outsz ? j : outsz - 1] = '\0';
+}
+
+Result hermesdec_decode_single_instruction(
+    const u8* bytes,
+    size_t len,
+    u32 bytecode_version,
+    u64 pc,
+    bool asm_syntax,
+    char** out_text,
+    u32* out_size,
+    u8* out_opcode,
+    bool* out_is_jump,
+    bool* out_is_call,
+    u64* out_jump_target
+) {
+    if (!bytes || len == 0 || !out_text || !out_size || !out_opcode || !out_is_jump || !out_is_call || !out_jump_target) {
+        return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for single-instruction decode");
+    }
+
+    u32 isz = 0;
+    char* text = NULL;
+    *out_text = NULL;
+    *out_size = 0;
+    *out_opcode = 0;
+    *out_is_jump = false;
+    *out_is_call = false;
+    *out_jump_target = 0;
+
+    /* Fetch instruction set */
+    u32 set_count = 0;
+    Instruction* set = select_instruction_set(bytecode_version, &set_count);
+    if (!set) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "No opcode table available");
+    }
+
+    u8 opc = bytes[0];
+    const Instruction* inst = find_inst_in_set(set, set_count, opc);
+    if (!inst) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Unknown opcode");
+    }
+    isz = inst->binary_size;
+    if (len < isz) {
+        return ERROR_RESULT(RESULT_ERROR_PARSING_FAILED, "Truncated instruction");
+    }
+
+    /* Read operands from the provided bytes */
+    u32 ops[6] = {0};
+    size_t pos = 1;
+    for (int i = 0; i < 6; i++) {
+        OperandType t = inst->operands[i].operand_type;
+        if (t == OPERAND_TYPE_NONE) continue;
+        switch (t) {
+        case OPERAND_TYPE_REG8:
+        case OPERAND_TYPE_IMM8:
+        case OPERAND_TYPE_ADDR8:
+            ops[i] = (pos + 1 <= len) ? bytes[pos] : 0; pos += 1; break;
+        case OPERAND_TYPE_IMM16: {
+            if (pos + 2 <= len) {
+                u16 v = (u16)(bytes[pos] | ((u16)bytes[pos + 1] << 8));
+                ops[i] = v;
+            }
+            pos += 2; break; }
+        case OPERAND_TYPE_REG32:
+        case OPERAND_TYPE_IMM32:
+        case OPERAND_TYPE_ADDR32: {
+            if (pos + 4 <= len) {
+                u32 v = (u32)(bytes[pos] | ((u32)bytes[pos + 1] << 8) | ((u32)bytes[pos + 2] << 16) | ((u32)bytes[pos + 3] << 24));
+                ops[i] = v;
+            }
+            pos += 4; break; }
+        default: break;
+        }
+    }
+
+    /* Classification */
+    bool is_j = is_jump_instruction(opc);
+    bool is_c = is_call_instruction(opc);
+    *out_is_jump = is_j;
+    *out_is_call = is_c;
+    *out_opcode = opc;
+    *out_size = isz;
+
+    /* Compute primary jump target for jmp-like insns (using relative pc) */
+    u64 jtg = 0;
+    for (int i = 0; i < 6; i++) {
+        OperandType t = inst->operands[i].operand_type;
+        if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
+            /* Hermes uses rel to (pc + size) for conditional/unconditional jumps */
+            u64 base = pc + (is_j ? (u64)isz : 0);
+            jtg = base + (u64)ops[i];
+            break;
+        }
+    }
+    *out_jump_target = jtg;
+
+    /* Render text */
+    StringBuffer sb;
+    Result sr = string_buffer_init(&sb, 128);
+    if (sr.code != RESULT_SUCCESS) {
+        return sr;
+    }
+    char mnem[64];
+    if (asm_syntax) {
+        to_snake_lower_simple(inst->name, mnem, sizeof(mnem));
+    } else {
+        /* Keep original name if not asm syntax */
+        snprintf(mnem, sizeof(mnem), "%s", inst->name ? inst->name : "unk");
+    }
+    RETURN_IF_ERROR(string_buffer_append(&sb, mnem));
+
+    bool first = true;
+    for (int i = 0; i < 6; i++) {
+        OperandType t = inst->operands[i].operand_type;
+        if (t == OPERAND_TYPE_NONE) continue;
+        RETURN_IF_ERROR(string_buffer_append(&sb, first ? " " : ", "));
+        first = false;
+        char buf[64];
+        switch (t) {
+        case OPERAND_TYPE_REG8:
+        case OPERAND_TYPE_REG32:
+            snprintf(buf, sizeof(buf), "r%u", ops[i]);
+            break;
+        case OPERAND_TYPE_ADDR8:
+        case OPERAND_TYPE_ADDR32: {
+            u64 base = pc + (is_j ? (u64)isz : 0);
+            u64 abs = base + (u64)ops[i];
+            snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)abs);
+            break; }
+        default:
+            snprintf(buf, sizeof(buf), "%u", ops[i]);
+            break;
+        }
+        RETURN_IF_ERROR(string_buffer_append(&sb, buf));
+    }
+
+    /* Materialize buffer */
+    size_t L = sb.length;
+    text = (char*)malloc(L + 1);
+    if (!text) {
+        string_buffer_free(&sb);
+        return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "OOM for output text");
+    }
+    memcpy(text, sb.data, L);
+    text[L] = '\0';
+    string_buffer_free(&sb);
+
+    *out_text = text;
+    return SUCCESS_RESULT();
 }

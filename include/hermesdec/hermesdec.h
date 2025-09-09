@@ -153,4 +153,27 @@ Result hermesdec_generate_r2_script(const char* input_file, const char* output_f
 /* Validation/report helpers */
 Result hermesdec_validate_basic(HermesDec* hd, StringBuffer* out);
 
+/* Minimal single-instruction disassembler (no file context) */
+/*
+ * Decode a single instruction from raw bytes without loading a Hermes file.
+ * - bytecode_version: Hermes bytecode version (e.g. 96). If 0, defaults to 96 with a warning.
+ * - pc: absolute address used only to compute jump targets for pretty printing.
+ * - asm_syntax: when true, renders mnemonic and operands like a CPU asm line.
+ * Returns allocated text in out_text (caller must free with free()),
+ * the decoded size in out_size, and opcode/classification details.
+ */
+Result hermesdec_decode_single_instruction(
+    const u8* bytes,
+    size_t len,
+    u32 bytecode_version,
+    u64 pc,
+    bool asm_syntax,
+    char** out_text,
+    u32* out_size,
+    u8* out_opcode,
+    bool* out_is_jump,
+    bool* out_is_call,
+    u64* out_jump_target
+);
+
 #endif /* HERMESDEC_API_H */
