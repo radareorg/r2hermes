@@ -611,17 +611,17 @@ Result hermesdec_decode_single_instruction(
         if (t == OPERAND_TYPE_NONE) continue;
         switch (t) {
         case OPERAND_TYPE_REG8:
-        case OPERAND_TYPE_IMM8:
+        case OPERAND_TYPE_UINT8:
         case OPERAND_TYPE_ADDR8:
             ops[i] = (pos + 1 <= len) ? bytes[pos] : 0; pos += 1; break;
-        case OPERAND_TYPE_IMM16: {
+        case OPERAND_TYPE_UINT16: {
             if (pos + 2 <= len) {
                 u16 v = (u16)(bytes[pos] | ((u16)bytes[pos + 1] << 8));
                 ops[i] = v;
             }
             pos += 2; break; }
         case OPERAND_TYPE_REG32:
-        case OPERAND_TYPE_IMM32:
+        case OPERAND_TYPE_UINT32:
         case OPERAND_TYPE_ADDR32: {
             if (pos + 4 <= len) {
                 u32 v = (u32)(bytes[pos] | ((u32)bytes[pos + 1] << 8) | ((u32)bytes[pos + 2] << 16) | ((u32)bytes[pos + 3] << 24));

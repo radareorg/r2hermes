@@ -267,18 +267,26 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
             case OPERAND_MEANING_NONE:
                 switch (operand_type) {
                     case OPERAND_TYPE_REG8:
-                    case OPERAND_TYPE_REG32:
-                        operand_name = "Reg";
+                        operand_name = "Reg8";
                         break;
-                    case OPERAND_TYPE_IMM8:
-                    case OPERAND_TYPE_IMM16:
-                    case OPERAND_TYPE_IMM32:
-                        operand_name = "Imm";
+                    case OPERAND_TYPE_REG32:
+                        operand_name = "Reg32";
+                        break;
+                    case OPERAND_TYPE_UINT8:
+                        operand_name = "UInt8";
+                        break;
+                    case OPERAND_TYPE_UINT16:
+                        operand_name = "UInt16";
+                        break;
+                    case OPERAND_TYPE_UINT32:
+                        operand_name = "UInt32";
                         break;
                     case OPERAND_TYPE_ADDR8:
-                    case OPERAND_TYPE_ADDR32:
-                        operand_name = "Addr";
+                        operand_name = "Addr8";
                         break;
+                    case OPERAND_TYPE_ADDR32:
+                        operand_name = "Addr32";
+                break;
                     default:
                         operand_name = "Unknown";
                         break;

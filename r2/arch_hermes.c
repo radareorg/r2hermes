@@ -124,21 +124,21 @@ static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8* bytes, ut3
 
         switch (inst->operands[i].operand_type) {
             case OPERAND_TYPE_REG8:
-            case OPERAND_TYPE_IMM8:
+            case OPERAND_TYPE_UINT8:
             case OPERAND_TYPE_ADDR8:
                 if (pos < size) {
                     operand_values[i] = bytes[pos];
                     pos += 1;
                 }
                 break;
-            case OPERAND_TYPE_IMM16:
+            case OPERAND_TYPE_UINT16:
                 if (pos + 1 < size) {
                     operand_values[i] = (bytes[pos + 1] << 8) | bytes[pos];
                     pos += 2;
                 }
                 break;
             case OPERAND_TYPE_REG32:
-            case OPERAND_TYPE_IMM32:
+            case OPERAND_TYPE_UINT32:
             case OPERAND_TYPE_ADDR32:
                 if (pos + 3 < size) {
                     operand_values[i] = (bytes[pos + 3] << 24) | (bytes[pos + 2] << 16) |

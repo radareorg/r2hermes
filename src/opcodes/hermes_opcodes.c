@@ -185,7 +185,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_StoreToEnvironment] = (Instruction) {
         OP_StoreToEnvironment, "StoreToEnvironment",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Env */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Index */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}, /* Index */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}}, /* Value */
         4
     };
@@ -193,7 +193,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_StoreToEnvironmentL] = (Instruction) {
         OP_StoreToEnvironmentL, "StoreToEnvironmentL",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
         6 /* opcode + 1 + 2 + 1 */
     };
@@ -201,7 +201,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_StoreNPToEnvironment] = (Instruction) {
         OP_StoreNPToEnvironment, "StoreNPToEnvironment",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
         4
     };
@@ -209,7 +209,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_StoreNPToEnvironmentL] = (Instruction) {
         OP_StoreNPToEnvironmentL, "StoreNPToEnvironmentL",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE},
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}},
         6
     };
@@ -218,7 +218,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_LoadFromEnvironment, "LoadFromEnvironment",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Env */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Index */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Index */
         4
     };
 
@@ -226,7 +226,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_LoadFromEnvironmentL, "LoadFromEnvironmentL",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}},
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}},
         5
     };
     instructions[OP_Unreachable] = (Instruction) {
@@ -238,38 +238,38 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_NewObjectWithBuffer] = (Instruction) {
         OP_NewObjectWithBuffer, "NewObjectWithBuffer", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
         10 /* opcode + 1 + 2 + 2 + 2 + 2 */
     };
 
     instructions[OP_NewArrayWithBuffer] = (Instruction) {
         OP_NewArrayWithBuffer, "NewArrayWithBuffer",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
         8 /* opcode + 1 + 2 + 2 + 2 */
     };
 
     instructions[OP_NewArrayWithBufferLong] = (Instruction) {
         OP_NewArrayWithBufferLong, "NewArrayWithBufferLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_ARRAY_ID}}, /* Array idx */
         10 /* opcode + 1 + 2 + 2 + 4 */
     };
 
     instructions[OP_NewObjectWithBufferLong] = (Instruction) {
         OP_NewObjectWithBufferLong, "NewObjectWithBufferLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Key count */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}, /* Value count */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Key count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}, /* Value count */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_OBJ_KEY_ID}, /* Keys id */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_OBJ_VAL_ID}}, /* Values id */
         14 /* opcode + 1 + 2 + 2 + 4 + 4 */
     };
     
@@ -351,7 +351,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_Call, "Call", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Argc */
         4
     };
     
@@ -359,7 +359,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CallLong, "CallLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Argc */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Argc */
         6
     };
     
@@ -367,7 +367,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_Construct, "Construct", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Argc */
         4
     };
     
@@ -375,7 +375,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_ConstructLong, "ConstructLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Callee */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Argc */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Argc */
         6
     };
     
@@ -386,32 +386,32 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_CallDirect] = (Instruction) {
         OP_CallDirect, "CallDirect", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Argc */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}}, /* Function ID */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}, /* Argc */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID}}, /* Function ID */
         5
     };
     
     instructions[OP_CallDirectLongIndex] = (Instruction) {
         OP_CallDirectLongIndex, "CallDirectLongIndex", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Argc */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}}, /* Function ID */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}, /* Argc */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_FUNCTION_ID}}, /* Function ID */
         7
     };
     
     instructions[OP_CallBuiltin] = (Instruction) {
         OP_CallBuiltin, "CallBuiltin", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Argc */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Argc */
         4
     };
 
     instructions[OP_CallBuiltinLong] = (Instruction) {
         OP_CallBuiltinLong, "CallBuiltinLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Argc (u32) */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_BUILTIN_ID}, /* Builtin ID */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Argc (u32) */
         7
     };
 
@@ -419,7 +419,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_GetBuiltinClosure] = (Instruction) {
         OP_GetBuiltinClosure, "GetBuiltinClosure",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_BUILTIN_ID}},
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_BUILTIN_ID}},
         3
     };
     
@@ -427,14 +427,14 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_LoadParam] = (Instruction) {
         OP_LoadParam, "LoadParam", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Parameter index */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Parameter index */
         3 /* opcode + 2 operands */
     };
 
     instructions[OP_LoadParamLong] = (Instruction) {
         OP_LoadParamLong, "LoadParamLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Parameter index (u32) */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Parameter index (u32) */
         6 /* opcode + 1 + 4 */
     };
     
@@ -510,21 +510,21 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Key */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Val */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Attrs */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Attrs */
         5
     };
     
     instructions[OP_LoadConstString] = (Instruction) {
         OP_LoadConstString, "LoadConstString", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* String ID */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* String ID */
         4 /* opcode + reg + 2-byte string ID */
     };
     
     instructions[OP_LoadConstStringLongIndex] = (Instruction) {
         OP_LoadConstStringLongIndex, "LoadConstStringLongIndex", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* String ID */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* String ID */
         6 /* opcode + reg + 4-byte string ID */
     };
     
@@ -532,22 +532,22 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_LoadConstDouble] = (Instruction) {
         OP_LoadConstDouble, "LoadConstDouble", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* low32 */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* high32 */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}, /* low32 */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* high32 */
         10 /* opcode + reg + 4 + 4 */
     };
     
     instructions[OP_LoadConstBigInt] = (Instruction) {
         OP_LoadConstBigInt, "LoadConstBigInt", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_BIGINT_ID}}, /* BigInt ID */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_BIGINT_ID}}, /* BigInt ID */
         4 /* opcode + reg + 2-byte bigint ID */
     };
 
     instructions[OP_LoadConstBigIntLongIndex] = (Instruction) {
         OP_LoadConstBigIntLongIndex, "LoadConstBigIntLongIndex",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_BIGINT_ID}}, /* BigInt ID (u32) */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_BIGINT_ID}}, /* BigInt ID (u32) */
         6 /* opcode + reg + 4 */
     };
     
@@ -758,8 +758,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_GetById, "GetById", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         6
     };
     
@@ -767,8 +767,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_GetByIdLong, "GetByIdLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         8
     };
     
@@ -776,8 +776,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_GetByIdShort, "GetByIdShort", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Obj */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}, /* Flags */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}, /* Flags */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_STRING_ID}}, /* Name id */
         5
     };
     
@@ -786,8 +786,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_TryGetById, "TryGetById",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         6 /* 1 +1+1+1+2 */
     };
 
@@ -795,8 +795,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_TryGetByIdLong, "TryGetByIdLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         8 /* 1 +1+1+1+4 */
     };
 
@@ -805,8 +805,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_TryPutById, "TryPutById",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         6
     };
 
@@ -814,8 +814,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_TryPutByIdLong, "TryPutByIdLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags/opt */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags/opt */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         8
     };
 
@@ -824,7 +824,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutNewOwnByIdShort, "PutNewOwnByIdShort",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_STRING_ID}}, /* Name id */
         4
     };
 
@@ -832,7 +832,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutNewOwnById, "PutNewOwnById",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         5
     };
 
@@ -840,7 +840,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutNewOwnByIdLong, "PutNewOwnByIdLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         7
     };
 
@@ -848,7 +848,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutNewOwnNEById, "PutNewOwnNEById",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         5
     };
 
@@ -856,7 +856,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutNewOwnNEByIdLong, "PutNewOwnNEByIdLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         7
     };
 
@@ -865,7 +865,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutOwnByIndex, "PutOwnByIndex",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Index */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Index */
         4
     };
 
@@ -873,7 +873,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutOwnByIndexL, "PutOwnByIndexL",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Index */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Index */
         7
     };
 
@@ -882,7 +882,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_DelById, "DelById",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         5
     };
 
@@ -890,7 +890,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_DelByIdLong, "DelByIdLong",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         7
     };
 
@@ -909,7 +909,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Prop */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Getter */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Setter */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Attrs */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Attrs */
         6
     };
 
@@ -936,8 +936,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutById, "PutById", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID}}, /* Name id */
         6
     };
     
@@ -945,8 +945,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_PutByIdLong, "PutByIdLong", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Object */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE},  /* Flags */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name id */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE},  /* Flags */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name id */
         8
     };
     
@@ -967,7 +967,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_NewArray] = (Instruction) {
         OP_NewArray, "NewArray", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}}, /* Count */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}}, /* Count */
         4 /* opcode + 1 + 2 */
     };
     
@@ -997,7 +997,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateGenerator, "CreateGenerator",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID}},
         5
     };
 
@@ -1005,7 +1005,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateGeneratorLongIndex, "CreateGeneratorLongIndex",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_FUNCTION_ID}},
         7
     };
 
@@ -1025,9 +1025,9 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_CreateRegExp] = (Instruction) {
         OP_CreateRegExp, "CreateRegExp", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Pattern string ID */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}, /* Flags string ID */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Extra */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}, /* Pattern string ID */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}, /* Flags string ID */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Extra */
         13 /* opcode + reg + 3*u32 */
     };
     
@@ -1042,14 +1042,14 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateInnerEnvironment, "CreateInnerEnvironment",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* New env dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Outer env reg */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Captured count */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Captured count */
         7 /* opcode + 2 regs + u32 */
     };
 
     instructions[OP_GetEnvironment] = (Instruction) {
         OP_GetEnvironment, "GetEnvironment",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Depth */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Depth */
         3 /* opcode + reg + u8 */
     };
 
@@ -1067,13 +1067,13 @@ Instruction* get_instruction_set_v96(u32* out_count) {
 
     instructions[OP_DeclareGlobalVar] = (Instruction) {
         OP_DeclareGlobalVar, "DeclareGlobalVar",
-        {{OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name string id */
+        {{OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name string id */
         5 /* opcode + u32 */
     };
 
     instructions[OP_ThrowIfHasRestrictedGlobalProperty] = (Instruction) {
         OP_ThrowIfHasRestrictedGlobalProperty, "ThrowIfHasRestrictedGlobalProperty",
-        {{OPERAND_TYPE_IMM32, OPERAND_MEANING_STRING_ID}}, /* Name string id */
+        {{OPERAND_TYPE_UINT32, OPERAND_MEANING_STRING_ID}}, /* Name string id */
         5 /* opcode + u32 */
     };
     
@@ -1081,10 +1081,10 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_SwitchImm] = (Instruction) {
         OP_SwitchImm, "SwitchImm", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Value to switch on */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* Jump table offset */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}, /* Jump table offset */
          {OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE}, /* Default address */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}, /* Minimum value */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Maximum value */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}, /* Minimum value */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Maximum value */
         18 /* opcode + 1 + 4 + 4 + 4 + 4 = 18 */
     };
     
@@ -1104,7 +1104,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_DirectEval, "DirectEval",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}},
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}},
         4
     };
 
@@ -1116,7 +1116,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
 
     instructions[OP_ProfilePoint] = (Instruction) {
         OP_ProfilePoint, "ProfilePoint",
-        {{OPERAND_TYPE_IMM16, OPERAND_MEANING_NONE}},
+        {{OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE}},
         3
     };
 
@@ -1179,14 +1179,14 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_LoadConstUInt8] = (Instruction) {
         OP_LoadConstUInt8, "LoadConstUInt8",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Value */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Value */
         3
     };
 
     instructions[OP_LoadConstInt] = (Instruction) {
         OP_LoadConstInt, "LoadConstInt",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Value */
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Value */
         6
     };
 
@@ -1219,7 +1219,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateClosure, "CreateClosure",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* This/Env */
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}}, /* Func id */
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID}}, /* Func id */
         5
     };
 
@@ -1227,7 +1227,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateClosureLongIndex, "CreateClosureLongIndex",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_FUNCTION_ID}},
         7
     };
 
@@ -1235,7 +1235,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateGeneratorClosure, "CreateGeneratorClosure",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID}},
         5
     };
 
@@ -1243,7 +1243,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateGeneratorClosureLongIndex, "CreateGeneratorClosureLongIndex",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_FUNCTION_ID}},
         7
     };
 
@@ -1251,7 +1251,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateAsyncClosure, "CreateAsyncClosure",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM16, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID}},
         5
     };
 
@@ -1259,7 +1259,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
         OP_CreateAsyncClosureLongIndex, "CreateAsyncClosureLongIndex",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
          {OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM32, OPERAND_MEANING_FUNCTION_ID}},
+         {OPERAND_TYPE_UINT32, OPERAND_MEANING_FUNCTION_ID}},
         7
     };
 
@@ -1297,7 +1297,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_IteratorClose] = (Instruction) {
         OP_IteratorClose, "IteratorClose",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE},
-         {OPERAND_TYPE_IMM8, OPERAND_MEANING_NONE}}, /* Hint */
+         {OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE}}, /* Hint */
         3
     };
     

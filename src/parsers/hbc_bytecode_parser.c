@@ -245,7 +245,7 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
         /* Read operand value based on type */
         switch (inst->operands[i].operand_type) {
             case OPERAND_TYPE_REG8:
-            case OPERAND_TYPE_IMM8:
+            case OPERAND_TYPE_UINT8:
             case OPERAND_TYPE_ADDR8: {
                 u8 value;
                 RETURN_IF_ERROR(buffer_reader_read_u8(&bytecode_reader, &value));
@@ -253,7 +253,7 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
                 break;
             }
             
-            case OPERAND_TYPE_IMM16: {
+            case OPERAND_TYPE_UINT16: {
                 u16 value;
                 RETURN_IF_ERROR(buffer_reader_read_u16(&bytecode_reader, &value));
                 operand_values[i] = value;
@@ -261,7 +261,7 @@ Result parse_instruction(HBCReader* reader, FunctionHeader* function_header,
             }
             
             case OPERAND_TYPE_REG32:
-            case OPERAND_TYPE_IMM32:
+            case OPERAND_TYPE_UINT32:
             case OPERAND_TYPE_ADDR32: {
                 u32 value;
                 RETURN_IF_ERROR(buffer_reader_read_u32(&bytecode_reader, &value));
@@ -487,11 +487,11 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
             size_t need = 0;
             switch (operand_type) {
                 case OPERAND_TYPE_REG8:
-                case OPERAND_TYPE_IMM8:
+                case OPERAND_TYPE_UINT8:
                 case OPERAND_TYPE_ADDR8: need = 1; break;
-                case OPERAND_TYPE_IMM16: need = 2; break;
+                case OPERAND_TYPE_UINT16: need = 2; break;
                 case OPERAND_TYPE_REG32:
-                case OPERAND_TYPE_IMM32:
+                case OPERAND_TYPE_UINT32:
                 case OPERAND_TYPE_ADDR32: need = 4; break;
                 default: need = 0; break;
             }
@@ -502,7 +502,7 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
             
             switch (operand_type) {
                 case OPERAND_TYPE_REG8:
-                case OPERAND_TYPE_IMM8:
+                case OPERAND_TYPE_UINT8:
                 case OPERAND_TYPE_ADDR8: {
                     u8 value;
                     Result read_result = buffer_reader_read_u8(&bytecode_buffer, &value);
@@ -514,7 +514,7 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
                     break;
                 }
                 
-                case OPERAND_TYPE_IMM16: {
+                case OPERAND_TYPE_UINT16: {
                     u16 value;
                     Result read_result = buffer_reader_read_u16(&bytecode_buffer, &value);
                     if (read_result.code != RESULT_SUCCESS) {
@@ -526,7 +526,7 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
                 }
                 
                 case OPERAND_TYPE_REG32:
-                case OPERAND_TYPE_IMM32:
+                case OPERAND_TYPE_UINT32:
                 case OPERAND_TYPE_ADDR32: {
                     u32 value;
                     Result read_result = buffer_reader_read_u32(&bytecode_buffer, &value);
@@ -746,18 +746,25 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
         } else {
             switch (instruction->inst->operands[i].operand_type) {
                 case OPERAND_TYPE_REG8:
-                case OPERAND_TYPE_REG32:
-                    operand_name = "Reg";
+                    operand_name = "Reg8";
                     break;
-                case OPERAND_TYPE_IMM8:
-                case OPERAND_TYPE_IMM16:
-                case OPERAND_TYPE_IMM32:
-                    operand_name = "Imm";
+                case OPERAND_TYPE_REG32:
+                    operand_name = "Reg32";
+                    break;
+                case OPERAND_TYPE_UINT8:
+                    operand_name = "UInt8";
+                    break;
+                case OPERAND_TYPE_UINT16:
+                    operand_name = "UInt16";
+                    break;
+                case OPERAND_TYPE_UINT32:
+                    operand_name = "UInt32";
                     break;
                 case OPERAND_TYPE_ADDR8:
-                case OPERAND_TYPE_ADDR32:
-                    operand_name = "Addr";
+                    operand_name = "Addr8";
                     break;
+                case OPERAND_TYPE_ADDR32:
+                    operand_name = "Addr32";
                 default:
                     operand_name = "Unknown";
                     break;
