@@ -532,9 +532,8 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_LoadConstDouble] = (Instruction) {
         OP_LoadConstDouble, "LoadConstDouble", 
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Destination register */
-         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}, /* low32 */
-         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* high32 */
-        10 /* opcode + reg + 4 + 4 */
+         {OPERAND_TYPE_DOUBLE, OPERAND_MEANING_NONE}}, /* Double */
+        9
     };
     
     instructions[OP_LoadConstBigInt] = (Instruction) {
@@ -1186,7 +1185,7 @@ Instruction* get_instruction_set_v96(u32* out_count) {
     instructions[OP_LoadConstInt] = (Instruction) {
         OP_LoadConstInt, "LoadConstInt",
         {{OPERAND_TYPE_REG8, OPERAND_MEANING_NONE}, /* Dest */
-         {OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE}}, /* Value */
+         {OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE}}, /* Value */
         6
     };
 

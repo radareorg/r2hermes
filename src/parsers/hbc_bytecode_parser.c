@@ -492,7 +492,9 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
                 case OPERAND_TYPE_UINT16: need = 2; break;
                 case OPERAND_TYPE_REG32:
                 case OPERAND_TYPE_UINT32:
+                case OPERAND_TYPE_IMM32:
                 case OPERAND_TYPE_ADDR32: need = 4; break;
+                case OPERAND_TYPE_DOUBLE: need = 8; break;
                 default: need = 0; break;
             }
             if (need && (bytecode_buffer.position + need > bytecode_buffer.size)) {
@@ -527,6 +529,7 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
                 
                 case OPERAND_TYPE_REG32:
                 case OPERAND_TYPE_UINT32:
+                case OPERAND_TYPE_IMM32:
                 case OPERAND_TYPE_ADDR32: {
                     u32 value;
                     Result read_result = buffer_reader_read_u32(&bytecode_buffer, &value);
@@ -535,6 +538,16 @@ Result parse_function_bytecode(HBCReader* reader, u32 function_id,
                         break;
                     }
                     operand_values[i] = value;
+                    break;
+                }
+                case OPERAND_TYPE_DOUBLE: {
+                    double value;
+                    Result read_result = buffer_reader_read_u64(&bytecode_buffer, (u64*)&value);
+                    if (read_result.code != RESULT_SUCCESS) {
+                        parsing_failed = true;
+                        break;
+                    }
+                    instruction.double_arg2 = value;
                     break;
                 }
                 
@@ -765,6 +778,13 @@ Result instruction_to_string(ParsedInstruction* instruction, StringBuffer* out_s
                     break;
                 case OPERAND_TYPE_ADDR32:
                     operand_name = "Addr32";
+                    break;
+                case OPERAND_TYPE_IMM32:
+                    operand_name = "Imm32";
+                    break;
+                case OPERAND_TYPE_DOUBLE:
+                    operand_name = "Double";
+                    break;
                 default:
                     operand_name = "Unknown";
                     break;
