@@ -197,6 +197,13 @@ static Result format_operand_asm(Disassembler* d, ParsedInstruction* ins, int id
         return string_buffer_append(out, buf);
     }
 
+    if (t == OPERAND_TYPE_DOUBLE) {
+        double double_val = ins->double_arg2;
+        
+        snprintf(buf, sizeof(buf), "%.6f", double_val);
+        return string_buffer_append(out, buf);
+    }
+
     /* Default: decimal immediate */
     snprintf(buf, sizeof(buf), "%u", v);
     return string_buffer_append(out, buf);
@@ -286,6 +293,13 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
                         break;
                     case OPERAND_TYPE_ADDR32:
                         operand_name = "Addr32";
+                        break;
+                    case OPERAND_TYPE_IMM32:
+                        operand_name = "Imm32";
+                        break;
+                    case OPERAND_TYPE_DOUBLE:
+                        operand_name = "Double";
+                        break;
                 break;
                     default:
                         operand_name = "Unknown";
@@ -332,7 +346,15 @@ Result print_instruction(Disassembler* disassembler, ParsedInstruction* instruct
         }
         
         /* Print operand value */
-        RETURN_IF_ERROR(string_buffer_append_int(output, value));
+        if (instruction->inst->operands[i].operand_type != OPERAND_TYPE_DOUBLE) {
+            RETURN_IF_ERROR(string_buffer_append_int(output, value));
+        } else {
+            double double_val = instruction->double_arg2;
+
+            char value_str[32];
+            snprintf(value_str, sizeof(value_str), "%.6f", double_val);
+            RETURN_IF_ERROR(string_buffer_append(output, value_str));
+        }
     }
     
     RETURN_IF_ERROR(string_buffer_append(output, ">"));

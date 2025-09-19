@@ -13,7 +13,9 @@ typedef enum {
     OPERAND_TYPE_UINT16,
     OPERAND_TYPE_UINT32,
     OPERAND_TYPE_ADDR8,
-    OPERAND_TYPE_ADDR32
+    OPERAND_TYPE_ADDR32,
+    OPERAND_TYPE_IMM32,
+    OPERAND_TYPE_DOUBLE
 } OperandType;
 
 /* Operand meaning enum */
@@ -46,7 +48,10 @@ typedef struct {
 typedef struct {
     const Instruction* inst;
     u32 arg1;
-    u32 arg2;
+    union {
+        u32 arg2;
+        double double_arg2;
+    };
     u32 arg3;
     u32 arg4;
     u32 arg5;
