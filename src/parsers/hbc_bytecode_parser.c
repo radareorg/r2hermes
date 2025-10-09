@@ -6,8 +6,8 @@
 #include <string.h>
 
 /* Global instruction set definitions for different bytecode versions */
-static Instruction* g_instruction_set_v96 = NULL;
-static u32 g_instruction_set_v96_count = 0;
+static Instruction* g_instruction_set = NULL;
+static u32 g_instruction_set_count = 0;
 
 /* Initialize parsed instruction list */
 Result parsed_instruction_list_init(ParsedInstructionList* list, u32 initial_capacity) {
@@ -89,11 +89,13 @@ static Result initialize_instruction_set(u32 bytecode_version) {
         fprintf(stderr, "This may cause parsing errors. Proceed with caution.\n");
     }
     
-    /* Initialize the instruction set for versions 92-96 */
-    /* Based on Python implementation, version 94 uses the same opcodes as version 92 */
-    if (!g_instruction_set_v96) {
-        g_instruction_set_v96 = get_instruction_set_v96(&g_instruction_set_v96_count);
-        if (!g_instruction_set_v96) {
+    if (!g_instruction_set) {
+        if (bytecode_version == 95 || bytecode_version == 96) {
+            g_instruction_set = get_instruction_set_v96(&g_instruction_set_count);
+        } else if (bytecode_version == 92 || bytecode_version == 94) {
+            g_instruction_set = get_instruction_set_v92(&g_instruction_set_count);
+        }
+        if (!g_instruction_set) {
             return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to initialize instruction set");
         }
     }
@@ -115,30 +117,32 @@ static const Instruction* find_instruction(u8 opcode, u32 bytecode_version) {
     /* Select the appropriate instruction set based on bytecode version */
     if (bytecode_version <= 96) {
         /* Based on Python implementation, version 94 also uses opcodes from version 92 */
-        instruction_set = g_instruction_set_v96;
-        count = g_instruction_set_v96_count;
+        instruction_set = g_instruction_set;
+        count = g_instruction_set_count;
         if (!instruction_set) {
             /* Lazy initialize if not done yet */
-            instruction_set = get_instruction_set_v96(&g_instruction_set_v96_count);
-            g_instruction_set_v96 = instruction_set;
-            count = g_instruction_set_v96_count;
+            instruction_set = get_instruction_set_v96(&g_instruction_set_count);
+            count = g_instruction_set_count;
         }
         
         if (bytecode_version == 94 || bytecode_version == 92) {
             fprintf(stderr, "Info: Using v96 opcodes for bytecode version %u (may require conversion)\n", bytecode_version);
-            /* For version 94/92, we may need to convert opcode values... we can extend this in future */
-        } else if (bytecode_version != 96 && bytecode_version != 95) {
+            instruction_set = get_instruction_set_v92(&g_instruction_set_count);
+        } else if (bytecode_version == 95 || bytecode_version == 96){
+            instruction_set = get_instruction_set_v96(&g_instruction_set_count);
+        } else {
             fprintf(stderr, "Warning: Using v96 opcodes for bytecode version %u (best match)\n", bytecode_version);
         }
+        g_instruction_set = instruction_set;
     } else {
         /* For newer versions, use version 96 but warn */
         fprintf(stderr, "Warning: Using v96 opcodes for bytecode version %u\n", bytecode_version);
-        instruction_set = g_instruction_set_v96;
-        count = g_instruction_set_v96_count;
+        instruction_set = g_instruction_set;
+        count = g_instruction_set_count;
         if (!instruction_set) {
-            instruction_set = get_instruction_set_v96(&g_instruction_set_v96_count);
-            g_instruction_set_v96 = instruction_set;
-            count = g_instruction_set_v96_count;
+            instruction_set = get_instruction_set_v96(&g_instruction_set_count);
+            g_instruction_set = instruction_set;
+            count = g_instruction_set_count;
         }
     }
     

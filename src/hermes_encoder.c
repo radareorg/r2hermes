@@ -18,8 +18,10 @@ Result hermes_encoder_init(HermesEncoder* encoder, u32 bytecode_version) {
     encoder->instruction_count = 0;
 
     /* Initialize instruction set */
-    if (bytecode_version >= 92 && bytecode_version <= 96) {
+    if (bytecode_version == 95 || bytecode_version == 96) {
         encoder->instruction_set = get_instruction_set_v96(&encoder->instruction_count);
+    } else if (bytecode_version == 92 || bytecode_version == 94) {
+        encoder->instruction_set = get_instruction_set_v92(&encoder->instruction_count);
     } else {
         return ERROR_RESULT(RESULT_ERROR_UNSUPPORTED_VERSION,
                           "Unsupported bytecode version for encoding");

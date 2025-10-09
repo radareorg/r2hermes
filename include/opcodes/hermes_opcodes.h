@@ -216,6 +216,7 @@ enum HermesOpcodes {
 
 /* Define the instruction set for bytecode version 96 */
 Instruction* get_instruction_set_v96(u32* out_count);
+Instruction* get_instruction_set_v92(u32* out_count);
 
 /* Helper functions */
 bool is_jump_instruction(u8 opcode);

@@ -524,9 +524,17 @@ static Instruction* select_instruction_set(u32 ver, u32* out_count) {
     if (!ver) {
         fprintf(stderr, "[hermesdec] Warning: bytecode_version not specified, defaulting to v96\n");
     }
-    /* For now we only expose v96 table; reuse it for nearby versions. */
-    Instruction* set96 = get_instruction_set_v96(out_count);
-    return set96;
+
+    Instruction* setInst = get_instruction_set_v96(out_count);
+
+    if (ver == 95 || ver == 96) {
+        setInst = get_instruction_set_v96(out_count);
+    } else if (ver == 92 || ver == 94) {
+        setInst = get_instruction_set_v92(out_count);
+    } else {
+        fprintf(stderr, "[hermesdec] Warning: unsupported bytecode version %u, defaulting to v96\n", ver);
+    }
+    return setInst;
 }
 
 static const Instruction* find_inst_in_set(Instruction* set, u32 count, u8 opcode) {
