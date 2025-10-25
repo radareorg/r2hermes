@@ -37,6 +37,9 @@ all: prepare $(BIN_FILE)
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: all
 
+format indent fmt:
+	clang-format-radare2 $(shell find src| grep '\.c$$')
+
 prepare:
 	@mkdir -p $(BUILD_DIR)/utils
 	@mkdir -p $(BUILD_DIR)/parsers
