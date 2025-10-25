@@ -1,4 +1,4 @@
-Hermes Decompiler (C) — Agent Guide
+# Project Description
 
 This repo contains a zero‑dependency C11 implementation of a Hermes HBC (Hermes Bytecode) disassembler/decompiler, a thin public library API, a CLI, and optional radare2 integration. It also embeds the original Python reference (hermes-dec/) for parity checks.
 

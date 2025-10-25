@@ -6,31 +6,75 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdarg.h>
+
+#define EPRINTF(...) \
+	do { \
+		fprintf (stderr, "Error: " __VA_ARGS__); \
+		fputc ('\n', stderr); \
+	} while (0)
 
 static void print_usage(const char *program_name) {
-	printf ("Usage: %s <command> <input_file> [output_file]\n\n", program_name);
-	printf ("Commands:\n");
-	printf ("  disassemble, dis, d    Disassemble a Hermes bytecode file\n");
-	printf ("  decompile, dec, c      Decompile a Hermes bytecode file\n");
-	printf ("  asm                    Disassemble raw bytes (rasm2-like)\n");
-	printf ("  header, h              Display the header information only\n");
-	printf ("  validate, v            Validate file format and display detailed info\n");
-	printf ("  r2script, r2, r        Generate an r2 script with function flags\n");
-	printf ("  funcs                  Dump first N function headers (id, offset, size, name)\n");
-	printf ("  cmp, compare           Compare first N funcs (offset/size) with parser.txt\n");
-	printf ("  cmpfunc                Compare instructions for one function vs Python disasm\n");
-	printf ("  str                    Print a string by index (use N as [output_file])\n");
-	printf ("  findstr                Find string by substring (use needle as [output_file])\n");
-	printf ("  strmeta                Show string entry meta (index -> isUTF16, off, len)\n");
-	printf ("\nOptions:\n");
-	printf ("  --verbose, -v          Show detailed metadata\n");
-	printf ("  --json, -j             Output in JSON format (disassembler only)\n");
-	printf ("  --bytecode, -b         Show raw bytecode bytes (disassembler only)\n");
-	printf ("  --debug, -d            Show debug information (disassembler only)\n");
-	printf ("  --asmsyntax            Use CPU-like asm syntax (mnemonic operands)\n");
-	printf ("  --pretty-literals, -P  Force multi-line formatting of array/object literals (decompiler)\n");
-	printf ("  --no-pretty-literals, -N  Force single-line formatting of array/object literals (decompiler)\n");
-	printf ("  --no-comments, -C      Suppress comments in decompiled output (no headers, no inline)\n");
+	printf ("Usage: %s <command> <input_file> [output_file]\n\n"
+	"Commands:\n"
+	"  disassemble, dis, d    Disassemble a Hermes bytecode file\n"
+	"  decompile, dec, c      Decompile a Hermes bytecode file\n"
+	"  asm                    Disassemble raw bytes (rasm2-like)\n"
+	"  header, h              Display the header information only\n"
+	"  validate, v            Validate file format and display detailed info\n"
+	"  r2script, r2, r        Generate an r2 script with function flags\n"
+	"  funcs                  Dump first N function headers (id, offset, size, name)\n"
+	"  cmp, compare           Compare first N funcs (offset/size) with parser.txt\n"
+	"  cmpfunc                Compare instructions for one function vs Python disasm\n"
+	"  str                    Print a string by index (use N as [output_file])\n"
+	"  findstr                Find string by substring (use needle as [output_file])\n"
+	"  strmeta                Show string entry meta (index -> isUTF16, off, len)\n"
+	"\nOptions:\n"
+	"  --verbose, -v          Show detailed metadata\n"
+	"  --json, -j             Output in JSON format (disassembler only)\n"
+	"  --bytecode, -b         Show raw bytecode bytes (disassembler only)\n"
+	"  --debug, -d            Show debug information (disassembler only)\n"
+	"  --asmsyntax            Use CPU-like asm syntax (mnemonic operands)\n"
+	"  --pretty-literals, -P  Force multi-line formatting of array/object literals (decompiler)\n"
+	"  --no-pretty-literals, -N  Force single-line formatting of array/object literals (decompiler)\n"
+	"  --no-comments, -C      Suppress comments in decompiled output (no headers, no inline)\n",
+		program_name);
+}
+
+static size_t parse_hex_bytes(const char *hex, u8 *bytes, size_t max_len) {
+	size_t len = strlen (hex);
+	size_t bcount = 0;
+	for (size_t i = 0; i < len && bcount < max_len; i += 2) {
+		int n1 = -1, n2 = -1;
+		char c1 = hex[i];
+		if (c1 >= '0' && c1 <= '9') {
+			n1 = c1 - '0';
+		} else if (c1 >= 'a' && c1 <= 'f') {
+			n1 = 10 + (c1 - 'a');
+		} else if (c1 >= 'A' && c1 <= 'F') {
+			n1 = 10 + (c1 - 'A');
+		} else {
+			break;
+		}
+		if (i + 1 < len) {
+			char c2 = hex[i + 1];
+			if (c2 >= '0' && c2 <= '9') {
+				n2 = c2 - '0';
+			} else if (c2 >= 'a' && c2 <= 'f') {
+				n2 = 10 + (c2 - 'a');
+			} else if (c2 >= 'A' && c2 <= 'F') {
+				n2 = 10 + (c2 - 'A');
+			} else {
+				n2 = -1;
+			}
+		}
+		if (n2 >= 0) {
+			bytes[bcount++] = (u8) ((n1 << 4) | n2);
+		} else {
+			bytes[bcount++] = (u8)n1;
+		}
+	}
+	return bcount;
 }
 
 static Result parse_args(int argc, char **argv, char **command, char **input_file, char **output_file, DisassemblyOptions *options) {
@@ -78,14 +122,11 @@ static Result parse_args(int argc, char **argv, char **command, char **input_fil
 }
 
 int main(int argc, char **argv) {
-	char *command = NULL;
-	char *input_file = NULL;
-	char *output_file = NULL;
-	DisassemblyOptions options;
-	Result result;
-	result = parse_args (argc, argv, &command, &input_file, &output_file, &options);
+	char *command = NULL, *input_file = NULL, *output_file = NULL;
+	DisassemblyOptions options = { 0 };
+	Result result = parse_args (argc, argv, &command, &input_file, &output_file, &options);
 	if (result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Error: %s\n", result.error_message);
+		EPRINTF ("%s", result.error_message);
 		return 1;
 	}
 	if (options.asm_syntax) {
@@ -93,55 +134,11 @@ int main(int argc, char **argv) {
 	}
 
 	if (!strcmp (command, "asm")) {
-		/* rasm2-like: decode raw instruction bytes passed as hex string */
-		const char *hex = input_file; /* third arg is the bytes */
-		size_t len = strlen (hex);
-		/* Allocate buffer up to 64 bytes for convenience */
+		const char *hex = input_file;
 		u8 bytes[64];
-		size_t bcount = 0;
-		/* Parse hex bytes; accept spaces/commas and optional 0x prefixes */
-		for (size_t i = 0; i < len && bcount < sizeof (bytes);) {
-			while (i < len && (hex[i] == ' ' || hex[i] == '\t' || hex[i] == ',')) {
-				i++;
-			}
-			if (i >= len) {
-				break;
-			}
-			if (hex[i] == '0' && (i + 1 < len) && (hex[i + 1] == 'x' || hex[i + 1] == 'X')) {
-				i += 2;
-			}
-			int n1 = -1, n2 = -1;
-			if (i < len) {
-				char c = hex[i++];
-				if (c >= '0' && c <= '9') {
-					n1 = c - '0';
-				} else if (c >= 'a' && c <= 'f') {
-					n1 = 10 + (c - 'a');
-				} else if (c >= 'A' && c <= 'F') {
-					n1 = 10 + (c - 'A');
-				}
-			}
-			if (i < len) {
-				char c = hex[i++];
-				if (c >= '0' && c <= '9') {
-					n2 = c - '0';
-				} else if (c >= 'a' && c <= 'f') {
-					n2 = 10 + (c - 'a');
-				} else if (c >= 'A' && c <= 'F') {
-					n2 = 10 + (c - 'A');
-				}
-			}
-			if (n1 < 0) {
-				break; /* stop on invalid */
-			}
-			if (n2 < 0) { /* single nibble, treat as low nibble */
-				bytes[bcount++] = (u8)n1;
-			} else {
-				bytes[bcount++] = (u8) ((n1 << 4) | n2);
-			}
-		}
+		size_t bcount = parse_hex_bytes (hex, bytes, sizeof (bytes));
 		if (bcount == 0) {
-			fprintf (stderr, "Invalid or empty hex bytes string\n");
+			EPRINTF ("%s", "Invalid or empty hex bytes string");
 			return 1;
 		}
 		char *text = NULL;
@@ -152,7 +149,7 @@ int main(int argc, char **argv) {
 		/* Default to version 96 for standalone decoding */
 		Result rr = hermesdec_decode_single_instruction (bytes, bcount, 96, 0, true, false, 0, NULL, NULL, 0, &text, &sz, &opc, &isj, &isc, &jmp);
 		if (rr.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Decode error: %s\n", rr.error_message);
+			EPRINTF ("%s", rr.error_message);
 			return 1;
 		}
 		printf ("%s\n", text? text: "");
@@ -162,25 +159,25 @@ int main(int argc, char **argv) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("%s", result.error_message);
 			return 1;
 		}
 		StringBuffer out;
 		string_buffer_init (&out, 16 * 1024);
 		result = hermesdec_disassemble_all_to_buffer (hd, options, &out);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Disassembly error: %s\n", result.error_message);
 			string_buffer_free (&out);
 			hermesdec_close (hd);
+			EPRINTF ("%s", result.error_message);
 			return 1;
 		}
 		FILE *f = stdout;
 		if (output_file) {
 			f = fopen (output_file, "w");
 			if (!f) {
-				perror ("fopen");
 				string_buffer_free (&out);
 				hermesdec_close (hd);
+				EPRINTF ("Failed to open output file");
 				return 1;
 			}
 		}
@@ -195,25 +192,25 @@ int main(int argc, char **argv) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		StringBuffer out;
 		string_buffer_init (&out, 32 * 1024);
 		result = hermesdec_decompile_all_to_buffer (hd, &out);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Decompilation error: %s\n", result.error_message);
 			string_buffer_free (&out);
 			hermesdec_close (hd);
+			EPRINTF ("Decompilation error: %s", result.error_message);
 			return 1;
 		}
 		FILE *f = stdout;
 		if (output_file) {
 			f = fopen (output_file, "w");
 			if (!f) {
-				perror ("fopen");
 				string_buffer_free (&out);
 				hermesdec_close (hd);
+				EPRINTF ("Failed to open output file");
 				return 1;
 			}
 		}
@@ -227,32 +224,32 @@ int main(int argc, char **argv) {
 	} else if (!strcmp (command, "r2script") || !strcmp (command, "r2") || !strcmp (command, "r")) {
 		result = hermesdec_generate_r2_script (input_file, output_file);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "R2 script generation error: %s\n", result.error_message);
+			EPRINTF ("R2 script generation error: %s", result.error_message);
 			return 1;
 		}
 	} else if (!strcmp (command, "validate") || !strcmp (command, "v")) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		StringBuffer sb;
 		string_buffer_init (&sb, 4096);
 		result = hermesdec_validate_basic (hd, &sb);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Validate error: %s\n", result.error_message);
 			string_buffer_free (&sb);
 			hermesdec_close (hd);
+			EPRINTF ("Validate error: %s", result.error_message);
 			return 1;
 		}
 		FILE *out = stdout;
 		if (output_file) {
 			out = fopen (output_file, "w");
 			if (!out) {
-				perror ("fopen");
 				string_buffer_free (&sb);
 				hermesdec_close (hd);
+				EPRINTF ("Failed to open output file");
 				return 1;
 			}
 		}
@@ -266,22 +263,22 @@ int main(int argc, char **argv) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		HermesHeader hh;
 		result = hermesdec_get_header (hd, &hh);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Header error: %s\n", result.error_message);
 			hermesdec_close (hd);
+			EPRINTF ("Header error: %s", result.error_message);
 			return 1;
 		}
 		FILE *out = stdout;
 		if (output_file) {
 			out = fopen (output_file, "w");
 			if (!out) {
-				perror ("fopen");
 				hermesdec_close (hd);
+				EPRINTF ("Failed to open output file");
 				return 1;
 			}
 		}
@@ -293,19 +290,32 @@ int main(int argc, char **argv) {
 			fprintf (out, "%02x", hh.sourceHash[i]);
 		}
 		fprintf (out, "\n");
-		fprintf (out, "  File Length: %u bytes\n  Global Code Index: %u\n  Function Count: %u\n  String Kind Count: %u\n  Identifier Count: %u\n  String Count: %u\n  Overflow String Count: %u\n  String Storage Size: %u bytes\n",
-			hh.fileLength, hh.globalCodeIndex, hh.functionCount, hh.stringKindCount, hh.identifierCount, hh.stringCount, hh.overflowStringCount, hh.stringStorageSize);
+		fprintf (out, "  File Length: %u bytes\n", hh.fileLength);
+		fprintf (out, "  Global Code Index: %u\n", hh.globalCodeIndex);
+		fprintf (out, "  Function Count: %u\n", hh.functionCount);
+		fprintf (out, "  String Kind Count: %u\n", hh.stringKindCount);
+		fprintf (out, "  Identifier Count: %u\n", hh.identifierCount);
+		fprintf (out, "  String Count: %u\n", hh.stringCount);
+		fprintf (out, "  Overflow String Count: %u\n", hh.overflowStringCount);
+		fprintf (out, "  String Storage Size: %u bytes\n", hh.stringStorageSize);
 		if (hh.version >= 87) {
-			fprintf (out, "  BigInt Count: %u\n  BigInt Storage Size: %u bytes\n", hh.bigIntCount, hh.bigIntStorageSize);
+			fprintf (out, "  BigInt Count: %u\n", hh.bigIntCount);
+			fprintf (out, "  BigInt Storage Size: %u bytes\n", hh.bigIntStorageSize);
 		}
-		fprintf (out, "  RegExp Count: %u\n  RegExp Storage Size: %u bytes\n  Array Buffer Size: %u bytes\n  Object Key Buffer Size: %u bytes\n  Object Value Buffer Size: %u bytes\n",
-			hh.regExpCount, hh.regExpStorageSize, hh.arrayBufferSize, hh.objKeyBufferSize, hh.objValueBufferSize);
+		fprintf (out, "  RegExp Count: %u\n", hh.regExpCount);
+		fprintf (out, "  RegExp Storage Size: %u bytes\n", hh.regExpStorageSize);
+		fprintf (out, "  Array Buffer Size: %u bytes\n", hh.arrayBufferSize);
+		fprintf (out, "  Object Key Buffer Size: %u bytes\n", hh.objKeyBufferSize);
+		fprintf (out, "  Object Value Buffer Size: %u bytes\n", hh.objValueBufferSize);
 		fprintf (out, "  %s: %u\n  CJS Module Count: %u\n", (hh.version < 78)? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
 		if (hh.version >= 84) {
 			fprintf (out, "  Function Source Count: %u\n", hh.functionSourceCount);
 		}
-		fprintf (out, "  Debug Info Offset: %u\n  Flags:\n    Static Builtins: %s\n    CJS Modules Statically Resolved: %s\n    Has Async: %s\n",
-			hh.debugInfoOffset, hh.staticBuiltins? "Yes": "No", hh.cjsModulesStaticallyResolved? "Yes": "No", hh.hasAsync? "Yes": "No");
+		fprintf (out, "  Debug Info Offset: %u\n", hh.debugInfoOffset);
+		fprintf (out, "  Flags:\n");
+		fprintf (out, "    Static Builtins: %s\n", hh.staticBuiltins? "Yes": "No");
+		fprintf (out, "    CJS Modules Statically Resolved: %s\n", hh.cjsModulesStaticallyResolved? "Yes": "No");
+		fprintf (out, "    Has Async: %s\n", hh.hasAsync? "Yes": "No");
 		if (output_file) {
 			fclose (out);
 		}
@@ -321,7 +331,7 @@ int main(int argc, char **argv) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		u32 fc = hermesdec_function_count (hd);
@@ -329,18 +339,18 @@ int main(int argc, char **argv) {
 		const char *py_path = "parser.txt";
 		FILE *py = fopen (py_path, "r");
 		if (!py) {
-			fprintf (stderr, "Error: could not open %s\n", py_path);
 			hermesdec_close (hd);
+			EPRINTF ("could not open %s", py_path);
 			return 1;
 		}
 		u32 *py_sizes = (u32 *)calloc (count, sizeof (u32));
 		u32 *py_offs = (u32 *)calloc (count, sizeof (u32));
 		if (!py_sizes || !py_offs) {
-			fprintf (stderr, "Error: OOM\n");
 			fclose (py);
 			hermesdec_close (hd);
 			free (py_sizes);
 			free (py_offs);
+			EPRINTF ("%s", "OOM");
 			return 1;
 		}
 		char line[4096];
@@ -392,7 +402,7 @@ int main(int argc, char **argv) {
 		hermesdec_close (hd);
 	} else if (!strcmp (command, "cmpfunc")) {
 		if (argc < 5) {
-			fprintf (stderr, "Usage: %s cmpfunc <input_file> <python_dis_file> <function_id>\n", argv[0]);
+			EPRINTF ("Usage: %s cmpfunc <input_file> <python_dis_file> <function_id>", argv[0]);
 			return 1;
 		}
 		const char *python_dis_file = argv[3];
@@ -400,12 +410,12 @@ int main(int argc, char **argv) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		if (function_id >= hermesdec_function_count (hd)) {
-			fprintf (stderr, "Invalid function id %u\n", function_id);
 			hermesdec_close (hd);
+			EPRINTF ("Invalid function id %u", function_id);
 			return 1;
 		}
 		DisassemblyOptions opt = (DisassemblyOptions){ 0 };
@@ -414,9 +424,9 @@ int main(int argc, char **argv) {
 		hermesdec_disassemble_function_to_buffer (hd, function_id, opt, &out);
 		FILE *py = fopen (python_dis_file, "r");
 		if (!py) {
-			fprintf (stderr, "Error: could not open %s\n", python_dis_file);
 			string_buffer_free (&out);
 			hermesdec_close (hd);
+			EPRINTF ("could not open %s", python_dis_file);
 			return 1;
 		}
 		char line_py[2048];
@@ -455,24 +465,24 @@ int main(int argc, char **argv) {
 		hermesdec_close (hd);
 	} else if (!strcmp (command, "str")) {
 		if (!output_file) {
-			fprintf (stderr, "Usage: %s str <input_file> <index>\n", argv[0]);
+			EPRINTF ("Usage: %s str <input_file> <index>", argv[0]);
 			return 1;
 		}
 		long idx = strtol (output_file, NULL, 10);
 		if (idx < 0) {
-			fprintf (stderr, "Invalid index\n");
+			EPRINTF ("%s", "Invalid index");
 			return 1;
 		}
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		u32 sc = hermesdec_string_count (hd);
 		if ((u32)idx >= sc) {
-			fprintf (stderr, "Index out of range (max %u)\n", sc);
 			hermesdec_close (hd);
+			EPRINTF ("Index out of range (max %u)", sc);
 			return 1;
 		}
 		const char *s = NULL;
@@ -481,14 +491,14 @@ int main(int argc, char **argv) {
 		hermesdec_close (hd);
 	} else if (!strcmp (command, "findstr")) {
 		if (!output_file) {
-			fprintf (stderr, "Usage: %s findstr <input_file> <needle>\n", argv[0]);
+			EPRINTF ("Usage: %s findstr <input_file> <needle>", argv[0]);
 			return 1;
 		}
 		const char *needle = output_file;
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		for (u32 i = 0; i < hermesdec_string_count (hd); i++) {
@@ -504,24 +514,24 @@ int main(int argc, char **argv) {
 		hermesdec_close (hd);
 	} else if (!strcmp (command, "strmeta")) {
 		if (!output_file) {
-			fprintf (stderr, "Usage: %s strmeta <input_file> <index>\n", argv[0]);
+			EPRINTF ("Usage: %s strmeta <input_file> <index>", argv[0]);
 			return 1;
 		}
 		long idx = strtol (output_file, NULL, 10);
 		if (idx < 0) {
-			fprintf (stderr, "Invalid index\n");
+			EPRINTF ("Invalid index");
 			return 1;
 		}
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		u32 sc = hermesdec_string_count (hd);
 		if ((u32)idx >= sc) {
-			fprintf (stderr, "Index out of range (max %u)\n", sc);
 			hermesdec_close (hd);
+			EPRINTF ("Index out of range (max %u)", sc);
 			return 1;
 		}
 		HermesStringMeta sm;
@@ -533,7 +543,7 @@ int main(int argc, char **argv) {
 		HermesDec *hd = NULL;
 		result = hermesdec_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Open error: %s\n", result.error_message);
+			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		u32 fc = hermesdec_function_count (hd);
@@ -546,8 +556,8 @@ int main(int argc, char **argv) {
 		}
 		hermesdec_close (hd);
 	} else {
-		fprintf (stderr, "Unknown command: %s\n", command);
 		print_usage (argv[0]);
+		EPRINTF ("Unknown command: %s", command);
 		return 1;
 	}
 	return 0;
