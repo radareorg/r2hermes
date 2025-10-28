@@ -6,7 +6,6 @@
 #include "token.h"
 
 /* Translate a single parsed instruction into a TokenString */
-Result translate_instruction_to_tokens(const ParsedInstruction* insn, TokenString* out);
+Result translate_instruction_to_tokens(const ParsedInstruction *insn, TokenString *out);
 
 #endif /* HERMES_DEC_TRANSLATOR_H */
-

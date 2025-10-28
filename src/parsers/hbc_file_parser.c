@@ -5,13 +5,9 @@
 
 /* Initialize HBC reader */
 Result hbc_reader_init(HBCReader *reader) {
-	if (!reader) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
-	}
-
-	/* Zero out all fields */
+	R_RETURN_VAL_IF_FAIL (reader, 
+		ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL"));
 	memset (reader, 0, sizeof (HBCReader));
-
 	return SUCCESS_RESULT ();
 }
 
@@ -127,8 +123,7 @@ Result hbc_reader_read_file(HBCReader *reader, const char *filename) {
 			memcpy (signature, reader->file_buffer.data, 9);
 			signature[9] = '\0';
 
-			if (strcmp (signature, "function(") == 0 ||
-				(signature[0] == '{' && strchr (signature, ':') != NULL)) {
+			if (!strcmp (signature, "function(") || (signature[0] == '{' && strchr (signature, ':') != NULL)) {
 				return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT,
 					"This appears to be a JavaScript bundle file, not a compiled Hermes bytecode file. "
 					"You may need to extract the bytecode from the bundle first.");
@@ -640,11 +635,11 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	fprintf (stderr, "Reading identifier hashes at position %zu\n", reader->file_buffer.position);
+	R_LOG_DEBUG ("Reading identifier hashes at position %zu", reader->file_buffer.position);
 
 	/* Sanity check on identifier count */
 	if (reader->header.identifierCount > 1000000) { /* 1M limit */
-		fprintf (stderr, "Warning: Very large identifier count (%u), may be corrupted\n",
+		R_LOG_WARN ("Very large identifier count (%u), may be corrupted",
 			reader->header.identifierCount);
 		/* We'll still attempt to read, but we'll be cautious */
 	}
@@ -652,7 +647,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	/* Check if we have enough data in the buffer */
 	size_t bytes_needed = reader->header.identifierCount * sizeof (u32);
 	if (reader->file_buffer.position + bytes_needed > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: File too small for %u identifiers, truncating\n",
+		R_LOG_WARN ("File too small for %u identifiers, truncating",
 			reader->header.identifierCount);
 		/* Adjust the identifier count to what we can safely read */
 		u32 max_identifiers = (reader->file_buffer.size - reader->file_buffer.position) / sizeof (u32);
@@ -1170,7 +1165,7 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 	}
 
 	reader->bigint_count = reader->header.bigIntCount;
-	fprintf (stderr, "Successfully processed %zu BigInt values\n", reader->bigint_count);
+	R_LOG_DEBUG ("Successfully processed %zu BigInt values", reader->bigint_count);
 
 	/* Free temporary storage */
 	free (bigint_table);
@@ -1647,8 +1642,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 			Result sr = buffer_reader_seek (&reader->file_buffer, large_header_offset);
 			if (sr.code == RESULT_SUCCESS) {
 				/* Read large function header fields explicitly */
-				LargeFunctionHeader large_header;
-				memset (&large_header, 0, sizeof (large_header));
+				LargeFunctionHeader large_header = {0};
 
 				/* Read in the same order as in the non-robust path */
 				if (buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset).code == RESULT_SUCCESS &&

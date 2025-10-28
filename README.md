@@ -1,48 +1,51 @@
 # Hermes Decompiler (C Implementation)
 
-This is a C implementation of the Hermes HBC (Hermes Bytecode) disassembler and decompiler with zero external dependencies. It can be used to analyze React Native files compiled into the Hermes VM bytecode format.
+This is a C implementation of the Hermes HBC (Hermes Bytecode) disassembler and
+decompiler with zero external dependencies. It can be used to analyze React
+Native files compiled into the Hermes VM bytecode format.
 
 ## Features
 
 - Disassembles Hermes bytecode to readable assembly
-- Decompiles Hermes bytecode to JavaScript-like pseudo-code
+- Decompiles Hermes bytecode to JavaScript-like pseudo-code (WIP)
 - Supports multiple bytecode versions (72-96)
-- Zero external dependencies
+- Zero external dependencies (only libc)
 - Fast and efficient implementation
 
 ## Build Instructions
 
 To build the project, simply run:
 
-```
+```bash
 make
-```
-
-For a debug build with additional debugging information:
-
-```
-make debug
+make user-install
 ```
 
 To clean the build:
 
-```
+```bash
 make clean
 ```
 
 ### Library build
 
-The build produces a static library at `build/libhermesdec.a` and a CLI tool at `bin/hermes-dec`. Public headers live in `include/`, with the high-level API at `include/hermesdec/hermesdec.h`.
+The build produces a static library:
+
+* `build/libhermesdec.a` and a CLI tool at `bin/hermes-dec`.
+
+Public headers live in `include/`, with the high-level API at:
+
+* `include/hermesdec/hermesdec.h`.
 
 Linking example (GCC):
 
-```
+```bash
 gcc -Iinclude your_app.c -Lbuild -lhermesdec -o your_app
 ```
 
 ### Public API quick start
 
-```
+```c
 #include "hermesdec/hermesdec.h"
 
 int main() {
@@ -68,47 +71,6 @@ int main() {
     hermesdec_close(hd);
     return 0;
 }
-```
-
-## Usage
-
-```
-./bin/hermes-dec <command> <input_file> [output_file]
-```
-
-### Commands
-
-- `disassemble` (or `dis`, `d`): Disassemble a Hermes bytecode file
-- `decompile` (or `dec`, `c`): Decompile a Hermes bytecode file
-- `header` (or `h`): Display header information only
-
-### Options
-
-- `--verbose` (`-v`): Show detailed metadata
-- `--json` (`-j`): Output in JSON format (disassembler only)
-- `--bytecode` (`-b`): Show raw bytecode bytes (disassembler only)
-- `--debug` (`-d`): Show debug information (disassembler only)
-
-If no output file is specified, output will be written to stdout.
-
-## Examples
-
-Disassemble a bytecode file:
-
-```
-./bin/hermes-dec disassemble assets/index.android.bundle output.hasm
-```
-
-Decompile a bytecode file:
-
-```
-./bin/hermes-dec decompile assets/index.android.bundle output.js
-```
-
-Display bytecode header information:
-
-```
-./bin/hermes-dec header assets/index.android.bundle
 ```
 
 ## License
