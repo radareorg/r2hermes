@@ -46,22 +46,22 @@ typedef struct {
 
 /* Parsed instruction */
 typedef struct {
-    const Instruction* inst;
-    u32 arg1;
-    union {
-        u32 arg2;
-        double double_arg2;
-    };
-    u32 arg3;
-    u32 arg4;
-    u32 arg5;
-    u32 arg6;
-    u32* switch_jump_table;
-    u32 switch_jump_table_size;
-    u32 original_pos;
-    u32 next_pos;
-    u32 function_offset;
-    HBCReader* hbc_reader;
+	const Instruction *inst;
+	u32 arg1;
+	union {
+		u32 arg2;
+		double double_arg2;
+	};
+	u32 arg3;
+	u32 arg4;
+	u32 arg5;
+	u32 arg6;
+	u32 *switch_jump_table;
+	u32 switch_jump_table_size;
+	u32 original_pos;
+	u32 next_pos;
+	u32 function_offset;
+	HBCReader *hbc_reader;
 } ParsedInstruction;
 
 /* List of parsed instructions */

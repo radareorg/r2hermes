@@ -8,6 +8,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef R2_VERSION
+#define R_RETURN_VAL_IF_FAIL(x, y) \
+	if (! (x)) \
+	return y
+#define R_LOG_WARN(x, ...) // (x)
+#define R_LOG_DEBUG(x, ...) // (x)
+#endif
+
 /* Type definitions for consistent sizes */
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -17,12 +25,6 @@ typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
-
-#define R_RETURN_VAL_IF_FAIL(x, y) \
-	if (! (x)) \
-	return y
-#define R_LOG_WARN(x, ...) // (x)
-#define R_LOG_DEBUG(x, ...) // (x)
 
 /* String buffer for dynamic strings */
 typedef struct {
@@ -51,7 +53,7 @@ typedef struct {
 
 /* Buffer reader for file operations */
 typedef struct {
-	u8 *data;
+	uint8_t *data;
 	size_t size;
 	size_t position;
 } BufferReader;
@@ -83,8 +85,9 @@ void buffer_reader_free(BufferReader *reader);
 #define RETURN_IF_ERROR(expr) \
 	do { \
 		Result result = (expr); \
-		if (result.code != RESULT_SUCCESS) \
+		if (result.code != RESULT_SUCCESS) { \
 			return result; \
+		} \
 	} while (0)
 
 #define SUCCESS_RESULT() ((Result){ RESULT_SUCCESS, "" })

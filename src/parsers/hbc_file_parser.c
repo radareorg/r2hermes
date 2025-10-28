@@ -5,7 +5,7 @@
 
 /* Initialize HBC reader */
 Result hbc_reader_init(HBCReader *reader) {
-	R_RETURN_VAL_IF_FAIL (reader, 
+	R_RETURN_VAL_IF_FAIL (reader,
 		ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL"));
 	memset (reader, 0, sizeof (HBCReader));
 	return SUCCESS_RESULT ();
@@ -1642,7 +1642,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 			Result sr = buffer_reader_seek (&reader->file_buffer, large_header_offset);
 			if (sr.code == RESULT_SUCCESS) {
 				/* Read large function header fields explicitly */
-				LargeFunctionHeader large_header = {0};
+				LargeFunctionHeader large_header = { 0 };
 
 				/* Read in the same order as in the non-robust path */
 				if (buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset).code == RESULT_SUCCESS &&

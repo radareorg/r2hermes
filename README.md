@@ -45,33 +45,7 @@ gcc -Iinclude your_app.c -Lbuild -lhermesdec -o your_app
 
 ### Public API quick start
 
-```c
-#include "hermesdec/hermesdec.h"
-
-int main() {
-    HermesDec* hd = NULL;
-    Result r = hermesdec_open("path/to/file.hbc", &hd);
-    if (r.code != RESULT_SUCCESS) return 1;
-
-    u32 n = hermesdec_function_count(hd);
-    for (u32 i = 0; i < n; i++) {
-        const char* name; u32 off, size, argc;
-        if (hermesdec_get_function_info(hd, i, &name, &off, &size, &argc).code == RESULT_SUCCESS) {
-            printf("fn %u @0x%x size=%u name=%s\n", i, off, size, name);
-        }
-    }
-
-    DisassemblyOptions opt = {0};
-    opt.verbose = true;
-    StringBuffer sb; string_buffer_init(&sb, 4096);
-    hermesdec_disassemble_function_to_buffer(hd, 0, opt, &sb);
-    puts(sb.data);
-    string_buffer_free(&sb);
-
-    hermesdec_close(hd);
-    return 0;
-}
-```
+Read the `src/main.c` as an example about how to use this library.
 
 ## License
 
