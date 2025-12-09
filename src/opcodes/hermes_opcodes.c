@@ -327,6 +327,12 @@ Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
+	instructions[OP_ThrowIfUndefinedInst] = (Instruction){
+		OP_ThrowIfUndefinedInst, "ThrowIfUndefinedInst",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		2
+	};
+
 	instructions[OP_JmpTrueLong] = (Instruction){
 		OP_JmpTrueLong, "JmpTrueLong",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
@@ -1093,6 +1099,12 @@ Instruction *get_instruction_set_v96(u32 *out_count) {
 		OP_Debugger, "Debugger",
 		{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
 		1 /* opcode only */
+	};
+
+	instructions[OP_DebuggerCheck] = (Instruction){
+		OP_DebuggerCheck, "DebuggerCheck",
+		{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+		1
 	};
 
 	instructions[OP_Ret] = (Instruction){
