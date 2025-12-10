@@ -216,7 +216,13 @@ enum HermesOpcodes {
 	OP_Store32 = 205
 };
 
-/* Define the instruction set for bytecode version 96 */
+/* Define the instruction set getters for supported versions. Add new getters for other versions when available. */
+Instruction *get_instruction_set_v90(u32 *out_count);
+Instruction *get_instruction_set_v91(u32 *out_count);
+Instruction *get_instruction_set_v92(u32 *out_count);
+Instruction *get_instruction_set_v93(u32 *out_count);
+Instruction *get_instruction_set_v94(u32 *out_count);
+Instruction *get_instruction_set_v95(u32 *out_count);
 Instruction *get_instruction_set_v96(u32 *out_count);
 
 /* Helper functions */
@@ -227,5 +233,11 @@ bool is_bitwise_instruction(u8 opcode);
 bool is_load_instruction(u8 opcode);
 bool is_store_instruction(u8 opcode);
 bool is_comparison_instruction(u8 opcode);
+
+/* Version support functions */
+const Instruction *get_versioned_instruction_set(u32 bytecode_version, u32 *out_count);
+bool is_instruction_supported_in_version(u8 opcode, u32 bytecode_version);
+u32 get_best_supported_version(u32 detected_version);
+void cleanup_instruction_sets(void);
 
 #endif /* HERMES_DEC_HERMES_OPCODES_H */

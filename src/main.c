@@ -158,36 +158,36 @@ int main(int argc, char **argv) {
 		return 0;
 	} else if (!strcmp (command, "assemble") || !strcmp (command, "enc") || !strcmp (command, "e")) {
 		/* Read asm text from file */
-		FILE *f_in = fopen(input_file, "r");
+		FILE *f_in = fopen (input_file, "r");
 		if (!f_in) {
-			EPRINTF("Failed to open input file");
+			EPRINTF ("Failed to open input file");
 			return 1;
 		}
-		char asm_text[4096] = {0};
-		size_t len = fread(asm_text, 1, sizeof(asm_text) - 1, f_in);
-		fclose(f_in);
+		char asm_text[4096] = { 0 };
+		size_t len = fread (asm_text, 1, sizeof (asm_text) - 1, f_in);
+		fclose (f_in);
 		if (len == 0) {
-			EPRINTF("Empty input file");
+			EPRINTF ("Empty input file");
 			return 1;
 		}
 		u8 buffer[4096];
 		size_t bytes_written = 0;
-		Result res = hermesdec_encode_instructions(asm_text, 96, buffer, sizeof(buffer), &bytes_written);
+		Result res = hermesdec_encode_instructions (asm_text, 96, buffer, sizeof (buffer), &bytes_written);
 		if (res.code != RESULT_SUCCESS) {
-			EPRINTF("%s", res.error_message);
+			EPRINTF ("%s", res.error_message);
 			return 1;
 		}
 		FILE *f_out = stdout;
 		if (output_file) {
-			f_out = fopen(output_file, "wb");
+			f_out = fopen (output_file, "wb");
 			if (!f_out) {
-				EPRINTF("Failed to open output file");
+				EPRINTF ("Failed to open output file");
 				return 1;
 			}
 		}
-		fwrite(buffer, 1, bytes_written, f_out);
+		fwrite (buffer, 1, bytes_written, f_out);
 		if (output_file) {
-			fclose(f_out);
+			fclose (f_out);
 		}
 		return 0;
 	} else if (!strcmp (command, "disassemble") || !strcmp (command, "dis") || !strcmp (command, "d")) {

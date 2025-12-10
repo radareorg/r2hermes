@@ -118,7 +118,7 @@ static bool u32set_contains(const U32Set *s, u32 v) {
 	if (!s || !s->bitmap || v / 8 >= s->bitmap_size) {
 		return false;
 	}
-	return (s->bitmap[v / 8] & (1 << (v % 8))) != 0;
+	return (s->bitmap[v / 8] &(1 << (v % 8))) != 0;
 }
 static Result u32set_add(U32Set *s, u32 v) {
 	if (!s) {
