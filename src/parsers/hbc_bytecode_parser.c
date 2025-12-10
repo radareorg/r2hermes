@@ -147,11 +147,9 @@ static const Instruction *find_instruction(u8 opcode, u32 bytecode_version) {
 		count = 256; /* full table */
 	}
 
-	/* Search for the instruction */
-	for (u32 i = 0; i < count; i++) {
-		if (instruction_set[i].opcode == opcode) {
-			return &instruction_set[i];
-		}
+	/* Direct lookup since instruction_set is indexed by opcode */
+	if (opcode < count) {
+		return &instruction_set[opcode];
 	}
 
 	fprintf (stderr, "Error: Unknown opcode 0x%02x for bytecode version %u (count=%u)\n", opcode, bytecode_version, count);
