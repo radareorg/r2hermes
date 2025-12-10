@@ -391,7 +391,8 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	} else if (opcode == OP_Throw || opcode == OP_ThrowIfEmpty) {
 		op->type = R_ANAL_OP_TYPE_TRAP;
 	} else if (opcode == OP_Catch) {
-		op->type = R_ANAL_OP_TYPE_TRAP; // Exception handling
+		// op->type = R_ANAL_OP_TYPE_TRAP; // Exception handling
+		op->type = R_ANAL_OP_TYPE_MOV; // Exception handling
 	} else if (opcode == OP_Debugger) {
 		op->type = R_ANAL_OP_TYPE_DEBUG;
 	} else if (opcode == OP_AsyncBreakCheck || opcode == OP_ProfilePoint) {
