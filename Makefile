@@ -15,7 +15,7 @@ DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(wildcard $(SRC_DIR)/opcodes/*.c)
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
-          $(SRC_DIR)/lib/hermesdec.c $(SRC_DIR)/hermes_encoder.c
+          $(SRC_DIR)/lib/hbc.c $(SRC_DIR)/hermes_encoder.c
 MAIN_SRC = $(SRC_DIR)/main.c
 
 ## Object files
@@ -24,7 +24,7 @@ MAIN_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(MAIN_SRC))
 
 ## Artifacts
 BIN_FILE = $(BIN_DIR)/hermes-dec
-STATIC_LIB = $(BUILD_DIR)/libhermesdec.a
+STATIC_LIB = $(BUILD_DIR)/libhbc.a
 
 # Include paths
 INCLUDES = -I$(INCLUDE_DIR)
@@ -53,7 +53,7 @@ $(STATIC_LIB): $(LIB_OBJ)
 	ar rcs $@ $^
 
 $(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ)
-	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhermesdec
+	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhbc
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
@@ -81,7 +81,7 @@ otest: prepare $(TEST_BIN)
 	$(TEST_BIN)
 
 $(TEST_BIN): $(STATIC_LIB) $(TEST_SRC:.c=.o)
-	$(CC) $(CFLAGS) -o $@ $(TEST_SRC:.c=.o) -L$(BUILD_DIR) -lhermesdec
+	$(CC) $(CFLAGS) -o $@ $(TEST_SRC:.c=.o) -L$(BUILD_DIR) -lhbc
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@

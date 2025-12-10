@@ -27,6 +27,8 @@ struct BytecodeModule;
 typedef struct BytecodeModule BytecodeModule;
 
 /* Header structure that varies based on bytecode version */
+#ifndef HBC_HEADER_DEFINED
+#define HBC_HEADER_DEFINED
 typedef struct {
 	u64 magic;
 	u32 version;
@@ -51,11 +53,11 @@ typedef struct {
 	u32 cjsModuleCount;
 	u32 functionSourceCount; /* >=84 */
 	u32 debugInfoOffset;
-	u8 staticBuiltins : 1;
-	u8 cjsModulesStaticallyResolved : 1;
-	u8 hasAsync : 1;
-	u8 padding[3]; /* For alignment */
+	bool staticBuiltins;
+	bool cjsModulesStaticallyResolved;
+	bool hasAsync;
 } HBCHeader;
+#endif
 
 /* Function header structure (small function header) */
 typedef struct {

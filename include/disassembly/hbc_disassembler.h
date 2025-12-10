@@ -15,23 +15,23 @@ typedef struct {
 	bool show_debug_info; /* Show debug information */
 	bool asm_syntax; /* Output CPU-like asm syntax (mnemonic operands) */
 	bool resolve_string_ids; /* Resolve string IDs to actual addresses */
-} DisassemblyOptions;
+} HBCDisassemblyOptions;
 #endif
 
 /* Disassembler state */
 typedef struct {
 	HBCReader *reader; /* The HBC reader with parsed data */
 	StringBuffer output; /* The output buffer */
-	DisassemblyOptions options; /* Disassembly options */
+	HBCDisassemblyOptions options; /* Disassembly options */
 	u32 current_function_id; /* Function currently being disassembled */
 } Disassembler;
 
 /* Function declarations */
-Result disassembler_init(Disassembler *disassembler, HBCReader *reader, DisassemblyOptions options);
+Result disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisassemblyOptions options);
 void disassembler_cleanup(Disassembler *disassembler);
 
-Result disassemble_file(const char *input_file, const char *output_file, DisassemblyOptions options);
-Result disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, DisassemblyOptions options);
+Result disassemble_file(const char *input_file, const char *output_file, HBCDisassemblyOptions options);
+Result disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisassemblyOptions options);
 Result disassemble_function(Disassembler *disassembler, u32 function_id);
 Result disassemble_all_functions(Disassembler *disassembler);
 

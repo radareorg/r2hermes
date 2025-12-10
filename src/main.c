@@ -1,5 +1,5 @@
 #include "common.h"
-#include "hermesdec/hermesdec.h"
+#include "../include/hbc/hbc.h"
 #include "decompilation/literals.h"
 
 #include <stdio.h>
@@ -78,7 +78,7 @@ static size_t parse_hex_bytes(const char *hex, u8 *bytes, size_t max_len) {
 	return bcount;
 }
 
-static Result parse_args(int argc, char **argv, char **command, char **input_file, char **output_file, DisassemblyOptions *options) {
+static Result parse_args(int argc, char **argv, char **command, char **input_file, char **output_file, HBCDisassemblyOptions *options) {
 	if (argc < 3) {
 		print_usage (argv[0]);
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Not enough arguments");
@@ -124,7 +124,7 @@ static Result parse_args(int argc, char **argv, char **command, char **input_fil
 
 int main(int argc, char **argv) {
 	char *command = NULL, *input_file = NULL, *output_file = NULL;
-	DisassemblyOptions options = { 0 };
+	HBCDisassemblyOptions options = { 0 };
 	Result result = parse_args (argc, argv, &command, &input_file, &output_file, &options);
 	if (result.code != RESULT_SUCCESS) {
 		EPRINTF ("%s", result.error_message);
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
 		bool isj = false, isc = false;
 		u64 jmp = 0;
 		/* Default to version 96 for standalone decoding */
-		Result rr = hermesdec_decode_single_instruction (bytes, bcount, 96, 0, true, false, 0, NULL, NULL, 0, &text, &sz, &opc, &isj, &isc, &jmp);
+		Result rr = hbc_decode_single_instruction (bytes, bcount, 96, 0, true, false, 0, NULL, NULL, 0, &text, &sz, &opc, &isj, &isc, &jmp);
 		if (rr.code != RESULT_SUCCESS) {
 			EPRINTF ("%s", rr.error_message);
 			return 1;
@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
 		}
 		u8 buffer[4096];
 		size_t bytes_written = 0;
-		Result res = hermesdec_encode_instructions (asm_text, 96, buffer, sizeof (buffer), &bytes_written);
+		Result res = hbc_encode_instructions (asm_text, 96, buffer, sizeof (buffer), &bytes_written);
 		if (res.code != RESULT_SUCCESS) {
 			EPRINTF ("%s", res.error_message);
 			return 1;
@@ -191,18 +191,18 @@ int main(int argc, char **argv) {
 		}
 		return 0;
 	} else if (!strcmp (command, "disassemble") || !strcmp (command, "dis") || !strcmp (command, "d")) {
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("%s", result.error_message);
 			return 1;
 		}
 		StringBuffer out;
 		string_buffer_init (&out, 16 * 1024);
-		result = hermesdec_disassemble_all_to_buffer (hd, options, &out);
+		result = hbc_disassemble_all_to_buffer (hd, options, &out);
 		if (result.code != RESULT_SUCCESS) {
 			string_buffer_free (&out);
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("%s", result.error_message);
 			return 1;
 		}
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 			f = fopen (output_file, "w");
 			if (!f) {
 				string_buffer_free (&out);
-				hermesdec_close (hd);
+				hbc_close (hd);
 				EPRINTF ("Failed to open output file");
 				return 1;
 			}
@@ -222,20 +222,20 @@ int main(int argc, char **argv) {
 			printf ("\n[+] Disassembly output wrote to \"%s\"\n\n", output_file);
 		}
 		string_buffer_free (&out);
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "decompile") || !strcmp (command, "dec") || !strcmp (command, "c")) {
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		StringBuffer out;
 		string_buffer_init (&out, 32 * 1024);
-		result = hermesdec_decompile_all_to_buffer (hd, &out);
+		result = hbc_decompile_all_to_buffer (hd, &out);
 		if (result.code != RESULT_SUCCESS) {
 			string_buffer_free (&out);
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("Decompilation error: %s", result.error_message);
 			return 1;
 		}
@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
 			f = fopen (output_file, "w");
 			if (!f) {
 				string_buffer_free (&out);
-				hermesdec_close (hd);
+				hbc_close (hd);
 				EPRINTF ("Failed to open output file");
 				return 1;
 			}
@@ -255,26 +255,26 @@ int main(int argc, char **argv) {
 			printf ("\n[+] Decompilation output wrote to \"%s\"\n\n", output_file);
 		}
 		string_buffer_free (&out);
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "r2script") || !strcmp (command, "r2") || !strcmp (command, "r")) {
-		result = hermesdec_generate_r2_script (input_file, output_file);
+		result = hbc_generate_r2_script (input_file, output_file);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("R2 script generation error: %s", result.error_message);
 			return 1;
 		}
 	} else if (!strcmp (command, "validate") || !strcmp (command, "v")) {
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
 		StringBuffer sb;
 		string_buffer_init (&sb, 4096);
-		result = hermesdec_validate_basic (hd, &sb);
+		result = hbc_validate_basic (hd, &sb);
 		if (result.code != RESULT_SUCCESS) {
 			string_buffer_free (&sb);
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("Validate error: %s", result.error_message);
 			return 1;
 		}
@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
 			out = fopen (output_file, "w");
 			if (!out) {
 				string_buffer_free (&sb);
-				hermesdec_close (hd);
+				hbc_close (hd);
 				EPRINTF ("Failed to open output file");
 				return 1;
 			}
@@ -293,18 +293,18 @@ int main(int argc, char **argv) {
 			fclose (out);
 		}
 		string_buffer_free (&sb);
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "header") || !strcmp (command, "h")) {
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		HermesHeader hh;
-		result = hermesdec_get_header (hd, &hh);
+		HBCHeader hh;
+		result = hbc_get_header (hd, &hh);
 		if (result.code != RESULT_SUCCESS) {
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("Header error: %s", result.error_message);
 			return 1;
 		}
@@ -312,7 +312,7 @@ int main(int argc, char **argv) {
 		if (output_file) {
 			out = fopen (output_file, "w");
 			if (!out) {
-				hermesdec_close (hd);
+				hbc_close (hd);
 				EPRINTF ("Failed to open output file");
 				return 1;
 			}
@@ -354,7 +354,7 @@ int main(int argc, char **argv) {
 		if (output_file) {
 			fclose (out);
 		}
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "cmp") || !strcmp (command, "compare")) {
 		u32 N = 100;
 		if (output_file && output_file[0] && isdigit ((unsigned char)output_file[0])) {
@@ -363,18 +363,18 @@ int main(int argc, char **argv) {
 				N = 100;
 			}
 		}
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		u32 fc = hermesdec_function_count (hd);
+		u32 fc = hbc_function_count (hd);
 		u32 count = fc < N? fc: N;
 		const char *py_path = "parser.txt";
 		FILE *py = fopen (py_path, "r");
 		if (!py) {
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("could not open %s", py_path);
 			return 1;
 		}
@@ -382,7 +382,7 @@ int main(int argc, char **argv) {
 		u32 *py_offs = (u32 *)calloc (count, sizeof (u32));
 		if (!py_sizes || !py_offs) {
 			fclose (py);
-			hermesdec_close (hd);
+			hbc_close (hd);
 			free (py_sizes);
 			free (py_offs);
 			EPRINTF ("%s", "OOM");
@@ -426,7 +426,7 @@ int main(int argc, char **argv) {
 		for (u32 i = 0; i < count; i++) {
 			const char *name;
 			u32 co = 0, cs = 0, argc = 0;
-			hermesdec_get_function_info (hd, i, &name, &co, &cs, &argc);
+			hbc_get_function_info (hd, i, &name, &co, &cs, &argc);
 			u32 po = py_offs[i];
 			u32 ps = py_sizes[i];
 			const char *res = (co == po && cs == ps)? "OK": "MISMATCH";
@@ -434,7 +434,7 @@ int main(int argc, char **argv) {
 		}
 		free (py_sizes);
 		free (py_offs);
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "cmpfunc")) {
 		if (argc < 5) {
 			EPRINTF ("Usage: %s cmpfunc <input_file> <python_dis_file> <function_id>", argv[0]);
@@ -442,25 +442,25 @@ int main(int argc, char **argv) {
 		}
 		const char *python_dis_file = argv[3];
 		u32 function_id = (u32)strtoul (argv[4], NULL, 0);
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		if (function_id >= hermesdec_function_count (hd)) {
-			hermesdec_close (hd);
+		if (function_id >= hbc_function_count (hd)) {
+			hbc_close (hd);
 			EPRINTF ("Invalid function id %u", function_id);
 			return 1;
 		}
-		DisassemblyOptions opt = (DisassemblyOptions){ 0 };
+		HBCDisassemblyOptions opt = (HBCDisassemblyOptions){ 0 };
 		StringBuffer out;
 		string_buffer_init (&out, 8192);
-		hermesdec_disassemble_function_to_buffer (hd, function_id, opt, &out);
+		hbc_disassemble_function_to_buffer (hd, function_id, opt, &out);
 		FILE *py = fopen (python_dis_file, "r");
 		if (!py) {
 			string_buffer_free (&out);
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("could not open %s", python_dis_file);
 			return 1;
 		}
@@ -497,7 +497,7 @@ int main(int argc, char **argv) {
 		}
 		fclose (py);
 		string_buffer_free (&out);
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "str")) {
 		if (!output_file) {
 			EPRINTF ("Usage: %s str <input_file> <index>", argv[0]);
@@ -508,37 +508,37 @@ int main(int argc, char **argv) {
 			EPRINTF ("%s", "Invalid index");
 			return 1;
 		}
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		u32 sc = hermesdec_string_count (hd);
+		u32 sc = hbc_string_count (hd);
 		if ((u32)idx >= sc) {
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("Index out of range (max %u)", sc);
 			return 1;
 		}
 		const char *s = NULL;
-		hermesdec_get_string (hd, (u32)idx, &s);
+		hbc_get_string (hd, (u32)idx, &s);
 		printf ("idx=%ld name=%s\n", idx, s? s: "");
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "findstr")) {
 		if (!output_file) {
 			EPRINTF ("Usage: %s findstr <input_file> <needle>", argv[0]);
 			return 1;
 		}
 		const char *needle = output_file;
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		for (u32 i = 0; i < hermesdec_string_count (hd); i++) {
+		for (u32 i = 0; i < hbc_string_count (hd); i++) {
 			const char *s = NULL;
-			hermesdec_get_string (hd, i, &s);
+			hbc_get_string (hd, i, &s);
 			if (!s) {
 				continue;
 			}
@@ -546,7 +546,7 @@ int main(int argc, char **argv) {
 				printf ("idx=%u name=%s\n", i, s);
 			}
 		}
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "strmeta")) {
 		if (!output_file) {
 			EPRINTF ("Usage: %s strmeta <input_file> <index>", argv[0]);
@@ -557,39 +557,39 @@ int main(int argc, char **argv) {
 			EPRINTF ("Invalid index");
 			return 1;
 		}
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		u32 sc = hermesdec_string_count (hd);
+		u32 sc = hbc_string_count (hd);
 		if ((u32)idx >= sc) {
-			hermesdec_close (hd);
+			hbc_close (hd);
 			EPRINTF ("Index out of range (max %u)", sc);
 			return 1;
 		}
-		HermesStringMeta sm;
-		hermesdec_get_string_meta (hd, (u32)idx, &sm);
+		HBCStringMeta sm;
+		hbc_get_string_meta (hd, (u32)idx, &sm);
 		printf ("idx=%ld isUTF16=%u off=0x%x len=%u\n", idx, sm.isUTF16? 1u: 0u, sm.offset, sm.length);
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else if (!strcmp (command, "funcs")) {
 		const u32 N = 50;
-		HermesDec *hd = NULL;
-		result = hermesdec_open (input_file, &hd);
+		HBC *hd = NULL;
+		result = hbc_open (input_file, &hd);
 		if (result.code != RESULT_SUCCESS) {
 			EPRINTF ("Open error: %s", result.error_message);
 			return 1;
 		}
-		u32 fc = hermesdec_function_count (hd);
+		u32 fc = hbc_function_count (hd);
 		u32 count = fc < N? fc: N;
 		for (u32 i = 0; i < count; i++) {
 			const char *name = NULL;
 			u32 off = 0, size = 0, argc = 0;
-			hermesdec_get_function_info (hd, i, &name, &off, &size, &argc);
+			hbc_get_function_info (hd, i, &name, &off, &size, &argc);
 			printf ("C  id=%u offset=0x%08x size=%u name=%s\n", i, off, size, name? name: "");
 		}
-		hermesdec_close (hd);
+		hbc_close (hd);
 	} else {
 		print_usage (argv[0]);
 		EPRINTF ("Unknown command: %s", command);

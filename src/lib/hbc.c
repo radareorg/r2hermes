@@ -1,24 +1,23 @@
-#include "hermesdec/hermesdec.h"
-#include "hermesdec/hermesdec.h"
+#include "hbc/hbc.h"
 #include "../include/hermes_encoder.h"
 #include "../include/parsers/hbc_file_parser.h"
 #include "../include/disassembly/hbc_disassembler.h"
 #include "../include/decompilation/decompiler.h"
 #include "../include/opcodes/hermes_opcodes.h"
 
-struct HermesDec {
+struct HBC {
 	HBCReader reader;
 };
 
 /* Open and fully parse a Hermes bytecode file */
-Result hermesdec_open(const char *path, HermesDec **out) {
+Result hbc_open(const char *path, HBC **out) {
 	if (!path || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_open");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open");
 	}
 
-	HermesDec *hd = (HermesDec *)calloc (1, sizeof (HermesDec));
+	HBC *hd = (HBC *)calloc (1, sizeof (HBC));
 	if (!hd) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HermesDec");
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
 	}
 
 	Result res = hbc_reader_init (&hd->reader);
@@ -39,14 +38,14 @@ Result hermesdec_open(const char *path, HermesDec **out) {
 }
 
 /* Open and parse from an in-memory buffer */
-Result hermesdec_open_from_memory(const u8 *data, size_t size, HermesDec **out) {
+Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 	if (!data || size == 0 || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_open_from_memory");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open_from_memory");
 	}
 
-	HermesDec *hd = (HermesDec *)calloc (1, sizeof (HermesDec));
+	HBC *hd = (HBC *)calloc (1, sizeof (HBC));
 	if (!hd) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HermesDec");
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
 	}
 
 	Result res = hbc_reader_init (&hd->reader);
@@ -65,52 +64,52 @@ Result hermesdec_open_from_memory(const u8 *data, size_t size, HermesDec **out) 
 	/* Parse header and all sections */
 	res = hbc_reader_read_header (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_functions_robust (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_string_kinds (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_identifier_hashes (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_string_tables (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_arrays (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_bigints (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_regexp (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_cjs_modules (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	res = hbc_reader_read_function_sources (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return res;
 	}
 	(void)hbc_reader_read_debug_info; /* Debug info optional; callers can request if needed */
@@ -119,7 +118,7 @@ Result hermesdec_open_from_memory(const u8 *data, size_t size, HermesDec **out) 
 	return SUCCESS_RESULT ();
 }
 
-void hermesdec_close(HermesDec *hd) {
+void hbc_close(HBC *hd) {
 	if (!hd) {
 		return;
 	}
@@ -127,23 +126,23 @@ void hermesdec_close(HermesDec *hd) {
 	free (hd);
 }
 
-u32 hermesdec_function_count(HermesDec *hd) {
+u32 hbc_function_count(HBC *hd) {
 	if (!hd) {
 		return 0;
 	}
 	return hd->reader.header.functionCount;
 }
 
-u32 hermesdec_string_count(HermesDec *hd) {
+u32 hbc_string_count(HBC *hd) {
 	if (!hd) {
 		return 0;
 	}
 	return hd->reader.header.stringCount;
 }
 
-Result hermesdec_get_header(HermesDec *hd, HermesHeader *out) {
+Result hbc_get_header(HBC *hd, HBCHeader *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_header");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_header");
 	}
 	HBCHeader *h = &hd->reader.header;
 	out->magic = h->magic;
@@ -174,15 +173,15 @@ Result hermesdec_get_header(HermesDec *hd, HermesHeader *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hermesdec_get_function_info(
-	HermesDec *hd,
+Result hbc_get_function_info(
+	HBC *hd,
 	u32 function_id,
 	const char **out_name,
 	u32 *out_offset,
 	u32 *out_size,
 	u32 *out_param_count) {
 	if (!hd) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "HermesDec handle is NULL");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "HBC handle is NULL");
 	}
 	HBCReader *r = &hd->reader;
 	if (function_id >= r->header.functionCount || !r->function_headers) {
@@ -208,9 +207,9 @@ Result hermesdec_get_function_info(
 	return SUCCESS_RESULT ();
 }
 
-Result hermesdec_get_string(HermesDec *hd, u32 index, const char **out_str) {
+Result hbc_get_string(HBC *hd, u32 index, const char **out_str) {
 	if (!hd || !out_str) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_string");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_string");
 	}
 	HBCReader *r = &hd->reader;
 	if (!r->strings || index >= r->header.stringCount) {
@@ -220,9 +219,9 @@ Result hermesdec_get_string(HermesDec *hd, u32 index, const char **out_str) {
 	return SUCCESS_RESULT ();
 }
 
-Result hermesdec_get_function_source(HermesDec *hd, u32 function_id, const char **out_str) {
+Result hbc_get_function_source(HBC *hd, u32 function_id, const char **out_str) {
 	if (!hd || !out_str) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_function_source");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_function_source");
 	}
 	*out_str = NULL;
 	HBCReader *r = &hd->reader;
@@ -241,9 +240,9 @@ Result hermesdec_get_function_source(HermesDec *hd, u32 function_id, const char 
 	return SUCCESS_RESULT ();
 }
 
-Result hermesdec_get_string_meta(HermesDec *hd, u32 index, HermesStringMeta *out) {
+Result hbc_get_string_meta(HBC *hd, u32 index, HBCStringMeta *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_string_meta");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_string_meta");
 	}
 	HBCReader *r = &hd->reader;
 	if (index >= r->header.stringCount) {
@@ -260,16 +259,16 @@ Result hermesdec_get_string_meta(HermesDec *hd, u32 index, HermesStringMeta *out
 	out->isUTF16 = is_utf16 != 0;
 	out->offset = r->string_storage_file_offset + off; // Return absolute file offset
 	out->length = length;
-	out->kind = (HermesStringKind) (r->string_kinds? r->string_kinds[index]: 0);
+	out->kind = (HBCStringKind) (r->string_kinds? r->string_kinds[index]: 0);
 	return SUCCESS_RESULT ();
 }
 
-Result hermesdec_get_string_tables(HermesDec *hd, u32 *out_string_count,
+Result hbc_get_string_tables(HBC *hd, u32 *out_string_count,
 	const void **out_small_string_table,
 	const void **out_overflow_string_table,
 	u64 *out_string_storage_offset) {
 	if (!hd || !out_string_count || !out_small_string_table || !out_overflow_string_table || !out_string_storage_offset) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_string_tables");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_string_tables");
 	}
 	HBCReader *r = &hd->reader;
 	*out_string_count = r->header.stringCount;
@@ -279,9 +278,9 @@ Result hermesdec_get_string_tables(HermesDec *hd, u32 *out_string_count,
 	return SUCCESS_RESULT ();
 }
 
-Result hermesdec_get_function_bytecode(HermesDec *hd, u32 function_id, const u8 **out_ptr, u32 *out_size) {
+Result hbc_get_function_bytecode(HBC *hd, u32 function_id, const u8 **out_ptr, u32 *out_size) {
 	if (!hd || !out_ptr || !out_size) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_get_function_bytecode");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_function_bytecode");
 	}
 	HBCReader *r = &hd->reader;
 	if (function_id >= r->header.functionCount) {
@@ -325,7 +324,7 @@ Result hermesdec_get_function_bytecode(HermesDec *hd, u32 function_id, const u8 
 
 typedef Result(*DisasmWorkFn)(Disassembler *, void *);
 
-static Result disassemble_into(StringBuffer *out, DisassemblyOptions options, HBCReader *r, DisasmWorkFn work, void *ctx) {
+static Result disassemble_into(StringBuffer *out, HBCDisassemblyOptions options, HBCReader *r, DisasmWorkFn work, void *ctx) {
 	Disassembler d;
 	if (options.asm_syntax) {
 		fprintf (stderr, "[hermesdec] passing asm_syntax=1 to disassembler\n");
@@ -357,55 +356,55 @@ static Result work_disassemble_one(Disassembler *d, void *ctx) {
 	return disassemble_function (d, c->function_id);
 }
 
-Result hermesdec_disassemble_function_to_buffer(
-	HermesDec *hd,
+Result hbc_disassemble_function_to_buffer(
+	HBC *hd,
 	u32 function_id,
-	DisassemblyOptions options,
+	HBCDisassemblyOptions options,
 	StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_disassemble_function_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_disassemble_function_to_buffer");
 	}
 	HBCReader *r = &hd->reader;
 	WorkFnCtx c = { .function_id = function_id };
 	return disassemble_into (out, options, r, work_disassemble_one, &c);
 }
 
-Result hermesdec_disassemble_all_to_buffer(
-	HermesDec *hd,
-	DisassemblyOptions options,
+Result hbc_disassemble_all_to_buffer(
+	HBC *hd,
+	HBCDisassemblyOptions options,
 	StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_disassemble_all_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_disassemble_all_to_buffer");
 	}
 	HBCReader *r = &hd->reader;
 	return disassemble_into (out, options, r, work_disassemble_all, NULL);
 }
 
-Result hermesdec_decompile_all_to_buffer(HermesDec *hd, StringBuffer *out) {
+Result hbc_decompile_all_to_buffer(HBC *hd, StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_decompile_all_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_decompile_all_to_buffer");
 	}
 	return decompile_all_to_buffer (&hd->reader, out);
 }
 
-Result hermesdec_decompile_function_to_buffer(HermesDec *hd, u32 function_id, StringBuffer *out) {
+Result hbc_decompile_function_to_buffer(HBC *hd, u32 function_id, StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_decompile_function_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_decompile_function_to_buffer");
 	}
 	return decompile_function_to_buffer (&hd->reader, function_id, out);
 }
 
-Result hermesdec_decompile_file(const char *input_file, const char *output_file) {
+Result hbc_decompile_file(const char *input_file, const char *output_file) {
 	return decompile_file (input_file, output_file);
 }
 
-Result hermesdec_generate_r2_script(const char *input_file, const char *output_file) {
+Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	return generate_r2_script (input_file, output_file);
 }
 
-Result hermesdec_validate_basic(HermesDec *hd, StringBuffer *out) {
+Result hbc_validate_basic(HBC *hd, StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_validate_basic");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_validate_basic");
 	}
 	HBCReader *r = &hd->reader;
 	Result res = string_buffer_append (out, "Validation report:\n");
@@ -442,13 +441,13 @@ Result hermesdec_validate_basic(HermesDec *hd, StringBuffer *out) {
 }
 
 /* Build per-instruction details for a function */
-Result hermesdec_decode_function_instructions(
-	HermesDec *hd,
+Result hbc_decode_function_instructions(
+	HBC *hd,
 	u32 function_id,
-	HermesInstruction **out_instructions,
+	HBCInstruction **out_instructions,
 	u32 *out_count) {
 	if (!hd || !out_instructions || !out_count) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hermesdec_decode_function_instructions");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_decode_function_instructions");
 	}
 	HBCReader *r = &hd->reader;
 	if (function_id >= r->header.functionCount) {
@@ -457,7 +456,7 @@ Result hermesdec_decode_function_instructions(
 	/* Ensure bytecode is loaded */
 	const u8 *bc = NULL;
 	u32 bc_sz = 0;
-	Result rr = hermesdec_get_function_bytecode (hd, function_id, &bc, &bc_sz);
+	Result rr = hbc_get_function_bytecode (hd, function_id, &bc, &bc_sz);
 	if (rr.code != RESULT_SUCCESS) {
 		return rr;
 	}
@@ -469,17 +468,17 @@ Result hermesdec_decode_function_instructions(
 		return pr;
 	}
 
-	HermesInstruction *arr = (HermesInstruction *)calloc (list.count, sizeof (HermesInstruction));
+	HBCInstruction *arr = (HBCInstruction *)calloc (list.count, sizeof (HBCInstruction));
 	if (!arr) {
 		parsed_instruction_list_free (&list);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM allocating HermesInstruction array");
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM allocating HBCInstruction array");
 	}
 
 	FunctionHeader *fh = &r->function_headers[function_id];
 
 	for (u32 i = 0; i < list.count; i++) {
 		ParsedInstruction *ins = &list.instructions[i];
-		HermesInstruction *hi = &arr[i];
+		HBCInstruction *hi = &arr[i];
 		hi->rel_addr = ins->original_pos;
 		hi->abs_addr = fh->offset + ins->original_pos;
 		hi->opcode = ins->inst->opcode;
@@ -580,7 +579,7 @@ Result hermesdec_decode_function_instructions(
 	return SUCCESS_RESULT ();
 }
 
-void hermesdec_free_instructions(HermesInstruction *insns, u32 count) {
+void hbc_free_instructions(HBCInstruction *insns, u32 count) {
 	if (!insns) {
 		return;
 	}
@@ -637,7 +636,7 @@ static void to_snake_lower_simple(const char *in, char *out, size_t outsz) {
 	}
 }
 
-Result hermesdec_decode_single_instruction(
+Result hbc_decode_single_instruction(
 	const u8 *bytes,
 	size_t len,
 	u32 bytecode_version,
@@ -832,7 +831,7 @@ Result hermesdec_decode_single_instruction(
 }
 
 /* Encoding functions */
-Result hermesdec_encode_instruction(
+Result hbc_encode_instruction(
 	const char *asm_line,
 	u32 bytecode_version,
 	u8 *out_buffer,
@@ -864,7 +863,7 @@ Result hermesdec_encode_instruction(
 	return res;
 }
 
-Result hermesdec_encode_instructions(
+Result hbc_encode_instructions(
 	const char *asm_text,
 	u32 bytecode_version,
 	u8 *out_buffer,
