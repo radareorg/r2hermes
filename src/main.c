@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
 			EPRINTF("Empty input file");
 			return 1;
 		}
-		u8 buffer[1024];
+		u8 buffer[4096];
 		size_t bytes_written = 0;
 		Result res = hermesdec_encode_instructions(asm_text, 96, buffer, sizeof(buffer), &bytes_written);
 		if (res.code != RESULT_SUCCESS) {

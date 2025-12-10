@@ -110,7 +110,7 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 	out_instruction->size = inst->binary_size;
 
 	/* Parse operands based on instruction definition */
-	u32 operand_values[6] = { 0 };
+	u64 operand_values[6] = { 0 };
 	int operand_count = 0;
 
 	/* Skip whitespace after mnemonic */
@@ -219,16 +219,22 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 				break;
 
 			case OPERAND_TYPE_DOUBLE:
-				/* For now, treat as immediate (would need proper double parsing) */
-				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
-					if (*endptr == '\0') {
+				/* Parse as double literal */
+				{
+					char *endptr_double;
+					double dval = strtod(trim_start, &endptr_double);
+					if (*endptr_double == '\0') {
+						/* Convert double to IEEE 754 bits */
+						u64 bits;
+						memcpy(&bits, &dval, sizeof(double));
+						operand_values[operand_count] = bits;
 						parse_success = true;
-					}
-				} else {
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
-					if (*endptr == '\0') {
-						parse_success = true;
+					} else if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
+						/* Allow hex for bit patterns */
+						operand_values[operand_count] = (u64)strtoull(trim_start, &endptr_double, 16);
+						if (*endptr_double == '\0') {
+							parse_success = true;
+						}
 					}
 				}
 				break;
@@ -252,9 +258,9 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 			if (!parse_success) {
 				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid operand format");
 			}
-		}
 
-		operand_count++;
+			operand_count++;
+		}
 
 		/* Move to next operand */
 		line = operand_end;
@@ -313,7 +319,7 @@ Result hermes_encoder_encode_instruction(HermesEncoder *encoder, const EncodedIn
 	}
 
 	size_t offset = 0;
-	u32 operand_values[6] = {
+	u64 operand_values[6] = {
 		instruction->arg1, instruction->arg2, instruction->arg3,
 		instruction->arg4, instruction->arg5, instruction->arg6
 	};
@@ -358,15 +364,15 @@ Result hermes_encoder_encode_instruction(HermesEncoder *encoder, const EncodedIn
 			break;
 
 		case OPERAND_TYPE_DOUBLE:
-			/* For doubles, we need to handle IEEE 754 encoding */
-			/* For now, just write as 64-bit value (little-endian) */
+			/* For doubles, encode as IEEE 754 double (64-bit little-endian) */
 			if (offset + 7 >= buffer_size) {
 				return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
 			}
-			/* This is a placeholder - proper double encoding needed */
+			/* Value is already the 64-bit IEEE 754 bit pattern */
+			u64 double_bits = value;
 			for (int j = 0; j < 8; j++) {
-				out_buffer[offset++] = (u8) (value & 0xFF);
-				value >>= 8;
+				out_buffer[offset++] = (u8)(double_bits & 0xFF);
+				double_bits >>= 8;
 			}
 			break;
 
@@ -417,6 +423,11 @@ Result hermes_encoder_encode_instructions(HermesEncoder *encoder, const char *as
 		}
 		memcpy (line, line_start, line_len);
 		line[line_len] = '\0';
+		/* Trim trailing whitespace */
+		char *end = line + line_len - 1;
+		while (end >= line && isspace (*end)) {
+			*end-- = '\0';
+		}
 
 		/* Skip empty lines or comments */
 		const char *trim = line;

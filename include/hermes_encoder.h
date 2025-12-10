@@ -15,7 +15,7 @@ typedef struct {
 typedef struct {
 	u8 opcode;
 	u32 size; /* Total size in bytes */
-	u32 arg1, arg2, arg3, arg4, arg5, arg6;
+	u64 arg1, arg2, arg3, arg4, arg5, arg6;
 } EncodedInstruction;
 
 /* Initialize encoder */
