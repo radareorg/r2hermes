@@ -2,7 +2,46 @@
 #define HERMES_DEC_HERMES_OPCODES_H
 
 #include "../common.h"
-#include "../parsers/hbc_bytecode_parser.h"
+
+/* Operand type enum */
+typedef enum {
+	OPERAND_TYPE_NONE,
+	OPERAND_TYPE_REG8,
+	OPERAND_TYPE_REG32,
+	OPERAND_TYPE_UINT8,
+	OPERAND_TYPE_UINT16,
+	OPERAND_TYPE_UINT32,
+	OPERAND_TYPE_ADDR8,
+	OPERAND_TYPE_ADDR32,
+	OPERAND_TYPE_IMM32,
+	OPERAND_TYPE_DOUBLE
+} OperandType;
+
+/* Operand meaning enum */
+typedef enum {
+	OPERAND_MEANING_NONE,
+	OPERAND_MEANING_STRING_ID,
+	OPERAND_MEANING_BIGINT_ID,
+	OPERAND_MEANING_FUNCTION_ID,
+	OPERAND_MEANING_BUILTIN_ID,
+	OPERAND_MEANING_ARRAY_ID,
+	OPERAND_MEANING_OBJ_KEY_ID,
+	OPERAND_MEANING_OBJ_VAL_ID
+} OperandMeaning;
+
+/* Instruction operand */
+typedef struct {
+	OperandType operand_type;
+	OperandMeaning operand_meaning;
+} InstructionOperand;
+
+/* Instruction definition */
+typedef struct {
+	u8 opcode;
+	const char *name;
+	InstructionOperand operands[6]; /* Up to 6 operands per instruction */
+	u32 binary_size; /* Total size in bytes */
+} Instruction;
 
 /* Hermes opcodes based on hbc95.py (version 95) - Complete list */
 enum HermesOpcodes {

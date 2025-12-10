@@ -5,8 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Static cache for per-version instruction sets */
-static HBCISA g_instruction_cache[7] = {0}; /* indices 0-6 for versions 90-96 */
+
 
 /* Initialize parsed instruction list */
 Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity) {
@@ -74,323 +73,15 @@ void parsed_instruction_list_free(ParsedInstructionList *list) {
 	list->capacity = 0;
 }
 
-/* Initialize the instruction set for the given bytecode version */
-static Result initialize_instruction_set(u32 bytecode_version) {
-	/* Check bytecode version compatibility */
-	if (bytecode_version < 72) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT,
-			"Bytecode version too old (< 72) - not supported");
-	}
 
-	if (bytecode_version > 96) {
-		fprintf (stderr, "Warning: Bytecode version %u is newer than supported version (96).\n",
-			bytecode_version);
-		fprintf (stderr, "This may cause parsing errors. Proceed with caution.\n");
-	}
 
-	/* Determine cache index (90-96 -> 0-6) */
-	int cache_index = -1;
-	if (bytecode_version >= 90 && bytecode_version <= 96) {
-		cache_index = bytecode_version - 90;
-	} else if (bytecode_version >= 72 && bytecode_version < 90) {
-		cache_index = 0; /* v90 fallback */
-	} else {
-		cache_index = 6; /* v96 fallback */
-	}
 
-	/* Lazy initialize if not already cached */
-	if (!g_instruction_cache[cache_index].instructions) {
-		u32 target_version = (cache_index == 0 && bytecode_version < 90) ? 90 : 
-		                    (cache_index == 6 && bytecode_version > 96) ? 96 : bytecode_version;
-		g_instruction_cache[cache_index] = hbc_isa_getv(target_version);
-		if (!g_instruction_cache[cache_index].instructions) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to initialize instruction set");
-		}
-		if (bytecode_version != target_version) {
-			fprintf (stderr, "Info: Using v%u opcode set for bytecode version %u\n", target_version, bytecode_version);
-		}
-	}
 
-	return SUCCESS_RESULT ();
-}
 
-/* Find instruction definition by opcode */
-static const Instruction *find_instruction(u8 opcode, u32 bytecode_version) {
-	/* Validate bytecode version */
-	if (bytecode_version < 72) {
-		fprintf (stderr, "Error: Bytecode version %u not supported (minimum supported: 72)\n", bytecode_version);
-		return NULL;
-	}
-
-	/* Ensure instruction set is initialized */
-	Result init_result = initialize_instruction_set(bytecode_version);
-	if (init_result.code != RESULT_SUCCESS) {
-		return NULL;
-	}
-
-	/* Determine cache index */
-	int cache_index = -1;
-	if (bytecode_version >= 90 && bytecode_version <= 96) {
-		cache_index = bytecode_version - 90;
-	} else if (bytecode_version >= 72 && bytecode_version < 90) {
-		cache_index = 0; /* v90 fallback */
-	} else {
-		cache_index = 6; /* v96 fallback */
-	}
-
-	HBCISA isa = g_instruction_cache[cache_index];
-	if (!isa.instructions || opcode >= isa.count) {
-		fprintf (stderr, "Error: Unknown opcode 0x%02x for bytecode version %u (count=%u)\n", opcode, bytecode_version, isa.count);
-		return NULL;
-	}
-
-	/* Direct lookup since instruction_set is indexed by opcode */
-	return &isa.instructions[opcode];
-}
-
-/* This function is now deprecated as we're using the new approach directly in parse_function_bytecode */
-Result parse_instruction(HBCReader *reader, FunctionHeader *function_header,
-	u32 offset, ParsedInstruction *out_instruction) {
-	if (!reader || !function_header || !out_instruction) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for parse_instruction");
-	}
-
-	/* Check if the offset is within the function's bytecode */
-	if (offset >= function_header->bytecodeSizeInBytes) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Instruction offset out of bounds");
-	}
-
-	/* Check if bytecode is loaded */
-	if (!function_header->bytecode) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Function bytecode is not loaded");
-	}
-
-	/* Initialize ALL instruction fields to zero for safety */
-	memset (out_instruction, 0, sizeof (ParsedInstruction));
-	out_instruction->original_pos = offset;
-	out_instruction->function_offset = function_header->offset;
-	out_instruction->hbc_reader = reader;
-	out_instruction->arg1 = 0;
-	out_instruction->arg2 = 0;
-	out_instruction->arg3 = 0;
-	out_instruction->arg4 = 0;
-	out_instruction->arg5 = 0;
-	out_instruction->arg6 = 0;
-	out_instruction->switch_jump_table = NULL;
-	out_instruction->switch_jump_table_size = 0;
-	out_instruction->next_pos = offset; /* In case of early return */
-
-	/* Create a buffer reader for the function bytecode */
-	BufferReader bytecode_reader;
-	Result init_result = buffer_reader_init_from_memory (&bytecode_reader,
-		function_header->bytecode,
-		function_header->bytecodeSizeInBytes);
-
-	if (init_result.code != RESULT_SUCCESS) {
-		return init_result;
-	}
-
-	/* Seek to the instruction offset with validation */
-	if (offset >= bytecode_reader.size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED,
-			"Instruction offset beyond bytecode buffer size");
-	}
-
-	/* Seek to the instruction offset */
-	Result seek_result = buffer_reader_seek (&bytecode_reader, offset);
-	if (seek_result.code != RESULT_SUCCESS) {
-		return seek_result;
-	}
-
-	/* Ensure we have at least one byte to read the opcode */
-	if (bytecode_reader.position >= bytecode_reader.size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "End of bytecode reached while parsing instruction");
-	}
-
-	/* Read opcode */
-	u8 opcode;
-	RETURN_IF_ERROR (buffer_reader_read_u8 (&bytecode_reader, &opcode));
-
-	/* Initialize instruction set if needed */
-	RETURN_IF_ERROR (initialize_instruction_set (reader->header.version));
-
-	/* Find instruction definition */
-	const Instruction *inst = find_instruction (opcode, reader->header.version);
-	if (!inst) {
-		/* Unknown opcode - fail explicitly instead of creating a placeholder */
-		fprintf (stderr, "Error: Unknown opcode 0x%02x encountered at offset 0x%08x\n", opcode, offset);
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown opcode encountered");
-	}
-
-	out_instruction->inst = inst;
-
-	/* Parse operands based on instruction type */
-	u32 operand_values[6] = { 0 };
-
-	for (int i = 0; i < 6; i++) {
-		if (inst->operands[i].operand_type == OPERAND_TYPE_NONE) {
-			continue;
-		}
-
-		/* Read operand value based on type */
-		switch (inst->operands[i].operand_type) {
-		case OPERAND_TYPE_REG8:
-		case OPERAND_TYPE_UINT8:
-		case OPERAND_TYPE_ADDR8:
-			{
-				u8 value;
-				RETURN_IF_ERROR (buffer_reader_read_u8 (&bytecode_reader, &value));
-				operand_values[i] = value;
-				break;
-			}
-
-		case OPERAND_TYPE_UINT16:
-			{
-				u16 value;
-				RETURN_IF_ERROR (buffer_reader_read_u16 (&bytecode_reader, &value));
-				operand_values[i] = value;
-				break;
-			}
-
-		case OPERAND_TYPE_REG32:
-		case OPERAND_TYPE_UINT32:
-		case OPERAND_TYPE_ADDR32:
-			{
-				u32 value;
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&bytecode_reader, &value));
-				operand_values[i] = value;
-				break;
-			}
-
-		default:
-			break;
-		}
-	}
-
-	/* Store operand values in instruction */
-	out_instruction->arg1 = operand_values[0];
-	out_instruction->arg2 = operand_values[1];
-	out_instruction->arg3 = operand_values[2];
-	out_instruction->arg4 = operand_values[3];
-	out_instruction->arg5 = operand_values[4];
-	out_instruction->arg6 = operand_values[5];
-
-	/* Handle special cases for specific instructions */
-	if (opcode == OP_SwitchImm) {
-		/* SwitchImm has a jump table following the immediate operands */
-
-		/* Match Python implementation's approach for SwitchImm handling */
-		/* Check if arg4 and arg5 are both within reasonable ranges */
-		if (out_instruction->arg4 > 1000 || out_instruction->arg5 > 1000) {
-			fprintf (stderr, "Warning: Suspicious SwitchImm range values at offset 0x%08x: min=%u, max=%u\n",
-				offset, out_instruction->arg4, out_instruction->arg5);
-		}
-
-		/* Validate jump table range - but be more tolerant like the Python version */
-		if (out_instruction->arg4 > out_instruction->arg5) {
-			fprintf (stderr, "Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x\n",
-				out_instruction->arg4, out_instruction->arg5, offset);
-			/* Set a reasonable default instead of failing */
-			out_instruction->arg5 = out_instruction->arg4;
-		}
-
-		/* Calculate jump table size with safety limits */
-		u32 jump_table_size = out_instruction->arg5 - out_instruction->arg4 + 1;
-
-		/* Limit the jump table size to something reasonable */
-		if (jump_table_size > 1000) {
-			fprintf (stderr, "Warning: Limiting unreasonably large jump table size (%u) to 1000 at offset 0x%08x\n",
-				jump_table_size, offset);
-			jump_table_size = 1000;
-			out_instruction->arg5 = out_instruction->arg4 + 999; /* Adjust max value */
-		}
-
-		/* Allocate jump table */
-		out_instruction->switch_jump_table = (u32 *)malloc (jump_table_size * sizeof (u32));
-		if (!out_instruction->switch_jump_table) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate switch jump table");
-		}
-
-		out_instruction->switch_jump_table_size = jump_table_size;
-
-		/* Compute jump table file offset robustly (absolute or relative) */
-		u32 base = out_instruction->arg2; /* encoded table pointer */
-		u32 jump_table_offset = 0;
-		size_t fsz = reader->file_buffer.size;
-		bool jt_ok = false;
-		/* Prefer absolute if it looks valid */
-		if (base < fsz) {
-			jump_table_offset = base;
-			jt_ok = true;
-		} else if ((u64)function_header->offset + (u64)base < (u64)fsz) {
-			jump_table_offset = function_header->offset + base;
-			jt_ok = true;
-		} else if ((u64)function_header->offset + (u64)offset + (u64)base < (u64)fsz) {
-			jump_table_offset = function_header->offset + offset + base;
-			jt_ok = true;
-		}
-
-		/* Verify jump table offset is within file bounds */
-		if (!jt_ok || jump_table_offset >= reader->file_buffer.size) {
-			fprintf (stderr, "Warning: Jump table offset (0x%08x) is beyond file size\n", jump_table_offset);
-			/* Initialize with dummy values instead of failing */
-			for (u32 i = 0; i < jump_table_size; i++) {
-				out_instruction->switch_jump_table[i] = offset;
-			}
-		} else {
-			/* Save current position */
-			size_t current_pos = reader->file_buffer.position;
-
-			/* Try to seek to jump table in the file */
-			Result seek_result = buffer_reader_seek (&reader->file_buffer, jump_table_offset);
-			if (seek_result.code != RESULT_SUCCESS) {
-				fprintf (stderr, "Warning: Failed to seek to jump table at offset 0x%08x\n", jump_table_offset);
-				/* Initialize with dummy values */
-				for (u32 i = 0; i < jump_table_size; i++) {
-					out_instruction->switch_jump_table[i] = offset;
-				}
-			} else {
-				/* Align to 4-byte boundary like Python's align_over_padding */
-				size_t remainder = reader->file_buffer.position % 4;
-				if (remainder != 0) {
-					buffer_reader_seek (&reader->file_buffer,
-						reader->file_buffer.position + (4 - remainder));
-				}
-
-				/* Read jump table entries with safety checks */
-				for (u32 i = 0; i < jump_table_size; i++) {
-					u32 jump_offset;
-					if (reader->file_buffer.position + sizeof (u32) > reader->file_buffer.size) {
-						/* Beyond file bounds, use current offset as fallback */
-						fprintf (stderr, "Warning: Jump table entry %u is beyond file bounds\n", i);
-						out_instruction->switch_jump_table[i] = offset;
-					} else {
-						Result read_result = buffer_reader_read_u32 (&reader->file_buffer, &jump_offset);
-						if (read_result.code != RESULT_SUCCESS) {
-							/* Read failed, use current offset as fallback */
-							out_instruction->switch_jump_table[i] = offset;
-						} else {
-							/* Success - store the jump target like Python */
-							out_instruction->switch_jump_table[i] = offset + jump_offset;
-						}
-					}
-				}
-			}
-
-			/* Always attempt to restore original position */
-			buffer_reader_seek (&reader->file_buffer, current_pos);
-		}
-	}
-
-	/* Store next position */
-	out_instruction->next_pos = bytecode_reader.position;
-
-	return SUCCESS_RESULT ();
-}
 
 /* Parse all bytecode instructions in a function */
 Result parse_function_bytecode(HBCReader *reader, u32 function_id,
-	ParsedInstructionList *out_instructions) {
+	ParsedInstructionList *out_instructions, HBCISA isa) {
 	if (!reader || !out_instructions) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT,
 			"Invalid arguments for parse_function_bytecode");
@@ -451,7 +142,13 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 		}
 
 		/* Find instruction definition */
-		const Instruction *inst = find_instruction (opcode, reader->header.version);
+		const Instruction *inst = NULL;
+		if (opcode < isa.count) {
+			inst = &isa.instructions[opcode];
+			if (strcmp(inst->name, "Unknown") == 0) {
+				inst = NULL;
+			}
+		}
 		if (!inst) {
 			fprintf (stderr, "Error: Unknown opcode 0x%02x at offset 0x%08x\n", opcode, (u32)original_pos);
 			parsed_instruction_list_free (out_instructions);
@@ -1003,23 +700,9 @@ bool is_call_instruction(u8 opcode) {
 	}
 }
 
-/* Get version-specific instruction set with fallback logic */
-HBCISA get_versioned_instruction_set(u32 bytecode_version) {
-	/* Initialize appropriate instruction set */
-	Result result = initialize_instruction_set (bytecode_version);
-	if (result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Failed to initialize instruction set for version %u: %s\n",
-			bytecode_version, result.error_message);
-		return (HBCISA){ .count = 0, .instructions = NULL };
-	}
-
-	/* Get the instruction set based on version */
-	return hbc_isa_getv(bytecode_version);
-}
-
 /* Check if an instruction is supported in a specific version */
 bool is_instruction_supported_in_version(u8 opcode, u32 bytecode_version) {
-	HBCISA isa = get_versioned_instruction_set (bytecode_version);
+	HBCISA isa = hbc_isa_getv(bytecode_version);
 	if (!isa.instructions || opcode >= isa.count) {
 		return false;
 	}
@@ -1040,16 +723,5 @@ u32 get_best_supported_version(u32 detected_version) {
 		return detected_version; /* Use exact version if supported */
 	} else {
 		return 96; /* Use v96 for newer versions */
-	}
-}
-
-/* Cleanup function to free all cached instruction sets */
-void cleanup_instruction_sets(void) {
-	for (int i = 0; i < 7; i++) {
-		if (g_instruction_cache[i].instructions) {
-			free (g_instruction_cache[i].instructions);
-			g_instruction_cache[i].instructions = NULL;
-			g_instruction_cache[i].count = 0;
-		}
 	}
 }

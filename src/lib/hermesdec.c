@@ -1,5 +1,5 @@
 #include "hermesdec/hermesdec.h"
-#include "../include/hermesdec/hermesdec.h"
+#include "hermesdec/hermesdec.h"
 #include "../include/hermes_encoder.h"
 #include "../include/parsers/hbc_file_parser.h"
 #include "../include/disassembly/hbc_disassembler.h"
@@ -463,7 +463,8 @@ Result hermesdec_decode_function_instructions(
 	}
 
 	ParsedInstructionList list;
-	Result pr = parse_function_bytecode (r, function_id, &list);
+	HBCISA isa = hbc_isa_getv(r->header.version);
+	Result pr = parse_function_bytecode (r, function_id, &list, isa);
 	if (pr.code != RESULT_SUCCESS) {
 		return pr;
 	}

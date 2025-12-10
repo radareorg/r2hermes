@@ -626,7 +626,8 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 	/* Parse function into instructions */
 	ParsedInstructionList list;
-	RETURN_IF_ERROR (parse_function_bytecode (reader, function_id, &list));
+	HBCISA isa = hbc_isa_getv(reader->header.version);
+	RETURN_IF_ERROR (parse_function_bytecode (reader, function_id, &list, isa));
 
 	/* Build CFG (anchors, blocks, edges) to prepare future structuring */
 	DecompiledFunctionBody fbody;
