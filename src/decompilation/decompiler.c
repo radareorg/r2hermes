@@ -83,27 +83,42 @@ static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
 	return base + v;
 }
 
-/* Small dynamic set of u32 */
+/* Small dynamic set of u32, optimized with bitmap for addresses */
 typedef struct {
 	u32 *data;
 	u32 count;
 	u32 cap;
+	u8 *bitmap; /* bitmap for fast lookup, size = max_addr / 8 + 1 */
+	u32 bitmap_size; /* in bytes */
 } U32Set;
+static Result u32set_init(U32Set *s, u32 max_addr) {
+	if (!s) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "u32set init");
+	}
+	s->bitmap_size = (max_addr + 7) / 8;
+	s->bitmap = (u8 *)calloc (s->bitmap_size, 1);
+	if (!s->bitmap) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "u32set bitmap");
+	}
+	return SUCCESS_RESULT ();
+}
+
 static void u32set_free(U32Set *s) {
 	if (!s) {
 		return;
 	}
 	free (s->data);
+	free (s->bitmap);
 	s->data = NULL;
+	s->bitmap = NULL;
 	s->count = s->cap = 0;
+	s->bitmap_size = 0;
 }
 static bool u32set_contains(const U32Set *s, u32 v) {
-	for (u32 i = 0; i < (s? s->count: 0); i++) {
-		if (s->data[i] == v) {
-			return true;
-		}
+	if (!s || !s->bitmap || v / 8 >= s->bitmap_size) {
+		return false;
 	}
-	return false;
+	return (s->bitmap[v / 8] & (1 << (v % 8))) != 0;
 }
 static Result u32set_add(U32Set *s, u32 v) {
 	if (!s) {
@@ -111,6 +126,10 @@ static Result u32set_add(U32Set *s, u32 v) {
 	}
 	if (u32set_contains (s, v)) {
 		return SUCCESS_RESULT ();
+	}
+	/* Set the bit in bitmap */
+	if (s->bitmap && v / 8 < s->bitmap_size) {
+		s->bitmap[v / 8] |= (1 << (v % 8));
 	}
 	if (s->count == s->cap) {
 		u32 nc = s->cap? s->cap * 2: 16;
@@ -342,8 +361,9 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 	RETURN_IF_ERROR (function_body_init (out_body, function_id, fh, function_id == reader->header.globalCodeIndex));
 	/* Leaders: entry, jump targets, fallthrough after terminators */
 	U32Set leaders = { 0 };
-	u32set_add (&leaders, 0);
 	u32 func_sz = fh->bytecodeSizeInBytes;
+	RETURN_IF_ERROR (u32set_init (&leaders, func_sz));
+	u32set_add (&leaders, 0);
 	for (u32 i = 0; i < list->count; i++) {
 		ParsedInstruction *ins = &list->instructions[i];
 		if (ins->switch_jump_table && ins->switch_jump_table_size) {
@@ -619,6 +639,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 	/* Collect label targets */
 	U32Set labels = { 0 };
 	u32 func_end = fh->bytecodeSizeInBytes;
+	RETURN_IF_ERROR (u32set_init (&labels, func_end));
 	u32set_add (&labels, 0);
 	for (u32 i = 0; i < list.count; i++) {
 		ParsedInstruction *ins = &list.instructions[i];
