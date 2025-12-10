@@ -28,6 +28,7 @@ typedef struct {
 // Forward declarations
 static ut32 hermes_detect_version_from_bin(RArchSession *s);
 static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s);
+static Instruction *hermes_get_instruction_set_by_version(ut32 version, ut32 *out_count);
 
 static ut32 hermes_detect_version_from_bin(RArchSession *s) {
 	if (!s || !s->arch || !s->arch->binb.bin) {
@@ -83,6 +84,14 @@ static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	return true;
 }
 
+static Instruction *hermes_get_instruction_set_by_version(ut32 version, ut32 *out_count) {
+	HBCISA isa = hbc_isa_getv (version);
+	if (out_count) {
+		*out_count = isa.count;
+	}
+	return isa.instructions;
+}
+
 static bool hermes_opcode_is_conditional(u8 opcode) {
 	switch (opcode) {
 	case OP_JmpTrue:
@@ -103,9 +112,9 @@ static bool hermes_opcode_is_conditional(u8 opcode) {
 }
 
 static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
-	// Get instruction set
+	// Get instruction set for the detected version
 	ut32 count;
-	Instruction *inst_set = get_instruction_set_v96 (&count);
+	Instruction *inst_set = hermes_get_instruction_set_by_version (hs->bytecode_version, &count);
 	if (!inst_set || opcode >= count) {
 		return;
 	}
@@ -504,6 +513,7 @@ const RArchPlugin r_arch_plugin_hermes = {
 	},
 	.arch = "hermes",
 	.bits = R_SYS_BITS_PACK1 (64),
+	.cpus = "v90,v91,v92,v93,v94,v95,v96",
 	.decode = &hermes_decode,
 	.encode = &hermes_encode,
 	.info = hermes_info,

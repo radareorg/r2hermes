@@ -606,7 +606,8 @@ Result disassemble_function(Disassembler *disassembler, u32 function_id) {
 
 	/* Parse the bytecode */
 	ParsedInstructionList instructions;
-	Result result = parse_function_bytecode (reader, function_id, &instructions);
+	HBCISA isa = hbc_isa_getv(reader->header.version);
+	Result result = parse_function_bytecode (reader, function_id, &instructions, isa);
 
 	if (result.code != RESULT_SUCCESS) {
 		/* Handle parsing error - Print more debug info */

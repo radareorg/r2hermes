@@ -18,13 +18,9 @@ Result hermes_encoder_init(HermesEncoder *encoder, u32 bytecode_version) {
 	encoder->instruction_count = 0;
 
 	/* Initialize instruction set */
-	if (bytecode_version >= 92 && bytecode_version <= 96) {
-		encoder->instruction_set = get_instruction_set_v96 (&encoder->instruction_count);
-	} else {
-		return ERROR_RESULT (RESULT_ERROR_UNSUPPORTED_VERSION,
-			"Unsupported bytecode version for encoding");
-	}
-
+	HBCISA isa = hbc_isa_getv (bytecode_version);
+	encoder->instruction_set = isa.instructions;
+	encoder->instruction_count = isa.count;
 	if (!encoder->instruction_set) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION,
 			"Failed to initialize instruction set");
@@ -222,16 +218,16 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 				/* Parse as double literal */
 				{
 					char *endptr_double;
-					double dval = strtod(trim_start, &endptr_double);
+					double dval = strtod (trim_start, &endptr_double);
 					if (*endptr_double == '\0') {
 						/* Convert double to IEEE 754 bits */
 						u64 bits;
-						memcpy(&bits, &dval, sizeof(double));
+						memcpy (&bits, &dval, sizeof (double));
 						operand_values[operand_count] = bits;
 						parse_success = true;
 					} else if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
 						/* Allow hex for bit patterns */
-						operand_values[operand_count] = (u64)strtoull(trim_start, &endptr_double, 16);
+						operand_values[operand_count] = (u64)strtoull (trim_start, &endptr_double, 16);
 						if (*endptr_double == '\0') {
 							parse_success = true;
 						}
@@ -371,7 +367,7 @@ Result hermes_encoder_encode_instruction(HermesEncoder *encoder, const EncodedIn
 			/* Value is already the 64-bit IEEE 754 bit pattern */
 			u64 double_bits = value;
 			for (int j = 0; j < 8; j++) {
-				out_buffer[offset++] = (u8)(double_bits & 0xFF);
+				out_buffer[offset++] = (u8) (double_bits & 0xFF);
 				double_bits >>= 8;
 			}
 			break;

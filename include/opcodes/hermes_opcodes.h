@@ -2,7 +2,46 @@
 #define HERMES_DEC_HERMES_OPCODES_H
 
 #include "../common.h"
-#include "../parsers/hbc_bytecode_parser.h"
+
+/* Operand type enum */
+typedef enum {
+	OPERAND_TYPE_NONE,
+	OPERAND_TYPE_REG8,
+	OPERAND_TYPE_REG32,
+	OPERAND_TYPE_UINT8,
+	OPERAND_TYPE_UINT16,
+	OPERAND_TYPE_UINT32,
+	OPERAND_TYPE_ADDR8,
+	OPERAND_TYPE_ADDR32,
+	OPERAND_TYPE_IMM32,
+	OPERAND_TYPE_DOUBLE
+} OperandType;
+
+/* Operand meaning enum */
+typedef enum {
+	OPERAND_MEANING_NONE,
+	OPERAND_MEANING_STRING_ID,
+	OPERAND_MEANING_BIGINT_ID,
+	OPERAND_MEANING_FUNCTION_ID,
+	OPERAND_MEANING_BUILTIN_ID,
+	OPERAND_MEANING_ARRAY_ID,
+	OPERAND_MEANING_OBJ_KEY_ID,
+	OPERAND_MEANING_OBJ_VAL_ID
+} OperandMeaning;
+
+/* Instruction operand */
+typedef struct {
+	OperandType operand_type;
+	OperandMeaning operand_meaning;
+} InstructionOperand;
+
+/* Instruction definition */
+typedef struct {
+	u8 opcode;
+	const char *name;
+	InstructionOperand operands[6]; /* Up to 6 operands per instruction */
+	u32 binary_size; /* Total size in bytes */
+} Instruction;
 
 /* Hermes opcodes based on hbc95.py (version 95) - Complete list */
 enum HermesOpcodes {
@@ -216,8 +255,13 @@ enum HermesOpcodes {
 	OP_Store32 = 205
 };
 
-/* Define the instruction set for bytecode version 96 */
-Instruction *get_instruction_set_v96(u32 *out_count);
+typedef struct {
+	u32 count;
+	Instruction *instructions;
+} HBCISA;
+
+/* Public API for getting instruction set by version */
+HBCISA hbc_isa_getv(int version);
 
 /* Helper functions */
 bool is_jump_instruction(u8 opcode);
@@ -227,5 +271,11 @@ bool is_bitwise_instruction(u8 opcode);
 bool is_load_instruction(u8 opcode);
 bool is_store_instruction(u8 opcode);
 bool is_comparison_instruction(u8 opcode);
+
+/* Version support functions */
+HBCISA get_versioned_instruction_set(u32 bytecode_version);
+bool is_instruction_supported_in_version(u8 opcode, u32 bytecode_version);
+u32 get_best_supported_version(u32 detected_version);
+void cleanup_instruction_sets(void);
 
 #endif /* HERMES_DEC_HERMES_OPCODES_H */

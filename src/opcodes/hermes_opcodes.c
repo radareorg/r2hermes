@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 /* Define instruction set for bytecode version 96 */
-Instruction *get_instruction_set_v96(u32 *out_count) {
+static Instruction *get_instruction_set_v96(u32 *out_count) {
 	/* Allocate memory for the instruction set */
 	const u32 instruction_count = 256; /* Support all possible opcode values */
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
@@ -1529,4 +1529,301 @@ bool is_comparison_instruction(u8 opcode) {
 	default:
 		return false;
 	}
+}
+
+/* Version-specific opcode table generators */
+
+/* Generate instruction set for version 90 (based on early Hermes bytecode) */
+static Instruction *get_instruction_set_v90(u32 *out_count) {
+	const u32 instruction_count = 256;
+	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
+	if (!instructions) {
+		if (out_count) {
+			*out_count = 0;
+		}
+		return NULL;
+	}
+
+	/* Initialize all to unknown */
+	for (u32 i = 0; i < instruction_count; i++) {
+		instructions[i] = (Instruction){
+			(u8)i, "Unknown",
+			{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+			1
+		};
+	}
+
+	/* Version 90 specific opcodes - early Hermes had fewer instructions */
+	/* Basic operations */
+	instructions[OP_Mov] = (Instruction){ OP_Mov, "Mov", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 3 };
+	instructions[OP_LoadConstString] = (Instruction){ OP_LoadConstString, "LoadConstString", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, 4 };
+	instructions[OP_LoadConstDouble] = (Instruction){ OP_LoadConstDouble, "LoadConstDouble", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_DOUBLE, OPERAND_MEANING_NONE } }, 9 };
+	instructions[OP_Add] = (Instruction){ OP_Add, "Add", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Sub] = (Instruction){ OP_Sub, "Sub", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Jmp] = (Instruction){ OP_Jmp, "Jmp", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE } }, 2 };
+	instructions[OP_Ret] = (Instruction){ OP_Ret, "Ret", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+	instructions[OP_Call] = (Instruction){ OP_Call, "Call", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE } }, 4 };
+
+	/* Note: v90 had fewer opcodes, many later ones don't exist */
+
+	if (out_count) {
+		*out_count = instruction_count;
+	}
+	return instructions;
+}
+
+/* Generate instruction set for version 91 */
+static Instruction *get_instruction_set_v91(u32 *out_count) {
+	const u32 instruction_count = 256;
+	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
+	if (!instructions) {
+		if (out_count) {
+			*out_count = 0;
+		}
+		return NULL;
+	}
+
+	/* Initialize all to unknown */
+	for (u32 i = 0; i < instruction_count; i++) {
+		instructions[i] = (Instruction){
+			(u8)i, "Unknown",
+			{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+			1
+		};
+	}
+
+	/* Copy v90 as base and add v91 specific changes */
+	Instruction *v90_base = get_instruction_set_v90 (NULL);
+	if (v90_base) {
+		memcpy (instructions, v90_base, instruction_count * sizeof (Instruction));
+		free (v90_base);
+	}
+
+	/* v91 additions - some new instructions were added */
+	instructions[OP_LoadConstInt] = (Instruction){ OP_LoadConstInt, "LoadConstInt", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE } }, 6 };
+	instructions[OP_NewObject] = (Instruction){ OP_NewObject, "NewObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+
+	if (out_count) {
+		*out_count = instruction_count;
+	}
+	return instructions;
+}
+
+/* Generate instruction set for version 92 */
+static Instruction *get_instruction_set_v92(u32 *out_count) {
+	const u32 instruction_count = 256;
+	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
+	if (!instructions) {
+		if (out_count) {
+			*out_count = 0;
+		}
+		return NULL;
+	}
+
+	/* Initialize all to unknown */
+	for (u32 i = 0; i < instruction_count; i++) {
+		instructions[i] = (Instruction){
+			(u8)i, "Unknown",
+			{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+			1
+		};
+	}
+
+	/* Copy v91 as base */
+	Instruction *v91_base = get_instruction_set_v91 (NULL);
+	if (v91_base) {
+		memcpy (instructions, v91_base, instruction_count * sizeof (Instruction));
+		free (v91_base);
+	}
+
+	/* v92 additions */
+	instructions[OP_GetById] = (Instruction){ OP_GetById, "GetById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, 6 };
+	instructions[OP_PutById] = (Instruction){ OP_PutById, "PutById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, 6 };
+
+	if (out_count) {
+		*out_count = instruction_count;
+	}
+	return instructions;
+}
+
+/* Generate instruction set for version 93 */
+static Instruction *get_instruction_set_v93(u32 *out_count) {
+	const u32 instruction_count = 256;
+	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
+	if (!instructions) {
+		if (out_count) {
+			*out_count = 0;
+		}
+		return NULL;
+	}
+
+	/* Initialize all to unknown */
+	for (u32 i = 0; i < instruction_count; i++) {
+		instructions[i] = (Instruction){
+			(u8)i, "Unknown",
+			{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+			1
+		};
+	}
+
+	/* Copy v92 as base */
+	Instruction *v92_base = get_instruction_set_v92 (NULL);
+	if (v92_base) {
+		memcpy (instructions, v92_base, instruction_count * sizeof (Instruction));
+		free (v92_base);
+	}
+
+	/* v93 additions - environment and closure support */
+	instructions[OP_CreateEnvironment] = (Instruction){ OP_CreateEnvironment, "CreateEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+	instructions[OP_LoadFromEnvironment] = (Instruction){ OP_LoadFromEnvironment, "LoadFromEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_StoreToEnvironment] = (Instruction){ OP_StoreToEnvironment, "StoreToEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+
+	if (out_count) {
+		*out_count = instruction_count;
+	}
+	return instructions;
+}
+
+/* Generate instruction set for version 94 */
+static Instruction *get_instruction_set_v94(u32 *out_count) {
+	const u32 instruction_count = 256;
+	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
+	if (!instructions) {
+		if (out_count) {
+			*out_count = 0;
+		}
+		return NULL;
+	}
+
+	/* Initialize all to unknown */
+	for (u32 i = 0; i < instruction_count; i++) {
+		instructions[i] = (Instruction){
+			(u8)i, "Unknown",
+			{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+			1
+		};
+	}
+
+	/* Copy v93 as base */
+	Instruction *v93_base = get_instruction_set_v93 (NULL);
+	if (v93_base) {
+		memcpy (instructions, v93_base, instruction_count * sizeof (Instruction));
+		free (v93_base);
+	}
+
+	/* v94 additions - more object operations */
+	instructions[OP_NewArray] = (Instruction){ OP_NewArray, "NewArray", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_GetByVal] = (Instruction){ OP_GetByVal, "GetByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_PutByVal] = (Instruction){ OP_PutByVal, "PutByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+
+	if (out_count) {
+		*out_count = instruction_count;
+	}
+	return instructions;
+}
+
+/* Generate instruction set for version 95 */
+static Instruction *get_instruction_set_v95(u32 *out_count) {
+	const u32 instruction_count = 256;
+	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
+	if (!instructions) {
+		if (out_count) {
+			*out_count = 0;
+		}
+		return NULL;
+	}
+
+	/* Initialize all to unknown */
+	for (u32 i = 0; i < instruction_count; i++) {
+		instructions[i] = (Instruction){
+			(u8)i, "Unknown",
+			{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
+			1
+		};
+	}
+
+	/* Copy v94 as base and extend to nearly v96 compatibility */
+	Instruction *v94_base = get_instruction_set_v94 (NULL);
+	if (v94_base) {
+		memcpy (instructions, v94_base, instruction_count * sizeof (Instruction));
+		free (v94_base);
+	}
+
+	/* v95 additions - most instructions from v96 but some missing */
+	/* Add most v96 instructions except the newest ones */
+	instructions[OP_MovLong] = (Instruction){ OP_MovLong, "MovLong", { { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE } }, 9 };
+	instructions[OP_CallDirect] = (Instruction){ OP_CallDirect, "CallDirect", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID } }, 5 };
+	instructions[OP_CreateClosure] = (Instruction){ OP_CreateClosure, "CreateClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID } }, 5 };
+	instructions[OP_JmpLong] = (Instruction){ OP_JmpLong, "JmpLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE } }, 5 };
+	instructions[OP_LoadConstUndefined] = (Instruction){ OP_LoadConstUndefined, "LoadConstUndefined", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+	instructions[OP_LoadConstNull] = (Instruction){ OP_LoadConstNull, "LoadConstNull", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+	instructions[OP_LoadConstTrue] = (Instruction){ OP_LoadConstTrue, "LoadConstTrue", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+	instructions[OP_LoadConstFalse] = (Instruction){ OP_LoadConstFalse, "LoadConstFalse", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 2 };
+
+	/* Most arithmetic and logical operations */
+	instructions[OP_Mul] = (Instruction){ OP_Mul, "Mul", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Div] = (Instruction){ OP_Div, "Div", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Mod] = (Instruction){ OP_Mod, "Mod", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_BitAnd] = (Instruction){ OP_BitAnd, "BitAnd", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_BitOr] = (Instruction){ OP_BitOr, "BitOr", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_BitXor] = (Instruction){ OP_BitXor, "BitXor", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_LShift] = (Instruction){ OP_LShift, "LShift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_RShift] = (Instruction){ OP_RShift, "RShift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_URshift] = (Instruction){ OP_URshift, "URshift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+
+	/* Comparisons */
+	instructions[OP_Eq] = (Instruction){ OP_Eq, "Eq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_StrictEq] = (Instruction){ OP_StrictEq, "StrictEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Neq] = (Instruction){ OP_Neq, "Neq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_StrictNeq] = (Instruction){ OP_StrictNeq, "StrictNeq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Less] = (Instruction){ OP_Less, "Less", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_LessEq] = (Instruction){ OP_LessEq, "LessEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_Greater] = (Instruction){ OP_Greater, "Greater", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+	instructions[OP_GreaterEq] = (Instruction){ OP_GreaterEq, "GreaterEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 4 };
+
+	if (out_count) {
+		*out_count = instruction_count;
+	}
+	return instructions;
+}
+
+/* Public API for getting instruction set by version */
+HBCISA hbc_isa_getv(int version) {
+	u32 count;
+	Instruction *result = NULL;
+
+	switch (version) {
+	case 90:
+		result = get_instruction_set_v90(&count);
+		break;
+	case 91:
+		result = get_instruction_set_v91(&count);
+		break;
+	case 92:
+		result = get_instruction_set_v92(&count);
+		break;
+	case 93:
+		result = get_instruction_set_v93(&count);
+		break;
+	case 94:
+		result = get_instruction_set_v94(&count);
+		break;
+	case 95:
+		result = get_instruction_set_v95(&count);
+		break;
+	case 96:
+		result = get_instruction_set_v96(&count);
+		break;
+	default:
+		/* For versions 72-89, use v90 as fallback */
+		if (version >= 72 && version < 90) {
+			result = get_instruction_set_v90(&count);
+		} else {
+			/* For versions > 96, use v96 as fallback */
+			result = get_instruction_set_v96(&count);
+		}
+		break;
+	}
+
+	return (HBCISA){ .count = count, .instructions = result };
 }
