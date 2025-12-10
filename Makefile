@@ -71,6 +71,9 @@ TEST_BIN = $(BIN_DIR)/run_tests
 r2 test:
 	$(MAKE) -C r2 && $(MAKE) -C r2 user-install
 
+user-install user-uninstall:
+	$(MAKE) -C r2
+
 test2:
 	./bin/hermes-dec d ../main.jsbundle 2>&1 |head -n 100
 

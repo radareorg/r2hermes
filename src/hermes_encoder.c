@@ -45,80 +45,18 @@ void hermes_encoder_cleanup(HermesEncoder *encoder) {
 }
 
 /* Find instruction by mnemonic */
-static u8 find_opcode_by_name(const char *mnemonic, u32 bytecode_version) {
-	(void)bytecode_version; /* currently unused */
-	if (!mnemonic) {
-		return 0xFF; /* Invalid opcode */
+static const Instruction *find_instruction_by_name(const char *mnemonic, const Instruction *instruction_set, u32 instruction_count) {
+	if (!mnemonic || !instruction_set) {
+		return NULL;
 	}
 
-	/* For now, implement a simple lookup table for common instructions */
-	/* This should be expanded to cover all instructions */
-	if (strcasecmp (mnemonic, "Mov") == 0) {
-		return 8;
-	}
-	if (strcasecmp (mnemonic, "MovLong") == 0) {
-		return 9;
-	}
-	if (strcasecmp (mnemonic, "LoadConstZero") == 0) {
-		return 122;
-	}
-	if (strcasecmp (mnemonic, "LoadConstUndefined") == 0) {
-		return 118;
-	}
-	if (strcasecmp (mnemonic, "LoadConstNull") == 0) {
-		return 119;
-	}
-	if (strcasecmp (mnemonic, "LoadConstTrue") == 0) {
-		return 120;
-	}
-	if (strcasecmp (mnemonic, "LoadConstFalse") == 0) {
-		return 121;
-	}
-	if (strcasecmp (mnemonic, "Ret") == 0) {
-		return 92;
-	}
-	if (strcasecmp (mnemonic, "Add") == 0) {
-		return 22;
-	}
-	if (strcasecmp (mnemonic, "Sub") == 0) {
-		return 29;
-	}
-	if (strcasecmp (mnemonic, "Mul") == 0) {
-		return 24;
-	}
-	if (strcasecmp (mnemonic, "Div") == 0) {
-		return 26;
-	}
-	if (strcasecmp (mnemonic, "Jmp") == 0) {
-		return 142;
-	}
-	if (strcasecmp (mnemonic, "JmpLong") == 0) {
-		return 143;
+	for (u32 i = 0; i < instruction_count; i++) {
+		if (strcasecmp (mnemonic, instruction_set[i].name) == 0) {
+			return &instruction_set[i];
+		}
 	}
 
-	return 0xFF; /* Unknown */
-}
-
-/* Get instruction size by opcode */
-static u32 get_instruction_size(u8 opcode) {
-	/* This is a simplified version - should be expanded */
-	switch (opcode) {
-	case 8: return 3; /* Mov */
-	case 9: return 9; /* MovLong */
-	case 122: return 2; /* LoadConstZero */
-	case 118: return 2; /* LoadConstUndefined */
-	case 119: return 2; /* LoadConstNull */
-	case 120: return 2; /* LoadConstTrue */
-	case 121: return 2; /* LoadConstFalse */
-	case 92: return 2; /* Ret */
-	case 22: return 4; /* Add */
-	case 29: return 4; /* Sub */
-	case 24: return 4; /* Mul */
-	case 26: return 4; /* Div */
-	case 142: return 2; /* Jmp */
-	case 143: return 5; /* JmpLong */
-	default: return 1; /* Unknown, assume 1 byte */
-	}
+	return NULL; /* Unknown */
 }
 
 /* Note: a more detailed operand parser existed but was unused.
@@ -163,15 +101,15 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 	}
 
 	/* Find instruction by mnemonic */
-	u8 opcode = find_opcode_by_name (mnemonic, encoder->bytecode_version);
-	if (opcode == 0xFF) {
+	const Instruction *inst = find_instruction_by_name (mnemonic, encoder->instruction_set, encoder->instruction_count);
+	if (!inst) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown mnemonic");
 	}
 
-	out_instruction->opcode = opcode;
-	out_instruction->size = get_instruction_size (opcode);
+	out_instruction->opcode = inst->opcode;
+	out_instruction->size = inst->binary_size;
 
-	/* Parse operands */
+	/* Parse operands based on instruction definition */
 	u32 operand_values[6] = { 0 };
 	int operand_count = 0;
 
@@ -226,23 +164,93 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 			*trim_end-- = '\0';
 		}
 
-		/* Parse operand - simplified for now */
-		if (operand_count < 6) {
-			/* For now, assume all operands are either registers (rN) or immediates */
-			if (trim_start[0] == 'r' || trim_start[0] == 'R') {
-				/* Register */
-				char *endptr;
-				operand_values[operand_count] = (u32)strtoul (trim_start + 1, &endptr, 10);
-			} else {
+		/* Parse operand based on expected type */
+		if (operand_count < 6 && inst->operands[operand_count].operand_type != OPERAND_TYPE_NONE) {
+			OperandType expected_type = inst->operands[operand_count].operand_type;
+			char *endptr;
+			bool parse_success = false;
+
+			switch (expected_type) {
+			case OPERAND_TYPE_REG8:
+			case OPERAND_TYPE_REG32:
+				/* Register: rN or RN */
+				if (trim_start[0] == 'r' || trim_start[0] == 'R') {
+					operand_values[operand_count] = (u32)strtoul (trim_start + 1, &endptr, 10);
+					if (*endptr == '\0') {
+						parse_success = true;
+						/* Validate register range */
+						if (expected_type == OPERAND_TYPE_REG8 && operand_values[operand_count] > 255) {
+							return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Register number out of range for REG8");
+						}
+					}
+				} else {
+					/* Allow bare numbers for registers too */
+					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+					if (*endptr == '\0') {
+						parse_success = true;
+						/* Validate register range */
+						if (expected_type == OPERAND_TYPE_REG8 && operand_values[operand_count] > 255) {
+							return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Register number out of range for REG8");
+						}
+					}
+				}
+				break;
+
+			case OPERAND_TYPE_UINT8:
+			case OPERAND_TYPE_UINT16:
+			case OPERAND_TYPE_UINT32:
+			case OPERAND_TYPE_IMM32:
+			case OPERAND_TYPE_ADDR8:
+			case OPERAND_TYPE_ADDR32:
 				/* Immediate or address */
-				char *endptr;
 				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
 					/* Hex */
 					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
+					if (*endptr == '\0') {
+						parse_success = true;
+					}
 				} else {
 					/* Decimal */
 					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+					if (*endptr == '\0') {
+						parse_success = true;
+					}
 				}
+				break;
+
+			case OPERAND_TYPE_DOUBLE:
+				/* For now, treat as immediate (would need proper double parsing) */
+				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
+					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
+					if (*endptr == '\0') {
+						parse_success = true;
+					}
+				} else {
+					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+					if (*endptr == '\0') {
+						parse_success = true;
+					}
+				}
+				break;
+
+			default:
+				/* Unknown type, try to parse as number */
+				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
+					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
+					if (*endptr == '\0') {
+						parse_success = true;
+					}
+				} else {
+					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+					if (*endptr == '\0') {
+						parse_success = true;
+					}
+				}
+				break;
+			}
+
+			if (!parse_success) {
+				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid operand format");
 			}
 		}
 
@@ -255,75 +263,18 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 		}
 	}
 
-	/* Parse operands separated by commas */
-	while (*line && operand_count < 6) {
-		/* Skip whitespace */
-		while (*line && isspace (*line)) {
-			line++;
-		}
-
-		if (*line == '\0' || *line == '\n' || *line == '\r') {
+	/* Count expected operands */
+	int expected_operand_count = 0;
+	for (int i = 0; i < 6; i++) {
+		if (inst->operands[i].operand_type == OPERAND_TYPE_NONE) {
 			break;
 		}
+		expected_operand_count++;
+	}
 
-		/* Find end of operand (comma or end) */
-		const char *operand_end = line;
-		int paren_depth = 0;
-		while (*operand_end && (*operand_end != ',' || paren_depth > 0)) {
-			if (*operand_end == '(') {
-				paren_depth++;
-			} else if (*operand_end == ')') {
-				paren_depth--;
-			}
-			operand_end++;
-		}
-
-		/* Extract operand string */
-		size_t operand_len = operand_end - line;
-		char operand_str[64] = { 0 };
-		if (operand_len >= sizeof (operand_str)) {
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Operand too long");
-		}
-		memcpy (operand_str, line, operand_len);
-		operand_str[operand_len] = '\0';
-
-		/* Trim whitespace */
-		char *trim_start = operand_str;
-		while (*trim_start && isspace (*trim_start)) {
-			trim_start++;
-		}
-		char *trim_end = trim_start + strlen (trim_start) - 1;
-		while (trim_end > trim_start && isspace (*trim_end)) {
-			*trim_end-- = '\0';
-		}
-
-		/* Parse operand - simplified */
-		if (operand_count < 6) {
-			/* For now, assume all operands are either registers (rN) or immediates */
-			if (trim_start[0] == 'r' || trim_start[0] == 'R') {
-				/* Register */
-				char *endptr;
-				operand_values[operand_count] = (u32)strtoul (trim_start + 1, &endptr, 10);
-			} else {
-				/* Immediate or address */
-				char *endptr;
-				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
-					/* Hex */
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
-				} else {
-					/* Decimal */
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
-				}
-			}
-		}
-
-		operand_count++;
-
-		/* Move to next operand */
-		line = operand_end;
-		if (*line == ',') {
-			line++;
-		}
+	/* Validate operand count */
+	if (operand_count != expected_operand_count) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Incorrect number of operands");
 	}
 
 	/* Store operand values */
@@ -348,86 +299,85 @@ Result hermes_encoder_encode_instruction(HermesEncoder *encoder, const EncodedIn
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer too small");
 	}
 
+	/* Find the instruction definition */
+	const Instruction *inst = NULL;
+	for (u32 i = 0; i < encoder->instruction_count; i++) {
+		if (encoder->instruction_set[i].opcode == instruction->opcode) {
+			inst = &encoder->instruction_set[i];
+			break;
+		}
+	}
+
+	if (!inst) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Unknown instruction opcode");
+	}
+
 	size_t offset = 0;
-
-	/* Write opcode */
-	out_buffer[offset++] = instruction->opcode;
-
-	/* Write operands - simplified encoding based on instruction size */
 	u32 operand_values[6] = {
 		instruction->arg1, instruction->arg2, instruction->arg3,
 		instruction->arg4, instruction->arg5, instruction->arg6
 	};
 
-	/* For now, use a simple encoding scheme based on opcode */
-	/* This should be expanded to handle all instruction types properly */
-	switch (instruction->opcode) {
-	case 8: /* Mov: opcode + reg8 + reg8 */
-		if (offset + 2 > buffer_size) {
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
-		}
-		out_buffer[offset++] = (u8)operand_values[0];
-		out_buffer[offset++] = (u8)operand_values[1];
-		break;
+	/* Write opcode */
+	out_buffer[offset++] = instruction->opcode;
 
-	case 9: /* MovLong: opcode + reg32 + reg32 */
-		if (offset + 8 > buffer_size) {
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
-		}
-		out_buffer[offset++] = (u8) (operand_values[0] & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[0] >> 8) & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[0] >> 16) & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[0] >> 24) & 0xFF);
-		out_buffer[offset++] = (u8) (operand_values[1] & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[1] >> 8) & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[1] >> 16) & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[1] >> 24) & 0xFF);
-		break;
+	/* Write operands based on their types */
+	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+		OperandType type = inst->operands[i].operand_type;
+		u32 value = operand_values[i];
 
-	case 122: /* LoadConstZero: opcode + reg8 */
-	case 118: /* LoadConstUndefined: opcode + reg8 */
-	case 119: /* LoadConstNull: opcode + reg8 */
-	case 120: /* LoadConstTrue: opcode + reg8 */
-	case 121: /* LoadConstFalse: opcode + reg8 */
-	case 92: /* Ret: opcode + reg8 */
-		if (offset + 1 > buffer_size) {
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
-		}
-		out_buffer[offset++] = (u8)operand_values[0];
-		break;
+		switch (type) {
+		case OPERAND_TYPE_REG8:
+		case OPERAND_TYPE_UINT8:
+		case OPERAND_TYPE_ADDR8:
+			if (offset >= buffer_size) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
+			}
+			out_buffer[offset++] = (u8)value;
+			break;
 
-	case 22: /* Add: opcode + reg8 + reg8 + reg8 */
-	case 29: /* Sub: opcode + reg8 + reg8 + reg8 */
-	case 24: /* Mul: opcode + reg8 + reg8 + reg8 */
-	case 26: /* Div: opcode + reg8 + reg8 + reg8 */
-		if (offset + 3 > buffer_size) {
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
-		}
-		out_buffer[offset++] = (u8)operand_values[0];
-		out_buffer[offset++] = (u8)operand_values[1];
-		out_buffer[offset++] = (u8)operand_values[2];
-		break;
+		case OPERAND_TYPE_UINT16:
+			if (offset + 1 >= buffer_size) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
+			}
+			out_buffer[offset++] = (u8) (value & 0xFF);
+			out_buffer[offset++] = (u8) ((value >> 8) & 0xFF);
+			break;
 
-	case 142: /* Jmp: opcode + addr8 */
-		if (offset + 1 > buffer_size) {
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
-		}
-		out_buffer[offset++] = (u8)operand_values[0];
-		break;
+		case OPERAND_TYPE_REG32:
+		case OPERAND_TYPE_UINT32:
+		case OPERAND_TYPE_ADDR32:
+		case OPERAND_TYPE_IMM32:
+			if (offset + 3 >= buffer_size) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
+			}
+			out_buffer[offset++] = (u8) (value & 0xFF);
+			out_buffer[offset++] = (u8) ((value >> 8) & 0xFF);
+			out_buffer[offset++] = (u8) ((value >> 16) & 0xFF);
+			out_buffer[offset++] = (u8) ((value >> 24) & 0xFF);
+			break;
 
-	case 143: /* JmpLong: opcode + addr32 */
-		if (offset + 4 > buffer_size) {
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
-		}
-		out_buffer[offset++] = (u8) (operand_values[0] & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[0] >> 8) & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[0] >> 16) & 0xFF);
-		out_buffer[offset++] = (u8) ((operand_values[0] >> 24) & 0xFF);
-		break;
+		case OPERAND_TYPE_DOUBLE:
+			/* For doubles, we need to handle IEEE 754 encoding */
+			/* For now, just write as 64-bit value (little-endian) */
+			if (offset + 7 >= buffer_size) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
+			}
+			/* This is a placeholder - proper double encoding needed */
+			for (int j = 0; j < 8; j++) {
+				out_buffer[offset++] = (u8) (value & 0xFF);
+				value >>= 8;
+			}
+			break;
 
-	default:
-		/* For unknown opcodes, just write the opcode */
-		break;
+		default:
+			/* Unknown type - assume 8-bit */
+			if (offset >= buffer_size) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer overflow");
+			}
+			out_buffer[offset++] = (u8)value;
+			break;
+		}
 	}
 
 	*out_bytes_written = offset;
