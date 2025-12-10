@@ -5,22 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Global instruction set definitions for different bytecode versions */
-/* Cache for per-version instruction sets */
-static Instruction *g_instruction_set_v90 = NULL;
-static u32 g_instruction_set_v90_count = 0;
-static Instruction *g_instruction_set_v91 = NULL;
-static u32 g_instruction_set_v91_count = 0;
-static Instruction *g_instruction_set_v92 = NULL;
-static u32 g_instruction_set_v92_count = 0;
-static Instruction *g_instruction_set_v93 = NULL;
-static u32 g_instruction_set_v93_count = 0;
-static Instruction *g_instruction_set_v94 = NULL;
-static u32 g_instruction_set_v94_count = 0;
-static Instruction *g_instruction_set_v95 = NULL;
-static u32 g_instruction_set_v95_count = 0;
-static Instruction *g_instruction_set_v96 = NULL;
-static u32 g_instruction_set_v96_count = 0;
+/* Static cache for per-version instruction sets */
+static HBCISA g_instruction_cache[7] = {0}; /* indices 0-6 for versions 90-96 */
 
 /* Initialize parsed instruction list */
 Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity) {
@@ -102,84 +88,27 @@ static Result initialize_instruction_set(u32 bytecode_version) {
 		fprintf (stderr, "This may cause parsing errors. Proceed with caution.\n");
 	}
 
-	/* Lazy initialize per-version tables (v90..v96). Newer specific tables should be added here. */
-	switch (bytecode_version) {
-	case 90:
-		if (!g_instruction_set_v90) {
-			g_instruction_set_v90 = get_instruction_set_v90 (&g_instruction_set_v90_count);
-			if (!g_instruction_set_v90) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v90 opcodes");
-			}
+	/* Determine cache index (90-96 -> 0-6) */
+	int cache_index = -1;
+	if (bytecode_version >= 90 && bytecode_version <= 96) {
+		cache_index = bytecode_version - 90;
+	} else if (bytecode_version >= 72 && bytecode_version < 90) {
+		cache_index = 0; /* v90 fallback */
+	} else {
+		cache_index = 6; /* v96 fallback */
+	}
+
+	/* Lazy initialize if not already cached */
+	if (!g_instruction_cache[cache_index].instructions) {
+		u32 target_version = (cache_index == 0 && bytecode_version < 90) ? 90 : 
+		                    (cache_index == 6 && bytecode_version > 96) ? 96 : bytecode_version;
+		g_instruction_cache[cache_index] = hbc_isa_getv(target_version);
+		if (!g_instruction_cache[cache_index].instructions) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to initialize instruction set");
 		}
-		break;
-	case 91:
-		if (!g_instruction_set_v91) {
-			g_instruction_set_v91 = get_instruction_set_v91 (&g_instruction_set_v91_count);
-			if (!g_instruction_set_v91) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v91 opcodes");
-			}
+		if (bytecode_version != target_version) {
+			fprintf (stderr, "Info: Using v%u opcode set for bytecode version %u\n", target_version, bytecode_version);
 		}
-		break;
-	case 92:
-		if (!g_instruction_set_v92) {
-			g_instruction_set_v92 = get_instruction_set_v92 (&g_instruction_set_v92_count);
-			if (!g_instruction_set_v92) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v92 opcodes");
-			}
-		}
-		break;
-	case 93:
-		if (!g_instruction_set_v93) {
-			g_instruction_set_v93 = get_instruction_set_v93 (&g_instruction_set_v93_count);
-			if (!g_instruction_set_v93) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v93 opcodes");
-			}
-		}
-		break;
-	case 94:
-		if (!g_instruction_set_v94) {
-			g_instruction_set_v94 = get_instruction_set_v94 (&g_instruction_set_v94_count);
-			if (!g_instruction_set_v94) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v94 opcodes");
-			}
-		}
-		break;
-	case 95:
-		if (!g_instruction_set_v95) {
-			g_instruction_set_v95 = get_instruction_set_v95 (&g_instruction_set_v95_count);
-			if (!g_instruction_set_v95) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v95 opcodes");
-			}
-		}
-		break;
-	case 96:
-		if (!g_instruction_set_v96) {
-			g_instruction_set_v96 = get_instruction_set_v96 (&g_instruction_set_v96_count);
-			if (!g_instruction_set_v96) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init v96 opcodes");
-			}
-		}
-		break;
-	default:
-		/* For versions 72-89, use closest older version for better compatibility */
-		if (bytecode_version >= 72 && bytecode_version < 90) {
-			if (!g_instruction_set_v90) {
-				g_instruction_set_v90 = get_instruction_set_v90 (&g_instruction_set_v90_count);
-				if (!g_instruction_set_v90) {
-					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to init fallback v90 opcodes");
-				}
-			}
-			fprintf (stderr, "Info: Using v90 opcode set for legacy bytecode version %u\n", bytecode_version);
-		} else {
-			/* For versions > 96, default to v96 with warning */
-			if (!g_instruction_set_v96) {
-				g_instruction_set_v96 = get_instruction_set_v96 (&g_instruction_set_v96_count);
-				if (!g_instruction_set_v96) {
-					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to initialize instruction set");
-				}
-			}
-		}
-		break;
 	}
 
 	return SUCCESS_RESULT ();
@@ -187,124 +116,36 @@ static Result initialize_instruction_set(u32 bytecode_version) {
 
 /* Find instruction definition by opcode */
 static const Instruction *find_instruction(u8 opcode, u32 bytecode_version) {
-	u32 count = 0;
-	Instruction *instruction_set = NULL;
-
 	/* Validate bytecode version */
 	if (bytecode_version < 72) {
 		fprintf (stderr, "Error: Bytecode version %u not supported (minimum supported: 72)\n", bytecode_version);
 		return NULL;
 	}
 
-	/* Select the appropriate instruction set based on bytecode version */
-	switch (bytecode_version) {
-	case 90:
-		instruction_set = g_instruction_set_v90;
-		count = g_instruction_set_v90_count;
-		break;
-	case 91:
-		instruction_set = g_instruction_set_v91;
-		count = g_instruction_set_v91_count;
-		break;
-	case 92:
-		instruction_set = g_instruction_set_v92;
-		count = g_instruction_set_v92_count;
-		break;
-	case 93:
-		instruction_set = g_instruction_set_v93;
-		count = g_instruction_set_v93_count;
-		break;
-	case 94:
-		instruction_set = g_instruction_set_v94;
-		count = g_instruction_set_v94_count;
-		break;
-	case 95:
-		instruction_set = g_instruction_set_v95;
-		count = g_instruction_set_v95_count;
-		break;
-	case 96:
-		instruction_set = g_instruction_set_v96;
-		count = g_instruction_set_v96_count;
-		break;
-	default:
-		/* For versions 72-89, use v90 as fallback */
-		if (bytecode_version >= 72 && bytecode_version < 90) {
-			instruction_set = g_instruction_set_v90;
-			count = g_instruction_set_v90_count;
-		} else {
-			/* For versions > 96, use v96 as fallback */
-			instruction_set = g_instruction_set_v96;
-			count = g_instruction_set_v96_count;
-		}
-		break;
+	/* Ensure instruction set is initialized */
+	Result init_result = initialize_instruction_set(bytecode_version);
+	if (init_result.code != RESULT_SUCCESS) {
+		return NULL;
 	}
 
-	/* Lazy initialize if needed */
-	if (!instruction_set) {
-		switch (bytecode_version) {
-		case 90:
-			instruction_set = get_instruction_set_v90 (&g_instruction_set_v90_count);
-			g_instruction_set_v90 = instruction_set;
-			count = g_instruction_set_v90_count;
-			break;
-		case 91:
-			instruction_set = get_instruction_set_v91 (&g_instruction_set_v91_count);
-			g_instruction_set_v91 = instruction_set;
-			count = g_instruction_set_v91_count;
-			break;
-		case 92:
-			instruction_set = get_instruction_set_v92 (&g_instruction_set_v92_count);
-			g_instruction_set_v92 = instruction_set;
-			count = g_instruction_set_v92_count;
-			break;
-		case 93:
-			instruction_set = get_instruction_set_v93 (&g_instruction_set_v93_count);
-			g_instruction_set_v93 = instruction_set;
-			count = g_instruction_set_v93_count;
-			break;
-		case 94:
-			instruction_set = get_instruction_set_v94 (&g_instruction_set_v94_count);
-			g_instruction_set_v94 = instruction_set;
-			count = g_instruction_set_v94_count;
-			break;
-		case 95:
-			instruction_set = get_instruction_set_v95 (&g_instruction_set_v95_count);
-			g_instruction_set_v95 = instruction_set;
-			count = g_instruction_set_v95_count;
-			break;
-		case 96:
-			instruction_set = get_instruction_set_v96 (&g_instruction_set_v96_count);
-			g_instruction_set_v96 = instruction_set;
-			count = g_instruction_set_v96_count;
-			break;
-		default:
-			/* For versions 72-89, use v90 as fallback */
-			if (bytecode_version >= 72 && bytecode_version < 90) {
-				instruction_set = get_instruction_set_v90 (&g_instruction_set_v90_count);
-				g_instruction_set_v90 = instruction_set;
-				count = g_instruction_set_v90_count;
-			} else {
-				/* For versions > 96, use v96 as fallback */
-				instruction_set = get_instruction_set_v96 (&g_instruction_set_v96_count);
-				g_instruction_set_v96 = instruction_set;
-				count = g_instruction_set_v96_count;
-			}
-			break;
-		}
+	/* Determine cache index */
+	int cache_index = -1;
+	if (bytecode_version >= 90 && bytecode_version <= 96) {
+		cache_index = bytecode_version - 90;
+	} else if (bytecode_version >= 72 && bytecode_version < 90) {
+		cache_index = 0; /* v90 fallback */
+	} else {
+		cache_index = 6; /* v96 fallback */
 	}
 
-	/* Fallback if count not initialized */
-	if (instruction_set && count == 0) {
-		count = 256; /* full table */
+	HBCISA isa = g_instruction_cache[cache_index];
+	if (!isa.instructions || opcode >= isa.count) {
+		fprintf (stderr, "Error: Unknown opcode 0x%02x for bytecode version %u (count=%u)\n", opcode, bytecode_version, isa.count);
+		return NULL;
 	}
 
 	/* Direct lookup since instruction_set is indexed by opcode */
-	if (opcode < count) {
-		return &instruction_set[opcode];
-	}
-
-	fprintf (stderr, "Error: Unknown opcode 0x%02x for bytecode version %u (count=%u)\n", opcode, bytecode_version, count);
-	return NULL;
+	return &isa.instructions[opcode];
 }
 
 /* This function is now deprecated as we're using the new approach directly in parse_function_bytecode */
@@ -1163,81 +1004,28 @@ bool is_call_instruction(u8 opcode) {
 }
 
 /* Get version-specific instruction set with fallback logic */
-const Instruction *get_versioned_instruction_set(u32 bytecode_version, u32 *out_count) {
-	Instruction *instruction_set = NULL;
-	u32 count = 0;
-
+HBCISA get_versioned_instruction_set(u32 bytecode_version) {
 	/* Initialize appropriate instruction set */
 	Result result = initialize_instruction_set (bytecode_version);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Failed to initialize instruction set for version %u: %s\n",
 			bytecode_version, result.error_message);
-		if (out_count) {
-			*out_count = 0;
-		}
-		return NULL;
+		return (HBCISA){ .count = 0, .instructions = NULL };
 	}
 
 	/* Get the instruction set based on version */
-	switch (bytecode_version) {
-	case 90:
-		instruction_set = g_instruction_set_v90;
-		count = g_instruction_set_v90_count;
-		break;
-	case 91:
-		instruction_set = g_instruction_set_v91;
-		count = g_instruction_set_v91_count;
-		break;
-	case 92:
-		instruction_set = g_instruction_set_v92;
-		count = g_instruction_set_v92_count;
-		break;
-	case 93:
-		instruction_set = g_instruction_set_v93;
-		count = g_instruction_set_v93_count;
-		break;
-	case 94:
-		instruction_set = g_instruction_set_v94;
-		count = g_instruction_set_v94_count;
-		break;
-	case 95:
-		instruction_set = g_instruction_set_v95;
-		count = g_instruction_set_v95_count;
-		break;
-	case 96:
-		instruction_set = g_instruction_set_v96;
-		count = g_instruction_set_v96_count;
-		break;
-	default:
-		/* Fallback logic */
-		if (bytecode_version >= 72 && bytecode_version < 90) {
-			instruction_set = g_instruction_set_v90;
-			count = g_instruction_set_v90_count;
-		} else if (bytecode_version > 96) {
-			instruction_set = g_instruction_set_v96;
-			count = g_instruction_set_v96_count;
-		}
-		break;
-	}
-
-	if (out_count) {
-		*out_count = count;
-	}
-	return instruction_set;
+	return hbc_isa_getv(bytecode_version);
 }
 
 /* Check if an instruction is supported in a specific version */
 bool is_instruction_supported_in_version(u8 opcode, u32 bytecode_version) {
-	const Instruction *instruction_set;
-	u32 count;
-
-	instruction_set = get_versioned_instruction_set (bytecode_version, &count);
-	if (!instruction_set || opcode >= count) {
+	HBCISA isa = get_versioned_instruction_set (bytecode_version);
+	if (!isa.instructions || opcode >= isa.count) {
 		return false;
 	}
 
 	/* Check if instruction is defined (not "Unknown") */
-	const Instruction *inst = &instruction_set[opcode];
+	const Instruction *inst = &isa.instructions[opcode];
 	return strcmp (inst->name, "Unknown") != 0;
 }
 
@@ -1257,39 +1045,11 @@ u32 get_best_supported_version(u32 detected_version) {
 
 /* Cleanup function to free all cached instruction sets */
 void cleanup_instruction_sets(void) {
-	if (g_instruction_set_v90) {
-		free (g_instruction_set_v90);
-		g_instruction_set_v90 = NULL;
-		g_instruction_set_v90_count = 0;
-	}
-	if (g_instruction_set_v91) {
-		free (g_instruction_set_v91);
-		g_instruction_set_v91 = NULL;
-		g_instruction_set_v91_count = 0;
-	}
-	if (g_instruction_set_v92) {
-		free (g_instruction_set_v92);
-		g_instruction_set_v92 = NULL;
-		g_instruction_set_v92_count = 0;
-	}
-	if (g_instruction_set_v93) {
-		free (g_instruction_set_v93);
-		g_instruction_set_v93 = NULL;
-		g_instruction_set_v93_count = 0;
-	}
-	if (g_instruction_set_v94) {
-		free (g_instruction_set_v94);
-		g_instruction_set_v94 = NULL;
-		g_instruction_set_v94_count = 0;
-	}
-	if (g_instruction_set_v95) {
-		free (g_instruction_set_v95);
-		g_instruction_set_v95 = NULL;
-		g_instruction_set_v95_count = 0;
-	}
-	if (g_instruction_set_v96) {
-		free (g_instruction_set_v96);
-		g_instruction_set_v96 = NULL;
-		g_instruction_set_v96_count = 0;
+	for (int i = 0; i < 7; i++) {
+		if (g_instruction_cache[i].instructions) {
+			free (g_instruction_cache[i].instructions);
+			g_instruction_cache[i].instructions = NULL;
+			g_instruction_cache[i].count = 0;
+		}
 	}
 }

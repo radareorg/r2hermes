@@ -18,13 +18,9 @@ Result hermes_encoder_init(HermesEncoder *encoder, u32 bytecode_version) {
 	encoder->instruction_count = 0;
 
 	/* Initialize instruction set */
-	if (bytecode_version >= 92 && bytecode_version <= 96) {
-		encoder->instruction_set = get_instruction_set_v96 (&encoder->instruction_count);
-	} else {
-		return ERROR_RESULT (RESULT_ERROR_UNSUPPORTED_VERSION,
-			"Unsupported bytecode version for encoding");
-	}
-
+	HBCISA isa = hbc_isa_getv (bytecode_version);
+	encoder->instruction_set = isa.instructions;
+	encoder->instruction_count = isa.count;
 	if (!encoder->instruction_set) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION,
 			"Failed to initialize instruction set");

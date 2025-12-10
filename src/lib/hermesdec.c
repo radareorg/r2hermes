@@ -594,10 +594,14 @@ void hermesdec_free_instructions(HermesInstruction *insns, u32 count) {
 static Instruction *select_instruction_set(u32 ver, u32 *out_count) {
 	if (!ver) {
 		fprintf (stderr, "[hermesdec] Warning: bytecode_version not specified, defaulting to v96\n");
+		ver = 96;
 	}
-	/* For now we only expose v96 table; reuse it for nearby versions. */
-	Instruction *set96 = get_instruction_set_v96 (out_count);
-	return set96;
+	/* Use the public API for version-specific instruction sets. */
+	HBCISA isa = hbc_isa_getv (ver);
+	if (out_count) {
+		*out_count = isa.count;
+	}
+	return isa.instructions;
 }
 
 static const Instruction *find_inst_in_set(Instruction *set, u32 count, u8 opcode) {

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 /* Define instruction set for bytecode version 96 */
-Instruction *get_instruction_set_v96(u32 *out_count) {
+static Instruction *get_instruction_set_v96(u32 *out_count) {
 	/* Allocate memory for the instruction set */
 	const u32 instruction_count = 256; /* Support all possible opcode values */
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
@@ -1534,7 +1534,7 @@ bool is_comparison_instruction(u8 opcode) {
 /* Version-specific opcode table generators */
 
 /* Generate instruction set for version 90 (based on early Hermes bytecode) */
-Instruction *get_instruction_set_v90(u32 *out_count) {
+static Instruction *get_instruction_set_v90(u32 *out_count) {
 	const u32 instruction_count = 256;
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
 	if (!instructions) {
@@ -1573,7 +1573,7 @@ Instruction *get_instruction_set_v90(u32 *out_count) {
 }
 
 /* Generate instruction set for version 91 */
-Instruction *get_instruction_set_v91(u32 *out_count) {
+static Instruction *get_instruction_set_v91(u32 *out_count) {
 	const u32 instruction_count = 256;
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
 	if (!instructions) {
@@ -1610,7 +1610,7 @@ Instruction *get_instruction_set_v91(u32 *out_count) {
 }
 
 /* Generate instruction set for version 92 */
-Instruction *get_instruction_set_v92(u32 *out_count) {
+static Instruction *get_instruction_set_v92(u32 *out_count) {
 	const u32 instruction_count = 256;
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
 	if (!instructions) {
@@ -1647,7 +1647,7 @@ Instruction *get_instruction_set_v92(u32 *out_count) {
 }
 
 /* Generate instruction set for version 93 */
-Instruction *get_instruction_set_v93(u32 *out_count) {
+static Instruction *get_instruction_set_v93(u32 *out_count) {
 	const u32 instruction_count = 256;
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
 	if (!instructions) {
@@ -1685,7 +1685,7 @@ Instruction *get_instruction_set_v93(u32 *out_count) {
 }
 
 /* Generate instruction set for version 94 */
-Instruction *get_instruction_set_v94(u32 *out_count) {
+static Instruction *get_instruction_set_v94(u32 *out_count) {
 	const u32 instruction_count = 256;
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
 	if (!instructions) {
@@ -1723,7 +1723,7 @@ Instruction *get_instruction_set_v94(u32 *out_count) {
 }
 
 /* Generate instruction set for version 95 */
-Instruction *get_instruction_set_v95(u32 *out_count) {
+static Instruction *get_instruction_set_v95(u32 *out_count) {
 	const u32 instruction_count = 256;
 	Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
 	if (!instructions) {
@@ -1785,4 +1785,45 @@ Instruction *get_instruction_set_v95(u32 *out_count) {
 		*out_count = instruction_count;
 	}
 	return instructions;
+}
+
+/* Public API for getting instruction set by version */
+HBCISA hbc_isa_getv(int version) {
+	u32 count;
+	Instruction *result = NULL;
+
+	switch (version) {
+	case 90:
+		result = get_instruction_set_v90(&count);
+		break;
+	case 91:
+		result = get_instruction_set_v91(&count);
+		break;
+	case 92:
+		result = get_instruction_set_v92(&count);
+		break;
+	case 93:
+		result = get_instruction_set_v93(&count);
+		break;
+	case 94:
+		result = get_instruction_set_v94(&count);
+		break;
+	case 95:
+		result = get_instruction_set_v95(&count);
+		break;
+	case 96:
+		result = get_instruction_set_v96(&count);
+		break;
+	default:
+		/* For versions 72-89, use v90 as fallback */
+		if (version >= 72 && version < 90) {
+			result = get_instruction_set_v90(&count);
+		} else {
+			/* For versions > 96, use v96 as fallback */
+			result = get_instruction_set_v96(&count);
+		}
+		break;
+	}
+
+	return (HBCISA){ .count = count, .instructions = result };
 }
