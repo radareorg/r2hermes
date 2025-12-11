@@ -4,7 +4,7 @@
 #include <string.h>
 
 /* Initialize disassembler */
-Result disassembler_init(Disassembler *disassembler, HBCReader *reader, DisassemblyOptions options) {
+Result disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisassemblyOptions options) {
 	if (!disassembler || !reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for disassembler_init");
 	}
@@ -718,7 +718,7 @@ Result output_disassembly(Disassembler *disassembler, const char *output_file) {
 }
 
 /* Disassemble a file */
-Result disassemble_file(const char *input_file, const char *output_file, DisassemblyOptions options) {
+Result disassemble_file(const char *input_file, const char *output_file, HBCDisassemblyOptions options) {
 	if (!input_file) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Input file is NULL");
 	}
@@ -764,7 +764,7 @@ Result disassemble_file(const char *input_file, const char *output_file, Disasse
 }
 
 /* Disassemble a buffer */
-Result disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, DisassemblyOptions options) {
+Result disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisassemblyOptions options) {
 	if (!buffer || size == 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer");
 	}

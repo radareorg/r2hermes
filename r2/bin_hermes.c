@@ -4,8 +4,8 @@
 #include <r_lib.h>
 
 // Include hermesdec headers
-#include "../include/hermesdec/hermesdec.h"
-#include "../include/common.h"
+#include "hermesdec/hermesdec.h"
+#include "common.h"
 
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL
 

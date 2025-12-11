@@ -40,7 +40,7 @@ BIN_PLUGIN = bin_hermes.$(EXT_SO)
 
 # Library paths
 HERMES_LIB_DIR = ../build
-HERMES_LIB = $(HERMES_LIB_DIR)/libhermesdec.a
+HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
 
 # All targets
 ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN)
