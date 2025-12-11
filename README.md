@@ -1,16 +1,13 @@
-# Hermes Decompiler (C Implementation)
+# HBCLIB - Hermes Library and Radare2 Plugin
 
-This is a C implementation of the Hermes HBC (Hermes Bytecode) disassembler and
-decompiler with zero external dependencies. It can be used to analyze React
-Native files compiled into the Hermes VM bytecode format.
+This is a library to work with Hermes binaries and VM Bytecode (v90-v96) for:
 
-## Features
+- Assemble Bytecode
+- Disassemble Bytecode
+- Decompile Functions in JS pseudocode
+- Parse Binary Headers
 
-- Disassembles Hermes bytecode to readable assembly
-- Decompiles Hermes bytecode to JavaScript-like pseudo-code (WIP)
-- Supports multiple bytecode versions (72-96)
-- Zero external dependencies (only libc)
-- Fast and efficient implementation
+The library is implemented in plain C with no external dependencies and comes with the plugins for radare2.
 
 ## Build Instructions
 
@@ -27,26 +24,6 @@ To clean the build:
 make clean
 ```
 
-### Library build
-
-The build produces a static library:
-
-* `build/libhermesdec.a` and a CLI tool at `bin/hermes-dec`.
-
-Public headers live in `include/`, with the high-level API at:
-
-* `include/hermesdec/hermesdec.h`.
-
-Linking example (GCC):
-
-```bash
-gcc -Iinclude your_app.c -Lbuild -lhermesdec -o your_app
-```
-
-### Public API quick start
-
-Read the `src/main.c` as an example about how to use this library.
-
 ## License
 
-This project is licensed under the BSD license, the same as the original Hermes implementation.
+This project is licensed under the BSD license.
