@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
 			EPRINTF ("%s", "Invalid or empty hex bytes string");
 			return 1;
 		}
-		HBCSingleInstructionInfo sinfo;
+		HBCSingleInstructionInfo sinfo; /* unified alias for single-instruction info */
 		memset (&sinfo, 0, sizeof (sinfo));
 		/* Default to version 96 for standalone decoding */
 		Result rr = hbc_decode_single_instruction (bytes, bcount, 96, 0, options.asm_syntax, false, NULL, &sinfo);

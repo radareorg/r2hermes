@@ -5,6 +5,7 @@
 #include "decompilation/decompiler.h"
 #include "hermes_encoder.h"
 #include "parsers/hbc_file_parser.h"
+#include "hbc_internal.h"
 #include "opcodes/hermes_opcodes.h"
 
 /* Open and fully parse a Hermes bytecode file */

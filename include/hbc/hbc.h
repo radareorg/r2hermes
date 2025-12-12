@@ -2,7 +2,6 @@
 #define HBC_API_H
 
 #include "../common.h"
-#include "../parsers/hbc_file_parser.h"
 
 /* Public header summary (stable API independent of internal structs) */
 #ifndef HBC_HEADER_DEFINED
@@ -91,18 +90,10 @@ typedef struct {
 	char *text;
 } HBCInstruction;
 
-/* State struct containing Hermes binary information */
-typedef struct HBCState {
-	HBCReader reader; // Internal parser state
-	HBCHeader header; // File header
-	u32 version; // Bytecode version (from header)
-	u32 string_count; // Number of strings in constant pool
-	const char **strings; // Array of string pointers (constant string pool)
-	u32 function_count; // Number of functions
-	// Add more fields as needed: function info, bytecode, bigints, regex, etc.
-} HBCState;
+/* Opaque public state */
+typedef struct HBCState HBCState;
 
-/* Alias for backward compatibility */
+/* Backward-compatible alias */
 typedef HBCState HBC;
 
 /* Proposed new structs for API redesign */

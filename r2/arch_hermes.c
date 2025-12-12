@@ -236,7 +236,7 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	u64 jmp = 0;
 	size_t buflen = MAX_OP_SIZE; /* Radare2 provides at least this in op->bytes */
 	HBCStringTables ctx = { .string_count = hs->string_count, .small_string_table = hs->small_string_table, .overflow_string_table = hs->overflow_string_table, .string_storage_offset = hs->string_storage_offset };
-	HBCSingleInstructionInfo sinfo;
+	HBCSingleInstructionInfo sinfo; /* unified alias for single-instruction info */
 	Result rr = hbc_decode_single_instruction (
 		op->bytes,
 		buflen,
