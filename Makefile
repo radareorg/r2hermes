@@ -62,7 +62,7 @@ $(MAIN_OBJ): $(MAIN_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD_DIR) $(BIN_DIR)
+	rm -rf $(BUILD_DIR) $(BIN_DIR)/hbctool
 	$(MAKE) -C r2 clean
 
 # Testing

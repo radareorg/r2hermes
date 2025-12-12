@@ -2,14 +2,14 @@
 #include <stdlib.h>
 
 /* Include per-version instruction set implementations (static functions) */
-#include "v76.inc"
-#include "v84.inc"
-#include "v89.inc"
-#include "v90.inc"
-#include "v93.inc"
-#include "v94.inc"
-#include "v95.inc"
-#include "v96.inc"
+#include "v76.inc.c"
+#include "v84.inc.c"
+#include "v89.inc.c"
+#include "v90.inc.c"
+#include "v93.inc.c"
+#include "v94.inc.c"
+#include "v95.inc.c"
+#include "v96.inc.c"
 
 /* v91 and v92 are compatible with v90 -> forward to v90 implementation */
 static HBCISA get_instruction_set_v91(void) {
