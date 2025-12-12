@@ -29,13 +29,19 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 
 	/* Add basic instructions based on hbc95.py */
 	/* Simple moves and unary ops */
-	
-/* removed duplicate definition of OP_Mov */
+	instructions[OP_Mov] = (Instruction){
+		OP_Mov, "Mov",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Src */
+		3
+	};
 
-
-	
-/* removed duplicate definition of OP_MovLong */
-
+	instructions[OP_MovLong] = (Instruction){
+		OP_MovLong, "MovLong",
+		{ { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_REG32, OPERAND_MEANING_NONE } }, /* Src */
+		9 /* opcode + 4 + 4 */
+	};
 
 	instructions[OP_Negate] = (Instruction){
 		OP_Negate, "Negate",
@@ -44,34 +50,60 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
-	
-/* removed duplicate definition of OP_Not */
+	instructions[OP_Not] = (Instruction){
+		OP_Not, "Not",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		3
+	};
 
-
-	
-/* removed duplicate definition of OP_BitNot */
-
+	instructions[OP_BitNot] = (Instruction){
+		OP_BitNot, "BitNot",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		3
+	};
 
 	/* Equality and relational */
-	
-/* removed duplicate definition of OP_Eq */
+	instructions[OP_Eq] = (Instruction){
+		OP_Eq, "Eq",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
+	instructions[OP_Less] = (Instruction){
+		OP_Less, "Less",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
-	
-/* removed duplicate definition of OP_Less */
+	instructions[OP_LessEq] = (Instruction){
+		OP_LessEq, "LessEq",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
+	instructions[OP_Greater] = (Instruction){
+		OP_Greater, "Greater",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
-	
-/* removed duplicate definition of OP_LessEq */
-
-
-	
-/* removed duplicate definition of OP_Greater */
-
-
-	
-/* removed duplicate definition of OP_GreaterEq */
-
+	instructions[OP_GreaterEq] = (Instruction){
+		OP_GreaterEq, "GreaterEq",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
 	instructions[OP_AddN] = (Instruction){
 		OP_AddN, "AddN",
@@ -105,17 +137,29 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		4
 	};
 
-	
-/* removed duplicate definition of OP_LShift */
+	instructions[OP_LShift] = (Instruction){
+		OP_LShift, "LShift",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
+	instructions[OP_RShift] = (Instruction){
+		OP_RShift, "RShift",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
-	
-/* removed duplicate definition of OP_RShift */
-
-
-	
-/* removed duplicate definition of OP_URshift */
-
+	instructions[OP_URshift] = (Instruction){
+		OP_URshift, "URshift",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		4
+	};
 
 	instructions[OP_Inc] = (Instruction){
 		OP_Inc, "Inc",
@@ -140,9 +184,13 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Environment load/store */
-	
-/* removed duplicate definition of OP_StoreToEnvironment */
-
+	instructions[OP_StoreToEnvironment] = (Instruction){
+		OP_StoreToEnvironment, "StoreToEnvironment",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Env */
+			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Index */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Value */
+		4
+	};
 
 	instructions[OP_StoreToEnvironmentL] = (Instruction){
 		OP_StoreToEnvironmentL, "StoreToEnvironmentL",
@@ -168,9 +216,13 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		6
 	};
 
-	
-/* removed duplicate definition of OP_LoadFromEnvironment */
-
+	instructions[OP_LoadFromEnvironment] = (Instruction){
+		OP_LoadFromEnvironment, "LoadFromEnvironment",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Env */
+			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE } }, /* Index */
+		4
+	};
 
 	instructions[OP_LoadFromEnvironmentL] = (Instruction){
 		OP_LoadFromEnvironmentL, "LoadFromEnvironmentL",
@@ -223,9 +275,11 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		14 /* opcode + 1 + 2 + 2 + 4 + 4 */
 	};
 
-	
-/* removed duplicate definition of OP_Jmp */
-
+	instructions[OP_Jmp] = (Instruction){
+		OP_Jmp, "Jmp",
+		{ { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE } },
+		2 /* opcode + offset */
+	};
 
 	instructions[OP_JmpTrue] = (Instruction){
 		OP_JmpTrue, "JmpTrue",
@@ -248,9 +302,11 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3 /* opcode + offset + reg */
 	};
 
-	
-/* removed duplicate definition of OP_JmpLong */
-
+	instructions[OP_JmpLong] = (Instruction){
+		OP_JmpLong, "JmpLong",
+		{ { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE } },
+		5 /* opcode + long offset */
+	};
 
 	instructions[OP_Catch] = (Instruction){
 		OP_Catch, "Catch",
@@ -299,9 +355,13 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Call instructions */
-	
-/* removed duplicate definition of OP_Call */
-
+	instructions[OP_Call] = (Instruction){
+		OP_Call, "Call",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Callee */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* This */
+			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE } }, /* Argc */
+		4
+	};
 
 	instructions[OP_CallLong] = (Instruction){
 		OP_CallLong, "CallLong",
@@ -331,9 +391,13 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 
 	/* ConstructN is not present in the current opcode set */
 
-	
-/* removed duplicate definition of OP_CallDirect */
-
+	instructions[OP_CallDirect] = (Instruction){
+		OP_CallDirect, "CallDirect",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* This */
+			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Argc */
+			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID } }, /* Function ID */
+		5
+	};
 
 	instructions[OP_CallDirectLongIndex] = (Instruction){
 		OP_CallDirectLongIndex, "CallDirectLongIndex",
@@ -388,21 +452,29 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		2 /* opcode + 1 operand */
 	};
 
-	
-/* removed duplicate definition of OP_LoadConstUndefined */
+	instructions[OP_LoadConstUndefined] = (Instruction){
+		OP_LoadConstUndefined, "LoadConstUndefined",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
+		2 /* opcode + 1 operand */
+	};
 
+	instructions[OP_LoadConstNull] = (Instruction){
+		OP_LoadConstNull, "LoadConstNull",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
+		2 /* opcode + 1 operand */
+	};
 
-	
-/* removed duplicate definition of OP_LoadConstNull */
+	instructions[OP_LoadConstTrue] = (Instruction){
+		OP_LoadConstTrue, "LoadConstTrue",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
+		2 /* opcode + 1 operand */
+	};
 
-
-	
-/* removed duplicate definition of OP_LoadConstTrue */
-
-
-	
-/* removed duplicate definition of OP_LoadConstFalse */
-
+	instructions[OP_LoadConstFalse] = (Instruction){
+		OP_LoadConstFalse, "LoadConstFalse",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
+		2 /* opcode + 1 operand */
+	};
 
 	/* Additional core ops in v95 */
 	instructions[OP_ToInt32] = (Instruction){
@@ -450,9 +522,12 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		5
 	};
 
-	
-/* removed duplicate definition of OP_LoadConstString */
-
+	instructions[OP_LoadConstString] = (Instruction){
+		OP_LoadConstString, "LoadConstString",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, /* String ID */
+		4 /* opcode + reg + 2-byte string ID */
+	};
 
 	instructions[OP_LoadConstStringLongIndex] = (Instruction){
 		OP_LoadConstStringLongIndex, "LoadConstStringLongIndex",
@@ -462,9 +537,12 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Using OP_LoadConstDouble instead of LoadConstNumber */
-	
-/* removed duplicate definition of OP_LoadConstDouble */
-
+	instructions[OP_LoadConstDouble] = (Instruction){
+		OP_LoadConstDouble, "LoadConstDouble",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_DOUBLE, OPERAND_MEANING_NONE } }, /* Double */
+		9
+	};
 
 	instructions[OP_LoadConstBigInt] = (Instruction){
 		OP_LoadConstBigInt, "LoadConstBigInt",
@@ -494,25 +572,45 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Basic arithmetic operations */
-	
-/* removed duplicate definition of OP_Add */
+	instructions[OP_Add] = (Instruction){
+		OP_Add, "Add",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
+	instructions[OP_Sub] = (Instruction){
+		OP_Sub, "Sub",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
-	
-/* removed duplicate definition of OP_Sub */
+	instructions[OP_Mul] = (Instruction){
+		OP_Mul, "Mul",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
+	instructions[OP_Div] = (Instruction){
+		OP_Div, "Div",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
-	
-/* removed duplicate definition of OP_Mul */
-
-
-	
-/* removed duplicate definition of OP_Div */
-
-
-	
-/* removed duplicate definition of OP_Mod */
-
+	instructions[OP_Mod] = (Instruction){
+		OP_Mod, "Mod",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	/* Unary operations */
 	instructions[OP_Not] = (Instruction){
@@ -530,102 +628,147 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Bitwise operations */
-	
-/* removed duplicate definition of OP_BitAnd */
+	instructions[OP_BitAnd] = (Instruction){
+		OP_BitAnd, "BitAnd",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
+	instructions[OP_BitOr] = (Instruction){
+		OP_BitOr, "BitOr",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
-	
-/* removed duplicate definition of OP_BitOr */
-
-
-	
-/* removed duplicate definition of OP_BitXor */
-
+	instructions[OP_BitXor] = (Instruction){
+		OP_BitXor, "BitXor",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	/* Using OP_LShift instead of BitShl */
 	instructions[OP_LShift] = (Instruction){
 		OP_LShift, "LShift",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERA
-/* removed duplicate definition of OP_LShift */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	/* Using OP_RShift instead of BitShr */
 	instructions[OP_RShift] = (Instruction){
 		OP_RShift, "RShift",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERA
-/* removed duplicate definition of OP_RShift */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	/* Using OP_URshift instead of BitUshr */
 	instructions[OP_URshift] = (Instruction){
 		OP_URshift, "URshift",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPER
-/* removed duplicate definition of OP_URshift */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	/* Comparison instructions */
 	instructions[OP_Less] = (Instruction){
 		OP_Less, "Less",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND
-/* removed duplicate definition of OP_Less */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	instructions[OP_Greater] = (Instruction){
 		OP_Greater, "Greater",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPER
-/* removed duplicate definition of OP_Greater */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	instructions[OP_LessEq] = (Instruction){
 		OP_LessEq, "LessEq",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERA
-/* removed duplicate definition of OP_LessEq */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	instructions[OP_GreaterEq] = (Instruction){
 		OP_GreaterEq, "GreaterEq",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OP
-/* removed duplicate definition of OP_GreaterEq */
-
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	instructions[OP_Eq] = (Instruction){
 		OP_Eq, "Eq",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_M
-/* removed duplicate definition of OP_Eq */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
+	instructions[OP_StrictEq] = (Instruction){
+		OP_StrictEq, "StrictEq",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
-	
-/* removed duplicate definition of OP_StrictEq */
+	instructions[OP_Neq] = (Instruction){
+		OP_Neq, "Neq",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
-
-	
-/* removed duplicate definition of OP_Neq */
-
-
-	
-/* removed duplicate definition of OP_StrictNeq */
-
+	instructions[OP_StrictNeq] = (Instruction){
+		OP_StrictNeq, "StrictNeq",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
+		4 /* opcode + 3 regs */
+	};
 
 	/* Object property access instructions */
-	
-/* removed duplicate definition of OP_GetByVal */
+	instructions[OP_GetByVal] = (Instruction){
+		OP_GetByVal, "GetByVal",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Object */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Property name/index */
+		4 /* opcode + 3 regs */
+	};
 
+	instructions[OP_PutByVal] = (Instruction){
+		OP_PutByVal, "PutByVal",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Object */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Property name/index */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Value */
+		4 /* opcode + 3 regs */
+	};
 
-	
-/* removed duplicate definition of OP_PutByVal */
-
-
-	
-/* removed duplicate definition of OP_GetById */
-
+	instructions[OP_GetById] = (Instruction){
+		OP_GetById, "GetById",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Obj */
+			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Flags */
+			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, /* Name id */
+		6
+	};
 
 	instructions[OP_GetByIdLong] = (Instruction){
 		OP_GetByIdLong, "GetByIdLong",
@@ -796,9 +939,14 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
 		6
 	};
-	
-/* removed duplicate definition of OP_PutById */
-
+	instructions[OP_PutById] = (Instruction){
+		OP_PutById, "PutById",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Object */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Value */
+			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Flags */
+			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, /* Name id */
+		6
+	};
 
 	instructions[OP_PutByIdLong] = (Instruction){
 		OP_PutByIdLong, "PutByIdLong",
@@ -810,9 +958,11 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Creation/manipulation instructions */
-	
-/* removed duplicate definition of OP_NewObject */
-
+	instructions[OP_NewObject] = (Instruction){
+		OP_NewObject, "NewObject",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
+		2 /* opcode + 1 reg */
+	};
 
 	instructions[OP_NewObjectWithParent] = (Instruction){
 		OP_NewObjectWithParent, "NewObjectWithParent",
@@ -821,9 +971,12 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
-	
-/* removed duplicate definition of OP_NewArray */
-
+	instructions[OP_NewArray] = (Instruction){
+		OP_NewArray, "NewArray",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE } }, /* Count */
+		4 /* opcode + 1 + 2 */
+	};
 
 	/* Note: NewObjectWithBuffer/NewArrayWithBuffer variants are defined earlier with correct layouts/sizes */
 
@@ -886,9 +1039,11 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Environment operations */
-	
-/* removed duplicate definition of OP_CreateEnvironment */
-
+	instructions[OP_CreateEnvironment] = (Instruction){
+		OP_CreateEnvironment, "CreateEnvironment",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Environment register */
+		2 /* opcode + 1 reg */
+	};
 
 	instructions[OP_CreateInnerEnvironment] = (Instruction){
 		OP_CreateInnerEnvironment, "CreateInnerEnvironment",
@@ -952,9 +1107,11 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		1
 	};
 
-	
-/* removed duplicate definition of OP_Ret */
-
+	instructions[OP_Ret] = (Instruction){
+		OP_Ret, "Ret",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
+		2
+	};
 
 	instructions[OP_DirectEval] = (Instruction){
 		OP_DirectEval, "DirectEval",
@@ -1039,9 +1196,12 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
-	
-/* removed duplicate definition of OP_LoadConstInt */
-
+	instructions[OP_LoadConstInt] = (Instruction){
+		OP_LoadConstInt, "LoadConstInt",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE } }, /* Value */
+		6
+	};
 
 	/* This + object selection */
 	instructions[OP_CoerceThisNS] = (Instruction){
@@ -1068,9 +1228,13 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Closures */
-	
-/* removed duplicate definition of OP_CreateClosure */
-
+	instructions[OP_CreateClosure] = (Instruction){
+		OP_CreateClosure, "CreateClosure",
+		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
+			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* This/Env */
+			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID } }, /* Func id */
+		5
+	};
 
 	instructions[OP_CreateClosureLongIndex] = (Instruction){
 		OP_CreateClosureLongIndex, "CreateClosureLongIndex",
@@ -1819,439 +1983,6 @@ static Instruction *get_instruction_set_v76(u32 *out_count) {
     return instructions;
 }
 
-/* v84 table auto-generated */
-static Instruction *get_instruction_set_v84(u32 *out_count) {
-    const u32 instruction_count = 256;
-    Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
-    if (!instructions) { if (out_count) *out_count = 0; return NULL; }
-    for (u32 i=0;i<instruction_count;i++) instructions[i] = (Instruction){ (u8)i, "Unknown", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[0] = (Instruction){ 0, "Unreachable", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[1] = (Instruction){ 1, "NewObjectWithBuffer", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 };
-    instructions[2] = (Instruction){ 2, "NewObjectWithBufferLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 14 };
-    instructions[3] = (Instruction){ 3, "NewObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[4] = (Instruction){ 4, "NewObjectWithParent", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[5] = (Instruction){ 5, "NewArrayWithBuffer", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[6] = (Instruction){ 6, "NewArrayWithBufferLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 };
-    instructions[7] = (Instruction){ 7, "NewArray", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[8] = (Instruction){ 8, "Mov", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[9] = (Instruction){ 9, "MovLong", { { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 9 };
-    instructions[10] = (Instruction){ 10, "Negate", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[11] = (Instruction){ 11, "Not", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[12] = (Instruction){ 12, "BitNot", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[13] = (Instruction){ 13, "TypeOf", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[14] = (Instruction){ 14, "Eq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[15] = (Instruction){ 15, "StrictEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[16] = (Instruction){ 16, "Neq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[17] = (Instruction){ 17, "StrictNeq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[18] = (Instruction){ 18, "Less", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[19] = (Instruction){ 19, "LessEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[20] = (Instruction){ 20, "Greater", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[21] = (Instruction){ 21, "GreaterEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[22] = (Instruction){ 22, "Add", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[23] = (Instruction){ 23, "AddN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[24] = (Instruction){ 24, "Mul", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[25] = (Instruction){ 25, "MulN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[26] = (Instruction){ 26, "Div", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[27] = (Instruction){ 27, "DivN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[28] = (Instruction){ 28, "Mod", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[29] = (Instruction){ 29, "Sub", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[30] = (Instruction){ 30, "SubN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[31] = (Instruction){ 31, "LShift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[32] = (Instruction){ 32, "RShift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[33] = (Instruction){ 33, "URshift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[34] = (Instruction){ 34, "BitAnd", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[35] = (Instruction){ 35, "BitXor", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[36] = (Instruction){ 36, "BitOr", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[37] = (Instruction){ 37, "InstanceOf", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[38] = (Instruction){ 38, "IsIn", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[39] = (Instruction){ 39, "GetEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[40] = (Instruction){ 40, "StoreToEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[41] = (Instruction){ 41, "StoreToEnvironmentL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[42] = (Instruction){ 42, "StoreNPToEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[43] = (Instruction){ 43, "StoreNPToEnvironmentL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[44] = (Instruction){ 44, "LoadFromEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[45] = (Instruction){ 45, "LoadFromEnvironmentL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[46] = (Instruction){ 46, "GetGlobalObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[47] = (Instruction){ 47, "GetNewTarget", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[48] = (Instruction){ 48, "CreateEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[49] = (Instruction){ 49, "DeclareGlobalVar", { { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[50] = (Instruction){ 50, "GetByIdShort", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[51] = (Instruction){ 51, "GetById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[52] = (Instruction){ 52, "GetByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[53] = (Instruction){ 53, "TryGetById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[54] = (Instruction){ 54, "TryGetByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[55] = (Instruction){ 55, "PutById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[56] = (Instruction){ 56, "PutByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[57] = (Instruction){ 57, "TryPutById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[58] = (Instruction){ 58, "TryPutByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[59] = (Instruction){ 59, "PutNewOwnByIdShort", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[60] = (Instruction){ 60, "PutNewOwnById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[61] = (Instruction){ 61, "PutNewOwnByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[62] = (Instruction){ 62, "PutNewOwnNEById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[63] = (Instruction){ 63, "PutNewOwnNEByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[64] = (Instruction){ 64, "PutOwnByIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[65] = (Instruction){ 65, "PutOwnByIndexL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[66] = (Instruction){ 66, "PutOwnByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[67] = (Instruction){ 67, "DelById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[68] = (Instruction){ 68, "DelByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[69] = (Instruction){ 69, "GetByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[70] = (Instruction){ 70, "PutByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[71] = (Instruction){ 71, "DelByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[72] = (Instruction){ 72, "PutOwnGetterSetterByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[73] = (Instruction){ 73, "GetPNameList", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[74] = (Instruction){ 74, "GetNextPName", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[75] = (Instruction){ 75, "Call", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[76] = (Instruction){ 76, "Construct", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[77] = (Instruction){ 77, "Call1", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[78] = (Instruction){ 78, "CallDirect", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[79] = (Instruction){ 79, "Call2", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[80] = (Instruction){ 80, "Call3", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[81] = (Instruction){ 81, "Call4", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 7 };
-    instructions[82] = (Instruction){ 82, "CallLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[83] = (Instruction){ 83, "ConstructLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[84] = (Instruction){ 84, "CallDirectLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[85] = (Instruction){ 85, "CallBuiltin", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[86] = (Instruction){ 86, "CallBuiltinLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[87] = (Instruction){ 87, "GetBuiltinClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[88] = (Instruction){ 88, "Ret", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[89] = (Instruction){ 89, "Catch", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[90] = (Instruction){ 90, "DirectEval", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[91] = (Instruction){ 91, "Throw", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[92] = (Instruction){ 92, "ThrowIfEmpty", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[93] = (Instruction){ 93, "Debugger", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[94] = (Instruction){ 94, "AsyncBreakCheck", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[95] = (Instruction){ 95, "ProfilePoint", { { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[96] = (Instruction){ 96, "CreateClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[97] = (Instruction){ 97, "CreateClosureLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[98] = (Instruction){ 98, "CreateGeneratorClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[99] = (Instruction){ 99, "CreateGeneratorClosureLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[100] = (Instruction){ 100, "CreateAsyncClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[101] = (Instruction){ 101, "CreateAsyncClosureLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[102] = (Instruction){ 102, "CreateThis", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[103] = (Instruction){ 103, "SelectObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[104] = (Instruction){ 104, "LoadParam", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[105] = (Instruction){ 105, "LoadParamLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[106] = (Instruction){ 106, "LoadConstUInt8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[107] = (Instruction){ 107, "LoadConstInt", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[108] = (Instruction){ 108, "LoadConstDouble", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_DOUBLE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 };
-    instructions[109] = (Instruction){ 109, "LoadConstString", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[110] = (Instruction){ 110, "LoadConstStringLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[111] = (Instruction){ 111, "LoadConstEmpty", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[112] = (Instruction){ 112, "LoadConstUndefined", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[113] = (Instruction){ 113, "LoadConstNull", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[114] = (Instruction){ 114, "LoadConstTrue", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[115] = (Instruction){ 115, "LoadConstFalse", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[116] = (Instruction){ 116, "LoadConstZero", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[117] = (Instruction){ 117, "CoerceThisNS", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[118] = (Instruction){ 118, "LoadThisNS", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[119] = (Instruction){ 119, "ToNumber", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[120] = (Instruction){ 120, "ToInt32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[121] = (Instruction){ 121, "AddEmptyString", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[122] = (Instruction){ 122, "GetArgumentsPropByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[123] = (Instruction){ 123, "GetArgumentsLength", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[124] = (Instruction){ 124, "ReifyArguments", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[125] = (Instruction){ 125, "CreateRegExp", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 14 };
-    instructions[126] = (Instruction){ 126, "SwitchImm", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 18 };
-    instructions[127] = (Instruction){ 127, "StartGenerator", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[128] = (Instruction){ 128, "ResumeGenerator", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[129] = (Instruction){ 129, "CompleteGenerator", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[130] = (Instruction){ 130, "CreateGenerator", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[131] = (Instruction){ 131, "CreateGeneratorLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[132] = (Instruction){ 132, "IteratorBegin", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[133] = (Instruction){ 133, "IteratorNext", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[134] = (Instruction){ 134, "IteratorClose", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[135] = (Instruction){ 135, "name", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[136] = (Instruction){ 136, "name##Long", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[137] = (Instruction){ 137, "name", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[138] = (Instruction){ 138, "name##Long", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[139] = (Instruction){ 139, "name", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[140] = (Instruction){ 140, "name##Long", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[141] = (Instruction){ 141, "Jmp", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[142] = (Instruction){ 142, "JmpLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[143] = (Instruction){ 143, "JmpTrue", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[144] = (Instruction){ 144, "JmpTrueLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[145] = (Instruction){ 145, "JmpFalse", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[146] = (Instruction){ 146, "JmpFalseLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[147] = (Instruction){ 147, "JmpUndefined", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[148] = (Instruction){ 148, "JmpUndefinedLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[149] = (Instruction){ 149, "SaveGenerator", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[150] = (Instruction){ 150, "SaveGeneratorLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[151] = (Instruction){ 151, "JLess", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[152] = (Instruction){ 152, "JLessLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[153] = (Instruction){ 153, "JNotLess", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[154] = (Instruction){ 154, "JNotLessLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[155] = (Instruction){ 155, "JLessN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[156] = (Instruction){ 156, "JLessNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[157] = (Instruction){ 157, "JNotLessN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[158] = (Instruction){ 158, "JNotLessNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[159] = (Instruction){ 159, "JLessEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[160] = (Instruction){ 160, "JLessEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[161] = (Instruction){ 161, "JNotLessEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[162] = (Instruction){ 162, "JNotLessEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[163] = (Instruction){ 163, "JLessEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[164] = (Instruction){ 164, "JLessEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[165] = (Instruction){ 165, "JNotLessEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[166] = (Instruction){ 166, "JNotLessEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[167] = (Instruction){ 167, "JGreater", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[168] = (Instruction){ 168, "JGreaterLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[169] = (Instruction){ 169, "JNotGreater", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[170] = (Instruction){ 170, "JNotGreaterLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[171] = (Instruction){ 171, "JGreaterN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[172] = (Instruction){ 172, "JGreaterNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[173] = (Instruction){ 173, "JNotGreaterN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[174] = (Instruction){ 174, "JNotGreaterNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[175] = (Instruction){ 175, "JGreaterEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[176] = (Instruction){ 176, "JGreaterEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[177] = (Instruction){ 177, "JNotGreaterEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[178] = (Instruction){ 178, "JNotGreaterEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[179] = (Instruction){ 179, "JGreaterEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[180] = (Instruction){ 180, "JGreaterEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[181] = (Instruction){ 181, "JNotGreaterEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[182] = (Instruction){ 182, "JNotGreaterEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[183] = (Instruction){ 183, "JEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[184] = (Instruction){ 184, "JEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[185] = (Instruction){ 185, "JNotEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[186] = (Instruction){ 186, "JNotEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[187] = (Instruction){ 187, "JStrictEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[188] = (Instruction){ 188, "JStrictEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[189] = (Instruction){ 189, "JStrictNotEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[190] = (Instruction){ 190, "JStrictNotEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[191] = (Instruction){ 191, "Add32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[192] = (Instruction){ 192, "Sub32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[193] = (Instruction){ 193, "Mul32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[194] = (Instruction){ 194, "Divi32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[195] = (Instruction){ 195, "Divu32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[196] = (Instruction){ 196, "Loadi8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[197] = (Instruction){ 197, "Loadu8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[198] = (Instruction){ 198, "Loadi16", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[199] = (Instruction){ 199, "Loadu16", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[200] = (Instruction){ 200, "Loadi32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[201] = (Instruction){ 201, "Loadu32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[202] = (Instruction){ 202, "Store8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[203] = (Instruction){ 203, "Store16", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[204] = (Instruction){ 204, "Store32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    if (out_count) *out_count = instruction_count;
-    return instructions;
-}
-/* v89 table auto-generated */
-static Instruction *get_instruction_set_v89(u32 *out_count) {
-    const u32 instruction_count = 256;
-    Instruction *instructions = (Instruction *)malloc (instruction_count * sizeof (Instruction));
-    if (!instructions) { if (out_count) *out_count = 0; return NULL; }
-    for (u32 i=0;i<instruction_count;i++) instructions[i] = (Instruction){ (u8)i, "Unknown", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[0] = (Instruction){ 0, "Unreachable", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[1] = (Instruction){ 1, "NewObjectWithBuffer", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 };
-    instructions[2] = (Instruction){ 2, "NewObjectWithBufferLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 14 };
-    instructions[3] = (Instruction){ 3, "NewObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[4] = (Instruction){ 4, "NewObjectWithParent", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[5] = (Instruction){ 5, "NewArrayWithBuffer", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[6] = (Instruction){ 6, "NewArrayWithBufferLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 };
-    instructions[7] = (Instruction){ 7, "NewArray", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[8] = (Instruction){ 8, "Mov", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[9] = (Instruction){ 9, "MovLong", { { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 9 };
-    instructions[10] = (Instruction){ 10, "Negate", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[11] = (Instruction){ 11, "Not", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[12] = (Instruction){ 12, "BitNot", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[13] = (Instruction){ 13, "TypeOf", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[14] = (Instruction){ 14, "Eq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[15] = (Instruction){ 15, "StrictEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[16] = (Instruction){ 16, "Neq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[17] = (Instruction){ 17, "StrictNeq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[18] = (Instruction){ 18, "Less", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[19] = (Instruction){ 19, "LessEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[20] = (Instruction){ 20, "Greater", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[21] = (Instruction){ 21, "GreaterEq", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[22] = (Instruction){ 22, "Add", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[23] = (Instruction){ 23, "AddN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[24] = (Instruction){ 24, "Mul", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[25] = (Instruction){ 25, "MulN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[26] = (Instruction){ 26, "Div", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[27] = (Instruction){ 27, "DivN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[28] = (Instruction){ 28, "Mod", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[29] = (Instruction){ 29, "Sub", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[30] = (Instruction){ 30, "SubN", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[31] = (Instruction){ 31, "LShift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[32] = (Instruction){ 32, "RShift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[33] = (Instruction){ 33, "URshift", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[34] = (Instruction){ 34, "BitAnd", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[35] = (Instruction){ 35, "BitXor", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[36] = (Instruction){ 36, "BitOr", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[37] = (Instruction){ 37, "Inc", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[38] = (Instruction){ 38, "Dec", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[39] = (Instruction){ 39, "InstanceOf", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[40] = (Instruction){ 40, "IsIn", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[41] = (Instruction){ 41, "GetEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[42] = (Instruction){ 42, "StoreToEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[43] = (Instruction){ 43, "StoreToEnvironmentL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[44] = (Instruction){ 44, "StoreNPToEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[45] = (Instruction){ 45, "StoreNPToEnvironmentL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[46] = (Instruction){ 46, "LoadFromEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[47] = (Instruction){ 47, "LoadFromEnvironmentL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[48] = (Instruction){ 48, "GetGlobalObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[49] = (Instruction){ 49, "GetNewTarget", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[50] = (Instruction){ 50, "CreateEnvironment", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[51] = (Instruction){ 51, "DeclareGlobalVar", { { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[52] = (Instruction){ 52, "GetByIdShort", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[53] = (Instruction){ 53, "GetById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[54] = (Instruction){ 54, "GetByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[55] = (Instruction){ 55, "TryGetById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[56] = (Instruction){ 56, "TryGetByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[57] = (Instruction){ 57, "PutById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[58] = (Instruction){ 58, "PutByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[59] = (Instruction){ 59, "TryPutById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[60] = (Instruction){ 60, "TryPutByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 8 };
-    instructions[61] = (Instruction){ 61, "PutNewOwnByIdShort", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[62] = (Instruction){ 62, "PutNewOwnById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[63] = (Instruction){ 63, "PutNewOwnByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[64] = (Instruction){ 64, "PutNewOwnNEById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[65] = (Instruction){ 65, "PutNewOwnNEByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[66] = (Instruction){ 66, "PutOwnByIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[67] = (Instruction){ 67, "PutOwnByIndexL", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[68] = (Instruction){ 68, "PutOwnByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[69] = (Instruction){ 69, "DelById", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[70] = (Instruction){ 70, "DelByIdLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[71] = (Instruction){ 71, "GetByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[72] = (Instruction){ 72, "PutByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[73] = (Instruction){ 73, "DelByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[74] = (Instruction){ 74, "PutOwnGetterSetterByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[75] = (Instruction){ 75, "GetPNameList", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[76] = (Instruction){ 76, "GetNextPName", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[77] = (Instruction){ 77, "Call", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[78] = (Instruction){ 78, "Construct", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[79] = (Instruction){ 79, "Call1", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[80] = (Instruction){ 80, "CallDirect", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[81] = (Instruction){ 81, "Call2", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[82] = (Instruction){ 82, "Call3", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[83] = (Instruction){ 83, "Call4", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, 7 };
-    instructions[84] = (Instruction){ 84, "CallLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[85] = (Instruction){ 85, "ConstructLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[86] = (Instruction){ 86, "CallDirectLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[87] = (Instruction){ 87, "CallBuiltin", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[88] = (Instruction){ 88, "CallBuiltinLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[89] = (Instruction){ 89, "GetBuiltinClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[90] = (Instruction){ 90, "Ret", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[91] = (Instruction){ 91, "Catch", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[92] = (Instruction){ 92, "DirectEval", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[93] = (Instruction){ 93, "Throw", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[94] = (Instruction){ 94, "ThrowIfEmpty", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[95] = (Instruction){ 95, "Debugger", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[96] = (Instruction){ 96, "AsyncBreakCheck", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[97] = (Instruction){ 97, "ProfilePoint", { { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[98] = (Instruction){ 98, "CreateClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[99] = (Instruction){ 99, "CreateClosureLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[100] = (Instruction){ 100, "CreateGeneratorClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[101] = (Instruction){ 101, "CreateGeneratorClosureLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[102] = (Instruction){ 102, "CreateAsyncClosure", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[103] = (Instruction){ 103, "CreateAsyncClosureLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[104] = (Instruction){ 104, "CreateThis", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[105] = (Instruction){ 105, "SelectObject", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[106] = (Instruction){ 106, "LoadParam", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[107] = (Instruction){ 107, "LoadParamLong", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[108] = (Instruction){ 108, "LoadConstUInt8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[109] = (Instruction){ 109, "LoadConstInt", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[110] = (Instruction){ 110, "LoadConstDouble", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_DOUBLE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 };
-    instructions[111] = (Instruction){ 111, "LoadConstBigInt", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[112] = (Instruction){ 112, "LoadConstBigIntLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[113] = (Instruction){ 113, "LoadConstString", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[114] = (Instruction){ 114, "LoadConstStringLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[115] = (Instruction){ 115, "LoadConstEmpty", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[116] = (Instruction){ 116, "LoadConstUndefined", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[117] = (Instruction){ 117, "LoadConstNull", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[118] = (Instruction){ 118, "LoadConstTrue", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[119] = (Instruction){ 119, "LoadConstFalse", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[120] = (Instruction){ 120, "LoadConstZero", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[121] = (Instruction){ 121, "CoerceThisNS", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[122] = (Instruction){ 122, "LoadThisNS", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[123] = (Instruction){ 123, "ToNumber", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[124] = (Instruction){ 124, "ToNumeric", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[125] = (Instruction){ 125, "ToInt32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[126] = (Instruction){ 126, "AddEmptyString", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[127] = (Instruction){ 127, "GetArgumentsPropByVal", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[128] = (Instruction){ 128, "GetArgumentsLength", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[129] = (Instruction){ 129, "ReifyArguments", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[130] = (Instruction){ 130, "CreateRegExp", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 14 };
-    instructions[131] = (Instruction){ 131, "SwitchImm", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 18 };
-    instructions[132] = (Instruction){ 132, "StartGenerator", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[133] = (Instruction){ 133, "ResumeGenerator", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[134] = (Instruction){ 134, "CompleteGenerator", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 };
-    instructions[135] = (Instruction){ 135, "CreateGenerator", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[136] = (Instruction){ 136, "CreateGeneratorLongIndex", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[137] = (Instruction){ 137, "IteratorBegin", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[138] = (Instruction){ 138, "IteratorNext", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[139] = (Instruction){ 139, "IteratorClose", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[140] = (Instruction){ 140, "name", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[141] = (Instruction){ 141, "name##Long", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[142] = (Instruction){ 142, "name", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[143] = (Instruction){ 143, "name##Long", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[144] = (Instruction){ 144, "name", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[145] = (Instruction){ 145, "name##Long", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[146] = (Instruction){ 146, "Jmp", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[147] = (Instruction){ 147, "JmpLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[148] = (Instruction){ 148, "JmpTrue", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[149] = (Instruction){ 149, "JmpTrueLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[150] = (Instruction){ 150, "JmpFalse", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[151] = (Instruction){ 151, "JmpFalseLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[152] = (Instruction){ 152, "JmpUndefined", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 3 };
-    instructions[153] = (Instruction){ 153, "JmpUndefinedLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 6 };
-    instructions[154] = (Instruction){ 154, "SaveGenerator", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 2 };
-    instructions[155] = (Instruction){ 155, "SaveGeneratorLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 5 };
-    instructions[156] = (Instruction){ 156, "JLess", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[157] = (Instruction){ 157, "JLessLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[158] = (Instruction){ 158, "JNotLess", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[159] = (Instruction){ 159, "JNotLessLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[160] = (Instruction){ 160, "JLessN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[161] = (Instruction){ 161, "JLessNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[162] = (Instruction){ 162, "JNotLessN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[163] = (Instruction){ 163, "JNotLessNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[164] = (Instruction){ 164, "JLessEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[165] = (Instruction){ 165, "JLessEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[166] = (Instruction){ 166, "JNotLessEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[167] = (Instruction){ 167, "JNotLessEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[168] = (Instruction){ 168, "JLessEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[169] = (Instruction){ 169, "JLessEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[170] = (Instruction){ 170, "JNotLessEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[171] = (Instruction){ 171, "JNotLessEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[172] = (Instruction){ 172, "JGreater", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[173] = (Instruction){ 173, "JGreaterLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[174] = (Instruction){ 174, "JNotGreater", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[175] = (Instruction){ 175, "JNotGreaterLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[176] = (Instruction){ 176, "JGreaterN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[177] = (Instruction){ 177, "JGreaterNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[178] = (Instruction){ 178, "JNotGreaterN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[179] = (Instruction){ 179, "JNotGreaterNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[180] = (Instruction){ 180, "JGreaterEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[181] = (Instruction){ 181, "JGreaterEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[182] = (Instruction){ 182, "JNotGreaterEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[183] = (Instruction){ 183, "JNotGreaterEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[184] = (Instruction){ 184, "JGreaterEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[185] = (Instruction){ 185, "JGreaterEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[186] = (Instruction){ 186, "JNotGreaterEqualN", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[187] = (Instruction){ 187, "JNotGreaterEqualNLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[188] = (Instruction){ 188, "JEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[189] = (Instruction){ 189, "JEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[190] = (Instruction){ 190, "JNotEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[191] = (Instruction){ 191, "JNotEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[192] = (Instruction){ 192, "JStrictEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[193] = (Instruction){ 193, "JStrictEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[194] = (Instruction){ 194, "JStrictNotEqual", { { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[195] = (Instruction){ 195, "JStrictNotEqualLong", { { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 7 };
-    instructions[196] = (Instruction){ 196, "Add32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[197] = (Instruction){ 197, "Sub32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[198] = (Instruction){ 198, "Mul32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[199] = (Instruction){ 199, "Divi32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[200] = (Instruction){ 200, "Divu32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[201] = (Instruction){ 201, "Loadi8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[202] = (Instruction){ 202, "Loadu8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[203] = (Instruction){ 203, "Loadi16", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[204] = (Instruction){ 204, "Loadu16", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[205] = (Instruction){ 205, "Loadi32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[206] = (Instruction){ 206, "Loadu32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[207] = (Instruction){ 207, "Store8", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[208] = (Instruction){ 208, "Store16", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    instructions[209] = (Instruction){ 209, "Store32", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 4 };
-    if (out_count) *out_count = instruction_count;
-    return instructions;
-}
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version) {
 	u32 count;
@@ -2260,12 +1991,6 @@ HBCISA hbc_isa_getv(int version) {
 	switch (version) {
 	case 90:
 		result = get_instruction_set_v90 (&count);
-		break;
-	case 89:
-		result = get_instruction_set_v89 (&count);
-		break;
-	case 84:
-		result = get_instruction_set_v84 (&count);
 		break;
 	case 91:
 		result = get_instruction_set_v91 (&count);
