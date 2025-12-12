@@ -1,11 +1,7 @@
 /* radare2 - LGPL - Copyright 2025 - libhbc */
 
 #include <r_bin.h>
-#include <r_lib.h>
-
-// Include hermesdec headers
 #include <hbc/hbc.h>
-#include <hbc/common.h>
 
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL
 
@@ -57,13 +53,30 @@ static ut64 get_entrypoint_from_file(const char *file_path) {
 	return entrypoint;
 }
 
+static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut32 version) {
+	ret->file = file_path? strdup (file_path): NULL;
+	ret->bclass = strdup ("Hermes bytecode");
+	ret->rclass = strdup ("hermes");
+	ret->arch = strdup ("hbc");
+	ret->os = strdup ("any");
+	ret->bits = 32; // Hermes bytecode is typically 32-bit
+
+	if (has_version) {
+		ret->type = r_str_newf ("Hermes bytecode v%u", version);
+		ret->machine = r_str_newf ("Hermes VM v%u", version);
+		ret->cpu = r_str_newf ("%u", version);
+	} else {
+		ret->type = strdup ("Hermes bytecode");
+		ret->machine = strdup ("Hermes VM");
+		ret->cpu = strdup ("unknown");
+	}
+}
+
 static RBinInfo *info(RBinFile *bf) {
 	RBinInfo *ret = R_NEW0 (RBinInfo);
-	if (!ret) {
-		return NULL;
-	}
+	bool has_version = false;
+	ut32 version = 0;
 
-	// Try to use the hermesdec library to parse the file
 	if (bf->file) {
 		HBCState *hd = NULL;
 		Result result = hbc_open (bf->file, &hd);
@@ -71,54 +84,23 @@ static RBinInfo *info(RBinFile *bf) {
 			HBCHeader hh;
 			result = hbc_get_header (hd, &hh);
 			if (result.code == RESULT_SUCCESS) {
-				ret->file = strdup (bf->file);
-				ret->type = r_str_newf ("Hermes bytecode v%d", hh.version);
-				ret->bclass = strdup ("Hermes bytecode");
-				ret->rclass = strdup ("hermes");
-				ret->arch = strdup ("hermes");
-				ret->machine = r_str_newf ("Hermes VM v%d", hh.version);
-				ret->os = strdup ("any");
-				ret->bits = 32; // Hermes bytecode is typically 32-bit
-				ret->cpu = r_str_newf ("%d", hh.version);
-				hbc_close (hd);
-				return ret;
+				has_version = true;
+				version = hh.version;
 			}
 			hbc_close (hd);
 		}
 	}
 
-	// Fallback to manual parsing
-	if (r_buf_size (bf->buf) >= 32) {
+	if (!has_version && r_buf_size (bf->buf) >= 32) {
 		ut64 magic;
-		ut32 version;
 		r_buf_read_at (bf->buf, 0, (ut8 *)&magic, sizeof (magic));
-		r_buf_read_at (bf->buf, 8, (ut8 *)&version, sizeof (version));
-
 		if (magic == HEADER_MAGIC) {
-			ret->file = strdup (bf->file);
-			ret->type = r_str_newf ("Hermes bytecode v%d", version);
-			ret->bclass = strdup ("Hermes bytecode");
-			ret->rclass = strdup ("hermes");
-			ret->arch = strdup ("hermes");
-			ret->machine = r_str_newf ("Hermes VM v%d", version);
-			ret->os = strdup ("any");
-			ret->bits = 32;
-			ret->cpu = r_str_newf ("%d", version);
-			return ret;
+			r_buf_read_at (bf->buf, 8, (ut8 *)&version, sizeof (version));
+			has_version = true;
 		}
 	}
 
-	// Fallback
-	ret->file = strdup (bf->file);
-	ret->type = strdup ("Hermes bytecode");
-	ret->bclass = strdup ("Hermes bytecode");
-	ret->rclass = strdup ("hermes");
-	ret->arch = strdup ("hermes");
-	ret->machine = strdup ("Hermes VM");
-	ret->os = strdup ("any");
-	ret->bits = 32;
-	ret->cpu = strdup ("unknown");
-
+	fill_info (ret, bf->file, has_version, version);
 	return ret;
 }
 
@@ -130,15 +112,13 @@ static RList *sections(RBinFile *bf) {
 
 	// For now, create a basic section for the entire file
 	RBinSection *section = R_NEW0 (RBinSection);
-	if (section) {
-		section->name = strdup ("hermes_bytecode");
-		section->size = r_buf_size (bf->buf);
-		section->vsize = section->size;
-		section->paddr = 0;
-		section->vaddr = 0;
-		section->perm = R_PERM_R;
-		r_list_append (sections, section);
-	}
+	section->name = strdup ("hermes_bytecode");
+	section->size = r_buf_size (bf->buf);
+	section->vsize = section->size;
+	section->paddr = 0;
+	section->vaddr = 0;
+	section->perm = R_PERM_R;
+	r_list_append (sections, section);
 
 	return sections;
 }
@@ -175,11 +155,6 @@ static RList *entries(RBinFile *bf) {
 	}
 
 	RBinAddr *addr = R_NEW0 (RBinAddr);
-	if (!addr) {
-		r_list_free (entries);
-		return NULL;
-	}
-
 	ut64 entrypoint = 0;
 
 	// First, try to find MainAppContent symbol
@@ -283,10 +258,6 @@ static RList *symbols(RBinFile *bf) {
 				Result func_result = hbc_get_function_info (hd, i, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
 					RBinSymbol *symbol = R_NEW0 (RBinSymbol);
-					if (!symbol) {
-						break;
-					}
-
 					/* Build a unique, sanitized name: [container__]base + _0x<offset> */
 					const char *base = (fi.name && *fi.name)? fi.name: NULL;
 					char *tmpbase = NULL;
@@ -356,10 +327,6 @@ static RList *strings(RBinFile *bf) {
 					Result meta_result = hbc_get_string_meta (hd, i, &meta);
 					if (meta_result.code == RESULT_SUCCESS) {
 						RBinString *ptr = R_NEW0 (RBinString);
-						if (!ptr) {
-							break;
-						}
-
 						size_t str_len = strlen (str);
 						if (str_len > 0 && str_len < R_BIN_SIZEOF_STRINGS) {
 							ptr->string = strdup (str);
