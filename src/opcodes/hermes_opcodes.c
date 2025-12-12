@@ -22,25 +22,16 @@ static const HBCISA k_isa_v96 = { .count = 256, .instructions = k_instructions_v
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version) {
 	switch (version) {
-	case 90:
-		return k_isa_v90;
-	case 89:
-		return k_isa_v89;
-	case 84:
-		return k_isa_v84;
-	case 91:
-	case 92:
-		return k_isa_v90;
-	case 93:
-		return k_isa_v93;
-	case 94:
-		return k_isa_v94;
-	case 95:
-		return k_isa_v95;
-	case 96:
-		return k_isa_v96;
-	case 76:
-		return k_isa_v76;
+	case 76: return k_isa_v76;
+	case 84: return k_isa_v84;
+	case 89: return k_isa_v89;
+	case 90: return k_isa_v90;
+	case 91: return k_isa_v90;
+	case 92: return k_isa_v90;
+	case 93: return k_isa_v93;
+	case 94: return k_isa_v94;
+	case 95: return k_isa_v95;
+	case 96: return k_isa_v96;
 	default:
 		if (version >= 72 && version < 90) {
 			return k_isa_v90;
