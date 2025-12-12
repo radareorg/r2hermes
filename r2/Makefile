@@ -1,5 +1,5 @@
 # Makefile for Hermes radare2 plugins
-# Standalone build system for hermesdec radare2 plugins
+# Standalone build system for the Hermes Bytecode radare2 plugins
 
 # Compiler and flags
 CC ?= gcc
@@ -27,16 +27,16 @@ else
 endif
 
 # Source files
-ARCH_SRC = arch_hermes.c
-BIN_SRC = bin_hermes.c
+ARCH_SRC = arch_hbc.c
+BIN_SRC = bin_hbc.c
 
 # Object files
-ARCH_OBJ = arch_hermes.o
-BIN_OBJ = bin_hermes.o
+ARCH_OBJ = arch_hbc.o
+BIN_OBJ = bin_hbc.o
 
 # Target plugins
-ARCH_PLUGIN = arch_hermes.$(EXT_SO)
-BIN_PLUGIN = bin_hermes.$(EXT_SO)
+ARCH_PLUGIN = arch_hbc.$(EXT_SO)
+BIN_PLUGIN = bin_hbc.$(EXT_SO)
 
 # Library paths
 HERMES_LIB_DIR = ../build
@@ -86,7 +86,7 @@ install: $(ALL_TARGETS)
 
 user-install:
 	mkdir -p $(R2_PLUGDIR)
-	rm -f $(R2_PLUGDIR)/*hermes.$(EXT_SO)
+	rm -f $(R2_PLUGDIR)/*hbc.$(EXT_SO)
 	cp -f $(ARCH_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(BIN_PLUGIN) $(R2_PLUGDIR)
 
@@ -143,13 +143,13 @@ help:
 	@echo "  make uninstall R2_PLUGDIR=/path/to/r2/plugins # Remove plugins"
 	@echo ""
 	@echo "Requirements:"
-	@echo "  - hermesdec library (built automatically)"
+	@echo "  - libhbc (built automatically)"
 	@echo "  - radare2 development headers (for proper compilation)"
 	@echo "  - radare2 installation (for plugin loading)"
 
 # Dependencies
 $(HERMES_LIB):
-	@echo "Building hermesdec library..."
+	@echo "Building libhbc library..."
 	$(MAKE) -C .. all
 
 # Default target

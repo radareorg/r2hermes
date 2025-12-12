@@ -70,12 +70,12 @@ Lifetimes and ownership:
 - Opcode tables (`include/opcodes/*.h`, `src/opcodes/*.c`)
   - `get_instruction_set_v96()` returns a 256‑entry table. Many opcodes are defined; unknowns default to size 1 with name "Unknown".
   - Operand type/meaning drive disassembly formatting and encode/decode.
-- Disassembler (`include/disassembly/*`, `src/disassembly/*`)
+- Disassembler (`include/disassembly/*`, `src/decoder.c`)
   - Renders either structured listing or `--asmsyntax` mnemonic form with absolute addresses.
 - Decompiler (`include/decompilation/*`, `src/decompilation/*`)
   - Multi‑pass structure reconstruction. Formatting controls in `literals.h`:
     - `set_literals_pretty_policy()`, `set_decompile_suppress_comments()`.
-- Encoder (`include/hermes_encoder.h`, `src/hermes_encoder.c`)
+- Encoder (`include/hermes_encoder.h`, `src/encoder.c`)
   - Minimal assembler for common mnemonics; used by radare2 plugin.
 
 **Coding Conventions**
@@ -126,4 +126,3 @@ Lifetimes and ownership:
 - The encoder is intentionally minimal; if you expand mnemonics, ensure size/operand encoding matches the disassembler’s view.
 
 This file applies to the entire repo. When editing, stay focused and minimal: prefer surgical changes and preserve the current structure.
-
