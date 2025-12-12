@@ -25,12 +25,12 @@ typedef struct {
 	u64 string_storage_offset;
 } HermesArchSession;
 
-// Forward declarations
-static ut32 hermes_detect_version_from_bin(RArchSession *s);
-static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s);
-static Instruction *hermes_get_instruction_set_by_version(ut32 version, ut32 *out_count);
+/* Forward declarations */
+static ut32 detect_version_from_bin(RArchSession *s);
+static bool load_string_tables(HermesArchSession *hs, RArchSession *s);
+static Instruction *get_instruction_set_by_version(ut32 version, ut32 *out_count);
 
-static ut32 hermes_detect_version_from_bin(RArchSession *s) {
+static ut32 detect_version_from_bin(RArchSession *s) {
 	if (!s || !s->arch || !s->arch->binb.bin) {
 		return 96; /* sane default */
 	}
@@ -51,7 +51,7 @@ static ut32 hermes_detect_version_from_bin(RArchSession *s) {
 	return 96;
 }
 
-static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
+static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	if (!hs || !s || !s->arch || !s->arch->binb.bin) {
 		return false;
 	}
@@ -97,7 +97,7 @@ static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	return true;
 }
 
-static Instruction *hermes_get_instruction_set_by_version(ut32 version, ut32 *out_count) {
+static Instruction *get_instruction_set_by_version(ut32 version, ut32 *out_count) {
 	HBCISA isa = hbc_isa_getv (version);
 	if (out_count) {
 		*out_count = isa.count;
@@ -105,7 +105,7 @@ static Instruction *hermes_get_instruction_set_by_version(ut32 version, ut32 *ou
 	return isa.instructions;
 }
 
-static bool hermes_opcode_is_conditional(u8 opcode) {
+static bool opcode_is_conditional(u8 opcode) {
 	switch (opcode) {
 	case OP_JmpTrue:
 	case OP_JmpTrueLong:
@@ -124,10 +124,9 @@ static bool hermes_opcode_is_conditional(u8 opcode) {
 	return false;
 }
 
-static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
-	// Get instruction set for the detected version
+static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
 	ut32 count;
-	Instruction *inst_set = hermes_get_instruction_set_by_version (hs->bytecode_version, &count);
+	Instruction *inst_set = get_instruction_set_by_version (hs->bytecode_version, &count);
 	if (!inst_set || opcode >= count) {
 		return;
 	}
@@ -206,7 +205,7 @@ static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut3
 	}
 }
 
-static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
+static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	R_RETURN_VAL_IF_FAIL (s && op, false);
 	(void)mask;
 
@@ -220,221 +219,214 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	}
 
 	if (!hs->bytecode_version) {
-		hs->bytecode_version = hermes_detect_version_from_bin (s);
+		hs->bytecode_version = detect_version_from_bin (s);
 	}
 
 	/* Load string tables if not already loaded */
 	if (!hs->hd) {
-		hermes_load_string_tables (hs, s);
+		load_string_tables (hs, s);
 	}
 
-	/* Decode from the provided bytes directly (no preloading/scanning). */
-	char *text = NULL;
-	u32 size = 0;
-	u8 opcode = 0;
-	bool is_jump = false, is_call = false;
-	u64 jmp = 0;
-	size_t buflen = MAX_OP_SIZE; /* Radare2 provides at least this in op->bytes */
-	HBCStringTables ctx = { .string_count = hs->string_count, .small_string_table = hs->small_string_table, .overflow_string_table = hs->overflow_string_table, .string_storage_offset = hs->string_storage_offset };
-	HBCSingleInstructionInfo sinfo; /* unified alias for single-instruction info */
-	Result rr = hbc_decode_single_instruction (
-		op->bytes,
-		buflen,
-		hs->bytecode_version,
-		op->addr,
-		true /* asm syntax */,
-		true /* resolve_string_ids */,
-		&ctx,
-		&sinfo);
-	if (rr.code != RESULT_SUCCESS) {
+	/* Build decode context */
+	HBCStringTables string_tables = {
+		.string_count = hs->string_count,
+		.small_string_table = hs->small_string_table,
+		.overflow_string_table = hs->overflow_string_table,
+		.string_storage_offset = hs->string_storage_offset
+	};
+	HBCDecodeContext ctx = {
+		.bytes = op->bytes,
+		.len = MAX_OP_SIZE,
+		.pc = op->addr,
+		.bytecode_version = hs->bytecode_version,
+		.asm_syntax = true,
+		.resolve_string_ids = true,
+		.string_tables = &string_tables
+	};
+
+	HBCSingleInstructionInfo sinfo;
+	if (hbc_decode (&ctx, &sinfo).code != RESULT_SUCCESS) {
 		return false;
 	}
 
-	text = sinfo.text;
-	size = sinfo.size;
-	opcode = sinfo.opcode;
-	is_jump = sinfo.is_jump;
-	is_call = sinfo.is_call;
-	jmp = sinfo.jump_target;
-
-	op->mnemonic = text? text: strdup ("unk");
-	op->size = size? size: 1;
+	op->mnemonic = sinfo.text? sinfo.text: strdup ("unk");
+	op->size = sinfo.size? sinfo.size: 1;
 	op->type = R_ANAL_OP_TYPE_UNK;
 	op->family = R_ANAL_OP_FAMILY_CPU;
 
-	// Parse operands and set ptr for string/function references
-	hermes_parse_operands_and_set_ptr (op, op->bytes, op->size, opcode, hs);
+	/* Parse operands and set ptr for string/function references */
+	parse_operands_and_set_ptr (op, op->bytes, op->size, sinfo.opcode, hs);
 
-	if (opcode == OP_Ret) {
+	if (sinfo.opcode == OP_Ret) {
 		op->type = R_ANAL_OP_TYPE_RET;
 		return true;
 	}
 
-	if (hermes_opcode_is_conditional (opcode)) {
+	if (opcode_is_conditional (sinfo.opcode)) {
 		op->type = R_ANAL_OP_TYPE_CJMP;
-		op->jump = jmp; /* taken */
-		op->fail = op->addr + op->size; /* fall-through */
-		return true;
-	}
-	if (is_jump) {
-		op->type = R_ANAL_OP_TYPE_JMP;
-	}
-
-	if (opcode == OP_Jmp || opcode == OP_JmpLong) {
-		op->type = R_ANAL_OP_TYPE_JMP;
-		op->jump = jmp;
+		op->jump = sinfo.jump_target;
+		op->fail = op->addr + op->size;
 		return true;
 	}
 
-	if (is_call) {
+	if (sinfo.is_jump) {
+		op->type = R_ANAL_OP_TYPE_JMP;
+	}
+
+	if (sinfo.opcode == OP_Jmp || sinfo.opcode == OP_JmpLong) {
+		op->type = R_ANAL_OP_TYPE_JMP;
+		op->jump = sinfo.jump_target;
+		return true;
+	}
+
+	if (sinfo.is_call) {
 		op->type = R_ANAL_OP_TYPE_CALL;
-		op->jump = jmp; /* if resolvable */
-		op->fail = op->addr + op->size; /* returns here */
+		op->jump = sinfo.jump_target;
+		op->fail = op->addr + op->size;
 		return true;
 	}
 
-	// Arithmetic operations
-	if (opcode == OP_Add || opcode == OP_AddN || opcode == OP_Add32 ||
-		opcode == OP_AddEmptyString) {
+	/* Classify opcode type */
+	u8 opc = sinfo.opcode;
+
+	/* Arithmetic operations */
+	if (opc == OP_Add || opc == OP_AddN || opc == OP_Add32 || opc == OP_AddEmptyString) {
 		op->type = R_ANAL_OP_TYPE_ADD;
-	} else if (opcode == OP_Sub || opcode == OP_SubN || opcode == OP_Sub32) {
+	} else if (opc == OP_Sub || opc == OP_SubN || opc == OP_Sub32) {
 		op->type = R_ANAL_OP_TYPE_SUB;
-	} else if (opcode == OP_Mul || opcode == OP_MulN || opcode == OP_Mul32) {
+	} else if (opc == OP_Mul || opc == OP_MulN || opc == OP_Mul32) {
 		op->type = R_ANAL_OP_TYPE_MUL;
-	} else if (opcode == OP_Div || opcode == OP_DivN || opcode == OP_Divi32 || opcode == OP_Divu32) {
+	} else if (opc == OP_Div || opc == OP_DivN || opc == OP_Divi32 || opc == OP_Divu32) {
 		op->type = R_ANAL_OP_TYPE_DIV;
-	} else if (opcode == OP_Mod) {
+	} else if (opc == OP_Mod) {
 		op->type = R_ANAL_OP_TYPE_MOD;
 	}
-	// Bitwise operations
-	else if (opcode == OP_BitAnd) {
+	/* Bitwise operations */
+	else if (opc == OP_BitAnd) {
 		op->type = R_ANAL_OP_TYPE_AND;
-	} else if (opcode == OP_BitOr) {
+	} else if (opc == OP_BitOr) {
 		op->type = R_ANAL_OP_TYPE_OR;
-	} else if (opcode == OP_BitXor) {
+	} else if (opc == OP_BitXor) {
 		op->type = R_ANAL_OP_TYPE_XOR;
-	} else if (opcode == OP_BitNot || opcode == OP_Not) {
+	} else if (opc == OP_BitNot || opc == OP_Not) {
 		op->type = R_ANAL_OP_TYPE_NOT;
-	} else if (opcode == OP_LShift) {
+	} else if (opc == OP_LShift) {
 		op->type = R_ANAL_OP_TYPE_SHL;
-	} else if (opcode == OP_RShift) {
-		op->type = R_ANAL_OP_TYPE_SHR;
-	} else if (opcode == OP_URshift) {
+	} else if (opc == OP_RShift || opc == OP_URshift) {
 		op->type = R_ANAL_OP_TYPE_SHR;
 	}
-	// Move operations
-	else if (opcode == OP_Mov || opcode == OP_MovLong) {
+	/* Move operations */
+	else if (opc == OP_Mov || opc == OP_MovLong) {
 		op->type = R_ANAL_OP_TYPE_MOV;
 	}
-	// Increment/Decrement
-	else if (opcode == OP_Inc) {
+	/* Increment/Decrement */
+	else if (opc == OP_Inc) {
 		op->type = R_ANAL_OP_TYPE_ADD;
-	} else if (opcode == OP_Dec) {
+	} else if (opc == OP_Dec) {
 		op->type = R_ANAL_OP_TYPE_SUB;
 	}
-	// Unary operations
-	else if (opcode == OP_Negate) {
+	/* Unary operations */
+	else if (opc == OP_Negate) {
 		op->type = R_ANAL_OP_TYPE_NOT;
 	}
-	// Load operations
-	else if (opcode == OP_Loadi8 || opcode == OP_Loadu8 || opcode == OP_Loadi16 ||
-		opcode == OP_Loadu16 || opcode == OP_Loadi32 || opcode == OP_Loadu32 ||
-		opcode == OP_GetById || opcode == OP_GetByIdLong || opcode == OP_GetByIdShort ||
-		opcode == OP_GetByVal || opcode == OP_TryGetById || opcode == OP_TryGetByIdLong ||
-		opcode == OP_LoadFromEnvironment || opcode == OP_LoadFromEnvironmentL ||
-		opcode == OP_GetEnvironment || opcode == OP_LoadParam || opcode == OP_LoadParamLong ||
-		opcode == OP_LoadConstUInt8 || opcode == OP_LoadConstInt ||
-		opcode == OP_LoadConstDouble || opcode == OP_LoadConstBigInt ||
-		opcode == OP_LoadConstBigIntLongIndex || opcode == OP_LoadConstString ||
-		opcode == OP_LoadConstStringLongIndex || opcode == OP_LoadConstEmpty ||
-		opcode == OP_LoadConstUndefined || opcode == OP_LoadConstNull ||
-		opcode == OP_LoadConstTrue || opcode == OP_LoadConstFalse ||
-		opcode == OP_LoadConstZero || opcode == OP_LoadThisNS ||
-		opcode == OP_GetBuiltinClosure || opcode == OP_GetGlobalObject ||
-		opcode == OP_GetNewTarget || opcode == OP_GetArgumentsPropByVal ||
-		opcode == OP_GetArgumentsLength || opcode == OP_GetPNameList ||
-		opcode == OP_GetNextPName) {
+	/* Load operations */
+	else if (opc == OP_Loadi8 || opc == OP_Loadu8 || opc == OP_Loadi16 ||
+		opc == OP_Loadu16 || opc == OP_Loadi32 || opc == OP_Loadu32 ||
+		opc == OP_GetById || opc == OP_GetByIdLong || opc == OP_GetByIdShort ||
+		opc == OP_GetByVal || opc == OP_TryGetById || opc == OP_TryGetByIdLong ||
+		opc == OP_LoadFromEnvironment || opc == OP_LoadFromEnvironmentL ||
+		opc == OP_GetEnvironment || opc == OP_LoadParam || opc == OP_LoadParamLong ||
+		opc == OP_LoadConstUInt8 || opc == OP_LoadConstInt ||
+		opc == OP_LoadConstDouble || opc == OP_LoadConstBigInt ||
+		opc == OP_LoadConstBigIntLongIndex || opc == OP_LoadConstString ||
+		opc == OP_LoadConstStringLongIndex || opc == OP_LoadConstEmpty ||
+		opc == OP_LoadConstUndefined || opc == OP_LoadConstNull ||
+		opc == OP_LoadConstTrue || opc == OP_LoadConstFalse ||
+		opc == OP_LoadConstZero || opc == OP_LoadThisNS ||
+		opc == OP_GetBuiltinClosure || opc == OP_GetGlobalObject ||
+		opc == OP_GetNewTarget || opc == OP_GetArgumentsPropByVal ||
+		opc == OP_GetArgumentsLength || opc == OP_GetPNameList ||
+		opc == OP_GetNextPName) {
 		op->type = R_ANAL_OP_TYPE_LOAD;
 	}
-	// Store operations
-	else if (opcode == OP_Store8 || opcode == OP_Store16 || opcode == OP_Store32 ||
-		opcode == OP_PutById || opcode == OP_PutByIdLong ||
-		opcode == OP_PutByVal || opcode == OP_TryPutById || opcode == OP_TryPutByIdLong ||
-		opcode == OP_PutNewOwnById || opcode == OP_PutNewOwnByIdLong ||
-		opcode == OP_PutNewOwnByIdShort || opcode == OP_PutNewOwnNEById ||
-		opcode == OP_PutNewOwnNEByIdLong || opcode == OP_PutOwnByIndex ||
-		opcode == OP_PutOwnByIndexL || opcode == OP_PutOwnByVal ||
-		opcode == OP_PutOwnGetterSetterByVal ||
-		opcode == OP_StoreToEnvironment || opcode == OP_StoreToEnvironmentL ||
-		opcode == OP_StoreNPToEnvironment || opcode == OP_StoreNPToEnvironmentL) {
+	/* Store operations */
+	else if (opc == OP_Store8 || opc == OP_Store16 || opc == OP_Store32 ||
+		opc == OP_PutById || opc == OP_PutByIdLong ||
+		opc == OP_PutByVal || opc == OP_TryPutById || opc == OP_TryPutByIdLong ||
+		opc == OP_PutNewOwnById || opc == OP_PutNewOwnByIdLong ||
+		opc == OP_PutNewOwnByIdShort || opc == OP_PutNewOwnNEById ||
+		opc == OP_PutNewOwnNEByIdLong || opc == OP_PutOwnByIndex ||
+		opc == OP_PutOwnByIndexL || opc == OP_PutOwnByVal ||
+		opc == OP_PutOwnGetterSetterByVal ||
+		opc == OP_StoreToEnvironment || opc == OP_StoreToEnvironmentL ||
+		opc == OP_StoreNPToEnvironment || opc == OP_StoreNPToEnvironmentL) {
 		op->type = R_ANAL_OP_TYPE_STORE;
 	}
-	// Comparison operations
-	else if (opcode == OP_Eq || opcode == OP_StrictEq || opcode == OP_Neq ||
-		opcode == OP_StrictNeq || opcode == OP_Less || opcode == OP_Greater ||
-		opcode == OP_LessEq || opcode == OP_GreaterEq || opcode == OP_IsIn ||
-		opcode == OP_InstanceOf || opcode == OP_TypeOf) {
+	/* Comparison operations */
+	else if (opc == OP_Eq || opc == OP_StrictEq || opc == OP_Neq ||
+		opc == OP_StrictNeq || opc == OP_Less || opc == OP_Greater ||
+		opc == OP_LessEq || opc == OP_GreaterEq || opc == OP_IsIn ||
+		opc == OP_InstanceOf || opc == OP_TypeOf) {
 		op->type = R_ANAL_OP_TYPE_CMP;
 	}
-	// Object/Array creation
-	else if (opcode == OP_NewObject || opcode == OP_NewObjectWithParent ||
-		opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
-		opcode == OP_NewArray || opcode == OP_NewArrayWithBuffer ||
-		opcode == OP_NewArrayWithBufferLong || opcode == OP_CreateClosure ||
-		opcode == OP_CreateClosureLongIndex || opcode == OP_CreateGeneratorClosure ||
-		opcode == OP_CreateGeneratorClosureLongIndex || opcode == OP_CreateAsyncClosure ||
-		opcode == OP_CreateAsyncClosureLongIndex || opcode == OP_CreateGenerator ||
-		opcode == OP_CreateGeneratorLongIndex || opcode == OP_CreateThis ||
-		opcode == OP_CreateRegExp) {
+	/* Object/Array creation */
+	else if (opc == OP_NewObject || opc == OP_NewObjectWithParent ||
+		opc == OP_NewObjectWithBuffer || opc == OP_NewObjectWithBufferLong ||
+		opc == OP_NewArray || opc == OP_NewArrayWithBuffer ||
+		opc == OP_NewArrayWithBufferLong || opc == OP_CreateClosure ||
+		opc == OP_CreateClosureLongIndex || opc == OP_CreateGeneratorClosure ||
+		opc == OP_CreateGeneratorClosureLongIndex || opc == OP_CreateAsyncClosure ||
+		opc == OP_CreateAsyncClosureLongIndex || opc == OP_CreateGenerator ||
+		opc == OP_CreateGeneratorLongIndex || opc == OP_CreateThis ||
+		opc == OP_CreateRegExp) {
 		op->type = R_ANAL_OP_TYPE_NEW;
 	}
-	// Type conversion operations
-	else if (opcode == OP_ToNumber || opcode == OP_ToNumeric || opcode == OP_ToInt32 ||
-		opcode == OP_CoerceThisNS) {
+	/* Type conversion operations */
+	else if (opc == OP_ToNumber || opc == OP_ToNumeric || opc == OP_ToInt32 ||
+		opc == OP_CoerceThisNS) {
 		op->type = R_ANAL_OP_TYPE_CAST;
 	}
-	// Switch operations
-	else if (opcode == OP_SwitchImm) {
+	/* Switch operations */
+	else if (opc == OP_SwitchImm) {
 		op->type = R_ANAL_OP_TYPE_SWITCH;
 	}
-	// Iterator operations
-	else if (opcode == OP_IteratorBegin || opcode == OP_IteratorNext || opcode == OP_IteratorClose) {
-		op->type = R_ANAL_OP_TYPE_LOAD; // Iterator operations involve loading values
+	/* Iterator operations */
+	else if (opc == OP_IteratorBegin || opc == OP_IteratorNext || opc == OP_IteratorClose) {
+		op->type = R_ANAL_OP_TYPE_LOAD;
 	}
-	// Environment operations
-	else if (opcode == OP_CreateEnvironment || opcode == OP_CreateInnerEnvironment ||
-		opcode == OP_DeclareGlobalVar || opcode == OP_ThrowIfHasRestrictedGlobalProperty) {
-		op->type = R_ANAL_OP_TYPE_STORE; // Environment setup involves storing
+	/* Environment operations */
+	else if (opc == OP_CreateEnvironment || opc == OP_CreateInnerEnvironment ||
+		opc == OP_DeclareGlobalVar || opc == OP_ThrowIfHasRestrictedGlobalProperty) {
+		op->type = R_ANAL_OP_TYPE_STORE;
 	}
-	// Special operations
-	else if (opcode == OP_Unreachable) {
+	/* Special operations */
+	else if (opc == OP_Unreachable) {
 		op->type = R_ANAL_OP_TYPE_ILL;
-	} else if (opcode == OP_Throw || opcode == OP_ThrowIfEmpty) {
+	} else if (opc == OP_Throw || opc == OP_ThrowIfEmpty) {
 		op->type = R_ANAL_OP_TYPE_TRAP;
-	} else if (opcode == OP_Catch) {
-		// op->type = R_ANAL_OP_TYPE_TRAP; // Exception handling
-		op->type = R_ANAL_OP_TYPE_MOV; // Exception handling
-	} else if (opcode == OP_Debugger) {
+	} else if (opc == OP_Catch) {
+		op->type = R_ANAL_OP_TYPE_MOV;
+	} else if (opc == OP_Debugger) {
 		op->type = R_ANAL_OP_TYPE_DEBUG;
-	} else if (opcode == OP_AsyncBreakCheck || opcode == OP_ProfilePoint) {
+	} else if (opc == OP_AsyncBreakCheck || opc == OP_ProfilePoint) {
 		op->type = R_ANAL_OP_TYPE_NOP;
-	} else if (opcode == OP_SelectObject) {
-		op->type = R_ANAL_OP_TYPE_MOV; // Object selection is like a move
-	} else if (opcode == OP_DelById || opcode == OP_DelByIdLong || opcode == OP_DelByVal) {
-		op->type = R_ANAL_OP_TYPE_STORE; // Delete operations modify storage
-	} else if (opcode == OP_ReifyArguments) {
-		op->type = R_ANAL_OP_TYPE_LOAD; // Reifying arguments loads them
-	} else if (opcode == OP_StartGenerator || opcode == OP_ResumeGenerator ||
-		opcode == OP_CompleteGenerator || opcode == OP_SaveGenerator ||
-		opcode == OP_SaveGeneratorLong) {
-		op->type = R_ANAL_OP_TYPE_CALL; // Generator operations are like function calls
-	} else if (opcode == OP_DirectEval) {
-		op->type = R_ANAL_OP_TYPE_CALL; // Eval is like a function call
+	} else if (opc == OP_SelectObject) {
+		op->type = R_ANAL_OP_TYPE_MOV;
+	} else if (opc == OP_DelById || opc == OP_DelByIdLong || opc == OP_DelByVal) {
+		op->type = R_ANAL_OP_TYPE_STORE;
+	} else if (opc == OP_ReifyArguments) {
+		op->type = R_ANAL_OP_TYPE_LOAD;
+	} else if (opc == OP_StartGenerator || opc == OP_ResumeGenerator ||
+		opc == OP_CompleteGenerator || opc == OP_SaveGenerator ||
+		opc == OP_SaveGeneratorLong) {
+		op->type = R_ANAL_OP_TYPE_CALL;
+	} else if (opc == OP_DirectEval) {
+		op->type = R_ANAL_OP_TYPE_CALL;
 	}
 	return true;
 }
 
-static int hermes_info(RArchSession *s, ut32 q) {
+static int info(RArchSession *s, ut32 q) {
 	(void)s;
 	switch (q) {
 	case R_ARCH_INFO_CODE_ALIGN:
@@ -449,16 +441,14 @@ static int hermes_info(RArchSession *s, ut32 q) {
 	return 0;
 }
 
-static char *hermes_mnemonics(RArchSession *s, int id, bool json) {
+static char *mnemonics(RArchSession *s, int id, bool json) {
 	(void)s;
 	(void)id;
 	(void)json;
-	// This would need to be implemented to return mnemonic names
-	// For now, return NULL
 	return NULL;
 }
 
-static bool hermes_encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
+static bool encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 	(void)mask;
 	R_RETURN_VAL_IF_FAIL (s && op, false);
 
@@ -468,7 +458,7 @@ static bool hermes_encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 	}
 
 	if (!hs->bytecode_version) {
-		hs->bytecode_version = hermes_detect_version_from_bin (s);
+		hs->bytecode_version = detect_version_from_bin (s);
 		if (!hs->bytecode_version) {
 			hs->bytecode_version = 96;
 		}
@@ -502,7 +492,7 @@ static bool hermes_encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 	return true;
 }
 
-static bool hermes_init(RArchSession *s) {
+static bool init(RArchSession *s) {
 	R_RETURN_VAL_IF_FAIL (s, false);
 	s->data = R_NEW0 (HermesArchSession);
 	HermesArchSession *hs = (HermesArchSession *)s->data;
@@ -510,7 +500,7 @@ static bool hermes_init(RArchSession *s) {
 	return true;
 }
 
-static bool hermes_fini(RArchSession *s) {
+static bool fini(RArchSession *s) {
 	if (!s) {
 		return false;
 	}
@@ -528,7 +518,7 @@ static bool hermes_fini(RArchSession *s) {
 
 const RArchPlugin r_arch_plugin_hermes = {
 	.meta = {
-		.name = "hermes", // rename to hbc
+		.name = "hermes",
 		.author = "pancake",
 		.desc = "Hermes bytecode disassembler",
 		.license = "LGPL-3.0-only",
@@ -536,12 +526,12 @@ const RArchPlugin r_arch_plugin_hermes = {
 	.arch = "hermes",
 	.bits = R_SYS_BITS_PACK1 (64),
 	.cpus = "v76,v90,v91,v92,v93,v94,v95,v96",
-	.decode = &hermes_decode,
-	.encode = &hermes_encode,
-	.info = hermes_info,
-	.mnemonics = hermes_mnemonics,
-	.init = hermes_init,
-	.fini = hermes_fini,
+	.decode = &decode,
+	.encode = &encode,
+	.info = info,
+	.mnemonics = mnemonics,
+	.init = init,
+	.fini = fini,
 };
 
 #ifndef R2_PLUGIN_INCORE

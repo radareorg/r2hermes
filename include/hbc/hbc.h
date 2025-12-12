@@ -138,6 +138,22 @@ typedef struct {
 	// Future options can be added here
 } HBCDecompileOptions;
 
+/* Decode context for single-instruction decoding (consolidates parameters) */
+typedef struct {
+	/* Input data */
+	const u8 *bytes;        // Raw bytecode bytes
+	size_t len;             // Length of bytes buffer
+	u64 pc;                 // Program counter / absolute address
+
+	/* Configuration */
+	u32 bytecode_version;   // Hermes bytecode version (e.g., 96)
+	bool asm_syntax;        // Output CPU-like asm syntax
+	bool resolve_string_ids; // Resolve string IDs to addresses
+
+	/* String tables (optional, for string resolution) */
+	const HBCStringTables *string_tables;
+} HBCDecodeContext;
+
 /* Lifecycle */
 Result hbc_open(const char *path, HBCState **out);
 Result hbc_open_from_memory(const u8 *data, size_t size, HBCState **out);
@@ -202,8 +218,17 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file);
 Result hbc_validate_basic(HBCState *hd, StringBuffer *out);
 
 /* Minimal single-instruction disassembler (no file context) */
+
 /*
- * Decode a single instruction from raw bytes without loading a Hermes file.
+ * Decode a single instruction using a context struct (preferred API).
+ * All configuration is passed via the HBCDecodeContext struct.
+ * Returns decoded info in out.
+ */
+Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out);
+
+/*
+ * Legacy API: Decode a single instruction from raw bytes.
+ * Prefer hbc_decode() with HBCDecodeContext for new code.
  * - bytecode_version: Hermes bytecode version (e.g. 96). If 0, defaults to 96 with a warning.
  * - pc: absolute address used only to compute jump targets for pretty printing.
  * - asm_syntax: when true, renders mnemonic and operands like a CPU asm line.

@@ -8,7 +8,7 @@
 #include <ctype.h>
 
 /* Initialize encoder */
-Result hermes_encoder_init(HermesEncoder *encoder, u32 bytecode_version) {
+Result hbc_encoder_init(HBCEncoder *encoder, u32 bytecode_version) {
 	if (!encoder) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Encoder is NULL");
 	}
@@ -30,7 +30,7 @@ Result hermes_encoder_init(HermesEncoder *encoder, u32 bytecode_version) {
 }
 
 /* Clean up encoder */
-void hermes_encoder_cleanup(HermesEncoder *encoder) {
+void hbc_encoder_cleanup(HBCEncoder *encoder) {
 	if (!encoder) {
 		return;
 	}
@@ -55,18 +55,15 @@ static const Instruction *find_instruction_by_name(const char *mnemonic, const I
 	return NULL; /* Unknown */
 }
 
-/* Note: a more detailed operand parser existed but was unused.
-It was removed to satisfy -Werror; add back when needed. */
-
 /* Parse instruction line in asm format */
-Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_line,
-	EncodedInstruction *out_instruction) {
+Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line,
+	HBCEncodedInstruction *out_instruction) {
 	if (!encoder || !asm_line || !out_instruction) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
 	/* Initialize output */
-	memset (out_instruction, 0, sizeof (EncodedInstruction));
+	memset (out_instruction, 0, sizeof (HBCEncodedInstruction));
 
 	/* Skip address prefix if present (format: "0xADDR: mnemonic ..." ) */
 	const char *line = asm_line;
@@ -291,7 +288,7 @@ Result hermes_encoder_parse_instruction(HermesEncoder *encoder, const char *asm_
 }
 
 /* Encode instruction to bytecode */
-Result hermes_encoder_encode_instruction(HermesEncoder *encoder, const EncodedInstruction *instruction,
+Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstruction *instruction,
 	u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written) {
 	if (!encoder || !instruction || !out_buffer || !out_bytes_written) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -387,7 +384,7 @@ Result hermes_encoder_encode_instruction(HermesEncoder *encoder, const EncodedIn
 }
 
 /* Encode multiple instructions */
-Result hermes_encoder_encode_instructions(HermesEncoder *encoder, const char *asm_text,
+Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text,
 	u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written) {
 	if (!encoder || !asm_text || !out_buffer || !out_bytes_written) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -439,15 +436,15 @@ Result hermes_encoder_encode_instructions(HermesEncoder *encoder, const char *as
 		}
 
 		/* Parse and encode instruction */
-		EncodedInstruction instruction;
-		RETURN_IF_ERROR (hermes_encoder_parse_instruction (encoder, line, &instruction));
+		HBCEncodedInstruction instruction;
+		RETURN_IF_ERROR (hbc_encoder_parse_instruction (encoder, line, &instruction));
 
 		if (total_written + instruction.size > buffer_size) {
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer too small for all instructions");
 		}
 
 		size_t bytes_written;
-		RETURN_IF_ERROR (hermes_encoder_encode_instruction (encoder, &instruction,
+		RETURN_IF_ERROR (hbc_encoder_encode_instruction (encoder, &instruction,
 			out_buffer + total_written,
 			buffer_size - total_written,
 			&bytes_written));

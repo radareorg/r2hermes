@@ -574,7 +574,7 @@ void hbc_free_instructions(HBCInstruction *insns, u32 count) {
 
 static Instruction *select_instruction_set(u32 ver, u32 *out_count) {
 	if (!ver) {
-		fprintf (stderr, "[hermesdec] Warning: bytecode_version not specified, defaulting to v96\n");
+		fprintf (stderr, "[hbc] Warning: bytecode_version not specified, defaulting to v96\n");
 		ver = 96;
 	}
 	/* Use the public API for version-specific instruction sets. */
@@ -585,7 +585,7 @@ static Instruction *select_instruction_set(u32 ver, u32 *out_count) {
 	return isa.instructions;
 }
 
-static const Instruction *find_inst_in_set(Instruction *set, u32 count, u8 opcode) {
+static const Instruction *find_instruction(Instruction *set, u32 count, u8 opcode) {
 	if (!set) {
 		return NULL;
 	}
@@ -602,7 +602,7 @@ static const Instruction *find_inst_in_set(Instruction *set, u32 count, u8 opcod
 	return NULL;
 }
 
-static void to_snake_lower_simple(const char *in, char *out, size_t outsz) {
+static void to_snake_lower(const char *in, char *out, size_t outsz) {
 	size_t j = 0;
 	for (size_t i = 0; in && in[i] && j + 1 < outsz; i++) {
 		char c = in[i];
@@ -619,21 +619,12 @@ static void to_snake_lower_simple(const char *in, char *out, size_t outsz) {
 	}
 }
 
-Result hbc_decode_single_instruction(
-	const u8 *bytes,
-	size_t len,
-	u32 bytecode_version,
-	u64 pc,
-	bool asm_syntax,
-	bool resolve_string_ids,
-	const HBCStringTables *string_ctx,
-	HBCSingleInstructionInfo *out) {
-	if (!bytes || len == 0 || !out) {
+/* New preferred API: decode using context struct */
+Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out) {
+	if (!ctx || !ctx->bytes || ctx->len == 0 || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	u32 isz = 0;
-	char *text = NULL;
 	out->text = NULL;
 	out->size = 0;
 	out->opcode = 0;
@@ -643,18 +634,19 @@ Result hbc_decode_single_instruction(
 
 	/* Fetch instruction set */
 	u32 set_count = 0;
-	Instruction *set = select_instruction_set (bytecode_version, &set_count);
+	Instruction *set = select_instruction_set (ctx->bytecode_version, &set_count);
 	if (!set) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "No opcode table available");
 	}
 
-	u8 opc = bytes[0];
-	const Instruction *inst = find_inst_in_set (set, set_count, opc);
+	u8 opc = ctx->bytes[0];
+	const Instruction *inst = find_instruction (set, set_count, opc);
 	if (!inst) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown opcode");
 	}
-	isz = inst->binary_size;
-	if (len < isz) {
+
+	u32 isz = inst->binary_size;
+	if (ctx->len < isz) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Truncated instruction");
 	}
 
@@ -670,53 +662,43 @@ Result hbc_decode_single_instruction(
 		case OPERAND_TYPE_REG8:
 		case OPERAND_TYPE_UINT8:
 		case OPERAND_TYPE_ADDR8:
-			ops[i] = (pos + 1 <= len)? bytes[pos]: 0;
+			ops[i] = (pos + 1 <= ctx->len)? ctx->bytes[pos]: 0;
 			pos += 1;
 			break;
 		case OPERAND_TYPE_UINT16:
-			{
-				if (pos + 2 <= len) {
-					u16 v = (u16) (bytes[pos] | ((u16)bytes[pos + 1] << 8));
-					ops[i] = v;
-				}
-				pos += 2;
-				break;
+			if (pos + 2 <= ctx->len) {
+				ops[i] = (u16) (ctx->bytes[pos] | ((u16)ctx->bytes[pos + 1] << 8));
 			}
+			pos += 2;
+			break;
 		case OPERAND_TYPE_REG32:
 		case OPERAND_TYPE_UINT32:
 		case OPERAND_TYPE_ADDR32:
-			{
-				if (pos + 4 <= len) {
-					u32 v = (u32) (bytes[pos] | ((u32)bytes[pos + 1] << 8) | ((u32)bytes[pos + 2] << 16) | ((u32)bytes[pos + 3] << 24));
-					ops[i] = v;
-				}
-				pos += 4;
-				break;
+			if (pos + 4 <= ctx->len) {
+				ops[i] = (u32) (ctx->bytes[pos] | ((u32)ctx->bytes[pos + 1] << 8) |
+					((u32)ctx->bytes[pos + 2] << 16) | ((u32)ctx->bytes[pos + 3] << 24));
 			}
-		default: break;
-		}
-	}
-
-	/* Classification */
-	bool is_j = is_jump_instruction (opc);
-	bool is_c = is_call_instruction (opc);
-	out->is_jump = is_j;
-	out->is_call = is_c;
-	out->opcode = opc;
-	out->size = isz;
-
-	/* Compute primary jump target for jmp-like insns (Hermes uses offsets
-	 * relative to the current instruction start, not the end). */
-	u64 jtg = 0;
-	for (int i = 0; i < 6; i++) {
-		OperandType t = inst->operands[i].operand_type;
-		if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
-			u64 base = pc; /* instruction-relative */
-			jtg = base + (u64)ops[i];
+			pos += 4;
+			break;
+		default:
 			break;
 		}
 	}
-	out->jump_target = jtg;
+
+	/* Populate output */
+	out->is_jump = is_jump_instruction (opc);
+	out->is_call = is_call_instruction (opc);
+	out->opcode = opc;
+	out->size = isz;
+
+	/* Compute primary jump target (Hermes uses offsets relative to instruction start) */
+	for (int i = 0; i < 6; i++) {
+		OperandType t = inst->operands[i].operand_type;
+		if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
+			out->jump_target = ctx->pc + (u64)ops[i];
+			break;
+		}
+	}
 
 	/* Render text */
 	StringBuffer sb;
@@ -724,11 +706,11 @@ Result hbc_decode_single_instruction(
 	if (sr.code != RESULT_SUCCESS) {
 		return sr;
 	}
+
 	char mnem[64];
-	if (asm_syntax) {
-		to_snake_lower_simple (inst->name, mnem, sizeof (mnem));
+	if (ctx->asm_syntax) {
+		to_snake_lower (inst->name, mnem, sizeof (mnem));
 	} else {
-		/* Keep original name if not asm syntax */
 		snprintf (mnem, sizeof (mnem), "%s", inst->name? inst->name: "unk");
 	}
 	RETURN_IF_ERROR (string_buffer_append (&sb, mnem));
@@ -741,6 +723,7 @@ Result hbc_decode_single_instruction(
 		}
 		RETURN_IF_ERROR (string_buffer_append (&sb, first? " ": ", "));
 		first = false;
+
 		char buf[64];
 		switch (t) {
 		case OPERAND_TYPE_REG8:
@@ -749,60 +732,74 @@ Result hbc_decode_single_instruction(
 			break;
 		case OPERAND_TYPE_ADDR8:
 		case OPERAND_TYPE_ADDR32:
-			{
-				/* Addresses are relative to instruction start (pc) */
-				u64 base = pc;
-				u64 abs = base + (u64)ops[i];
-				snprintf (buf, sizeof (buf), "0x%llx", (unsigned long long)abs);
-				break;
-			}
+			snprintf (buf, sizeof (buf), "0x%llx", (unsigned long long)(ctx->pc + (u64)ops[i]));
+			break;
 		default:
-			{
-				/* Check if this is a string ID that should be resolved */
-			if (resolve_string_ids && inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
-					u32 string_id = ops[i];
-					u64 resolved_addr = 0;
+			/* Check if this is a string ID that should be resolved */
+			if (ctx->resolve_string_ids && ctx->string_tables &&
+				inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
+				u32 string_id = ops[i];
+				u64 resolved_addr = 0;
 
-				if (string_id < string_ctx->string_count && string_ctx->small_string_table) {
-						const StringTableEntry *entry = (const StringTableEntry *)string_ctx->small_string_table + string_id;
-					if (entry->length == 0xFF && string_ctx->overflow_string_table) {
-							/* Use overflow table */
-							const OffsetLengthPair *overflow_entry = (const OffsetLengthPair *)string_ctx->overflow_string_table + entry->offset;
-							resolved_addr = string_ctx->string_storage_offset + overflow_entry->offset;
-						} else {
-							/* Use small table */
-							resolved_addr = string_ctx->string_storage_offset + entry->offset;
-						}
-					}
-
-					if (resolved_addr != 0) {
-						snprintf (buf, sizeof (buf), "0x%llx", (unsigned long long)resolved_addr);
+				if (string_id < ctx->string_tables->string_count &&
+					ctx->string_tables->small_string_table) {
+					const StringTableEntry *entry =
+						(const StringTableEntry *)ctx->string_tables->small_string_table + string_id;
+					if (entry->length == 0xFF && ctx->string_tables->overflow_string_table) {
+						const OffsetLengthPair *overflow_entry =
+							(const OffsetLengthPair *)ctx->string_tables->overflow_string_table + entry->offset;
+						resolved_addr = ctx->string_tables->string_storage_offset + overflow_entry->offset;
 					} else {
-						/* Fallback to raw ID if resolution fails */
-						snprintf (buf, sizeof (buf), "%u", ops[i]);
+						resolved_addr = ctx->string_tables->string_storage_offset + entry->offset;
 					}
+				}
+
+				if (resolved_addr != 0) {
+					snprintf (buf, sizeof (buf), "0x%llx", (unsigned long long)resolved_addr);
 				} else {
 					snprintf (buf, sizeof (buf), "%u", ops[i]);
 				}
-				break;
+			} else {
+				snprintf (buf, sizeof (buf), "%u", ops[i]);
 			}
+			break;
 		}
 		RETURN_IF_ERROR (string_buffer_append (&sb, buf));
 	}
 
 	/* Materialize buffer */
-	size_t L = sb.length;
-	text = (char *)malloc (L + 1);
-	if (!text) {
+	out->text = (char *)malloc (sb.length + 1);
+	if (!out->text) {
 		string_buffer_free (&sb);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM for output text");
 	}
-	memcpy (text, sb.data, L);
-	text[L] = '\0';
+	memcpy (out->text, sb.data, sb.length);
+	out->text[sb.length] = '\0';
 	string_buffer_free (&sb);
 
-	out->text = text;
 	return SUCCESS_RESULT ();
+}
+
+/* Legacy API: delegates to hbc_decode */
+Result hbc_decode_single_instruction(
+	const u8 *bytes,
+	size_t len,
+	u32 bytecode_version,
+	u64 pc,
+	bool asm_syntax,
+	bool resolve_string_ids,
+	const HBCStringTables *string_ctx,
+	HBCSingleInstructionInfo *out) {
+	HBCDecodeContext ctx = {
+		.bytes = bytes,
+		.len = len,
+		.pc = pc,
+		.bytecode_version = bytecode_version,
+		.asm_syntax = asm_syntax,
+		.resolve_string_ids = resolve_string_ids,
+		.string_tables = string_ctx
+	};
+	return hbc_decode (&ctx, out);
 }
 
 /* Encoding functions - TODO: implement */
