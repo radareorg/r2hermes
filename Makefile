@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -Werror -std=c11 -pedantic -O2
 DEBUG_FLAGS = -g -DDEBUG
 
 # Directories
-SRC_DIR = src
+SRC_DIR = src/lib
 INCLUDE_DIR = include
 BUILD_DIR = build
 BIN_DIR = bin
@@ -15,8 +15,8 @@ DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(filter-out $(SRC_DIR)/opcodes/%.inc.c,$(wildcard $(SRC_DIR)/opcodes/*.c))
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
-          $(SRC_DIR)/lib/hbc.c $(SRC_DIR)/encoder.c $(SRC_DIR)/decoder.c $(SRC_DIR)/lib/r2.c
-MAIN_SRC = $(BIN_DIR)/hbctool.c
+          $(SRC_DIR)/hbc.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
+MAIN_SRC = src/tool/hbctool.c
 
 ## Object files
 LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
@@ -56,6 +56,7 @@ $(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ)
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhbc
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(MAIN_OBJ): $(MAIN_SRC)
@@ -63,7 +64,7 @@ $(MAIN_OBJ): $(MAIN_SRC)
 
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)/hbctool
-	$(MAKE) -C r2 clean
+	$(MAKE) -C src/r2 clean
 
 # Testing
 TEST_DIR = tests
@@ -73,10 +74,10 @@ TEST_BIN = $(BIN_DIR)/run_tests
 .PHONY: r2 test test2
 
 r2 test:
-	$(MAKE) -C r2 && $(MAKE) -C r2 user-install
+	$(MAKE) -C src/r2 && $(MAKE) -C src/r2 user-install
 
 user-install user-uninstall:
-	$(MAKE) -C r2
+	$(MAKE) -C src/r2
 
 test2:
 	./bin/hbctool d ../main.jsbundle 2>&1 |head -n 100

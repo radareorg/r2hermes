@@ -4,7 +4,7 @@
 # Compiler and flags
 CC ?= gcc
 CFLAGS += -Wall -Wextra -std=c11 -O2 -fPIC
-CFLAGS += -I../include
+CFLAGS += -I../../include
 CFLAGS += $(shell pkg-config --cflags r_core 2>/dev/null || echo "-I/usr/local/include/libr")
 R2_PLUGDIR?=$(shell r2 -H R2_USER_PLUGINS)
 R2_PREFIX?=$(shell r2 -H R2_PREFIX)
@@ -39,7 +39,7 @@ ARCH_PLUGIN = arch_hbc.$(EXT_SO)
 BIN_PLUGIN = bin_hbc.$(EXT_SO)
 
 # Library paths
-HERMES_LIB_DIR = ../build
+HERMES_LIB_DIR = ../../build
 HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
 
 # All targets
