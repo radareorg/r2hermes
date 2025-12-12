@@ -141,13 +141,13 @@ typedef struct {
 /* Decode context for single-instruction decoding (consolidates parameters) */
 typedef struct {
 	/* Input data */
-	const u8 *bytes;        // Raw bytecode bytes
-	size_t len;             // Length of bytes buffer
-	u64 pc;                 // Program counter / absolute address
+	const u8 *bytes; // Raw bytecode bytes
+	size_t len; // Length of bytes buffer
+	u64 pc; // Program counter / absolute address
 
 	/* Configuration */
-	u32 bytecode_version;   // Hermes bytecode version (e.g., 96)
-	bool asm_syntax;        // Output CPU-like asm syntax
+	u32 bytecode_version; // Hermes bytecode version (e.g., 96)
+	bool asm_syntax; // Output CPU-like asm syntax
 	bool resolve_string_ids; // Resolve string IDs to addresses
 
 	/* String tables (optional, for string resolution) */
@@ -228,7 +228,7 @@ Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out);
 
 /*
  * Legacy API: Decode a single instruction from raw bytes.
- * Prefer hbc_decode() with HBCDecodeContext for new code.
+ * Prefer hbc_decode () with HBCDecodeContext for new code.
  * - bytecode_version: Hermes bytecode version (e.g. 96). If 0, defaults to 96 with a warning.
  * - pc: absolute address used only to compute jump targets for pretty printing.
  * - asm_syntax: when true, renders mnemonic and operands like a CPU asm line.

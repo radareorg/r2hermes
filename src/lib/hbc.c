@@ -380,10 +380,6 @@ Result hbc_decompile_file(const char *input_file, const char *output_file) {
 	return decompile_file (input_file, output_file);
 }
 
-Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
-	return generate_r2_script (input_file, output_file);
-}
-
 Result hbc_validate_basic(HBC *hd, StringBuffer *out) {
 	if (!hd || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_validate_basic");
@@ -732,7 +728,7 @@ Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out) {
 			break;
 		case OPERAND_TYPE_ADDR8:
 		case OPERAND_TYPE_ADDR32:
-			snprintf (buf, sizeof (buf), "0x%llx", (unsigned long long)(ctx->pc + (u64)ops[i]));
+			snprintf (buf, sizeof (buf), "0x%llx", (unsigned long long) (ctx->pc + (u64)ops[i]));
 			break;
 		default:
 			/* Check if this is a string ID that should be resolved */

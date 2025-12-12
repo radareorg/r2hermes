@@ -289,139 +289,210 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	/* Classify opcode type */
 	u8 opc = sinfo.opcode;
 
+	switch (opc) {
 	/* Arithmetic operations */
-	if (opc == OP_Add || opc == OP_AddN || opc == OP_Add32 || opc == OP_AddEmptyString) {
+	case OP_Add:
+	case OP_AddN:
+	case OP_Add32:
+	case OP_AddEmptyString:
+	case OP_Inc:
 		op->type = R_ANAL_OP_TYPE_ADD;
-	} else if (opc == OP_Sub || opc == OP_SubN || opc == OP_Sub32) {
+		break;
+	case OP_Sub:
+	case OP_SubN:
+	case OP_Sub32:
+	case OP_Dec:
 		op->type = R_ANAL_OP_TYPE_SUB;
-	} else if (opc == OP_Mul || opc == OP_MulN || opc == OP_Mul32) {
+		break;
+	case OP_Mul:
+	case OP_MulN:
+	case OP_Mul32:
 		op->type = R_ANAL_OP_TYPE_MUL;
-	} else if (opc == OP_Div || opc == OP_DivN || opc == OP_Divi32 || opc == OP_Divu32) {
+		break;
+	case OP_Div:
+	case OP_DivN:
+	case OP_Divi32:
+	case OP_Divu32:
 		op->type = R_ANAL_OP_TYPE_DIV;
-	} else if (opc == OP_Mod) {
+		break;
+	case OP_Mod:
 		op->type = R_ANAL_OP_TYPE_MOD;
-	}
+		break;
 	/* Bitwise operations */
-	else if (opc == OP_BitAnd) {
+	case OP_BitAnd:
 		op->type = R_ANAL_OP_TYPE_AND;
-	} else if (opc == OP_BitOr) {
+		break;
+	case OP_BitOr:
 		op->type = R_ANAL_OP_TYPE_OR;
-	} else if (opc == OP_BitXor) {
+		break;
+	case OP_BitXor:
 		op->type = R_ANAL_OP_TYPE_XOR;
-	} else if (opc == OP_BitNot || opc == OP_Not) {
+		break;
+	case OP_BitNot:
+	case OP_Not:
+	case OP_Negate:
 		op->type = R_ANAL_OP_TYPE_NOT;
-	} else if (opc == OP_LShift) {
+		break;
+	case OP_LShift:
 		op->type = R_ANAL_OP_TYPE_SHL;
-	} else if (opc == OP_RShift || opc == OP_URshift) {
+		break;
+	case OP_RShift:
+	case OP_URshift:
 		op->type = R_ANAL_OP_TYPE_SHR;
-	}
+		break;
 	/* Move operations */
-	else if (opc == OP_Mov || opc == OP_MovLong) {
+	case OP_Mov:
+	case OP_MovLong:
+	case OP_Catch:
+	case OP_SelectObject:
 		op->type = R_ANAL_OP_TYPE_MOV;
-	}
-	/* Increment/Decrement */
-	else if (opc == OP_Inc) {
-		op->type = R_ANAL_OP_TYPE_ADD;
-	} else if (opc == OP_Dec) {
-		op->type = R_ANAL_OP_TYPE_SUB;
-	}
-	/* Unary operations */
-	else if (opc == OP_Negate) {
-		op->type = R_ANAL_OP_TYPE_NOT;
-	}
+		break;
 	/* Load operations */
-	else if (opc == OP_Loadi8 || opc == OP_Loadu8 || opc == OP_Loadi16 ||
-		opc == OP_Loadu16 || opc == OP_Loadi32 || opc == OP_Loadu32 ||
-		opc == OP_GetById || opc == OP_GetByIdLong || opc == OP_GetByIdShort ||
-		opc == OP_GetByVal || opc == OP_TryGetById || opc == OP_TryGetByIdLong ||
-		opc == OP_LoadFromEnvironment || opc == OP_LoadFromEnvironmentL ||
-		opc == OP_GetEnvironment || opc == OP_LoadParam || opc == OP_LoadParamLong ||
-		opc == OP_LoadConstUInt8 || opc == OP_LoadConstInt ||
-		opc == OP_LoadConstDouble || opc == OP_LoadConstBigInt ||
-		opc == OP_LoadConstBigIntLongIndex || opc == OP_LoadConstString ||
-		opc == OP_LoadConstStringLongIndex || opc == OP_LoadConstEmpty ||
-		opc == OP_LoadConstUndefined || opc == OP_LoadConstNull ||
-		opc == OP_LoadConstTrue || opc == OP_LoadConstFalse ||
-		opc == OP_LoadConstZero || opc == OP_LoadThisNS ||
-		opc == OP_GetBuiltinClosure || opc == OP_GetGlobalObject ||
-		opc == OP_GetNewTarget || opc == OP_GetArgumentsPropByVal ||
-		opc == OP_GetArgumentsLength || opc == OP_GetPNameList ||
-		opc == OP_GetNextPName) {
+	case OP_Loadi8:
+	case OP_Loadu8:
+	case OP_Loadi16:
+	case OP_Loadu16:
+	case OP_Loadi32:
+	case OP_Loadu32:
+	case OP_GetById:
+	case OP_GetByIdLong:
+	case OP_GetByIdShort:
+	case OP_GetByVal:
+	case OP_TryGetById:
+	case OP_TryGetByIdLong:
+	case OP_LoadFromEnvironment:
+	case OP_LoadFromEnvironmentL:
+	case OP_GetEnvironment:
+	case OP_LoadParam:
+	case OP_LoadParamLong:
+	case OP_LoadConstUInt8:
+	case OP_LoadConstInt:
+	case OP_LoadConstDouble:
+	case OP_LoadConstBigInt:
+	case OP_LoadConstBigIntLongIndex:
+	case OP_LoadConstString:
+	case OP_LoadConstStringLongIndex:
+	case OP_LoadConstEmpty:
+	case OP_LoadConstUndefined:
+	case OP_LoadConstNull:
+	case OP_LoadConstTrue:
+	case OP_LoadConstFalse:
+	case OP_LoadConstZero:
+	case OP_LoadThisNS:
+	case OP_GetBuiltinClosure:
+	case OP_GetGlobalObject:
+	case OP_GetNewTarget:
+	case OP_GetArgumentsPropByVal:
+	case OP_GetArgumentsLength:
+	case OP_GetPNameList:
+	case OP_GetNextPName:
+	case OP_IteratorBegin:
+	case OP_IteratorNext:
+	case OP_IteratorClose:
+	case OP_ReifyArguments:
 		op->type = R_ANAL_OP_TYPE_LOAD;
-	}
+		break;
 	/* Store operations */
-	else if (opc == OP_Store8 || opc == OP_Store16 || opc == OP_Store32 ||
-		opc == OP_PutById || opc == OP_PutByIdLong ||
-		opc == OP_PutByVal || opc == OP_TryPutById || opc == OP_TryPutByIdLong ||
-		opc == OP_PutNewOwnById || opc == OP_PutNewOwnByIdLong ||
-		opc == OP_PutNewOwnByIdShort || opc == OP_PutNewOwnNEById ||
-		opc == OP_PutNewOwnNEByIdLong || opc == OP_PutOwnByIndex ||
-		opc == OP_PutOwnByIndexL || opc == OP_PutOwnByVal ||
-		opc == OP_PutOwnGetterSetterByVal ||
-		opc == OP_StoreToEnvironment || opc == OP_StoreToEnvironmentL ||
-		opc == OP_StoreNPToEnvironment || opc == OP_StoreNPToEnvironmentL) {
+	case OP_Store8:
+	case OP_Store16:
+	case OP_Store32:
+	case OP_PutById:
+	case OP_PutByIdLong:
+	case OP_PutByVal:
+	case OP_TryPutById:
+	case OP_TryPutByIdLong:
+	case OP_PutNewOwnById:
+	case OP_PutNewOwnByIdLong:
+	case OP_PutNewOwnByIdShort:
+	case OP_PutNewOwnNEById:
+	case OP_PutNewOwnNEByIdLong:
+	case OP_PutOwnByIndex:
+	case OP_PutOwnByIndexL:
+	case OP_PutOwnByVal:
+	case OP_PutOwnGetterSetterByVal:
+	case OP_StoreToEnvironment:
+	case OP_StoreToEnvironmentL:
+	case OP_StoreNPToEnvironment:
+	case OP_StoreNPToEnvironmentL:
+	case OP_CreateEnvironment:
+	case OP_CreateInnerEnvironment:
+	case OP_DeclareGlobalVar:
+	case OP_ThrowIfHasRestrictedGlobalProperty:
+	case OP_DelById:
+	case OP_DelByIdLong:
+	case OP_DelByVal:
 		op->type = R_ANAL_OP_TYPE_STORE;
-	}
+		break;
 	/* Comparison operations */
-	else if (opc == OP_Eq || opc == OP_StrictEq || opc == OP_Neq ||
-		opc == OP_StrictNeq || opc == OP_Less || opc == OP_Greater ||
-		opc == OP_LessEq || opc == OP_GreaterEq || opc == OP_IsIn ||
-		opc == OP_InstanceOf || opc == OP_TypeOf) {
+	case OP_Eq:
+	case OP_StrictEq:
+	case OP_Neq:
+	case OP_StrictNeq:
+	case OP_Less:
+	case OP_Greater:
+	case OP_LessEq:
+	case OP_GreaterEq:
+	case OP_IsIn:
+	case OP_InstanceOf:
+	case OP_TypeOf:
 		op->type = R_ANAL_OP_TYPE_CMP;
-	}
+		break;
 	/* Object/Array creation */
-	else if (opc == OP_NewObject || opc == OP_NewObjectWithParent ||
-		opc == OP_NewObjectWithBuffer || opc == OP_NewObjectWithBufferLong ||
-		opc == OP_NewArray || opc == OP_NewArrayWithBuffer ||
-		opc == OP_NewArrayWithBufferLong || opc == OP_CreateClosure ||
-		opc == OP_CreateClosureLongIndex || opc == OP_CreateGeneratorClosure ||
-		opc == OP_CreateGeneratorClosureLongIndex || opc == OP_CreateAsyncClosure ||
-		opc == OP_CreateAsyncClosureLongIndex || opc == OP_CreateGenerator ||
-		opc == OP_CreateGeneratorLongIndex || opc == OP_CreateThis ||
-		opc == OP_CreateRegExp) {
+	case OP_NewObject:
+	case OP_NewObjectWithParent:
+	case OP_NewObjectWithBuffer:
+	case OP_NewObjectWithBufferLong:
+	case OP_NewArray:
+	case OP_NewArrayWithBuffer:
+	case OP_NewArrayWithBufferLong:
+	case OP_CreateClosure:
+	case OP_CreateClosureLongIndex:
+	case OP_CreateGeneratorClosure:
+	case OP_CreateGeneratorClosureLongIndex:
+	case OP_CreateAsyncClosure:
+	case OP_CreateAsyncClosureLongIndex:
+	case OP_CreateGenerator:
+	case OP_CreateGeneratorLongIndex:
+	case OP_CreateThis:
+	case OP_CreateRegExp:
 		op->type = R_ANAL_OP_TYPE_NEW;
-	}
+		break;
 	/* Type conversion operations */
-	else if (opc == OP_ToNumber || opc == OP_ToNumeric || opc == OP_ToInt32 ||
-		opc == OP_CoerceThisNS) {
+	case OP_ToNumber:
+	case OP_ToNumeric:
+	case OP_ToInt32:
+	case OP_CoerceThisNS:
 		op->type = R_ANAL_OP_TYPE_CAST;
-	}
+		break;
 	/* Switch operations */
-	else if (opc == OP_SwitchImm) {
+	case OP_SwitchImm:
 		op->type = R_ANAL_OP_TYPE_SWITCH;
-	}
-	/* Iterator operations */
-	else if (opc == OP_IteratorBegin || opc == OP_IteratorNext || opc == OP_IteratorClose) {
-		op->type = R_ANAL_OP_TYPE_LOAD;
-	}
-	/* Environment operations */
-	else if (opc == OP_CreateEnvironment || opc == OP_CreateInnerEnvironment ||
-		opc == OP_DeclareGlobalVar || opc == OP_ThrowIfHasRestrictedGlobalProperty) {
-		op->type = R_ANAL_OP_TYPE_STORE;
-	}
+		break;
 	/* Special operations */
-	else if (opc == OP_Unreachable) {
+	case OP_Unreachable:
 		op->type = R_ANAL_OP_TYPE_ILL;
-	} else if (opc == OP_Throw || opc == OP_ThrowIfEmpty) {
+		break;
+	case OP_Throw:
+	case OP_ThrowIfEmpty:
 		op->type = R_ANAL_OP_TYPE_TRAP;
-	} else if (opc == OP_Catch) {
-		op->type = R_ANAL_OP_TYPE_MOV;
-	} else if (opc == OP_Debugger) {
+		break;
+	case OP_Debugger:
 		op->type = R_ANAL_OP_TYPE_DEBUG;
-	} else if (opc == OP_AsyncBreakCheck || opc == OP_ProfilePoint) {
+		break;
+	case OP_AsyncBreakCheck:
+	case OP_ProfilePoint:
 		op->type = R_ANAL_OP_TYPE_NOP;
-	} else if (opc == OP_SelectObject) {
-		op->type = R_ANAL_OP_TYPE_MOV;
-	} else if (opc == OP_DelById || opc == OP_DelByIdLong || opc == OP_DelByVal) {
-		op->type = R_ANAL_OP_TYPE_STORE;
-	} else if (opc == OP_ReifyArguments) {
-		op->type = R_ANAL_OP_TYPE_LOAD;
-	} else if (opc == OP_StartGenerator || opc == OP_ResumeGenerator ||
-		opc == OP_CompleteGenerator || opc == OP_SaveGenerator ||
-		opc == OP_SaveGeneratorLong) {
+		break;
+	case OP_StartGenerator:
+	case OP_ResumeGenerator:
+	case OP_CompleteGenerator:
+	case OP_SaveGenerator:
+	case OP_SaveGeneratorLong:
+	case OP_DirectEval:
 		op->type = R_ANAL_OP_TYPE_CALL;
-	} else if (opc == OP_DirectEval) {
-		op->type = R_ANAL_OP_TYPE_CALL;
+		break;
+	default:
+		break;
 	}
 	return true;
 }
