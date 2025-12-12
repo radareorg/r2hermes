@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -std=c11 -pedantic -O2 -D_POSIX_C_SOURCE=200809L
+CFLAGS = -Wall -Wextra -Werror -std=c11 -pedantic -O2 -fPIC -D_POSIX_C_SOURCE=200809L
 DEBUG_FLAGS = -g -DDEBUG
 
 # Directories
