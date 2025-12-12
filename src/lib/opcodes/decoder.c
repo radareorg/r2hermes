@@ -611,7 +611,7 @@ Result disassemble_function(Disassembler *disassembler, u32 function_id) {
 
 	if (result.code != RESULT_SUCCESS) {
 		/* Handle parsing error - Print more debug info */
-		char debug_info[256];
+		char debug_info[512];
 		snprintf (debug_info, sizeof (debug_info),
 			"[Error parsing bytecode for function #%u: %s - Offset: %u, Size: %u]\n",
 			function_id, result.error_message[0] != '\0'? result.error_message: "Unknown error",

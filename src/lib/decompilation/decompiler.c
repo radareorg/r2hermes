@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/decompilation/token.h>
 #include <hbc/parsers/hbc_file_parser.h>
@@ -6,9 +9,6 @@
 #include <hbc/decompilation/translator.h>
 #include <hbc/opcodes/hermes_opcodes.h>
 #include <hbc/decompilation/literals.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 /* Ensure that the function's bytecode buffer is loaded into memory. */
 static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id) {

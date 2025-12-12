@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #ifndef R2_VERSION
 #define R_RETURN_VAL_IF_FAIL(x, y) \
@@ -48,7 +49,7 @@ typedef enum {
 /* Result structure for error reporting */
 typedef struct {
 	ResultCode code;
-	char error_message[256];
+	const char *error_message;
 } Result;
 
 /* Buffer reader for file operations */
@@ -92,6 +93,6 @@ void buffer_reader_free(BufferReader *reader);
 
 #define SUCCESS_RESULT() ((Result){ RESULT_SUCCESS, "" })
 
-#define ERROR_RESULT(code, message) ((Result){ (code), (message) })
+#define ERROR_RESULT(code, message) ((Result){code,message})
 
 #endif /* HERMES_DEC_COMMON_H */

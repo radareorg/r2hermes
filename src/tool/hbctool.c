@@ -22,11 +22,12 @@ typedef struct {
 } Command;
 
 static Result errorf(ResultCode code, const char *fmt, ...) {
-	Result r = (Result){ code, { 0 } };
+	static char buf[256];
 	va_list ap;
 	va_start (ap, fmt);
-	vsnprintf (r.error_message, sizeof (r.error_message), fmt, ap);
+	vsnprintf (buf, sizeof (buf), fmt, ap);
 	va_end (ap);
+	Result r = { code, buf };
 	return r;
 }
 
