@@ -1,12 +1,12 @@
-#include "hbc/hbc.h"
-#include "common.h"
-#include "hbc/hbc.h"
-#include "disassembly/hbc_disassembler.h"
-#include "decompilation/decompiler.h"
-#include "hermes_encoder.h"
-#include "parsers/hbc_file_parser.h"
+#include <hbc/hbc.h>
+#include <hbc/common.h>
+#include <hbc/hbc.h>
+#include <hbc/disassembly/hbc_disassembler.h>
+#include <hbc/decompilation/decompiler.h>
+#include <hbc/hermes_encoder.h>
+#include <hbc/parsers/hbc_file_parser.h>
 #include "hbc_internal.h"
-#include "opcodes/hermes_opcodes.h"
+#include <hbc/opcodes/hermes_opcodes.h>
 
 /* Open and fully parse a Hermes bytecode file */
 Result hbc_open(const char *path, HBC **out) {

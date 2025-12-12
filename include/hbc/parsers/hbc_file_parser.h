@@ -1,7 +1,7 @@
 #ifndef HERMES_DEC_HBC_FILE_PARSER_H
 #define HERMES_DEC_HBC_FILE_PARSER_H
 
-#include "../common.h"
+#include <hbc/common.h>
 
 /* Constants */
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL

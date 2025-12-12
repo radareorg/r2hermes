@@ -1,8 +1,8 @@
 #ifndef HERMES_DEC_TOKEN_H
 #define HERMES_DEC_TOKEN_H
 
-#include "../common.h"
-#include "../parsers/hbc_bytecode_parser.h"
+#include <hbc/common.h>
+#include <hbc/parsers/hbc_bytecode_parser.h>
 
 /* Forward declarations */
 struct HermesDecompiler;

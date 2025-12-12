@@ -1,6 +1,6 @@
-#include "common.h"
-#include "../include/hbc/hbc.h"
-#include "decompilation/literals.h"
+#include <hbc/common.h>
+#include <hbc/hbc.h>
+#include <hbc/decompilation/literals.h>
 
 #include <stdio.h>
 #include <stdlib.h>

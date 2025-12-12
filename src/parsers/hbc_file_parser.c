@@ -1,4 +1,4 @@
-#include "../../include/parsers/hbc_file_parser.h"
+#include <hbc/parsers/hbc_file_parser.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,6 +1,6 @@
-#include "../../include/decompilation/token.h"
-#include "../../include/decompilation/decompiler.h"
-#include "../../include/common.h"
+#include <hbc/decompilation/token.h>
+#include <hbc/decompilation/decompiler.h>
+#include <hbc/common.h>
 
 #include <ctype.h>
 

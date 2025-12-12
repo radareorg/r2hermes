@@ -1,8 +1,8 @@
-#include "../../include/decompilation/translator.h"
-#include "../../include/opcodes/hermes_opcodes.h"
-#include "../../include/parsers/hbc_file_parser.h"
+#include <hbc/decompilation/translator.h>
+#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/parsers/hbc_file_parser.h>
 #include <ctype.h>
-#include "../../include/decompilation/literals.h"
+#include <hbc/decompilation/literals.h>
 
 static Result add(TokenString *ts, Token *t) {
 	if (!t) {

@@ -1,4 +1,4 @@
-#include "../../include/common.h"
+#include <hbc/common.h>
 
 Result buffer_reader_init_from_file(BufferReader *reader, const char *filename) {
 	if (!reader || !filename) {

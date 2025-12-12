@@ -9,10 +9,10 @@
 #endif
 
 // Include hermesdec headers
-#include "hbc/hbc.h"
-#include "opcodes/hermes_opcodes.h"
-#include "parsers/hbc_bytecode_parser.h"
-#include "parsers/hbc_file_parser.h"
+#include <hbc/hbc.h>
+#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/parsers/hbc_file_parser.h>
 
 #define MAX_OP_SIZE 16
 

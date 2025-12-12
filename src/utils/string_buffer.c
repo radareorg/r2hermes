@@ -1,4 +1,4 @@
-#include "../../include/common.h"
+#include <hbc/common.h>
 
 Result string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	if (!buffer) {

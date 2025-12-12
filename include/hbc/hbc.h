@@ -1,7 +1,7 @@
 #ifndef HBC_API_H
 #define HBC_API_H
 
-#include "../common.h"
+#include <hbc/common.h>
 
 /* Public header summary (stable API independent of internal structs) */
 #ifndef HBC_HEADER_DEFINED

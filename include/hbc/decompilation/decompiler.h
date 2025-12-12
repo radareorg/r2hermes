@@ -1,11 +1,11 @@
 #ifndef HERMES_DEC_DECOMPILER_H
 #define HERMES_DEC_DECOMPILER_H
 
-#include "../common.h"
-#include "../parsers/hbc_file_parser.h"
-#include "../parsers/hbc_bytecode_parser.h"
-#include "../hbc/hbc.h"
-#include "token.h"
+#include <hbc/common.h>
+#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/hbc.h>
+#include <hbc/decompilation/token.h>
 
 /* Forward declaration */
 struct Environment;

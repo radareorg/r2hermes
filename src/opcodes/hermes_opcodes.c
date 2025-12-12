@@ -1,4 +1,4 @@
-#include "../../include/opcodes/hermes_opcodes.h"
+#include <hbc/opcodes/hermes_opcodes.h>
 #include <stdlib.h>
 
 /* Include per-version instruction set implementations (static functions) */

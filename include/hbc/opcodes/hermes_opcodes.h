@@ -1,7 +1,7 @@
 #ifndef HERMES_DEC_HERMES_OPCODES_H
 #define HERMES_DEC_HERMES_OPCODES_H
 
-#include "../common.h"
+#include <hbc/common.h>
 
 /* Operand type enum */
 typedef enum {

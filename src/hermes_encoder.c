@@ -1,6 +1,6 @@
-#include "../include/hermes_encoder.h"
-#include "../include/opcodes/hermes_opcodes.h"
-#include "../include/parsers/hbc_bytecode_parser.h"
+#include <hbc/hermes_encoder.h>
+#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/parsers/hbc_bytecode_parser.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

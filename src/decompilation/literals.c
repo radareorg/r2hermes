@@ -1,4 +1,4 @@
-#include "../../include/decompilation/literals.h"
+#include <hbc/decompilation/literals.h>
 #include <ctype.h>
 #include <math.h>
 

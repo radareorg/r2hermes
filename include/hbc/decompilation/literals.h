@@ -1,9 +1,9 @@
 #ifndef HERMES_DEC_LITERALS_H
 #define HERMES_DEC_LITERALS_H
 
-#include "../common.h"
-#include "../parsers/hbc_file_parser.h"
-#include "../parsers/hbc_bytecode_parser.h"
+#include <hbc/common.h>
+#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parsers/hbc_bytecode_parser.h>
 
 /* Utilities to format JS-like literals and calls from Hermes buffers/instructions. */
 
