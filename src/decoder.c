@@ -818,4 +818,3 @@ Result disassemble_buffer(const u8 *buffer, size_t size, const char *output_file
 
 	return result;
 }
-

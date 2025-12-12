@@ -16,11 +16,11 @@ DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(wildcard $(SRC_DIR)/opcodes/*.c)
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
           $(SRC_DIR)/lib/hbc.c $(SRC_DIR)/encoder.c $(SRC_DIR)/decoder.c $(SRC_DIR)/lib/r2.c
-MAIN_SRC = $(SRC_DIR)/main.c
+MAIN_SRC = $(BIN_DIR)/hbctool.c
 
 ## Object files
 LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
-MAIN_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(MAIN_SRC))
+MAIN_OBJ = $(BUILD_DIR)/hbctool.o
 
 ## Artifacts
 BIN_FILE = $(BIN_DIR)/hbctool
@@ -56,6 +56,9 @@ $(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ)
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhbc
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(MAIN_OBJ): $(MAIN_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:

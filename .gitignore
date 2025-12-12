@@ -1,5 +1,5 @@
 build/
-bin/
+bin/hbctool
 third_party/
 *.d
 *.o
