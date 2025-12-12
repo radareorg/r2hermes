@@ -2423,6 +2423,12 @@ HBCISA hbc_isa_getv(int version) {
 	case 90:
 		result = get_instruction_set_v90 (&count);
 		break;
+	case 89:
+		result = get_instruction_set_v89 (&count);
+		break;
+	case 84:
+		result = get_instruction_set_v84 (&count);
+		break;
 	case 91:
 		result = get_instruction_set_v91 (&count);
 		break;
