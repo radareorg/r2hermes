@@ -23,7 +23,7 @@ LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
 MAIN_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(MAIN_SRC))
 
 ## Artifacts
-BIN_FILE = $(BIN_DIR)/hermes-dec
+BIN_FILE = $(BIN_DIR)/hbctool
 STATIC_LIB = $(BUILD_DIR)/libhbc.a
 
 # Include paths
@@ -76,7 +76,7 @@ user-install user-uninstall:
 	$(MAKE) -C r2
 
 test2:
-	./bin/hermes-dec d ../main.jsbundle 2>&1 |head -n 100
+	./bin/hbctool d ../main.jsbundle 2>&1 |head -n 100
 
 otest: prepare $(TEST_BIN)
 	$(TEST_BIN)

@@ -1,6 +1,6 @@
 # Project Description
 
-This repo contains a zero‑dependency C11 implementation of a Hermes HBC (Hermes Bytecode) disassembler/decompiler, a thin public library API, a CLI, and optional radare2 integration. It also embeds the original Python reference (hermes-dec/) for parity checks.
+This repo contains a zero‑dependency C11 implementation of a Hermes HBC (Hermes Bytecode) disassembler/decompiler, a thin public library API, a CLI, and optional radare2 integration. It also embeds the original Python reference (hbctool/) for parity checks.
 
 Use this guide to navigate the code, extend features, and avoid common pitfalls when changing the codebase.
 
@@ -14,17 +14,17 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
   - `utils/` small infrastructure: `BufferReader`, `StringBuffer`
 - `include/` public and internal headers; mirrors `src/` layout
   - Public API root: `include/hermesdec/hermesdec.h`
-- `bin/` CLI output (`hermes-dec`)
+- `bin/` CLI output (`hbctool`)
 - `build/` static library and objects (`libhermesdec.a`)
 - `r2/` radare2 plugin sources (optional)
-- `hermes-dec/` Python reference implementation and assets (no runtime dependency)
+- `hbctool/` Python reference implementation and assets (no runtime dependency)
 - `tests/` placeholder for future C tests; some assets live at repo root
 
 **Build & Run**
 - Build library + CLI: `make`
 - Debug build: `make debug` (adds `-g -DDEBUG`)
 - Clean: `make clean`
-- Run CLI: `./bin/hermes-dec <command> <input> [output]`
+- Run CLI: `./bin/hbctool <command> <input> [output]`
 
 Common CLI commands (see `src/main.c` for the full set):
 - `disassemble|dis|d` — disassemble file
@@ -95,21 +95,21 @@ Lifetimes and ownership:
 - When adding new operand meanings, ensure disassembler formatting and encoder support are updated accordingly.
 
 **Typical Workflows**
-- Quick sanity on a bundle: `./bin/hermes-dec header main.jsbundle`
-- Inspect functions: `./bin/hermes-dec funcs main.jsbundle`
-- Disassemble with asm syntax: `./bin/hermes-dec d main.jsbundle -v --asmsyntax > out.hasm`
-- Decompile: `./bin/hermes-dec dec main.jsbundle > out.js`
-- Compare with Python: `./bin/hermes-dec cmp main.jsbundle hermes-dec/tests/sample.hermes_dec_hdec`
+- Quick sanity on a bundle: `./bin/hbctool header main.jsbundle`
+- Inspect functions: `./bin/hbctool funcs main.jsbundle`
+- Disassemble with asm syntax: `./bin/hbctool d main.jsbundle -v --asmsyntax > out.hasm`
+- Decompile: `./bin/hbctool dec main.jsbundle > out.js`
+- Compare with Python: `./bin/hbctool cmp main.jsbundle hbctool/tests/sample.hermes_dec_hdec`
 
 **radare2 Integration Tips**
 - After `make r2`, r2 will have a Hermes arch/bin plugin (see `r2/*.c`). The encoder backs assembling simple mnemonics.
-- Generate flags script for r2: `./bin/hermes-dec r2 main.jsbundle out.r2` and `r2 -qi out.r2 main.jsbundle`.
+- Generate flags script for r2: `./bin/hbctool r2 main.jsbundle out.r2` and `r2 -qi out.r2 main.jsbundle`.
 
 **Testing**
 - Minimal test hooks exist in `Makefile`:
   - `make test` runs a short disassembly on `../main.jsbundle` (adjust path as needed).
   - `make otest` builds a test runner if `tests/*.c` are added.
-- Use the Python reference under `hermes-dec/` and the `cmp*` CLI commands for cross‑validation.
+- Use the Python reference under `hbctool/` and the `cmp*` CLI commands for cross‑validation.
 
 **Large Assets**
 - Sample bundles (`main.jsbundle`, `amazon.jsbundle`) are present for local experimentation. Avoid modifying or relying on them in tests by default.

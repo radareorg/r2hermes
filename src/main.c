@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	if (options.asm_syntax) {
-		fprintf (stderr, "[hermes-dec] ASM syntax mode enabled\n");
+		fprintf (stderr, "[hbctool] ASM syntax mode enabled\n");
 	}
 
 	if (!strcmp (command, "asm")) {
