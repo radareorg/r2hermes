@@ -5,6 +5,7 @@
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/hermes_encoder.h>
 #include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parsers/hbc_bytecode_parser.h>
 #include "hbc_internal.h"
 #include <hbc/opcodes/hermes_opcodes.h>
 
@@ -458,10 +459,10 @@ Result hbc_decode_function_instructions(
 		HBCInstruction *hi = &arr[i];
 		hi->rel_addr = ins->original_pos;
 		hi->abs_addr = fh->offset + ins->original_pos;
-		hi->opcode = ins->inst->opcode;
+		hi->opcode = ins->opcode;
 		hi->mnemonic = ins->inst->name;
-		hi->is_jump = is_jump_instruction (ins->inst->opcode);
-		hi->is_call = is_call_instruction (ins->inst->opcode);
+		hi->is_jump = is_jump_instruction (ins->opcode);
+		hi->is_call = is_call_instruction (ins->opcode);
 
 		/* Operands */
 		hi->operand_count = 0;
@@ -568,7 +569,7 @@ void hbc_free_instructions(HBCInstruction *insns, u32 count) {
 
 /* --- Single-instruction decode (no file context) --- */
 
-static Instruction *select_instruction_set(u32 ver, u32 *out_count) {
+static const Instruction *select_instruction_set(u32 ver, u32 *out_count) {
 	if (!ver) {
 		fprintf (stderr, "[hbc] Warning: bytecode_version not specified, defaulting to v96\n");
 		ver = 96;
@@ -581,21 +582,17 @@ static Instruction *select_instruction_set(u32 ver, u32 *out_count) {
 	return isa.instructions;
 }
 
-static const Instruction *find_instruction(Instruction *set, u32 count, u8 opcode) {
+static const Instruction *find_instruction(const Instruction *set, u32 count, u8 opcode) {
 	if (!set) {
 		return NULL;
 	}
-	/* Prefer direct index lookup when possible (tables are 256-entry arrays) */
-	if (count >= 256) {
-		return &set[opcode];
+	if (opcode >= count) {
+		return NULL;
 	}
-	/* Fallback: linear search */
-	for (u32 i = 0; i < count; i++) {
-		if (set[i].opcode == opcode) {
-			return &set[i];
-		}
+	if (!set[opcode].name) {
+		return NULL;
 	}
-	return NULL;
+	return &set[opcode];
 }
 
 static void to_snake_lower(const char *in, char *out, size_t outsz) {
@@ -630,7 +627,7 @@ Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out) {
 
 	/* Fetch instruction set */
 	u32 set_count = 0;
-	Instruction *set = select_instruction_set (ctx->bytecode_version, &set_count);
+	const Instruction *set = select_instruction_set (ctx->bytecode_version, &set_count);
 	if (!set) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "No opcode table available");
 	}

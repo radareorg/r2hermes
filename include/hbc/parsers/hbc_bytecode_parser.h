@@ -8,6 +8,7 @@
 /* Parsed instruction */
 typedef struct {
 	const Instruction *inst;
+	u8 opcode;
 	u32 arg1;
 	union {
 		u32 arg2;

@@ -137,7 +137,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 		const Instruction *inst = NULL;
 		if (opcode < isa.count) {
 			inst = &isa.instructions[opcode];
-			if (strcmp (inst->name, "Unknown") == 0) {
+			if (!inst->name) {
 				inst = NULL;
 			}
 		}
@@ -152,6 +152,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 		memset (&instruction, 0, sizeof (ParsedInstruction));
 
 		instruction.inst = inst;
+		instruction.opcode = opcode;
 		instruction.original_pos = original_pos;
 		instruction.function_offset = function_header->offset;
 		instruction.hbc_reader = reader;
@@ -699,9 +700,9 @@ bool is_instruction_supported_in_version(u8 opcode, u32 bytecode_version) {
 		return false;
 	}
 
-	/* Check if instruction is defined (not "Unknown") */
+	/* Check if instruction is defined */
 	const Instruction *inst = &isa.instructions[opcode];
-	return strcmp (inst->name, "Unknown") != 0;
+	return inst->name != NULL;
 }
 
 /* Get the best matching version for a bytecode file */

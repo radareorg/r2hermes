@@ -13,7 +13,7 @@ UTILS_SRC = $(wildcard $(SRC_DIR)/utils/*.c)
 PARSERS_SRC = $(wildcard $(SRC_DIR)/parsers/*.c)
 DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
-OPCODES_SRC = $(wildcard $(SRC_DIR)/opcodes/*.c)
+OPCODES_SRC = $(filter-out $(SRC_DIR)/opcodes/%.inc.c,$(wildcard $(SRC_DIR)/opcodes/*.c))
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
           $(SRC_DIR)/lib/hbc.c $(SRC_DIR)/encoder.c $(SRC_DIR)/decoder.c $(SRC_DIR)/lib/r2.c
 MAIN_SRC = $(BIN_DIR)/hbctool.c

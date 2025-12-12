@@ -80,7 +80,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	ParsedInstruction *insn = (ParsedInstruction *)insn_c; /* for storing pointer in token_string */
 	RETURN_IF_ERROR (token_string_init (out, insn));
 
-	const u8 op = insn->inst->opcode;
+	const u8 op = insn->opcode;
 	switch (op) {
 	case OP_Mov:
 	case OP_MovLong:

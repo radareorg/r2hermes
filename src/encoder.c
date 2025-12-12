@@ -41,13 +41,19 @@ void hbc_encoder_cleanup(HBCEncoder *encoder) {
 }
 
 /* Find instruction by mnemonic */
-static const Instruction *find_instruction_by_name(const char *mnemonic, const Instruction *instruction_set, u32 instruction_count) {
+static const Instruction *find_instruction_by_name(const char *mnemonic, const Instruction *instruction_set, u32 instruction_count, u8 *out_opcode) {
 	if (!mnemonic || !instruction_set) {
 		return NULL;
 	}
 
 	for (u32 i = 0; i < instruction_count; i++) {
+		if (!instruction_set[i].name) {
+			continue;
+		}
 		if (strcasecmp (mnemonic, instruction_set[i].name) == 0) {
+			if (out_opcode) {
+				*out_opcode = (u8)i;
+			}
 			return &instruction_set[i];
 		}
 	}
@@ -94,12 +100,13 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line,
 	}
 
 	/* Find instruction by mnemonic */
-	const Instruction *inst = find_instruction_by_name (mnemonic, encoder->instruction_set, encoder->instruction_count);
+	u8 opcode = 0;
+	const Instruction *inst = find_instruction_by_name (mnemonic, encoder->instruction_set, encoder->instruction_count, &opcode);
 	if (!inst) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown mnemonic");
 	}
 
-	out_instruction->opcode = inst->opcode;
+	out_instruction->opcode = opcode;
 	out_instruction->size = inst->binary_size;
 
 	/* Parse operands based on instruction definition */
@@ -299,15 +306,12 @@ Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstr
 	}
 
 	/* Find the instruction definition */
-	const Instruction *inst = NULL;
-	for (u32 i = 0; i < encoder->instruction_count; i++) {
-		if (encoder->instruction_set[i].opcode == instruction->opcode) {
-			inst = &encoder->instruction_set[i];
-			break;
-		}
+	if (instruction->opcode >= encoder->instruction_count) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Unknown instruction opcode");
 	}
 
-	if (!inst) {
+	const Instruction *inst = &encoder->instruction_set[instruction->opcode];
+	if (!inst->name) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Unknown instruction opcode");
 	}
 

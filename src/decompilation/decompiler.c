@@ -77,7 +77,7 @@ static inline bool operand_is_addr(const Instruction *inst, int idx) {
 static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
 	u32 v = insn_get_operand_value (insn, op_index);
 	u32 base = insn->original_pos;
-	if (is_jump_instruction (insn->inst->opcode)) {
+	if (is_jump_instruction (insn->opcode)) {
 		base += insn->inst->binary_size;
 	}
 	return base + v;
@@ -381,7 +381,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 			if (tgt < func_sz) {
 				u32set_add (&leaders, tgt);
 			}
-			bool term = is_jump_instruction (ins->inst->opcode) || ins->inst->opcode == OP_Ret || ins->inst->opcode == OP_Throw;
+			bool term = is_jump_instruction (ins->opcode) || ins->opcode == OP_Ret || ins->opcode == OP_Throw;
 			if (term && ins->next_pos < func_sz) {
 				u32set_add (&leaders, ins->next_pos);
 			}
@@ -423,7 +423,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 		if (!last) {
 			continue;
 		}
-		u8 op = last->inst->opcode;
+		u8 op = last->opcode;
 		if (op == OP_Ret) {
 			bb->is_unconditional_return_end = true;
 			continue;
@@ -660,7 +660,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			if (taddr < func_end) {
 				u32set_add (&labels, taddr);
 			}
-			bool ends = is_jump_instruction (ins->inst->opcode) || ins->inst->opcode == OP_Ret || ins->inst->opcode == OP_Throw;
+			bool ends = is_jump_instruction (ins->opcode) || ins->opcode == OP_Ret || ins->opcode == OP_Throw;
 			if (ends && ins->next_pos < func_end) {
 				u32set_add (&labels, ins->next_pos);
 			}
@@ -728,7 +728,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			int catch_reg = -1;
 			if (tindex >= 0) {
 				ParsedInstruction *ci = &list.instructions[tindex];
-				if (ci->inst && ci->inst->opcode == OP_Catch) {
+				if (ci->inst && ci->opcode == OP_Catch) {
 					catch_reg = (int)ci->arg1;
 				}
 			}
@@ -741,7 +741,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 				if (ti->original_pos < try_start_addr || ti->original_pos >= try_end_addr) {
 					continue;
 				}
-				if (ti->inst && (ti->inst->opcode == OP_Jmp || ti->inst->opcode == OP_JmpLong)) {
+				if (ti->inst && (ti->opcode == OP_Jmp || ti->opcode == OP_JmpLong)) {
 					int aidx = -1;
 					for (int j = 0; j < 6; j++) {
 						if (operand_is_addr (ti->inst, j)) {
@@ -842,7 +842,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			int b_addr_idx = -1;
 			for (u32 k = i + 1; k < list.count; k++) {
 				ParsedInstruction *ji = &list.instructions[k];
-				if (!is_jump_instruction (ji->inst->opcode)) {
+				if (!is_jump_instruction (ji->opcode)) {
 					continue;
 				}
 				int aidx = -1;
@@ -858,7 +858,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 				u32 taddr = compute_target_address (ji, aidx);
 				if (taddr == ins->original_pos) {
 					back_idx = (int)k;
-					bop = ji->inst->opcode;
+					bop = ji->opcode;
 					b_addr_idx = aidx;
 					break;
 				}
@@ -952,13 +952,13 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		}
 
 		/* Learn parameter names on the fly */
-		if (ins->inst->opcode == OP_LoadParam || ins->inst->opcode == OP_LoadParamLong) {
+		if (ins->opcode == OP_LoadParam || ins->opcode == OP_LoadParamLong) {
 			/* handled later by reg_names mapping */
 		}
 
 		/* Try to recognize while-loop pattern: JmpFalse/JmpTrue to forward exit, body ends with Jmp back to header */
 		int addr_idx = -1;
-		if (is_jump_instruction (ins->inst->opcode)) {
+		if (is_jump_instruction (ins->opcode)) {
 			for (int j = 0; j < 6; j++) {
 				if (operand_is_addr (ins->inst, j)) {
 					addr_idx = j;
@@ -967,7 +967,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			}
 		}
 		if (addr_idx >= 0) {
-			u8 opw = ins->inst->opcode;
+			u8 opw = ins->opcode;
 			bool is_simple_bool = (opw == OP_JmpFalse || opw == OP_JmpFalseLong || opw == OP_JmpTrue || opw == OP_JmpTrueLong);
 			if (is_simple_bool) {
 				u32 exit_addr = compute_target_address (ins, addr_idx);
@@ -977,7 +977,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 					int back_idx = exit_index - 1;
 					if (back_idx > (int)i) {
 						ParsedInstruction *back = &list.instructions[back_idx];
-						if (back->inst && (back->inst->opcode == OP_Jmp || back->inst->opcode == OP_JmpLong)) {
+						if (back->inst && (back->opcode == OP_Jmp || back->opcode == OP_JmpLong)) {
 							int bj = -1;
 							for (int j = 0; j < 6; j++) {
 								if (operand_is_addr (back->inst, j)) {
@@ -1054,7 +1054,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 		/* Try to recognize simple if / if-else */
 		if (addr_idx >= 0) {
-			u8 op = ins->inst->opcode;
+			u8 op = ins->opcode;
 			bool is_simple_cond = (op == OP_JmpTrue || op == OP_JmpTrueLong || op == OP_JmpFalse || op == OP_JmpFalseLong || cmp_op_for_jump (op) != NULL);
 			if (is_simple_cond) {
 				u32 taddr = compute_target_address (ins, addr_idx);
@@ -1066,7 +1066,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 					int else_begin = -1, else_end = -1;
 					if (then_end - 1 > (int)i) {
 						ParsedInstruction *last_then = &list.instructions[then_end - 1];
-						if (last_then->inst && (last_then->inst->opcode == OP_Jmp || last_then->inst->opcode == OP_JmpLong)) {
+						if (last_then->inst && (last_then->opcode == OP_Jmp || last_then->opcode == OP_JmpLong)) {
 							int jaddr_idx = -1;
 							for (int j = 0; j < 6; j++) {
 								if (operand_is_addr (last_then->inst, j)) {
@@ -1212,7 +1212,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		}
 
 		/* SwitchImm structuring */
-		if (ins->inst->opcode == OP_SwitchImm) {
+		if (ins->opcode == OP_SwitchImm) {
 			/* arg1: value reg, arg4: min, arg5: max, arg3: default (Addr32), switch_jump_table[] holds case targets (function-relative) */
 			StringBuffer sbh;
 			RETURN_IF_ERROR (string_buffer_init (&sbh, 64));
@@ -1261,7 +1261,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 		/* Default single-line printing path */
 		/* Update naming map for params */
-		if (ins->inst->opcode == OP_LoadParam || ins->inst->opcode == OP_LoadParamLong) {
+		if (ins->opcode == OP_LoadParam || ins->opcode == OP_LoadParamLong) {
 			int dst = (int)ins->arg1;
 			u32 pidx = ins->arg2;
 			char tmp[32];
@@ -1279,7 +1279,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		RETURN_IF_ERROR (string_buffer_init (&line, 128));
 		RETURN_IF_ERROR (append_indent (&line, base_indent));
 		bool handled_cf = false;
-		if (is_jump_instruction (ins->inst->opcode)) {
+		if (is_jump_instruction (ins->opcode)) {
 			int aidx = -1;
 			for (int j = 0; j < 6; j++) {
 				if (operand_is_addr (ins->inst, j)) {
@@ -1291,7 +1291,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 				u32 taddr = compute_target_address (ins, aidx);
 				char tlabel[32];
 				label_name (tlabel, sizeof (tlabel), taddr);
-				u8 op = ins->inst->opcode;
+				u8 op = ins->opcode;
 				if (op == OP_Jmp || op == OP_JmpLong) {
 					if (taddr != ins->next_pos) {
 						string_buffer_append (&line, "goto ");
@@ -1303,7 +1303,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		}
 		if (!handled_cf) {
 			/* Improve default CF printing for compare-and-jump and simple boolean/undefined jumps */
-			if (is_jump_instruction (ins->inst->opcode)) {
+			if (is_jump_instruction (ins->opcode)) {
 				int aidx = -1;
 				for (int j = 0; j < 6; j++) {
 					if (operand_is_addr (ins->inst, j)) {
@@ -1315,7 +1315,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 					u32 taddr = compute_target_address (ins, aidx);
 					char tlabel[32];
 					label_name (tlabel, sizeof (tlabel), taddr);
-					const char *cmp = cmp_op_for_jump (ins->inst->opcode);
+					const char *cmp = cmp_op_for_jump (ins->opcode);
 					if (cmp) {
 						int r1 = -1, r2 = -1;
 						for (int j = 0; j < 6; j++) {
@@ -1342,7 +1342,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 						handled_cf = true;
 					} else {
 						/* Handle JmpTrue/JmpFalse/JmpUndefined (+ long) */
-						u8 opj = ins->inst->opcode;
+						u8 opj = ins->opcode;
 						if (opj == OP_JmpTrue || opj == OP_JmpTrueLong || opj == OP_JmpFalse || opj == OP_JmpFalseLong || opj == OP_JmpUndefined || opj == OP_JmpUndefinedLong) {
 							int ridx = -1;
 							for (int j = 0; j < 6; j++) {

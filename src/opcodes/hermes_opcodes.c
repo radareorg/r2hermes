@@ -1,5 +1,4 @@
 #include <hbc/opcodes/hermes_opcodes.h>
-#include <stdlib.h>
 
 /* Include per-version instruction set implementations (static functions) */
 #include "v76.inc.c"
@@ -11,42 +10,42 @@
 #include "v95.inc.c"
 #include "v96.inc.c"
 
-/* v91 and v92 are compatible with v90 -> forward to v90 implementation */
-static HBCISA get_instruction_set_v91(void) {
-	return get_instruction_set_v90 ();
-}
-static HBCISA get_instruction_set_v92(void) {
-	return get_instruction_set_v90 ();
-}
+static const HBCISA k_isa_v76 = { .count = 256, .instructions = k_instructions_v76 };
+static const HBCISA k_isa_v84 = { .count = 256, .instructions = k_instructions_v84 };
+static const HBCISA k_isa_v89 = { .count = 256, .instructions = k_instructions_v89 };
+static const HBCISA k_isa_v90 = { .count = 256, .instructions = k_instructions_v90 };
+static const HBCISA k_isa_v93 = { .count = 256, .instructions = k_instructions_v93 };
+static const HBCISA k_isa_v94 = { .count = 256, .instructions = k_instructions_v94 };
+static const HBCISA k_isa_v95 = { .count = 256, .instructions = k_instructions_v95 };
+static const HBCISA k_isa_v96 = { .count = 256, .instructions = k_instructions_v96 };
 
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version) {
 	switch (version) {
 	case 90:
-		return get_instruction_set_v90 ();
+		return k_isa_v90;
 	case 89:
-		return get_instruction_set_v89 ();
+		return k_isa_v89;
 	case 84:
-		return get_instruction_set_v84 ();
+		return k_isa_v84;
 	case 91:
-		return get_instruction_set_v91 ();
 	case 92:
-		return get_instruction_set_v92 ();
+		return k_isa_v90;
 	case 93:
-		return get_instruction_set_v93 ();
+		return k_isa_v93;
 	case 94:
-		return get_instruction_set_v94 ();
+		return k_isa_v94;
 	case 95:
-		return get_instruction_set_v95 ();
+		return k_isa_v95;
 	case 96:
-		return get_instruction_set_v96 ();
+		return k_isa_v96;
 	case 76:
-		return get_instruction_set_v76 ();
+		return k_isa_v76;
 	default:
 		if (version >= 72 && version < 90) {
-			return get_instruction_set_v90 ();
+			return k_isa_v90;
 		} else {
-			return get_instruction_set_v96 ();
+			return k_isa_v96;
 		}
 	}
 }
