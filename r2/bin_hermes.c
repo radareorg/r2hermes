@@ -4,7 +4,7 @@
 #include <r_lib.h>
 
 // Include hermesdec headers
-#include "hermesdec/hermesdec.h"
+#include "hbc/hbc.h"
 #include "common.h"
 
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL
@@ -39,13 +39,13 @@ static ut64 get_entrypoint_from_file(const char *file_path) {
 		return 0;
 	}
 
-	HermesDec *hd = NULL;
+	HBCState *hd = NULL;
 	Result result = hbc_open (file_path, &hd);
 	if (result.code != RESULT_SUCCESS) {
 		return 0;
 	}
 
-	HermesHeader hh;
+	HBCHeader hh;
 	result = hbc_get_header (hd, &hh);
 	if (result.code != RESULT_SUCCESS) {
 		hbc_close (hd);
@@ -65,10 +65,10 @@ static RBinInfo *info(RBinFile *bf) {
 
 	// Try to use the hermesdec library to parse the file
 	if (bf->file) {
-		HermesDec *hd = NULL;
+		HBCState *hd = NULL;
 		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
-			HermesHeader hh;
+			HBCHeader hh;
 			result = hbc_get_header (hd, &hh);
 			if (result.code == RESULT_SUCCESS) {
 				ret->file = strdup (bf->file);
@@ -148,7 +148,7 @@ static ut64 get_entrypoint_from_symbols(const char *file_path) {
 		return 0;
 	}
 
-	HermesDec *hd = NULL;
+	HBCState *hd = NULL;
 	Result result = hbc_open (file_path, &hd);
 	if (result.code != RESULT_SUCCESS) {
 		return 0;
@@ -223,7 +223,7 @@ static RList *entries(RBinFile *bf) {
 
 	// If entrypoint is still invalid, try to find any valid function offset
 	if (entrypoint == 0 && bf->file) {
-		HermesDec *hd = NULL;
+		HBCState *hd = NULL;
 		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
 			u32 func_count = hbc_function_count (hd);
@@ -273,7 +273,7 @@ static RList *symbols(RBinFile *bf) {
 
 	// Try to parse the file and extract function symbols using the library
 	if (bf->file) {
-		HermesDec *hd = NULL;
+		HBCState *hd = NULL;
 		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
 			u32 func_count = hbc_function_count (hd);
@@ -343,7 +343,7 @@ static RList *strings(RBinFile *bf) {
 	}
 
 	if (bf->file) {
-		HermesDec *hd = NULL;
+		HBCState *hd = NULL;
 		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
 			u32 string_count = hbc_string_count (hd);
@@ -352,7 +352,7 @@ static RList *strings(RBinFile *bf) {
 				const char *str = NULL;
 				Result str_result = hbc_get_string (hd, i, &str);
 				if (str_result.code == RESULT_SUCCESS && str) {
-					HermesStringMeta meta;
+					HBCStringMeta meta;
 					Result meta_result = hbc_get_string_meta (hd, i, &meta);
 					if (meta_result.code == RESULT_SUCCESS) {
 						RBinString *ptr = R_NEW0 (RBinString);

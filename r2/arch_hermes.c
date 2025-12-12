@@ -9,7 +9,7 @@
 #endif
 
 // Include hermesdec headers
-#include "hermesdec/hermesdec.h"
+#include "hbc/hbc.h"
 #include "opcodes/hermes_opcodes.h"
 #include "parsers/hbc_bytecode_parser.h"
 #include "parsers/hbc_file_parser.h"
@@ -18,7 +18,7 @@
 
 typedef struct {
 	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
-	HermesDec *hd; /* Hermes file handle for string table access */
+	HBCState *hd; /* Hermes file handle for string table access */
 	u32 string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
@@ -178,7 +178,7 @@ static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut3
 		if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
 			ut32 string_id = operand_values[i];
 			if (string_id < hs->string_count && hs->hd) {
-				HermesStringMeta meta;
+				HBCStringMeta meta;
 				Result meta_result = hbc_get_string_meta (hs->hd, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
 					// Set op->ptr to the string address

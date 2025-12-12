@@ -1,3 +1,9 @@
 build/
 bin/
 third_party/
+*.d
+*.o
+*.dylib
+*.so
+test/bins
+*.swp
