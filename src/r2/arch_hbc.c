@@ -589,12 +589,12 @@ static bool fini(RArchSession *s) {
 
 const RArchPlugin r_arch_plugin_hermes = {
 	.meta = {
-		.name = "hermes",
+		.name = "hbc",
 		.author = "pancake",
 		.desc = "Hermes bytecode disassembler",
-		.license = "LGPL-3.0-only",
+		.license = "BSD",
 	},
-	.arch = "hermes",
+	.arch = "hbc",
 	.bits = R_SYS_BITS_PACK1 (64),
 	.cpus = "v76,v90,v91,v92,v93,v94,v95,v96",
 	.decode = &decode,

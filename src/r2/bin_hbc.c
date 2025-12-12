@@ -356,10 +356,10 @@ static RList *strings(RBinFile *bf) {
 
 RBinPlugin r_bin_plugin_hermes = {
 	.meta = {
-		.name = "hbc",
+		.name = "hbc.bin",
 		.author = "pancake",
 		.desc = "Hermes bytecode format",
-		.license = "MIT",
+		.license = "BSD",
 	},
 	.info = &info,
 	.load = &load,
