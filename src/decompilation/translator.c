@@ -626,8 +626,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
-		bool pretty = (insn->arg2 >= 4) || (insn->arg3 >= 4);
-			r = format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, pretty);
+			r = format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, LITERALS_PRETTY_AUTO, false);
 		Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
 			string_buffer_free (&sb);
 			if (!t) {
@@ -646,8 +645,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
-			bool pretty = (insn->arg3 >= 5);
-			r = format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, pretty);
+			r = format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, LITERALS_PRETTY_AUTO, false);
 		Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
 			string_buffer_free (&sb);
 			if (!t) {
@@ -726,7 +724,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
-			if (!get_decompile_suppress_comments ()) {
+			if (true) {
 				char buf2[32];
 				snprintf (buf2, sizeof (buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
 				RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
@@ -736,7 +734,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	default:
 		{
-			if (!get_decompile_suppress_comments ()) {
+			if (true) {
 				/* Fallback: emit a comment-like raw token with mnemonic */
 				StringBuffer sb;
 				string_buffer_init (&sb, 64);

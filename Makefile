@@ -38,7 +38,7 @@ debug: CFLAGS += $(DEBUG_FLAGS)
 debug: all
 
 format indent fmt:
-	clang-format-radare2 $(shell find src include | grep '\.[c|h]$$')
+	clang-format-radare2 $(shell find src include r2 | grep '\.[c|h]$$')
 
 prepare:
 	@mkdir -p $(BUILD_DIR)/utils

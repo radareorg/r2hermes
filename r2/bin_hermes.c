@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - hermes-dec */
+/* radare2 - LGPL - Copyright 2025 - libhbc */
 
 #include <r_bin.h>
 #include <r_lib.h>
@@ -80,7 +80,7 @@ static RBinInfo *info(RBinFile *bf) {
 				ret->os = strdup ("any");
 				ret->bits = 32; // Hermes bytecode is typically 32-bit
 				ret->cpu = r_str_newf ("%d", hh.version);
-				hermesdec_close (hd);
+				hbc_close (hd);
 				return ret;
 			}
 			hermesdec_close (hd);
@@ -149,23 +149,22 @@ static ut64 get_entrypoint_from_symbols(const char *file_path) {
 	}
 
 	HermesDec *hd = NULL;
-	Result result = hermesdec_open (file_path, &hd);
+	Result result = hbc_open (file_path, &hd);
 	if (result.code != RESULT_SUCCESS) {
 		return 0;
 	}
 
-	u32 func_count = hermesdec_function_count (hd);
+	u32 func_count = hbc_function_count (hd);
 	for (u32 i = 0; i < func_count; i++) {
-		const char *name = NULL;
-		u32 offset = 0, size = 0, param_count = 0;
-		Result func_result = hermesdec_get_function_info (hd, i, &name, &offset, &size, &param_count);
-		if (func_result.code == RESULT_SUCCESS && name && strcmp (name, "MainAppContent") == 0) {
-			hermesdec_close (hd);
-			return offset;
+		HBCFunctionInfo fi;
+		Result func_result = hbc_get_function_info (hd, i, &fi);
+		if (func_result.code == RESULT_SUCCESS && fi.name && strcmp (fi.name, "MainAppContent") == 0) {
+			hbc_close (hd);
+			return fi.offset;
 		}
 	}
 
-	hermesdec_close (hd);
+	hbc_close (hd);
 	return 0;
 }
 
@@ -225,19 +224,18 @@ static RList *entries(RBinFile *bf) {
 	// If entrypoint is still invalid, try to find any valid function offset
 	if (entrypoint == 0 && bf->file) {
 		HermesDec *hd = NULL;
-		Result result = hermesdec_open (bf->file, &hd);
+		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
-			u32 func_count = hermesdec_function_count (hd);
+			u32 func_count = hbc_function_count (hd);
 			if (func_count > 0) {
-				const char *name = NULL;
-				u32 offset = 0, size = 0, param_count = 0;
-				Result func_result = hermesdec_get_function_info (hd, 0, &name, &offset, &size, &param_count);
-				if (func_result.code == RESULT_SUCCESS && offset != 0) {
+				HBCFunctionInfo fi;
+				Result func_result = hbc_get_function_info (hd, 0, &fi);
+				if (func_result.code == RESULT_SUCCESS && fi.offset != 0) {
 					// Check if this offset is also valid
 					ut64 file_size = r_buf_size (bf->buf);
-					if (offset < file_size && offset + 8 <= file_size) {
+					if (fi.offset < file_size && fi.offset + 8 <= file_size) {
 						ut8 bytes[8];
-						if (r_buf_read_at (bf->buf, offset, bytes, 8) == 8) {
+						if (r_buf_read_at (bf->buf, fi.offset, bytes, 8) == 8) {
 							bool all_zeros = true;
 							for (int i = 0; i < 8; i++) {
 								if (bytes[i] != 0) {
@@ -246,13 +244,13 @@ static RList *entries(RBinFile *bf) {
 								}
 							}
 							if (!all_zeros) {
-								entrypoint = offset;
+								entrypoint = fi.offset;
 							}
 						}
 					}
 				}
 			}
-			hermesdec_close (hd);
+			hbc_close (hd);
 		}
 	}
 
@@ -281,9 +279,8 @@ static RList *symbols(RBinFile *bf) {
 			u32 func_count = hermesdec_function_count (hd);
 
 			for (u32 i = 0; i < func_count; i++) {
-				const char *name = NULL;
-				u32 offset = 0, size = 0, param_count = 0;
-				Result func_result = hermesdec_get_function_info (hd, i, &name, &offset, &size, &param_count);
+				HBCFunctionInfo fi;
+				Result func_result = hbc_get_function_info (hd, i, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
 					RBinSymbol *symbol = R_NEW0 (RBinSymbol);
 					if (!symbol) {
@@ -291,7 +288,7 @@ static RList *symbols(RBinFile *bf) {
 					}
 
 					/* Build a unique, sanitized name: [container__]base + _0x<offset> */
-					const char *base = (name && *name)? name: NULL;
+					const char *base = (fi.name && *fi.name)? fi.name: NULL;
 					char *tmpbase = NULL;
 					if (!base) {
 						tmpbase = r_str_newf ("func_%u", i);
@@ -305,7 +302,7 @@ static RList *symbols(RBinFile *bf) {
 					}
 					/* optional container/source prefix if available */
 					const char *src = NULL;
-					if (hermesdec_get_function_source (hd, i, &src).code == RESULT_SUCCESS && src && *src) {
+					if (hbc_get_function_source (hd, i, &src).code == RESULT_SUCCESS && src && *src) {
 						char *sp = r_name_filter_dup (src);
 						if (sp && *sp) {
 							char *withpref = r_str_newf ("%s__%s", sp, san);
@@ -314,7 +311,7 @@ static RList *symbols(RBinFile *bf) {
 						}
 						free (sp);
 					}
-					char *final = r_str_newf ("%s_0x%08x", san, offset);
+					char *final = r_str_newf ("%s_0x%08x", san, fi.offset);
 					symbol->name = r_bin_name_new (final);
 					/* Also store filtered (flag) name explicitly */
 					r_bin_name_filtered (symbol->name, final);
@@ -322,9 +319,9 @@ static RList *symbols(RBinFile *bf) {
 					free (san);
 					free (tmpbase);
 
-					symbol->paddr = offset;
-					symbol->vaddr = offset;
-					symbol->size = size;
+					symbol->paddr = fi.offset;
+					symbol->vaddr = fi.offset;
+					symbol->size = fi.size;
 					symbol->ordinal = i;
 					symbol->type = R_BIN_TYPE_FUNC_STR;
 					symbol->bits = 32;
@@ -347,16 +344,16 @@ static RList *strings(RBinFile *bf) {
 
 	if (bf->file) {
 		HermesDec *hd = NULL;
-		Result result = hermesdec_open (bf->file, &hd);
+		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
-			u32 string_count = hermesdec_string_count (hd);
+			u32 string_count = hbc_string_count (hd);
 
 			for (u32 i = 0; i < string_count; i++) {
 				const char *str = NULL;
-				Result str_result = hermesdec_get_string (hd, i, &str);
+				Result str_result = hbc_get_string (hd, i, &str);
 				if (str_result.code == RESULT_SUCCESS && str) {
 					HermesStringMeta meta;
-					Result meta_result = hermesdec_get_string_meta (hd, i, &meta);
+					Result meta_result = hbc_get_string_meta (hd, i, &meta);
 					if (meta_result.code == RESULT_SUCCESS) {
 						RBinString *ptr = R_NEW0 (RBinString);
 						if (!ptr) {

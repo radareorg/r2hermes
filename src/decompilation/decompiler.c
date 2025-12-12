@@ -542,7 +542,8 @@ Result decompile_file(const char *input_file, const char *output_file) {
 	// Produce decompilation into a temporary buffer, then write to file/stdout
 	StringBuffer sb;
 	string_buffer_init (&sb, 64 * 1024);
-	result = decompile_all_to_buffer (&reader, &sb);
+	HBCDecompileOptions options = { .pretty_literals = LITERALS_PRETTY_AUTO, .suppress_comments = false };
+	result = decompile_all_to_buffer (&reader, options, &sb);
 	if (result.code != RESULT_SUCCESS) {
 		string_buffer_free (&sb);
 		hbc_reader_cleanup (&reader);
@@ -575,7 +576,7 @@ Result decompile_file(const char *input_file, const char *output_file) {
 
 /* Internal helper to emit a minimal decompiled body with per-instruction statements.
  * Also appends disassembly as comments for debugging. */
-static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_id, StringBuffer *out) {
+static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	if (!reader || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for emit_function_stub_with_disassembly");
 	}
@@ -626,7 +627,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 	/* Parse function into instructions */
 	ParsedInstructionList list;
-	HBCISA isa = hbc_isa_getv(reader->header.version);
+	HBCISA isa = hbc_isa_getv (reader->header.version);
 	RETURN_IF_ERROR (parse_function_bytecode (reader, function_id, &list, isa));
 
 	/* Build CFG (anchors, blocks, edges) to prepare future structuring */
@@ -1378,7 +1379,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		}
 		RETURN_IF_ERROR (string_buffer_append (&line, ";"));
 		/* Append trailing disassembly as a comment unless disabled */
-		if (!get_decompile_suppress_comments ()) {
+		if (!options.suppress_comments) {
 			StringBuffer dline;
 			string_buffer_init (&dline, 64);
 			Result sr = instruction_to_string (ins, &dline);
@@ -1406,17 +1407,17 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 	return SUCCESS_RESULT ();
 }
 
-Result decompile_function_to_buffer(HBCReader *reader, u32 function_id, StringBuffer *out) {
+Result decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	// Emit a JS function stub with minimal decompiled statements and disassembly comments per line
-	return emit_minimal_decompiled_function (reader, function_id, out);
+	return emit_minimal_decompiled_function (reader, function_id, options, out);
 }
 
-Result decompile_all_to_buffer(HBCReader *reader, StringBuffer *out) {
+Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out) {
 	if (!reader || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for decompile_all_to_buffer");
 	}
 	// File preamble (comment-only; skip if comments disabled)
-	if (!get_decompile_suppress_comments ()) {
+	if (!options.suppress_comments) {
 		RETURN_IF_ERROR (string_buffer_append (out, "// Decompiled Hermes bytecode\n"));
 		RETURN_IF_ERROR (string_buffer_append (out, "// Version: "));
 		char vbuf[32];
@@ -1426,7 +1427,7 @@ Result decompile_all_to_buffer(HBCReader *reader, StringBuffer *out) {
 	}
 
 	for (u32 i = 0; i < reader->header.functionCount; i++) {
-		RETURN_IF_ERROR (decompile_function_to_buffer (reader, i, out));
+		RETURN_IF_ERROR (decompile_function_to_buffer (reader, i, options, out));
 	}
 	return SUCCESS_RESULT ();
 }

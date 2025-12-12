@@ -1794,33 +1794,33 @@ HBCISA hbc_isa_getv(int version) {
 
 	switch (version) {
 	case 90:
-		result = get_instruction_set_v90(&count);
+		result = get_instruction_set_v90 (&count);
 		break;
 	case 91:
-		result = get_instruction_set_v91(&count);
+		result = get_instruction_set_v91 (&count);
 		break;
 	case 92:
-		result = get_instruction_set_v92(&count);
+		result = get_instruction_set_v92 (&count);
 		break;
 	case 93:
-		result = get_instruction_set_v93(&count);
+		result = get_instruction_set_v93 (&count);
 		break;
 	case 94:
-		result = get_instruction_set_v94(&count);
+		result = get_instruction_set_v94 (&count);
 		break;
 	case 95:
-		result = get_instruction_set_v95(&count);
+		result = get_instruction_set_v95 (&count);
 		break;
 	case 96:
-		result = get_instruction_set_v96(&count);
+		result = get_instruction_set_v96 (&count);
 		break;
 	default:
 		/* For versions 72-89, use v90 as fallback */
 		if (version >= 72 && version < 90) {
-			result = get_instruction_set_v90(&count);
+			result = get_instruction_set_v90 (&count);
 		} else {
 			/* For versions > 96, use v96 as fallback */
-			result = get_instruction_set_v96(&count);
+			result = get_instruction_set_v96 (&count);
 		}
 		break;
 	}

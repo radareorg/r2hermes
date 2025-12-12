@@ -4,19 +4,9 @@
 #include "../common.h"
 #include "../parsers/hbc_file_parser.h"
 #include "../parsers/hbc_bytecode_parser.h"
+#include "../hbc/hbc.h"
 
-/* Disassembly options */
-#ifndef HERMES_DEC_DISASM_OPTS_DEFINED
-#define HERMES_DEC_DISASM_OPTS_DEFINED
-typedef struct {
-	bool verbose; /* Show detailed metadata */
-	bool output_json; /* Output in JSON format instead of text */
-	bool show_bytecode; /* Show raw bytecode bytes */
-	bool show_debug_info; /* Show debug information */
-	bool asm_syntax; /* Output CPU-like asm syntax (mnemonic operands) */
-	bool resolve_string_ids; /* Resolve string IDs to actual addresses */
-} HBCDisassemblyOptions;
-#endif
+/* Disassembly options - defined in hbc.h */
 
 /* Disassembler state */
 typedef struct {

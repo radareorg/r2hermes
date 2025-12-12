@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2024 - hermes-dec */
+/* radare2 - LGPL - Copyright 2025 - libhbc */
 
 #include <r_anal.h>
 #include <r_lib.h>
@@ -64,22 +64,24 @@ static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
 		hs->hd = NULL;
 	}
 
-	Result res = hermesdec_open (bi->file, &hs->hd);
+	Result res = hbc_open (bi->file, &hs->hd);
 	if (res.code != RESULT_SUCCESS) {
 		return false;
 	}
 
 	/* Get string count */
-	hs->string_count = hermesdec_string_count (hs->hd);
+	hs->string_count = hbc_string_count (hs->hd);
 
 	/* Extract string tables using the API */
-	Result table_res = hermesdec_get_string_tables (hs->hd, &hs->string_count,
-		&hs->small_string_table,
-		&hs->overflow_string_table,
-		&hs->string_storage_offset);
+	HBCStringTables tables;
+	Result table_res = hbc_get_string_tables (hs->hd, &tables);
 	if (table_res.code != RESULT_SUCCESS) {
 		return false;
 	}
+	hs->string_count = tables.string_count;
+	hs->small_string_table = tables.small_string_table;
+	hs->overflow_string_table = tables.overflow_string_table;
+	hs->string_storage_offset = tables.string_storage_offset;
 
 	return true;
 }
@@ -177,10 +179,14 @@ static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut3
 		else if (inst->operands[i].operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
 			ut32 function_id = operand_values[i];
 			if (hs->hd) {
-				const char *name = NULL;
 				ut32 offset = 0, sz = 0, param_count = 0;
-				Result func_result = hermesdec_get_function_info (hs->hd, function_id, &name, &offset, &sz, &param_count);
+				HBCFunctionInfo fi;
+				Result func_result = hbc_get_function_info (hs->hd, function_id, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
+					// name = fi.name;
+					offset = fi.offset;
+					sz = fi.size;
+					param_count = fi.param_count;
 					// Set op->ptr to the function address
 					op->ptr = (st64)offset;
 				}
@@ -218,26 +224,27 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	bool is_jump = false, is_call = false;
 	u64 jmp = 0;
 	size_t buflen = MAX_OP_SIZE; /* Radare2 provides at least this in op->bytes */
-	Result rr = hermesdec_decode_single_instruction (
+	HBCStringTables ctx = { .string_count = hs->string_count, .small_string_table = hs->small_string_table, .overflow_string_table = hs->overflow_string_table, .string_storage_offset = hs->string_storage_offset };
+	HBCSingleInstructionInfo sinfo;
+	Result rr = hbc_decode_single_instruction (
 		op->bytes,
 		buflen,
 		hs->bytecode_version,
 		op->addr,
 		true /* asm syntax */,
 		true /* resolve_string_ids */,
-		hs->string_count,
-		hs->small_string_table,
-		hs->overflow_string_table,
-		hs->string_storage_offset,
-		&text,
-		&size,
-		&opcode,
-		&is_jump,
-		&is_call,
-		&jmp);
+		&ctx,
+		&sinfo);
 	if (rr.code != RESULT_SUCCESS) {
 		return false;
 	}
+
+	text = sinfo.text;
+	size = sinfo.size;
+	opcode = sinfo.opcode;
+	is_jump = sinfo.is_jump;
+	is_call = sinfo.is_call;
+	jmp = sinfo.jump_target;
 
 	op->mnemonic = text? text: strdup ("unk");
 	op->size = size? size: 1;
@@ -257,6 +264,9 @@ static bool hermes_decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		op->jump = jmp; /* taken */
 		op->fail = op->addr + op->size; /* fall-through */
 		return true;
+	}
+	if (is_jump) {
+		op->type = R_ANAL_OP_TYPE_JMP;
 	}
 
 	if (opcode == OP_Jmp || opcode == OP_JmpLong) {
@@ -459,12 +469,12 @@ static bool hermes_encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 	ut8 tmp[MAX_OP_SIZE];
 	size_t written = 0;
 
-	Result res = hermesdec_encode_instruction (
+	HBCEncodeBuffer outbuf = { .buffer = tmp, .buffer_size = sizeof (tmp), .bytes_written = 0 };
+	Result res = hbc_encode_instruction (
 		asm_line,
 		hs->bytecode_version,
-		tmp,
-		sizeof (tmp),
-		&written);
+		&outbuf);
+	written = outbuf.bytes_written;
 	if (res.code != RESULT_SUCCESS || written == 0 || written > sizeof (tmp)) {
 		return false;
 	}
@@ -507,8 +517,8 @@ static bool hermes_fini(RArchSession *s) {
 
 const RArchPlugin r_arch_plugin_hermes = {
 	.meta = {
-		.name = "hermes",
-		.author = "hermes-dec",
+		.name = "hermes", // rename to hbc
+		.author = "pancake",
 		.desc = "Hermes bytecode disassembler",
 		.license = "LGPL-3.0-only",
 	},

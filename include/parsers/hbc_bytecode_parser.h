@@ -5,8 +5,6 @@
 #include "../opcodes/hermes_opcodes.h"
 #include "hbc_file_parser.h"
 
-
-
 /* Parsed instruction */
 typedef struct {
 	const Instruction *inst;

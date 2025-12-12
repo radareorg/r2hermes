@@ -78,7 +78,7 @@ static size_t parse_hex_bytes(const char *hex, u8 *bytes, size_t max_len) {
 	return bcount;
 }
 
-static Result parse_args(int argc, char **argv, char **command, char **input_file, char **output_file, HBCDisassemblyOptions *options) {
+static Result parse_args(int argc, char **argv, char **command, char **input_file, char **output_file, HBCDisassemblyOptions *options, HBCDecompileOptions *dec_options) {
 	if (argc < 3) {
 		print_usage (argv[0]);
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Not enough arguments");
@@ -91,6 +91,9 @@ static Result parse_args(int argc, char **argv, char **command, char **input_fil
 	options->show_bytecode = false;
 	options->show_debug_info = false;
 	options->asm_syntax = false;
+	/* Decompiler options */
+	dec_options->pretty_literals = false;
+	dec_options->suppress_comments = false;
 	for (int i = 3; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			if (!strcmp (argv[i], "--verbose") || !strcmp (argv[i], "-v")) {
@@ -104,13 +107,13 @@ static Result parse_args(int argc, char **argv, char **command, char **input_fil
 			} else if (!strcmp (argv[i], "--asmsyntax")) {
 				options->asm_syntax = true;
 			} else if (!strcmp (argv[i], "--pretty-literals") || !strcmp (argv[i], "-P")) {
-				set_literals_pretty_policy (LITERALS_PRETTY_ALWAYS);
+				dec_options->pretty_literals = true;
 			} else if (!strcmp (argv[i], "--no-pretty-literals") || !strcmp (argv[i], "-N")) {
-				set_literals_pretty_policy (LITERALS_PRETTY_NEVER);
+				dec_options->pretty_literals = false;
 			} else if (!strcmp (argv[i], "--pretty-auto")) {
-				set_literals_pretty_policy (LITERALS_PRETTY_AUTO);
+				/* auto is not representable in boolean option; leave default */
 			} else if (!strcmp (argv[i], "--no-comments") || !strcmp (argv[i], "-C")) {
-				set_decompile_suppress_comments (true);
+				dec_options->suppress_comments = true;
 			} else {
 				printf ("Warning: Unknown option '%s'\n", argv[i]);
 			}
@@ -125,7 +128,8 @@ static Result parse_args(int argc, char **argv, char **command, char **input_fil
 int main(int argc, char **argv) {
 	char *command = NULL, *input_file = NULL, *output_file = NULL;
 	HBCDisassemblyOptions options = { 0 };
-	Result result = parse_args (argc, argv, &command, &input_file, &output_file, &options);
+	HBCDecompileOptions dec_options = { 0 };
+	Result result = parse_args (argc, argv, &command, &input_file, &output_file, &options, &dec_options);
 	if (result.code != RESULT_SUCCESS) {
 		EPRINTF ("%s", result.error_message);
 		return 1;
@@ -142,19 +146,16 @@ int main(int argc, char **argv) {
 			EPRINTF ("%s", "Invalid or empty hex bytes string");
 			return 1;
 		}
-		char *text = NULL;
-		u32 sz = 0;
-		u8 opc = 0;
-		bool isj = false, isc = false;
-		u64 jmp = 0;
+		HBCSingleInstructionInfo sinfo;
+		memset (&sinfo, 0, sizeof (sinfo));
 		/* Default to version 96 for standalone decoding */
-		Result rr = hbc_decode_single_instruction (bytes, bcount, 96, 0, true, false, 0, NULL, NULL, 0, &text, &sz, &opc, &isj, &isc, &jmp);
+		Result rr = hbc_decode_single_instruction (bytes, bcount, 96, 0, options.asm_syntax, false, NULL, &sinfo);
 		if (rr.code != RESULT_SUCCESS) {
 			EPRINTF ("%s", rr.error_message);
 			return 1;
 		}
-		printf ("%s\n", text? text: "");
-		free (text);
+		printf ("%s\n", sinfo.text? sinfo.text: "");
+		free (sinfo.text);
 		return 0;
 	} else if (!strcmp (command, "assemble") || !strcmp (command, "enc") || !strcmp (command, "e")) {
 		/* Read asm text from file */
@@ -171,8 +172,8 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 		u8 buffer[4096];
-		size_t bytes_written = 0;
-		Result res = hbc_encode_instructions (asm_text, 96, buffer, sizeof (buffer), &bytes_written);
+		HBCEncodeBuffer eb = { .buffer = buffer, .buffer_size = sizeof (buffer), .bytes_written = 0 };
+		Result res = hbc_encode_instructions (asm_text, 96, &eb);
 		if (res.code != RESULT_SUCCESS) {
 			EPRINTF ("%s", res.error_message);
 			return 1;
@@ -185,7 +186,7 @@ int main(int argc, char **argv) {
 				return 1;
 			}
 		}
-		fwrite (buffer, 1, bytes_written, f_out);
+		fwrite (buffer, 1, eb.bytes_written, f_out);
 		if (output_file) {
 			fclose (f_out);
 		}
@@ -232,7 +233,7 @@ int main(int argc, char **argv) {
 		}
 		StringBuffer out;
 		string_buffer_init (&out, 32 * 1024);
-		result = hbc_decompile_all_to_buffer (hd, &out);
+		result = hbc_decompile_all_to_buffer (hd, dec_options, &out);
 		if (result.code != RESULT_SUCCESS) {
 			string_buffer_free (&out);
 			hbc_close (hd);
@@ -424,13 +425,14 @@ int main(int argc, char **argv) {
 		}
 		fclose (py);
 		for (u32 i = 0; i < count; i++) {
-			const char *name;
-			u32 co = 0, cs = 0, argc = 0;
-			hbc_get_function_info (hd, i, &name, &co, &cs, &argc);
+			HBCFunctionInfo fi;
+			if (hbc_get_function_info (hd, i, &fi).code != RESULT_SUCCESS) {
+				continue;
+			}
 			u32 po = py_offs[i];
 			u32 ps = py_sizes[i];
-			const char *res = (co == po && cs == ps)? "OK": "MISMATCH";
-			printf ("id=%u C(off=0x%08x,sz=%u) PY(off=0x%08x,sz=%u) => %s\n", i, co, cs, po, ps, res);
+			const char *res = (fi.offset == po && fi.size == ps)? "OK": "MISMATCH";
+			printf ("id=%u C(off=0x%08x,sz=%u) PY(off=0x%08x,sz=%u) => %s\n", i, fi.offset, fi.size, po, ps, res);
 		}
 		free (py_sizes);
 		free (py_offs);
@@ -456,7 +458,7 @@ int main(int argc, char **argv) {
 		HBCDisassemblyOptions opt = (HBCDisassemblyOptions){ 0 };
 		StringBuffer out;
 		string_buffer_init (&out, 8192);
-		hbc_disassemble_function_to_buffer (hd, function_id, opt, &out);
+		hbc_disassemble_function_to_buffer (hd, opt, function_id, &out);
 		FILE *py = fopen (python_dis_file, "r");
 		if (!py) {
 			string_buffer_free (&out);
@@ -584,10 +586,11 @@ int main(int argc, char **argv) {
 		u32 fc = hbc_function_count (hd);
 		u32 count = fc < N? fc: N;
 		for (u32 i = 0; i < count; i++) {
-			const char *name = NULL;
-			u32 off = 0, size = 0, argc = 0;
-			hbc_get_function_info (hd, i, &name, &off, &size, &argc);
-			printf ("C  id=%u offset=0x%08x size=%u name=%s\n", i, off, size, name? name: "");
+			HBCFunctionInfo fi;
+			if (hbc_get_function_info (hd, i, &fi).code != RESULT_SUCCESS) {
+				continue;
+			}
+			printf ("C  id=%u offset=0x%08x size=%u name=%s\n", i, fi.offset, fi.size, fi.name? fi.name: "");
 		}
 		hbc_close (hd);
 	} else {

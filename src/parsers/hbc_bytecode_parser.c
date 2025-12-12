@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 /* Initialize parsed instruction list */
 Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity) {
 	if (!list) {
@@ -72,12 +70,6 @@ void parsed_instruction_list_free(ParsedInstructionList *list) {
 	list->count = 0;
 	list->capacity = 0;
 }
-
-
-
-
-
-
 
 /* Parse all bytecode instructions in a function */
 Result parse_function_bytecode(HBCReader *reader, u32 function_id,
@@ -145,7 +137,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 		const Instruction *inst = NULL;
 		if (opcode < isa.count) {
 			inst = &isa.instructions[opcode];
-			if (strcmp(inst->name, "Unknown") == 0) {
+			if (strcmp (inst->name, "Unknown") == 0) {
 				inst = NULL;
 			}
 		}
@@ -702,7 +694,7 @@ bool is_call_instruction(u8 opcode) {
 
 /* Check if an instruction is supported in a specific version */
 bool is_instruction_supported_in_version(u8 opcode, u32 bytecode_version) {
-	HBCISA isa = hbc_isa_getv(bytecode_version);
+	HBCISA isa = hbc_isa_getv (bytecode_version);
 	if (!isa.instructions || opcode >= isa.count) {
 		return false;
 	}

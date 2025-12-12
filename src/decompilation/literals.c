@@ -19,24 +19,6 @@ bool is_js_identifier(const char *s) {
 	return true;
 }
 
-/* Global pretty policy (default: AUTO) */
-static LiteralsPrettyPolicy g_literals_pretty_policy = LITERALS_PRETTY_AUTO;
-void set_literals_pretty_policy(LiteralsPrettyPolicy p) {
-	g_literals_pretty_policy = p;
-}
-LiteralsPrettyPolicy get_literals_pretty_policy(void) {
-	return g_literals_pretty_policy;
-}
-
-/* Global suppression flag for comments in decompiled output */
-static bool g_decompile_suppress_comments = false;
-void set_decompile_suppress_comments(bool on) {
-	g_decompile_suppress_comments = on;
-}
-bool get_decompile_suppress_comments(void) {
-	return g_decompile_suppress_comments;
-}
-
 static Result append_quoted(StringBuffer *out, const char *s) {
 	RETURN_IF_ERROR (string_buffer_append (out, "\""));
 	for (const char *p = s; p && *p; p++) {
@@ -247,19 +229,14 @@ static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key,
 	}
 }
 
-Result format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, StringBuffer *out, bool pretty) {
-	/* Apply global policy overrides */
-	LiteralsPrettyPolicy pol = get_literals_pretty_policy ();
-	if (pol == LITERALS_PRETTY_ALWAYS) {
-		pretty = true;
-	} else if (pol == LITERALS_PRETTY_NEVER) {
-		pretty = false;
-	}
+Result format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
+	/* Apply policy */
+	bool pretty = (policy == LITERALS_PRETTY_ALWAYS) || (policy == LITERALS_PRETTY_AUTO && (key_count > 0));
 	bool multiline = pretty && (key_count > 0);
 	RETURN_IF_ERROR (string_buffer_append (out, multiline? "{\n": "{"));
 	if (!r || key_count == 0 || value_count == 0 || !r->object_keys || !r->object_values) {
 		/* Fallback placeholder */
-		if (get_decompile_suppress_comments ()) {
+		if (suppress_comments) {
 			return string_buffer_append (out, "}");
 		}
 		char tmp[96];
@@ -282,7 +259,7 @@ Result format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 k
 	if (!ok1 || !ok2) {
 		free (key_vals);
 		free (val_vals);
-		if (get_decompile_suppress_comments ()) {
+		if (suppress_comments) {
 			return string_buffer_append (out, "}");
 		}
 		char tmp[96];
@@ -313,18 +290,13 @@ Result format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 k
 	return SUCCESS_RESULT ();
 }
 
-Result format_array_literal(HBCReader *r, u32 value_count, u32 array_id, StringBuffer *out, bool pretty) {
-	/* Apply global policy overrides */
-	LiteralsPrettyPolicy pol = get_literals_pretty_policy ();
-	if (pol == LITERALS_PRETTY_ALWAYS) {
-		pretty = true;
-	} else if (pol == LITERALS_PRETTY_NEVER) {
-		pretty = false;
-	}
+Result format_array_literal(HBCReader *r, u32 value_count, u32 array_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
+	/* Apply policy */
+	bool pretty = (policy == LITERALS_PRETTY_ALWAYS) || (policy == LITERALS_PRETTY_AUTO && (value_count > 0));
 	bool multiline = pretty && (value_count > 0);
 	RETURN_IF_ERROR (string_buffer_append (out, multiline? "[\n": "["));
 	if (!r || !r->arrays || value_count == 0) {
-		if (get_decompile_suppress_comments ()) {
+		if (suppress_comments) {
 			return string_buffer_append (out, "]");
 		}
 		char tmp[64];
@@ -338,7 +310,7 @@ Result format_array_literal(HBCReader *r, u32 value_count, u32 array_id, StringB
 	bool ok = slp_parse_values (r->arrays, r->header.arrayBufferSize, array_id, value_count, vals);
 	if (!ok) {
 		free (vals);
-		if (get_decompile_suppress_comments ()) {
+		if (suppress_comments) {
 			return string_buffer_append (out, "]");
 		}
 		char tmp[64];

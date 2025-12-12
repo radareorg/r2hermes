@@ -1,13 +1,11 @@
 #include "hbc/hbc.h"
-#include "../include/hermes_encoder.h"
-#include "../include/parsers/hbc_file_parser.h"
-#include "../include/disassembly/hbc_disassembler.h"
-#include "../include/decompilation/decompiler.h"
-#include "../include/opcodes/hermes_opcodes.h"
-
-struct HBC {
-	HBCReader reader;
-};
+#include "common.h"
+#include "hbc/hbc.h"
+#include "disassembly/hbc_disassembler.h"
+#include "decompilation/decompiler.h"
+#include "hermes_encoder.h"
+#include "parsers/hbc_file_parser.h"
+#include "opcodes/hermes_opcodes.h"
 
 /* Open and fully parse a Hermes bytecode file */
 Result hbc_open(const char *path, HBC **out) {
@@ -173,37 +171,23 @@ Result hbc_get_header(HBC *hd, HBCHeader *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_function_info(
-	HBC *hd,
-	u32 function_id,
-	const char **out_name,
-	u32 *out_offset,
-	u32 *out_size,
-	u32 *out_param_count) {
-	if (!hd) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "HBC handle is NULL");
+Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunctionInfo *out) {
+	if (!hd || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 	HBCReader *r = &hd->reader;
 	if (function_id >= r->header.functionCount || !r->function_headers) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id");
 	}
 	FunctionHeader *fh = &r->function_headers[function_id];
-	if (out_name) {
-		const char *fn = NULL;
-		if (fh->functionName < r->header.stringCount && r->strings) {
-			fn = r->strings[fh->functionName];
-		}
-		*out_name = fn? fn: "unknown";
+	const char *fn = NULL;
+	if (fh->functionName < r->header.stringCount && r->strings) {
+		fn = r->strings[fh->functionName];
 	}
-	if (out_offset) {
-		*out_offset = fh->offset;
-	}
-	if (out_size) {
-		*out_size = fh->bytecodeSizeInBytes;
-	}
-	if (out_param_count) {
-		*out_param_count = fh->paramCount;
-	}
+	out->name = fn? fn: "unknown";
+	out->offset = fh->offset;
+	out->size = fh->bytecodeSizeInBytes;
+	out->param_count = fh->paramCount;
 	return SUCCESS_RESULT ();
 }
 
@@ -263,18 +247,15 @@ Result hbc_get_string_meta(HBC *hd, u32 index, HBCStringMeta *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_string_tables(HBC *hd, u32 *out_string_count,
-	const void **out_small_string_table,
-	const void **out_overflow_string_table,
-	u64 *out_string_storage_offset) {
-	if (!hd || !out_string_count || !out_small_string_table || !out_overflow_string_table || !out_string_storage_offset) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_string_tables");
+Result hbc_get_string_tables(HBCState *hd, HBCStringTables *out) {
+	if (!hd || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 	HBCReader *r = &hd->reader;
-	*out_string_count = r->header.stringCount;
-	*out_small_string_table = r->small_string_table;
-	*out_overflow_string_table = r->overflow_string_table;
-	*out_string_storage_offset = r->string_storage_file_offset;
+	out->string_count = r->header.stringCount;
+	out->small_string_table = r->small_string_table;
+	out->overflow_string_table = r->overflow_string_table;
+	out->string_storage_offset = r->string_storage_file_offset;
 	return SUCCESS_RESULT ();
 }
 
@@ -357,12 +338,12 @@ static Result work_disassemble_one(Disassembler *d, void *ctx) {
 }
 
 Result hbc_disassemble_function_to_buffer(
-	HBC *hd,
-	u32 function_id,
+	HBCState *hd,
 	HBCDisassemblyOptions options,
+	u32 function_id,
 	StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_disassemble_function_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 	HBCReader *r = &hd->reader;
 	WorkFnCtx c = { .function_id = function_id };
@@ -380,18 +361,18 @@ Result hbc_disassemble_all_to_buffer(
 	return disassemble_into (out, options, r, work_disassemble_all, NULL);
 }
 
-Result hbc_decompile_all_to_buffer(HBC *hd, StringBuffer *out) {
+Result hbc_decompile_all_to_buffer(HBCState *hd, HBCDecompileOptions options, StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_decompile_all_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	return decompile_all_to_buffer (&hd->reader, out);
+	return decompile_all_to_buffer (&hd->reader, options, out);
 }
 
-Result hbc_decompile_function_to_buffer(HBC *hd, u32 function_id, StringBuffer *out) {
+Result hbc_decompile_function_to_buffer(HBCState *hd, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_decompile_function_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	return decompile_function_to_buffer (&hd->reader, function_id, out);
+	return decompile_function_to_buffer (&hd->reader, function_id, options, out);
 }
 
 Result hbc_decompile_file(const char *input_file, const char *output_file) {
@@ -442,12 +423,11 @@ Result hbc_validate_basic(HBC *hd, StringBuffer *out) {
 
 /* Build per-instruction details for a function */
 Result hbc_decode_function_instructions(
-	HBC *hd,
+	HBCState *hd,
 	u32 function_id,
-	HBCInstruction **out_instructions,
-	u32 *out_count) {
-	if (!hd || !out_instructions || !out_count) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_decode_function_instructions");
+	HBCDecodedInstructions *out) {
+	if (!hd || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 	HBCReader *r = &hd->reader;
 	if (function_id >= r->header.functionCount) {
@@ -462,7 +442,7 @@ Result hbc_decode_function_instructions(
 	}
 
 	ParsedInstructionList list;
-	HBCISA isa = hbc_isa_getv(r->header.version);
+	HBCISA isa = hbc_isa_getv (r->header.version);
 	Result pr = parse_function_bytecode (r, function_id, &list, isa);
 	if (pr.code != RESULT_SUCCESS) {
 		return pr;
@@ -574,8 +554,8 @@ Result hbc_decode_function_instructions(
 	}
 
 	parsed_instruction_list_free (&list);
-	*out_instructions = arr;
-	*out_count = (u32) (arr? list.count: 0);
+	out->instructions = arr;
+	out->count = (u32) (arr? list.count: 0);
 	return SUCCESS_RESULT ();
 }
 
@@ -643,28 +623,20 @@ Result hbc_decode_single_instruction(
 	u64 pc,
 	bool asm_syntax,
 	bool resolve_string_ids,
-	u32 string_count,
-	const void *small_string_table,
-	const void *overflow_string_table,
-	u64 string_storage_offset,
-	char **out_text,
-	u32 *out_size,
-	u8 *out_opcode,
-	bool *out_is_jump,
-	bool *out_is_call,
-	u64 *out_jump_target) {
-	if (!bytes || len == 0 || !out_text || !out_size || !out_opcode || !out_is_jump || !out_is_call || !out_jump_target) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for single-instruction decode");
+	const HBCStringTables *string_ctx,
+	HBCSingleInstructionInfo *out) {
+	if (!bytes || len == 0 || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
 	u32 isz = 0;
 	char *text = NULL;
-	*out_text = NULL;
-	*out_size = 0;
-	*out_opcode = 0;
-	*out_is_jump = false;
-	*out_is_call = false;
-	*out_jump_target = 0;
+	out->text = NULL;
+	out->size = 0;
+	out->opcode = 0;
+	out->is_jump = false;
+	out->is_call = false;
+	out->jump_target = 0;
 
 	/* Fetch instruction set */
 	u32 set_count = 0;
@@ -725,10 +697,10 @@ Result hbc_decode_single_instruction(
 	/* Classification */
 	bool is_j = is_jump_instruction (opc);
 	bool is_c = is_call_instruction (opc);
-	*out_is_jump = is_j;
-	*out_is_call = is_c;
-	*out_opcode = opc;
-	*out_size = isz;
+	out->is_jump = is_j;
+	out->is_call = is_c;
+	out->opcode = opc;
+	out->size = isz;
 
 	/* Compute primary jump target for jmp-like insns (Hermes uses offsets
 	 * relative to the current instruction start, not the end). */
@@ -741,7 +713,7 @@ Result hbc_decode_single_instruction(
 			break;
 		}
 	}
-	*out_jump_target = jtg;
+	out->jump_target = jtg;
 
 	/* Render text */
 	StringBuffer sb;
@@ -788,15 +760,15 @@ Result hbc_decode_single_instruction(
 					u32 string_id = ops[i];
 					u64 resolved_addr = 0;
 
-				if (string_id < string_count && small_string_table) {
-						const StringTableEntry *entry = (const StringTableEntry *)small_string_table + string_id;
-					if (entry->length == 0xFF && overflow_string_table) {
+				if (string_id < string_ctx->string_count && string_ctx->small_string_table) {
+						const StringTableEntry *entry = (const StringTableEntry *)string_ctx->small_string_table + string_id;
+					if (entry->length == 0xFF && string_ctx->overflow_string_table) {
 							/* Use overflow table */
-							const OffsetLengthPair *overflow_entry = (const OffsetLengthPair *)overflow_string_table + entry->offset;
-							resolved_addr = string_storage_offset + overflow_entry->offset;
+							const OffsetLengthPair *overflow_entry = (const OffsetLengthPair *)string_ctx->overflow_string_table + entry->offset;
+							resolved_addr = string_ctx->string_storage_offset + overflow_entry->offset;
 						} else {
 							/* Use small table */
-							resolved_addr = string_storage_offset + entry->offset;
+							resolved_addr = string_ctx->string_storage_offset + entry->offset;
 						}
 					}
 
@@ -826,64 +798,28 @@ Result hbc_decode_single_instruction(
 	text[L] = '\0';
 	string_buffer_free (&sb);
 
-	*out_text = text;
+	out->text = text;
 	return SUCCESS_RESULT ();
 }
 
-/* Encoding functions */
+/* Encoding functions - TODO: implement */
+
 Result hbc_encode_instruction(
 	const char *asm_line,
 	u32 bytecode_version,
-	u8 *out_buffer,
-	size_t buffer_size,
-	size_t *out_bytes_written) {
-	if (!asm_line || !out_buffer || !out_bytes_written) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
-	}
-
-	/* Initialize encoder */
-	HermesEncoder encoder;
-	Result res = hermes_encoder_init (&encoder, bytecode_version);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
-	/* Parse and encode */
-	EncodedInstruction instruction;
-	res = hermes_encoder_parse_instruction (&encoder, asm_line, &instruction);
-	if (res.code != RESULT_SUCCESS) {
-		hermes_encoder_cleanup (&encoder);
-		return res;
-	}
-
-	res = hermes_encoder_encode_instruction (&encoder, &instruction,
-		out_buffer, buffer_size, out_bytes_written);
-
-	hermes_encoder_cleanup (&encoder);
-	return res;
+	HBCEncodeBuffer *out) {
+	(void)asm_line;
+	(void)bytecode_version;
+	(void)out;
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not implemented");
 }
 
 Result hbc_encode_instructions(
 	const char *asm_text,
 	u32 bytecode_version,
-	u8 *out_buffer,
-	size_t buffer_size,
-	size_t *out_bytes_written) {
-	if (!asm_text || !out_buffer || !out_bytes_written) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
-	}
-
-	/* Initialize encoder */
-	HermesEncoder encoder;
-	Result res = hermes_encoder_init (&encoder, bytecode_version);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
-	/* Encode all instructions */
-	res = hermes_encoder_encode_instructions (&encoder, asm_text,
-		out_buffer, buffer_size, out_bytes_written);
-
-	hermes_encoder_cleanup (&encoder);
-	return res;
+	HBCEncodeBuffer *out) {
+	(void)asm_text;
+	(void)bytecode_version;
+	(void)out;
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not implemented");
 }
