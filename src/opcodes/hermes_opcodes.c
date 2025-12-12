@@ -29,19 +29,13 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 
 	/* Add basic instructions based on hbc95.py */
 	/* Simple moves and unary ops */
-	instructions[OP_Mov] = (Instruction){
-		OP_Mov, "Mov",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Src */
-		3
-	};
+	
+/* removed duplicate definition of OP_Mov */
 
-	instructions[OP_MovLong] = (Instruction){
-		OP_MovLong, "MovLong",
-		{ { OPERAND_TYPE_REG32, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_REG32, OPERAND_MEANING_NONE } }, /* Src */
-		9 /* opcode + 4 + 4 */
-	};
+
+	
+/* removed duplicate definition of OP_MovLong */
+
 
 	instructions[OP_Negate] = (Instruction){
 		OP_Negate, "Negate",
@@ -50,60 +44,34 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
-	instructions[OP_Not] = (Instruction){
-		OP_Not, "Not",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		3
-	};
+	
+/* removed duplicate definition of OP_Not */
 
-	instructions[OP_BitNot] = (Instruction){
-		OP_BitNot, "BitNot",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		3
-	};
+
+	
+/* removed duplicate definition of OP_BitNot */
+
 
 	/* Equality and relational */
-	instructions[OP_Eq] = (Instruction){
-		OP_Eq, "Eq",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
+	
+/* removed duplicate definition of OP_Eq */
 
-	instructions[OP_Less] = (Instruction){
-		OP_Less, "Less",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
 
-	instructions[OP_LessEq] = (Instruction){
-		OP_LessEq, "LessEq",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
+	
+/* removed duplicate definition of OP_Less */
 
-	instructions[OP_Greater] = (Instruction){
-		OP_Greater, "Greater",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
 
-	instructions[OP_GreaterEq] = (Instruction){
-		OP_GreaterEq, "GreaterEq",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
+	
+/* removed duplicate definition of OP_LessEq */
+
+
+	
+/* removed duplicate definition of OP_Greater */
+
+
+	
+/* removed duplicate definition of OP_GreaterEq */
+
 
 	instructions[OP_AddN] = (Instruction){
 		OP_AddN, "AddN",
@@ -137,29 +105,17 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		4
 	};
 
-	instructions[OP_LShift] = (Instruction){
-		OP_LShift, "LShift",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
+	
+/* removed duplicate definition of OP_LShift */
 
-	instructions[OP_RShift] = (Instruction){
-		OP_RShift, "RShift",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
 
-	instructions[OP_URshift] = (Instruction){
-		OP_URshift, "URshift",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE },
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		4
-	};
+	
+/* removed duplicate definition of OP_RShift */
+
+
+	
+/* removed duplicate definition of OP_URshift */
+
 
 	instructions[OP_Inc] = (Instruction){
 		OP_Inc, "Inc",
@@ -184,13 +140,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Environment load/store */
-	instructions[OP_StoreToEnvironment] = (Instruction){
-		OP_StoreToEnvironment, "StoreToEnvironment",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Env */
-			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Index */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Value */
-		4
-	};
+	
+/* removed duplicate definition of OP_StoreToEnvironment */
+
 
 	instructions[OP_StoreToEnvironmentL] = (Instruction){
 		OP_StoreToEnvironmentL, "StoreToEnvironmentL",
@@ -216,13 +168,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		6
 	};
 
-	instructions[OP_LoadFromEnvironment] = (Instruction){
-		OP_LoadFromEnvironment, "LoadFromEnvironment",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Env */
-			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE } }, /* Index */
-		4
-	};
+	
+/* removed duplicate definition of OP_LoadFromEnvironment */
+
 
 	instructions[OP_LoadFromEnvironmentL] = (Instruction){
 		OP_LoadFromEnvironmentL, "LoadFromEnvironmentL",
@@ -275,11 +223,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		14 /* opcode + 1 + 2 + 2 + 4 + 4 */
 	};
 
-	instructions[OP_Jmp] = (Instruction){
-		OP_Jmp, "Jmp",
-		{ { OPERAND_TYPE_ADDR8, OPERAND_MEANING_NONE } },
-		2 /* opcode + offset */
-	};
+	
+/* removed duplicate definition of OP_Jmp */
+
 
 	instructions[OP_JmpTrue] = (Instruction){
 		OP_JmpTrue, "JmpTrue",
@@ -302,11 +248,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3 /* opcode + offset + reg */
 	};
 
-	instructions[OP_JmpLong] = (Instruction){
-		OP_JmpLong, "JmpLong",
-		{ { OPERAND_TYPE_ADDR32, OPERAND_MEANING_NONE } },
-		5 /* opcode + long offset */
-	};
+	
+/* removed duplicate definition of OP_JmpLong */
+
 
 	instructions[OP_Catch] = (Instruction){
 		OP_Catch, "Catch",
@@ -355,13 +299,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Call instructions */
-	instructions[OP_Call] = (Instruction){
-		OP_Call, "Call",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Callee */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* This */
-			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE } }, /* Argc */
-		4
-	};
+	
+/* removed duplicate definition of OP_Call */
+
 
 	instructions[OP_CallLong] = (Instruction){
 		OP_CallLong, "CallLong",
@@ -391,13 +331,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 
 	/* ConstructN is not present in the current opcode set */
 
-	instructions[OP_CallDirect] = (Instruction){
-		OP_CallDirect, "CallDirect",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* This */
-			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Argc */
-			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID } }, /* Function ID */
-		5
-	};
+	
+/* removed duplicate definition of OP_CallDirect */
+
 
 	instructions[OP_CallDirectLongIndex] = (Instruction){
 		OP_CallDirectLongIndex, "CallDirectLongIndex",
@@ -452,29 +388,21 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		2 /* opcode + 1 operand */
 	};
 
-	instructions[OP_LoadConstUndefined] = (Instruction){
-		OP_LoadConstUndefined, "LoadConstUndefined",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
-		2 /* opcode + 1 operand */
-	};
+	
+/* removed duplicate definition of OP_LoadConstUndefined */
 
-	instructions[OP_LoadConstNull] = (Instruction){
-		OP_LoadConstNull, "LoadConstNull",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
-		2 /* opcode + 1 operand */
-	};
 
-	instructions[OP_LoadConstTrue] = (Instruction){
-		OP_LoadConstTrue, "LoadConstTrue",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
-		2 /* opcode + 1 operand */
-	};
+	
+/* removed duplicate definition of OP_LoadConstNull */
 
-	instructions[OP_LoadConstFalse] = (Instruction){
-		OP_LoadConstFalse, "LoadConstFalse",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
-		2 /* opcode + 1 operand */
-	};
+
+	
+/* removed duplicate definition of OP_LoadConstTrue */
+
+
+	
+/* removed duplicate definition of OP_LoadConstFalse */
+
 
 	/* Additional core ops in v95 */
 	instructions[OP_ToInt32] = (Instruction){
@@ -522,12 +450,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		5
 	};
 
-	instructions[OP_LoadConstString] = (Instruction){
-		OP_LoadConstString, "LoadConstString",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, /* String ID */
-		4 /* opcode + reg + 2-byte string ID */
-	};
+	
+/* removed duplicate definition of OP_LoadConstString */
+
 
 	instructions[OP_LoadConstStringLongIndex] = (Instruction){
 		OP_LoadConstStringLongIndex, "LoadConstStringLongIndex",
@@ -537,12 +462,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Using OP_LoadConstDouble instead of LoadConstNumber */
-	instructions[OP_LoadConstDouble] = (Instruction){
-		OP_LoadConstDouble, "LoadConstDouble",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_DOUBLE, OPERAND_MEANING_NONE } }, /* Double */
-		9
-	};
+	
+/* removed duplicate definition of OP_LoadConstDouble */
+
 
 	instructions[OP_LoadConstBigInt] = (Instruction){
 		OP_LoadConstBigInt, "LoadConstBigInt",
@@ -572,45 +494,25 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Basic arithmetic operations */
-	instructions[OP_Add] = (Instruction){
-		OP_Add, "Add",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_Add */
 
-	instructions[OP_Sub] = (Instruction){
-		OP_Sub, "Sub",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
 
-	instructions[OP_Mul] = (Instruction){
-		OP_Mul, "Mul",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_Sub */
 
-	instructions[OP_Div] = (Instruction){
-		OP_Div, "Div",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
 
-	instructions[OP_Mod] = (Instruction){
-		OP_Mod, "Mod",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_Mul */
+
+
+	
+/* removed duplicate definition of OP_Div */
+
+
+	
+/* removed duplicate definition of OP_Mod */
+
 
 	/* Unary operations */
 	instructions[OP_Not] = (Instruction){
@@ -628,147 +530,102 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Bitwise operations */
-	instructions[OP_BitAnd] = (Instruction){
-		OP_BitAnd, "BitAnd",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_BitAnd */
 
-	instructions[OP_BitOr] = (Instruction){
-		OP_BitOr, "BitOr",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
 
-	instructions[OP_BitXor] = (Instruction){
-		OP_BitXor, "BitXor",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_BitOr */
+
+
+	
+/* removed duplicate definition of OP_BitXor */
+
 
 	/* Using OP_LShift instead of BitShl */
 	instructions[OP_LShift] = (Instruction){
 		OP_LShift, "LShift",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPERA
+/* removed duplicate definition of OP_LShift */
+
 
 	/* Using OP_RShift instead of BitShr */
 	instructions[OP_RShift] = (Instruction){
 		OP_RShift, "RShift",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPERA
+/* removed duplicate definition of OP_RShift */
+
 
 	/* Using OP_URshift instead of BitUshr */
 	instructions[OP_URshift] = (Instruction){
 		OP_URshift, "URshift",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPER
+/* removed duplicate definition of OP_URshift */
+
 
 	/* Comparison instructions */
 	instructions[OP_Less] = (Instruction){
 		OP_Less, "Less",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPERAND
+/* removed duplicate definition of OP_Less */
+
 
 	instructions[OP_Greater] = (Instruction){
 		OP_Greater, "Greater",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPER
+/* removed duplicate definition of OP_Greater */
+
 
 	instructions[OP_LessEq] = (Instruction){
 		OP_LessEq, "LessEq",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPERA
+/* removed duplicate definition of OP_LessEq */
+
 
 	instructions[OP_GreaterEq] = (Instruction){
 		OP_GreaterEq, "GreaterEq",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OP
+/* removed duplicate definition of OP_GreaterEq */
+
 
 	instructions[OP_Eq] = (Instruction){
 		OP_Eq, "Eq",
 		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+			{ OPERAND_TYPE_REG8, OPERAND_M
+/* removed duplicate definition of OP_Eq */
 
-	instructions[OP_StrictEq] = (Instruction){
-		OP_StrictEq, "StrictEq",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
 
-	instructions[OP_Neq] = (Instruction){
-		OP_Neq, "Neq",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_StrictEq */
 
-	instructions[OP_StrictNeq] = (Instruction){
-		OP_StrictNeq, "StrictNeq",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Left operand */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Right operand */
-		4 /* opcode + 3 regs */
-	};
+
+	
+/* removed duplicate definition of OP_Neq */
+
+
+	
+/* removed duplicate definition of OP_StrictNeq */
+
 
 	/* Object property access instructions */
-	instructions[OP_GetByVal] = (Instruction){
-		OP_GetByVal, "GetByVal",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Destination register */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Object */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Property name/index */
-		4 /* opcode + 3 regs */
-	};
+	
+/* removed duplicate definition of OP_GetByVal */
 
-	instructions[OP_PutByVal] = (Instruction){
-		OP_PutByVal, "PutByVal",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Object */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Property name/index */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Value */
-		4 /* opcode + 3 regs */
-	};
 
-	instructions[OP_GetById] = (Instruction){
-		OP_GetById, "GetById",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Obj */
-			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Flags */
-			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, /* Name id */
-		6
-	};
+	
+/* removed duplicate definition of OP_PutByVal */
+
+
+	
+/* removed duplicate definition of OP_GetById */
+
 
 	instructions[OP_GetByIdLong] = (Instruction){
 		OP_GetByIdLong, "GetByIdLong",
@@ -939,14 +796,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
 		6
 	};
-	instructions[OP_PutById] = (Instruction){
-		OP_PutById, "PutById",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Object */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Value */
-			{ OPERAND_TYPE_UINT8, OPERAND_MEANING_NONE }, /* Flags */
-			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_STRING_ID } }, /* Name id */
-		6
-	};
+	
+/* removed duplicate definition of OP_PutById */
+
 
 	instructions[OP_PutByIdLong] = (Instruction){
 		OP_PutByIdLong, "PutByIdLong",
@@ -958,11 +810,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Creation/manipulation instructions */
-	instructions[OP_NewObject] = (Instruction){
-		OP_NewObject, "NewObject",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Destination register */
-		2 /* opcode + 1 reg */
-	};
+	
+/* removed duplicate definition of OP_NewObject */
+
 
 	instructions[OP_NewObjectWithParent] = (Instruction){
 		OP_NewObjectWithParent, "NewObjectWithParent",
@@ -971,12 +821,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
-	instructions[OP_NewArray] = (Instruction){
-		OP_NewArray, "NewArray",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE } }, /* Count */
-		4 /* opcode + 1 + 2 */
-	};
+	
+/* removed duplicate definition of OP_NewArray */
+
 
 	/* Note: NewObjectWithBuffer/NewArrayWithBuffer variants are defined earlier with correct layouts/sizes */
 
@@ -1039,11 +886,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Environment operations */
-	instructions[OP_CreateEnvironment] = (Instruction){
-		OP_CreateEnvironment, "CreateEnvironment",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } }, /* Environment register */
-		2 /* opcode + 1 reg */
-	};
+	
+/* removed duplicate definition of OP_CreateEnvironment */
+
 
 	instructions[OP_CreateInnerEnvironment] = (Instruction){
 		OP_CreateInnerEnvironment, "CreateInnerEnvironment",
@@ -1107,11 +952,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		1
 	};
 
-	instructions[OP_Ret] = (Instruction){
-		OP_Ret, "Ret",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE } },
-		2
-	};
+	
+/* removed duplicate definition of OP_Ret */
+
 
 	instructions[OP_DirectEval] = (Instruction){
 		OP_DirectEval, "DirectEval",
@@ -1196,12 +1039,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 		3
 	};
 
-	instructions[OP_LoadConstInt] = (Instruction){
-		OP_LoadConstInt, "LoadConstInt",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_IMM32, OPERAND_MEANING_NONE } }, /* Value */
-		6
-	};
+	
+/* removed duplicate definition of OP_LoadConstInt */
+
 
 	/* This + object selection */
 	instructions[OP_CoerceThisNS] = (Instruction){
@@ -1228,13 +1068,9 @@ static Instruction *get_instruction_set_v96(u32 *out_count) {
 	};
 
 	/* Closures */
-	instructions[OP_CreateClosure] = (Instruction){
-		OP_CreateClosure, "CreateClosure",
-		{ { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* Dest */
-			{ OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, /* This/Env */
-			{ OPERAND_TYPE_UINT16, OPERAND_MEANING_FUNCTION_ID } }, /* Func id */
-		5
-	};
+	
+/* removed duplicate definition of OP_CreateClosure */
+
 
 	instructions[OP_CreateClosureLongIndex] = (Instruction){
 		OP_CreateClosureLongIndex, "CreateClosureLongIndex",
