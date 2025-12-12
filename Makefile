@@ -60,6 +60,7 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
+	$(MAKE) -C r2 clean
 
 # Testing
 TEST_DIR = tests

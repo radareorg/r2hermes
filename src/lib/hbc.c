@@ -588,9 +588,11 @@ static const Instruction *find_inst_in_set(Instruction *set, u32 count, u8 opcod
 	if (!set) {
 		return NULL;
 	}
-	if (!count) {
-		count = 256; /* full table fallback */
+	/* Prefer direct index lookup when possible (tables are 256-entry arrays) */
+	if (count >= 256) {
+		return &set[opcode];
 	}
+	/* Fallback: linear search */
 	for (u32 i = 0; i < count; i++) {
 		if (set[i].opcode == opcode) {
 			return &set[i];

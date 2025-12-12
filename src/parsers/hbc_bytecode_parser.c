@@ -709,8 +709,11 @@ u32 get_best_supported_version(u32 detected_version) {
 	/* Map detected version to closest supported version */
 	if (detected_version < 72) {
 		return 72; /* Minimum supported */
+	} else if (detected_version == 76) {
+		/* Explicitly support v76 */
+		return 76;
 	} else if (detected_version <= 89) {
-		return 90; /* Use v90 for 72-89 */
+		return 90; /* Use v90 for 72-89 (except v76 which is handled above) */
 	} else if (detected_version <= 96) {
 		return detected_version; /* Use exact version if supported */
 	} else {

@@ -38,6 +38,10 @@ static ut32 hermes_detect_version_from_bin(RArchSession *s) {
 	RBinInfo *bi = r_bin_get_info (bin);
 	if (bi && bi->cpu && *bi->cpu) {
 		const char *p = bi->cpu;
+		/* Accept optional leading 'v' or 'V' (e.g., "v76") */
+		if (p[0] == 'v' || p[0] == 'V') {
+			p++;
+		}
 		/* cpu holds the version string set by bin plugin */
 		ut32 v = (ut32)strtoul (p, NULL, 10);
 		if (v > 0) {
@@ -67,6 +71,13 @@ static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	Result res = hbc_open (bi->file, &hs->hd);
 	if (res.code != RESULT_SUCCESS) {
 		return false;
+	}
+
+	/* If we can, get the file header to determine exact bytecode version */
+	HBCHeader hh;
+	if (hbc_get_header (hs->hd, &hh).code == RESULT_SUCCESS) {
+		/* Cache version for instruction set selection */
+		hs->bytecode_version = hh.version;
 	}
 
 	/* Get string count */
@@ -524,7 +535,7 @@ const RArchPlugin r_arch_plugin_hermes = {
 	},
 	.arch = "hermes",
 	.bits = R_SYS_BITS_PACK1 (64),
-	.cpus = "v90,v91,v92,v93,v94,v95,v96",
+	.cpus = "v76,v90,v91,v92,v93,v94,v95,v96",
 	.decode = &hermes_decode,
 	.encode = &hermes_encode,
 	.info = hermes_info,
