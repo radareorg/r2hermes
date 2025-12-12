@@ -40,20 +40,20 @@ static ut64 get_entrypoint_from_file(const char *file_path) {
 	}
 
 	HermesDec *hd = NULL;
-	Result result = hermesdec_open (file_path, &hd);
+	Result result = hbc_open (file_path, &hd);
 	if (result.code != RESULT_SUCCESS) {
 		return 0;
 	}
 
 	HermesHeader hh;
-	result = hermesdec_get_header (hd, &hh);
+	result = hbc_get_header (hd, &hh);
 	if (result.code != RESULT_SUCCESS) {
-		hermesdec_close (hd);
+		hbc_close (hd);
 		return 0;
 	}
 
 	ut64 entrypoint = hh.globalCodeIndex;
-	hermesdec_close (hd);
+	hbc_close (hd);
 	return entrypoint;
 }
 
@@ -66,10 +66,10 @@ static RBinInfo *info(RBinFile *bf) {
 	// Try to use the hermesdec library to parse the file
 	if (bf->file) {
 		HermesDec *hd = NULL;
-		Result result = hermesdec_open (bf->file, &hd);
+		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
 			HermesHeader hh;
-			result = hermesdec_get_header (hd, &hh);
+			result = hbc_get_header (hd, &hh);
 			if (result.code == RESULT_SUCCESS) {
 				ret->file = strdup (bf->file);
 				ret->type = r_str_newf ("Hermes bytecode v%d", hh.version);
@@ -83,7 +83,7 @@ static RBinInfo *info(RBinFile *bf) {
 				hbc_close (hd);
 				return ret;
 			}
-			hermesdec_close (hd);
+			hbc_close (hd);
 		}
 	}
 
@@ -274,9 +274,9 @@ static RList *symbols(RBinFile *bf) {
 	// Try to parse the file and extract function symbols using the library
 	if (bf->file) {
 		HermesDec *hd = NULL;
-		Result result = hermesdec_open (bf->file, &hd);
+		Result result = hbc_open (bf->file, &hd);
 		if (result.code == RESULT_SUCCESS) {
-			u32 func_count = hermesdec_function_count (hd);
+			u32 func_count = hbc_function_count (hd);
 
 			for (u32 i = 0; i < func_count; i++) {
 				HBCFunctionInfo fi;
@@ -329,7 +329,7 @@ static RList *symbols(RBinFile *bf) {
 				}
 			}
 
-			hermesdec_close (hd);
+			hbc_close (hd);
 		}
 	}
 
@@ -380,7 +380,7 @@ static RList *strings(RBinFile *bf) {
 				}
 			}
 
-			hermesdec_close (hd);
+			hbc_close (hd);
 		}
 	}
 

@@ -64,7 +64,7 @@ static bool hermes_load_string_tables(HermesArchSession *hs, RArchSession *s) {
 
 	/* Try to open the file with hermesdec */
 	if (hs->hd) {
-		hermesdec_close (hs->hd);
+		hbc_close (hs->hd);
 		hs->hd = NULL;
 	}
 
@@ -179,7 +179,7 @@ static void hermes_parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut3
 			ut32 string_id = operand_values[i];
 			if (string_id < hs->string_count && hs->hd) {
 				HermesStringMeta meta;
-				Result meta_result = hermesdec_get_string_meta (hs->hd, string_id, &meta);
+				Result meta_result = hbc_get_string_meta (hs->hd, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
 					// Set op->ptr to the string address
 					op->ptr = (st64) (hs->string_storage_offset + meta.offset);
@@ -517,7 +517,7 @@ static bool hermes_fini(RArchSession *s) {
 	HermesArchSession *hs = (HermesArchSession *)s->data;
 	if (hs) {
 		if (hs->hd) {
-			hermesdec_close (hs->hd);
+			hbc_close (hs->hd);
 			hs->hd = NULL;
 		}
 		free (hs);

@@ -1,43 +1,7 @@
-#ifndef HERMESDEC_COMPAT_H
-#define HERMESDEC_COMPAT_H
+#ifndef HERMESDEC_H
+#define HERMESDEC_H
 
-/* Compatibility shim: map legacy hermesdec API names to hbc API in include/hbc/hbc.h */
+/* Legacy hermesdec compatibility removed. Use hbc/hbc.h and hbc_* APIs directly. */
 #include "hbc/hbc.h"
 
-typedef HBC HermesDec;
-typedef HBCHeader HermesHeader;
-typedef HBCStringMeta HermesStringMeta;
-
-/* Map function names */
-#define hermesdec_open hbc_open
-#define hermesdec_open_from_memory hbc_open_from_memory
-#define hermesdec_close hbc_close
-
-#define hermesdec_function_count hbc_function_count
-#define hermesdec_string_count hbc_string_count
-#define hermesdec_get_header hbc_get_header
-#define hermesdec_get_function_info hbc_get_function_info
-#define hermesdec_get_string hbc_get_string
-#define hermesdec_get_string_meta hbc_get_string_meta
-#define hermesdec_get_function_source hbc_get_function_source
-#define hermesdec_get_function_bytecode hbc_get_function_bytecode
-
-#define hermesdec_get_string_tables hbc_get_string_tables
-
-#define hermesdec_disassemble_function_to_buffer hbc_disassemble_function_to_buffer
-#define hermesdec_disassemble_all_to_buffer hbc_disassemble_all_to_buffer
-#define hermesdec_decode_function_instructions hbc_decode_function_instructions
-#define hermesdec_free_instructions hbc_free_instructions
-
-#define hermesdec_decompile_all_to_buffer hbc_decompile_all_to_buffer
-#define hermesdec_decompile_function_to_buffer hbc_decompile_function_to_buffer
-#define hermesdec_decompile_file hbc_decompile_file
-
-#define hermesdec_generate_r2_script hbc_generate_r2_script
-#define hermesdec_validate_basic hbc_validate_basic
-
-#define hermesdec_decode_single_instruction hbc_decode_single_instruction
-#define hermesdec_encode_instruction hbc_encode_instruction
-#define hermesdec_encode_instructions hbc_encode_instructions
-
-#endif /* HERMESDEC_COMPAT_H */
+#endif /* HERMESDEC_H */
