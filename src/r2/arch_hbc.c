@@ -190,14 +190,14 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 		else if (inst->operands[i].operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
 			ut32 function_id = operand_values[i];
 			if (hs->hd) {
-				ut32 offset = 0, sz = 0, param_count = 0;
+				ut32 offset = 0;
 				HBCFunctionInfo fi;
 				Result func_result = hbc_get_function_info (hs->hd, function_id, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
 					// name = fi.name;
 					offset = fi.offset;
-					sz = fi.size;
-					param_count = fi.param_count;
+					(void)fi.size;
+					(void)fi.param_count;
 					// Set op->ptr to the function address
 					op->ptr = (st64)offset;
 				}

@@ -1,0 +1,3 @@
+option('tests', type: 'boolean', value: false, description: 'Build tests')
+option('r2_plugdir', type: 'string', value: '', description: 'radare2 plugin directory (auto-detected if empty)')
+option('r2_prefix', type: 'string', value: '', description: 'radare2 installation prefix')

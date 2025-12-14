@@ -5,7 +5,7 @@
 
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL
 
-static bool check(RBinFile *bf, RBuffer *b) {
+static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
 	if (r_buf_size (b) >= 8) {
 		ut64 magic;
 		r_buf_read_at (b, 0, (ut8 *)&magic, sizeof (magic));
@@ -14,7 +14,7 @@ static bool check(RBinFile *bf, RBuffer *b) {
 	return false;
 }
 
-static bool load(RBinFile *bf, RBuffer *buf, ut64 loadaddr) {
+static bool load(RBinFile *bf, RBuffer *buf, ut64 loadaddr R_UNUSED) {
 	return check (bf, buf);
 }
 
@@ -236,7 +236,7 @@ static RList *entries(RBinFile *bf) {
 	return entries;
 }
 
-static ut64 baddr(RBinFile *bf) {
+static ut64 baddr(RBinFile *bf R_UNUSED) {
 	return 0;
 }
 
