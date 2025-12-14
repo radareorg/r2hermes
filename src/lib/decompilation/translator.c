@@ -1,6 +1,6 @@
 #include <hbc/decompilation/translator.h>
 #include <hbc/opcodes.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 #include <ctype.h>
 #include <hbc/decompilation/literals.h>
 

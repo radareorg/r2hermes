@@ -13,7 +13,7 @@
 #include <hbc/hbc.h>
 #include <hbc/opcodes.h>
 #include <hbc/bytecode.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 
 #define MAX_OP_SIZE 16
 

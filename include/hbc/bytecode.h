@@ -3,7 +3,7 @@
 
 #include <hbc/common.h>
 #include <hbc/opcodes.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 
 /* Parsed instruction */
 typedef struct {

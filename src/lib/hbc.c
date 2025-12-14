@@ -1,10 +1,10 @@
 #include <hbc/hbc.h>
 #include <hbc/common.h>
 #include <hbc/hbc.h>
-#include <hbc/disassembly/hbc_disassembler.h>
+#include <hbc/disasm.h>
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/hermes_encoder.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 #include <hbc/bytecode.h>
 #include "hbc_internal.h"
 #include <hbc/opcodes.h>

@@ -1,4 +1,4 @@
-#include <hbc/disassembly/hbc_disassembler.h>
+#include <hbc/disasm.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -2,7 +2,7 @@
 #define HERMES_DEC_DECOMPILER_H
 
 #include <hbc/common.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 #include <hbc/bytecode.h>
 #include <hbc/hbc.h>
 #include <hbc/decompilation/token.h>

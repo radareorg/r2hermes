@@ -1,5 +1,5 @@
 #include <hbc/hbc.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 
 /* Generate r2 script with function flags - robust version inspired by the Python implementation */
 Result hbc_generate_r2_script(const char *input_file, const char *output_file) {

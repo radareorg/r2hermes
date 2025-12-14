@@ -3,9 +3,9 @@
 #include <string.h>
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/decompilation/token.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 #include <hbc/bytecode.h>
-#include <hbc/disassembly/hbc_disassembler.h>
+#include <hbc/disasm.h>
 #include <hbc/decompilation/translator.h>
 #include <hbc/opcodes.h>
 #include <hbc/decompilation/literals.h>

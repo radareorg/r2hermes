@@ -2,7 +2,7 @@
 #define SRC_LIB_HBC_INTERNAL_H
 
 #include <hbc/hbc.h>
-#include <hbc/parsers/hbc_file_parser.h>
+#include <hbc/parser.h>
 
 /* Internal full definition of HBCState (kept in a private header).
  * The public header exposes HBCState as an opaque typedef. */
