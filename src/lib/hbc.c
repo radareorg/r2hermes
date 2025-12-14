@@ -381,9 +381,9 @@ Result hbc_decompile_file(const char *input_file, const char *output_file) {
 	return decompile_file (input_file, output_file);
 }
 
-Result hbc_validate_basic(HBC *hd, StringBuffer *out) {
+Result hbc_validate_basic_to_buffer(HBC *hd, StringBuffer *out) {
 	if (!hd || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_validate_basic");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_validate_basic_to_buffer");
 	}
 	HBCReader *r = &hd->reader;
 	Result res = string_buffer_append (out, "Validation report:\n");
@@ -816,3 +816,119 @@ Result hbc_encode_instructions(
 	(void)out;
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not implemented");
 }
+
+/* New string-returning APIs (Option 1: StringBuffer internalized) */
+
+Result hbc_disassemble_function(
+	HBCState *hd,
+	HBCDisassemblyOptions options,
+	u32 function_id,
+	char **out_str) {
+	if (!hd || !out_str) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	StringBuffer sb;
+	Result res = string_buffer_init (&sb, 8192);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	res = hbc_disassemble_function_to_buffer (hd, options, function_id, &sb);
+	if (res.code != RESULT_SUCCESS) {
+		string_buffer_free (&sb);
+		return res;
+	}
+
+	*out_str = sb.data;  /* Transfer ownership to caller */
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_disassemble_all(
+	HBCState *hd,
+	HBCDisassemblyOptions options,
+	char **out_str) {
+	if (!hd || !out_str) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	StringBuffer sb;
+	Result res = string_buffer_init (&sb, 16 * 1024);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	res = hbc_disassemble_all_to_buffer (hd, options, &sb);
+	if (res.code != RESULT_SUCCESS) {
+		string_buffer_free (&sb);
+		return res;
+	}
+
+	*out_str = sb.data;  /* Transfer ownership to caller */
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_decompile_all(HBCState *hd, HBCDecompileOptions options, char **out_str) {
+	if (!hd || !out_str) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	StringBuffer sb;
+	Result res = string_buffer_init (&sb, 32 * 1024);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	res = hbc_decompile_all_to_buffer (hd, options, &sb);
+	if (res.code != RESULT_SUCCESS) {
+		string_buffer_free (&sb);
+		return res;
+	}
+
+	*out_str = sb.data;  /* Transfer ownership to caller */
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_decompile_function(HBCState *hd, u32 function_id, HBCDecompileOptions options, char **out_str) {
+	if (!hd || !out_str) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	StringBuffer sb;
+	Result res = string_buffer_init (&sb, 16 * 1024);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	res = hbc_decompile_function_to_buffer (hd, function_id, options, &sb);
+	if (res.code != RESULT_SUCCESS) {
+		string_buffer_free (&sb);
+		return res;
+	}
+
+	*out_str = sb.data;  /* Transfer ownership to caller */
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_validate_basic(HBCState *hd, char **out_str) {
+	if (!hd || !out_str) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	StringBuffer sb;
+	Result res = string_buffer_init (&sb, 4096);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	res = hbc_validate_basic_to_buffer (hd, &sb);
+	if (res.code != RESULT_SUCCESS) {
+		string_buffer_free (&sb);
+		return res;
+	}
+
+	*out_str = sb.data;  /* Transfer ownership to caller */
+	return SUCCESS_RESULT ();
+}
+
+

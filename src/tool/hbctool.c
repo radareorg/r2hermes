@@ -240,16 +240,14 @@ static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 
 	HBC *hd = NULL;
 	RETURN_IF_ERROR (hbc_open (input, &hd));
-	StringBuffer out;
-	RETURN_IF_ERROR (string_buffer_init (&out, 16 * 1024));
-	Result r = hbc_disassemble_all_to_buffer (hd, opt, &out);
+	char *disasm_str = NULL;
+	Result r = hbc_disassemble_all (hd, opt, &disasm_str);
 	if (r.code != RESULT_SUCCESS) {
-		string_buffer_free (&out);
 		hbc_close (hd);
 		return r;
 	}
-	r = write_text (output, out.data);
-	string_buffer_free (&out);
+	r = write_text (output, disasm_str);
+	free (disasm_str);
 	hbc_close (hd);
 	return r;
 }
@@ -265,16 +263,14 @@ static Result cmd_c(const CliContext *ctx, int argc, char **argv) {
 
 	HBC *hd = NULL;
 	RETURN_IF_ERROR (hbc_open (input, &hd));
-	StringBuffer out;
-	RETURN_IF_ERROR (string_buffer_init (&out, 32 * 1024));
-	Result r = hbc_decompile_all_to_buffer (hd, opt, &out);
+	char *decomp_str = NULL;
+	Result r = hbc_decompile_all (hd, opt, &decomp_str);
 	if (r.code != RESULT_SUCCESS) {
-		string_buffer_free (&out);
 		hbc_close (hd);
 		return r;
 	}
-	r = write_text (output, out.data);
-	string_buffer_free (&out);
+	r = write_text (output, decomp_str);
+	free (decomp_str);
 	hbc_close (hd);
 	return r;
 }
@@ -370,16 +366,14 @@ static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
 
 	HBC *hd = NULL;
 	RETURN_IF_ERROR (hbc_open (input, &hd));
-	StringBuffer sb;
-	RETURN_IF_ERROR (string_buffer_init (&sb, 4096));
-	Result r = hbc_validate_basic (hd, &sb);
+	char *validation_str = NULL;
+	Result r = hbc_validate_basic (hd, &validation_str);
 	if (r.code != RESULT_SUCCESS) {
-		string_buffer_free (&sb);
 		hbc_close (hd);
 		return r;
 	}
-	r = write_text (output, sb.data);
-	string_buffer_free (&sb);
+	r = write_text (output, validation_str);
+	free (validation_str);
 	hbc_close (hd);
 	return r;
 }
@@ -592,19 +586,18 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	}
 
 	HBCDisassemblyOptions opt = (HBCDisassemblyOptions){ 0 };
-	StringBuffer out;
-	RETURN_IF_ERROR (string_buffer_init (&out, 8192));
-	hbc_disassemble_function_to_buffer (hd, opt, function_id, &out);
+	char *disasm_str = NULL;
+	RETURN_IF_ERROR (hbc_disassemble_function (hd, opt, function_id, &disasm_str));
 
 	FILE *py = fopen (python_dis_file, "r");
 	if (!py) {
-		string_buffer_free (&out);
+		free (disasm_str);
 		hbc_close (hd);
 		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", python_dis_file);
 	}
 
 	char line_py[2048];
-	char *cbuf = out.data;
+	char *cbuf = disasm_str;
 	char line_c[2048];
 	size_t cpos = 0;
 	while (fgets (line_py, sizeof (line_py), py)) {
@@ -635,7 +628,7 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 		printf ("C: %s\nP: %s\n\n", line_c, line_py);
 	}
 	fclose (py);
-	string_buffer_free (&out);
+	free (disasm_str);
 	hbc_close (hd);
 	return SUCCESS_RESULT ();
 }

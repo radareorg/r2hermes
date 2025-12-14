@@ -181,7 +181,19 @@ Result hbc_get_function_source(HBCState *hd, u32 function_id, const char **out_s
 /* Function bytecode access */
 Result hbc_get_function_bytecode(HBCState *hd, u32 function_id, const u8 **out_ptr, u32 *out_size);
 
-/* Disassembly helpers that append into provided StringBuffer */
+/* Disassembly helpers - new API returns allocated strings */
+Result hbc_disassemble_function(
+	HBCState *hd,
+	HBCDisassemblyOptions options,
+	u32 function_id,
+	char **out_str);
+
+Result hbc_disassemble_all(
+	HBCState *hd,
+	HBCDisassemblyOptions options,
+	char **out_str);
+
+/* Legacy buffer-based API (deprecated, use hbc_disassemble_* above) */
 Result hbc_disassemble_function_to_buffer(
 	HBCState *hd,
 	HBCDisassemblyOptions options,
@@ -202,20 +214,28 @@ Result hbc_decode_function_instructions(
 /* Free an array returned by hbc_decode_function_instructions */
 void hbc_free_instructions(HBCInstruction *insns, u32 count);
 
-/* Decompiler wrappers */
-/* Decompiler APIs */
-/* High-level: decompile entire file into provided StringBuffer */
+/* Decompiler APIs - new versions return allocated strings */
+Result hbc_decompile_all(HBCState *hd, HBCDecompileOptions options, char **out_str);
+Result hbc_decompile_function(HBCState *hd, u32 function_id, HBCDecompileOptions options, char **out_str);
+
+/* Legacy buffer-based API (deprecated, use hbc_decompile_* above) */
 Result hbc_decompile_all_to_buffer(HBCState *hd, HBCDecompileOptions options, StringBuffer *out);
-/* High-level: decompile single function into provided StringBuffer */
 Result hbc_decompile_function_to_buffer(HBCState *hd, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
-/* Legacy convenience: decompile and write to file (kept for compatibility) */
+
+/* File-based convenience functions */
 Result hbc_decompile_file(const char *input_file, const char *output_file);
 
 /* r2 script generation function */
 Result hbc_generate_r2_script(const char *input_file, const char *output_file);
 
 /* Validation/report helpers */
-Result hbc_validate_basic(HBCState *hd, StringBuffer *out);
+Result hbc_validate_basic(HBCState *hd, char **out_str);
+
+/* Legacy buffer-based validation (deprecated) */
+Result hbc_validate_basic_to_buffer(HBCState *hd, StringBuffer *out);
+
+/* Memory management for string results */
+
 
 /* Minimal single-instruction disassembler (no file context) */
 
