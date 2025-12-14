@@ -40,7 +40,7 @@ lib_decompile_src = files(
 )
 
 lib_opcodes_src = files(
-  'src/lib/opcodes/hermes_opcodes.c',
+  'src/lib/opcodes/isa.c',
   'src/lib/opcodes/encoder.c',
   'src/lib/opcodes/decoder.c',
 )
