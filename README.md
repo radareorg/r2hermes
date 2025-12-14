@@ -1,6 +1,8 @@
 # HBCLIB - Hermes Library and Radare2 Plugin
 
 ![CI](https://github.com/trufae/r2hermes/actions/workflows/ci.yml/badge.svg)
+![Meson](https://github.com/trufae/r2hermes/actions/workflows/meson.yml/badge.svg)
+![Windows](https://github.com/trufae/r2hermes/actions/workflows/windows.yml/badge.svg)
 
 
 This is a library to work with Hermes binaries and VM Bytecode (v90-v96) for:

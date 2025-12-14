@@ -3,7 +3,8 @@
 
 # Compiler and flags
 CC ?= gcc
-CFLAGS += -Wall -Wextra -std=c11 -O2 -fPIC
+# Enable POSIX functions like strdup with proper prototypes
+CFLAGS += -Wall -Wextra -std=c11 -O2 -fPIC -D_POSIX_C_SOURCE=200809L
 CFLAGS += -I../../include
 CFLAGS += $(shell pkg-config --cflags r_core 2>/dev/null || echo "-I/usr/local/include/libr")
 R2_PLUGDIR?=$(shell r2 -H R2_USER_PLUGINS)
