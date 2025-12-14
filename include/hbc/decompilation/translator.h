@@ -2,7 +2,7 @@
 #define HERMES_DEC_TRANSLATOR_H
 
 #include <hbc/common.h>
-#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/bytecode.h>
 #include "token.h"
 
 /* Translate a single parsed instruction into a TokenString */

@@ -5,7 +5,7 @@
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/hermes_encoder.h>
 #include <hbc/parsers/hbc_file_parser.h>
-#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/bytecode.h>
 #include "hbc_internal.h"
 #include <hbc/opcodes.h>
 

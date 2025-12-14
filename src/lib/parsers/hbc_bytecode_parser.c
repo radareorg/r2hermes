@@ -1,4 +1,4 @@
-#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/bytecode.h>
 #include <hbc/opcodes.h>
 
 #include <stdio.h>

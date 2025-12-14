@@ -1,9 +1,9 @@
-#ifndef HERMES_DEC_HBC_BYTECODE_PARSER_H
-#define HERMES_DEC_HBC_BYTECODE_PARSER_H
+#ifndef HERMES_DEC_HBC_BYTECODE_H
+#define HERMES_DEC_HBC_BYTECODE_H
 
 #include <hbc/common.h>
 #include <hbc/opcodes.h>
-#include "hbc_file_parser.h"
+#include <hbc/parsers/hbc_file_parser.h>
 
 /* Parsed instruction */
 typedef struct {
@@ -56,4 +56,4 @@ typedef Result(*OpcodeHandler)(HBCReader *reader, BufferReader *bytecode,
 bool is_jump_instruction(u8 opcode);
 bool is_call_instruction(u8 opcode);
 
-#endif /* HERMES_DEC_HBC_BYTECODE_PARSER_H */
+#endif /* HERMES_DEC_HBC_BYTECODE_H */

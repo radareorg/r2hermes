@@ -2,7 +2,7 @@
 #define HERMES_DEC_TOKEN_H
 
 #include <hbc/common.h>
-#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/bytecode.h>
 
 /* Forward declarations */
 struct HermesDecompiler;

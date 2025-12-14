@@ -4,7 +4,7 @@
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/decompilation/token.h>
 #include <hbc/parsers/hbc_file_parser.h>
-#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/bytecode.h>
 #include <hbc/disassembly/hbc_disassembler.h>
 #include <hbc/decompilation/translator.h>
 #include <hbc/opcodes.h>

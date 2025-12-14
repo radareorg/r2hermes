@@ -2,7 +2,7 @@
 #define HBC_ENCODER_H
 
 #include <hbc/common.h>
-#include <hbc/parsers/hbc_bytecode_parser.h>
+#include <hbc/bytecode.h>
 
 /* Encoder context */
 typedef struct {
