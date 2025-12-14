@@ -122,6 +122,17 @@ if r2_core.found()
     install_dir: r2_plugdir,
   )
 
+  # asm_hbc plugin (pseudo decompiler)
+  shared_library(
+    'asm_hbc',
+    'src/r2/asm_hbc.c',
+    include_directories: include_dirs,
+    dependencies: r2_core,
+    override_options: ['werror=false'],
+    install: true,
+    install_dir: r2_plugdir,
+  )
+
   message('radare2 plugins enabled')
   message('Plugin directory: ' + r2_plugdir)
 else
@@ -138,7 +149,7 @@ message('r2hermes build summary:')
 message('  Library: libhbc')
 message('  CLI: hbctool')
 if r2_core.found()
-  message('  radare2 plugins: arch_hbc, bin_hbc')
+  message('  radare2 plugins: arch_hbc, bin_hbc, asm_hbc')
   message('  Plugin install path: ' + r2_plugdir)
 else
   message('  radare2 plugins: disabled (radare2 not found)')
