@@ -7,7 +7,7 @@
 #include <hbc/parsers/hbc_file_parser.h>
 #include <hbc/parsers/hbc_bytecode_parser.h>
 #include "hbc_internal.h"
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 
 /* Open and fully parse a Hermes bytecode file */
 Result hbc_open(const char *path, HBC **out) {

@@ -1,4 +1,4 @@
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 
 static const Instruction k_instructions_v76[256] = {
 	[0] = { "NewObjectWithBuffer", { { OPERAND_TYPE_REG8, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_UINT16, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 10 },

@@ -2,7 +2,7 @@
 #define HERMES_DEC_HBC_BYTECODE_PARSER_H
 
 #include <hbc/common.h>
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 #include "hbc_file_parser.h"
 
 /* Parsed instruction */

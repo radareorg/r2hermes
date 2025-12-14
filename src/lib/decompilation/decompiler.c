@@ -7,7 +7,7 @@
 #include <hbc/parsers/hbc_bytecode_parser.h>
 #include <hbc/disassembly/hbc_disassembler.h>
 #include <hbc/decompilation/translator.h>
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 #include <hbc/decompilation/literals.h>
 
 /* Ensure that the function's bytecode buffer is loaded into memory. */

@@ -1,5 +1,5 @@
 #include <hbc/parsers/hbc_bytecode_parser.h>
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 
 #include <stdio.h>
 #include <stdlib.h>

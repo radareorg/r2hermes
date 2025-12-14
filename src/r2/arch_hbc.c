@@ -11,7 +11,7 @@
 
 // Include hermesdec headers
 #include <hbc/hbc.h>
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 #include <hbc/parsers/hbc_bytecode_parser.h>
 #include <hbc/parsers/hbc_file_parser.h>
 

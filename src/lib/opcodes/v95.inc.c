@@ -1,4 +1,4 @@
-#include <hbc/opcodes/hermes_opcodes.h>
+#include <hbc/opcodes.h>
 
 static const Instruction k_instructions_v95[256] = {
 	[0] = { "Unreachable", { { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }, { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } }, 1 },
