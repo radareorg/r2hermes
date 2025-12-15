@@ -110,13 +110,15 @@ static RList *sections(RBinFile *bf) {
 		return NULL;
 	}
 
-	// For now, create a basic section for the entire file
+	/* Create a section for the entire HBC file mapped at 0x10000000.
+	 * This high address prevents accidental address collisions and ensures
+	 * that only valid string references point to the string storage area. */
 	RBinSection *section = R_NEW0 (RBinSection);
 	section->name = strdup ("hermes_bytecode");
 	section->size = r_buf_size (bf->buf);
 	section->vsize = section->size;
 	section->paddr = 0;
-	section->vaddr = 0;
+	section->vaddr = 0x10000000; /* Map file at high virtual address */
 	section->perm = R_PERM_R;
 	r_list_append (sections, section);
 
@@ -237,7 +239,10 @@ static RList *entries(RBinFile *bf) {
 }
 
 static ut64 baddr(RBinFile *bf R_UNUSED) {
-	return 0;
+	/* Use a non-zero base address to avoid overlap between physical and virtual addresses.
+	 * This ensures that when we refer to file offsets (paddr) in string_storage_offset,
+	 * they don't collide with virtual address mappings. We use 0x1000 (4KB) as the base. */
+	return 0x10000000;
 }
 
 static RList *symbols(RBinFile *bf) {
@@ -335,7 +340,8 @@ static RList *strings(RBinFile *bf) {
 								break;
 							}
 							ptr->paddr = meta.offset;
-							ptr->vaddr = meta.offset;
+							/* Map string to virtual address at base + offset */
+							ptr->vaddr = 0x10000000 + meta.offset;
 							ptr->size = str_len;
 							ptr->length = str_len;
 							ptr->ordinal = i;

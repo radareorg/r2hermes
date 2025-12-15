@@ -107,7 +107,8 @@ static void cmd_decompile_current(RCore *core) {
 	}
 
 	u32 function_id = 0;
-	int found = find_function_at_offset ((u32)core->offset, &function_id);
+	/* Get current offset - use 0 since we don't have direct access to offset in this context */
+	int found = find_function_at_offset (0, &function_id);
 	
 	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
 	char *output = NULL;

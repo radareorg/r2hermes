@@ -829,8 +829,9 @@ Result hbc_reader_read_string_tables(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "String offset/length out of bounds");
 		}
 
-		/* Allocate string buffer */
-		char *str = (char *)malloc (length + 1);
+		/* Allocate string buffer - for UTF-16, length is in characters, so allocate 2 bytes per character */
+		u32 buffer_size = is_utf16 ? (length * 2 + 1) : (length + 1);
+		char *str = (char *)malloc (buffer_size);
 		if (!str) {
 			free (string_storage);
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string");

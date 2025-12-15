@@ -181,8 +181,9 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 				HBCStringMeta meta;
 				Result meta_result = hbc_get_string_meta (hs->hd, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
-					// Set op->ptr to the string address
-					op->ptr = (st64) (hs->string_storage_offset + meta.offset);
+					/* Set op->ptr to the virtual address of the string.
+					 * The binary is loaded at 0x10000000, so add the string offset to that. */
+					op->ptr = (st64) (0x10000000 + hs->string_storage_offset + meta.offset);
 				}
 			}
 		}
@@ -198,7 +199,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					offset = fi.offset;
 					(void)fi.size;
 					(void)fi.param_count;
-					// Set op->ptr to the function address
+					// Set op->ptr to the function address as a file offset
 					op->ptr = (st64)offset;
 				}
 			}
