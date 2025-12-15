@@ -375,6 +375,7 @@ RBinPlugin r_bin_plugin_hermes = {
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_BIN,
 	.data = &r_bin_plugin_hermes,
-	.version = R2_VERSION
+	.version = R2_VERSION,
+	.abiversion = R2_ABIVERSION
 };
 #endif

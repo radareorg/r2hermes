@@ -194,7 +194,7 @@ static char *parse(RAsmPluginSession *aps, const char *data) {
 
 RAsmPlugin r_asm_plugin_hbc = {
 	.meta = {
-		.name = "hbc",
+		.name = "hbc.asm",
 		.desc = "Hermes bytecode pseudo syntax",
 		.author = "pancake",
 		.license = "LGPL-3.0-only",
@@ -206,6 +206,7 @@ RAsmPlugin r_asm_plugin_hbc = {
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ASM,
 	.data = &r_asm_plugin_hbc,
-	.version = R2_VERSION
+	.version = R2_VERSION,
+	.abiversion = R2_ABIVERSION
 };
 #endif

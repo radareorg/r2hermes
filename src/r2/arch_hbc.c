@@ -590,7 +590,7 @@ static bool fini(RArchSession *s) {
 
 const RArchPlugin r_arch_plugin_hermes = {
 	.meta = {
-		.name = "hbc",
+		.name = "hbc.arch",
 		.author = "pancake",
 		.desc = "Hermes bytecode disassembler",
 		.license = "BSD",
@@ -610,6 +610,7 @@ const RArchPlugin r_arch_plugin_hermes = {
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ARCH,
 	.data = (void *)&r_arch_plugin_hermes,
-	.version = R2_VERSION
+	.version = R2_VERSION,
+	.abiversion = R2_ABIVERSION
 };
 #endif

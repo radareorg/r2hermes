@@ -77,7 +77,7 @@ r2 test:
 	$(MAKE) -C src/r2 && $(MAKE) -C src/r2 user-install
 
 user-install user-uninstall:
-	$(MAKE) -C src/r2
+	$(MAKE) -C src/r2 $@
 
 test2:
 	./bin/hbctool d ../main.jsbundle 2>&1 |head -n 100
