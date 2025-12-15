@@ -141,6 +141,7 @@ typedef struct HermesDecompiler {
 	u32 calldirect_function_ids_capacity;
 	bool *decompiled_functions; /* Track which functions have been decompiled */
 	int indent_level;
+	bool inlining_function; /* True when outputting a nested function inline */
 	HBCDecompileOptions options;
 	StringBuffer output;
 } HermesDecompiler;

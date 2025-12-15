@@ -725,6 +725,7 @@ Result decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->calldirect_function_ids_capacity = 0;
 	decompiler->decompiled_functions = NULL;
 	decompiler->indent_level = 0;
+	decompiler->inlining_function = false;
 	decompiler->options.pretty_literals = true;
 	decompiler->options.suppress_comments = false;
 
@@ -2333,11 +2334,17 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 
 	/* Function header (skip for global) */
 	if (!function_body->is_global) {
-		if (function_body->is_async) {
-			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+		/* Only indent the function keyword if not inlining */
+		if (!state->inlining_function) {
+			if (function_body->is_async) {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (string_buffer_append (out, "async "));
+			} else {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			}
+		}
+		if (function_body->is_async && state->inlining_function) {
 			RETURN_IF_ERROR (string_buffer_append (out, "async "));
-		} else {
-			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		}
 		RETURN_IF_ERROR (string_buffer_append (out, "function"));
 		if (function_body->is_generator) {
@@ -2575,7 +2582,11 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 						if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
 							RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
 						}
+						int saved_indent = state->indent_level;
+						state->inlining_function = true;
 						RETURN_IF_ERROR (decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
+						state->inlining_function = false;
+						state->indent_level = saved_indent;
 						first_tok = false;
 						prev_type = TOKEN_TYPE_RAW;
 						continue;
