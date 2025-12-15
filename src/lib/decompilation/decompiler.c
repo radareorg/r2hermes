@@ -723,6 +723,7 @@ Result decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->calldirect_function_ids = NULL;
 	decompiler->calldirect_function_ids_count = 0;
 	decompiler->calldirect_function_ids_capacity = 0;
+	decompiler->decompiled_functions = NULL;
 	decompiler->indent_level = 0;
 	decompiler->options.pretty_literals = true;
 	decompiler->options.suppress_comments = false;
@@ -742,6 +743,12 @@ Result decompiler_cleanup(HermesDecompiler *decompiler) {
 	if (decompiler->calldirect_function_ids) {
 		free (decompiler->calldirect_function_ids);
 		decompiler->calldirect_function_ids = NULL;
+	}
+
+	// Free decompiled functions tracker
+	if (decompiler->decompiled_functions) {
+		free (decompiler->decompiled_functions);
+		decompiler->decompiled_functions = NULL;
 	}
 
 	// Cleanup string buffer
@@ -1740,6 +1747,13 @@ Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, S
 	dec.options = options;
 	dec.indent_level = 0;
 
+	/* Allocate tracking array for decompiled functions */
+	dec.decompiled_functions = (bool *)calloc (reader->header.functionCount, sizeof (bool));
+	if (!dec.decompiled_functions) {
+		decompiler_cleanup (&dec);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
+	}
+
 	/* File preamble */
 	if (!options.suppress_comments) {
 		RETURN_IF_ERROR (string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
@@ -1751,6 +1765,10 @@ Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, S
 	}
 
 	for (u32 i = 0; i < reader->header.functionCount; i++) {
+		/* Skip if already decompiled as a nested function */
+		if (dec.decompiled_functions[i]) {
+			continue;
+		}
 		Result r = decompile_function (&dec, i, NULL, -1, false, false, false);
 		if (r.code != RESULT_SUCCESS) {
 			decompiler_cleanup (&dec);
@@ -2622,6 +2640,11 @@ Result decompile_function(HermesDecompiler *state, u32 function_id, Environment 
 	HBCReader *reader = state->hbc_reader;
 	if (function_id >= reader->header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "decompile_function bad id");
+	}
+
+	/* Mark function as decompiled to prevent duplicate processing */
+	if (state->decompiled_functions) {
+		state->decompiled_functions[function_id] = true;
 	}
 
 	RETURN_IF_ERROR (ensure_function_bytecode_loaded (reader, function_id));
