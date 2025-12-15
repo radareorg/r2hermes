@@ -17,7 +17,7 @@ static const HBCISA k_isa_v90 = { .count = 256, .instructions = k_instructions_v
 static const HBCISA k_isa_v93 = { .count = 256, .instructions = k_instructions_v93 };
 static const HBCISA k_isa_v94 = { .count = 256, .instructions = k_instructions_v94 };
 static const HBCISA k_isa_v95 = { .count = 256, .instructions = k_instructions_v95 };
-static const HBCISA k_isa_v96 = { .count = 256, .instructions = k_instructions_v96 };
+static const HBCISA k_isa_v96 = { .count = 208, .instructions = k_instructions_v96 };
 
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version) {

@@ -31,23 +31,26 @@ endif
 ARCH_SRC = arch_hbc.c
 BIN_SRC = bin_hbc.c
 ASM_SRC = asm_hbc.c
+CORE_SRC = core_hbc.c
 
 # Object files
 ARCH_OBJ = arch_hbc.o
 BIN_OBJ = bin_hbc.o
 ASM_OBJ = asm_hbc.o
+CORE_OBJ = core_hbc.o
 
 # Target plugins
 ARCH_PLUGIN = arch_hbc.$(EXT_SO)
 BIN_PLUGIN = bin_hbc.$(EXT_SO)
 ASM_PLUGIN = asm_hbc.$(EXT_SO)
+CORE_PLUGIN = core_hbc.$(EXT_SO)
 
 # Library paths
 HERMES_LIB_DIR = ../../build
 HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
 
 # All targets
-ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN)
+ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN)
 
 .PHONY: all clean install help check-r2
 
@@ -76,6 +79,10 @@ $(BIN_PLUGIN): $(BIN_OBJ) $(HERMES_LIB)
 $(ASM_PLUGIN): $(ASM_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(ASM_OBJ)
 
+# Core decompiler plugin
+$(CORE_PLUGIN): $(CORE_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(HERMES_LIB)
+
 # Compile object files
 $(ARCH_OBJ): $(ARCH_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -86,9 +93,12 @@ $(BIN_OBJ): $(BIN_SRC)
 $(ASM_OBJ): $(ASM_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(CORE_OBJ): $(CORE_SRC)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Clean build artifacts
 clean:
-	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(ALL_TARGETS)
+	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(ALL_TARGETS)
 
 # Install plugins (optional - requires radare2 installation)
 install: $(ALL_TARGETS)
@@ -101,11 +111,13 @@ user-install:
 	cp -f $(ARCH_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(BIN_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(ASM_PLUGIN) $(R2_PLUGDIR)
+	cp -f $(CORE_PLUGIN) $(R2_PLUGDIR)
 
 user-uninstall:
 	rm -f $(R2_PLUGDIR)/$(ARCH_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(BIN_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(ASM_PLUGIN)
+	rm -f $(R2_PLUGDIR)/$(CORE_PLUGIN)
 
 # Uninstall plugins
 uninstall:

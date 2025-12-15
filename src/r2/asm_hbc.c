@@ -223,7 +223,7 @@ static char *parse(RAsmPluginSession *aps, const char *data) {
 
 RAsmPlugin r_asm_plugin_hbc = {
 	.meta = {
-		.name = "hbc",
+		.name = "hbc.pseudo",
 		.desc = "Hermes bytecode pseudo syntax",
 		.author = "pancake",
 		.license = "LGPL-3.0-only",
