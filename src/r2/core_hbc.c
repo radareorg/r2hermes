@@ -79,6 +79,60 @@ static Result hbc_load_current_binary(RCore *core) {
 	return SUCCESS_RESULT ();
 }
 
+/* Find function ID at a given offset */
+static int find_function_at_offset(u32 offset, u32 *out_id) {
+	if (!out_id) {
+		return -1;
+	}
+	u32 count = hbc_function_count (hbc_ctx.hbc);
+	for (u32 i = 0; i < count; i++) {
+		HBCFunctionInfo fi;
+		Result res = hbc_get_function_info (hbc_ctx.hbc, i, &fi);
+		if (res.code == RESULT_SUCCESS) {
+			if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
+				*out_id = i;
+				return 0;
+			}
+		}
+	}
+	return -1;
+}
+
+/* Decompile function at current offset or all functions if not in a function */
+static void cmd_decompile_current(RCore *core) {
+	Result result = hbc_load_current_binary (core);
+	if (result.code != RESULT_SUCCESS) {
+		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (result.error_message));
+		return;
+	}
+
+	u32 function_id = 0;
+	int found = find_function_at_offset ((u32)core->offset, &function_id);
+	
+	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
+	char *output = NULL;
+	
+	if (found == 0) {
+		/* Found function at current offset */
+		result = hbc_decompile_function (hbc_ctx.hbc, function_id, opts, &output);
+		if (result.code == RESULT_SUCCESS && output) {
+			HBC_PRINTF (core, "%s\n", output);
+			free (output);
+		} else {
+			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
+		}
+	} else {
+		/* Not in a function, decompile all */
+		result = hbc_decompile_all (hbc_ctx.hbc, opts, &output);
+		if (result.code == RESULT_SUCCESS && output) {
+			HBC_PRINTF (core, "%s\n", output);
+			free (output);
+		} else {
+			HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
+		}
+	}
+}
+
 /* Decompile all functions */
 static void cmd_decompile_all(RCore *core) {
 	Result result = hbc_load_current_binary (core);
@@ -265,8 +319,9 @@ static void cmd_help(RCore *core) {
 		"Usage: pd:h[subcommand]\n"
 		"Hermes bytecode decompiler via libhbc\n\n"
 		"Subcommands:\n"
-		"  pd:h           - Decompile all functions\n"
+		"  pd:h           - Decompile function at current offset (or all if not in function)\n"
 		"  pd:hc [id]     - Decompile function by id\n"
+		"  pd:ha          - Decompile all functions\n"
 		"  pd:hf          - List all functions\n"
 		"  pd:hi          - Show file information\n"
 		"  pd:hj [id]     - JSON output for function\n"
@@ -289,7 +344,10 @@ static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
 	const char *arg = input + 4;
 
 	if (*arg == '\0' || (*arg == ' ' && (arg[1] == '\0' || isspace ((unsigned char)arg[1])))) {
-		/* pd:h - decompile all */
+		/* pd:h - decompile function at current offset */
+		cmd_decompile_current (core);
+	} else if (*arg == 'a') {
+		/* pd:ha - decompile all */
 		cmd_decompile_all (core);
 	} else if (*arg == 'c') {
 		/* pd:hc [id] */
