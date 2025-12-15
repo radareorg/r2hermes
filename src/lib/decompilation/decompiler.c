@@ -127,11 +127,14 @@ static Result u32set_add(U32Set *s, u32 v) {
 	if (u32set_contains (s, v)) {
 		return SUCCESS_RESULT ();
 	}
-	/* Set the bit in bitmap */
-	if (s->bitmap && v / 8 < s->bitmap_size) {
+	/* Set the bit in bitmap with bounds check */
+	if (s->bitmap) {
+		if (v / 8 >= s->bitmap_size) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "u32set value out of bitmap bounds");
+		}
 		s->bitmap[v / 8] |= (1 << (v % 8));
 	}
-	if (s->count == s->cap) {
+	if (s->count >= s->cap) {
 		u32 nc = s->cap? s->cap * 2: 16;
 		u32 *nd = (u32 *)realloc (s->data, nc * sizeof (u32));
 		if (!nd) {
@@ -305,7 +308,15 @@ void function_body_cleanup(DecompiledFunctionBody *body) {
 	}
 	free (body->jump_targets);
 	free (body->basic_blocks);
-	/* statements and token strings cleanup would go here if allocated */
+	if (body->statements) {
+		for (u32 i = 0; i < body->statements_count; i++) {
+			token_string_cleanup (&body->statements[i]);
+		}
+		free (body->statements);
+	}
+	if (body->instructions.instructions) {
+		free (body->instructions.instructions);
+	}
 	memset (body, 0, sizeof (*body));
 }
 
@@ -441,7 +452,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 				u32 tgt = compute_target_address (last, j);
 				BasicBlock *child = find_block_by_start (out_body, tgt);
 				if (child) {
-					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->error_handling_child_nodes_count /*cap reused*/, child));
+					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, child));
 				}
 			}
 			/* conditional: also add fallthrough */
@@ -449,7 +460,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 			if (!is_uncond && last->next_pos < fh->bytecodeSizeInBytes) {
 				BasicBlock *fall = find_block_by_start (out_body, last->next_pos);
 				if (fall) {
-					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->error_handling_child_nodes_count, fall));
+					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, fall));
 				}
 			} else if (is_uncond) {
 				bb->is_unconditional_jump_anchor = true;
@@ -459,7 +470,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 			if (last->next_pos < fh->bytecodeSizeInBytes) {
 				BasicBlock *fall = find_block_by_start (out_body, last->next_pos);
 				if (fall) {
-					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->error_handling_child_nodes_count, fall));
+					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, fall));
 				}
 			}
 		}
@@ -1017,12 +1028,30 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 										skip[k] = true;
 										ParsedInstruction *bi = &list.instructions[k];
 										TokenString ts2;
-										RETURN_IF_ERROR (translate_instruction_to_tokens (bi, &ts2));
+										Result sr_ts = translate_instruction_to_tokens (bi, &ts2);
+										if (sr_ts.code != RESULT_SUCCESS) {
+											token_string_cleanup (&ts2);
+											RETURN_IF_ERROR (sr_ts);
+										}
 										StringBuffer line;
-										RETURN_IF_ERROR (string_buffer_init (&line, 128));
-										RETURN_IF_ERROR (append_indent (&line, base_indent + 1));
-										RETURN_IF_ERROR (token_string_to_string (&ts2, &line));
-										RETURN_IF_ERROR (string_buffer_append (&line, ";"));
+										Result sr_init = string_buffer_init (&line, 128);
+										if (sr_init.code != RESULT_SUCCESS) {
+											token_string_cleanup (&ts2);
+											RETURN_IF_ERROR (sr_init);
+										}
+										Result sr_indent = append_indent (&line, base_indent + 1);
+										if (sr_indent.code != RESULT_SUCCESS) {
+											string_buffer_free (&line);
+											token_string_cleanup (&ts2);
+											RETURN_IF_ERROR (sr_indent);
+										}
+										Result sr_ts2str = token_string_to_string (&ts2, &line);
+										if (sr_ts2str.code != RESULT_SUCCESS) {
+											string_buffer_free (&line);
+											token_string_cleanup (&ts2);
+											RETURN_IF_ERROR (sr_ts2str);
+										}
+										string_buffer_append (&line, ";");
 										StringBuffer dline;
 										string_buffer_init (&dline, 64);
 										Result sr2 = instruction_to_string (bi, &dline);
@@ -1144,12 +1173,30 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 						skip[k] = true; /* avoid re-emitting */
 						ParsedInstruction *ti = &list.instructions[k];
 						TokenString ts2;
-						RETURN_IF_ERROR (translate_instruction_to_tokens (ti, &ts2));
+						Result sr_ts = translate_instruction_to_tokens (ti, &ts2);
+						if (sr_ts.code != RESULT_SUCCESS) {
+							token_string_cleanup (&ts2);
+							RETURN_IF_ERROR (sr_ts);
+						}
 						StringBuffer line;
-						RETURN_IF_ERROR (string_buffer_init (&line, 128));
-						RETURN_IF_ERROR (append_indent (&line, base_indent + 1));
-						RETURN_IF_ERROR (token_string_to_string (&ts2, &line));
-						RETURN_IF_ERROR (string_buffer_append (&line, ";"));
+						Result sr_init = string_buffer_init (&line, 128);
+						if (sr_init.code != RESULT_SUCCESS) {
+							token_string_cleanup (&ts2);
+							RETURN_IF_ERROR (sr_init);
+						}
+						Result sr_indent = append_indent (&line, base_indent + 1);
+						if (sr_indent.code != RESULT_SUCCESS) {
+							string_buffer_free (&line);
+							token_string_cleanup (&ts2);
+							RETURN_IF_ERROR (sr_indent);
+						}
+						Result sr_ts2str = token_string_to_string (&ts2, &line);
+						if (sr_ts2str.code != RESULT_SUCCESS) {
+							string_buffer_free (&line);
+							token_string_cleanup (&ts2);
+							RETURN_IF_ERROR (sr_ts2str);
+						}
+						string_buffer_append (&line, ";");
 						StringBuffer dline;
 						string_buffer_init (&dline, 64);
 						Result sr2 = instruction_to_string (ti, &dline);
@@ -1181,12 +1228,30 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 							skip[k] = true;
 							ParsedInstruction *ei = &list.instructions[k];
 							TokenString ts3;
-							RETURN_IF_ERROR (translate_instruction_to_tokens (ei, &ts3));
+							Result sr_ts = translate_instruction_to_tokens (ei, &ts3);
+							if (sr_ts.code != RESULT_SUCCESS) {
+								token_string_cleanup (&ts3);
+								RETURN_IF_ERROR (sr_ts);
+							}
 							StringBuffer line;
-							RETURN_IF_ERROR (string_buffer_init (&line, 128));
-							RETURN_IF_ERROR (append_indent (&line, base_indent + 1));
-							RETURN_IF_ERROR (token_string_to_string (&ts3, &line));
-							RETURN_IF_ERROR (string_buffer_append (&line, ";"));
+							Result sr_init = string_buffer_init (&line, 128);
+							if (sr_init.code != RESULT_SUCCESS) {
+								token_string_cleanup (&ts3);
+								RETURN_IF_ERROR (sr_init);
+							}
+							Result sr_indent = append_indent (&line, base_indent + 1);
+							if (sr_indent.code != RESULT_SUCCESS) {
+								string_buffer_free (&line);
+								token_string_cleanup (&ts3);
+								RETURN_IF_ERROR (sr_indent);
+							}
+							Result sr_ts3str = token_string_to_string (&ts3, &line);
+							if (sr_ts3str.code != RESULT_SUCCESS) {
+								string_buffer_free (&line);
+								token_string_cleanup (&ts3);
+								RETURN_IF_ERROR (sr_ts3str);
+							}
+							string_buffer_append (&line, ";");
 							StringBuffer dline;
 							string_buffer_init (&dline, 64);
 							Result sr3 = instruction_to_string (ei, &dline);

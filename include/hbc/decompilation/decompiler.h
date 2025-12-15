@@ -35,12 +35,16 @@ typedef struct BasicBlock {
 	/* Control flow graph */
 	struct BasicBlock **child_nodes;
 	u32 child_nodes_count;
+	u32 child_nodes_capacity;
 	struct BasicBlock **parent_nodes;
 	u32 parent_nodes_count;
+	u32 parent_nodes_capacity;
 	struct BasicBlock **error_handling_child_nodes;
 	u32 error_handling_child_nodes_count;
+	u32 error_handling_child_nodes_capacity;
 	struct BasicBlock **error_handling_parent_nodes;
 	u32 error_handling_parent_nodes_count;
+	u32 error_handling_parent_nodes_capacity;
 } BasicBlock;
 
 /* Environment for closure variable handling */
