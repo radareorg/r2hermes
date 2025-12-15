@@ -188,7 +188,6 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 			switch (operand_type) {
 			case OPERAND_TYPE_REG8:
 			case OPERAND_TYPE_UINT8:
-			case OPERAND_TYPE_ADDR8:
 				{
 					u8 value;
 					Result read_result = buffer_reader_read_u8 (&bytecode_buffer, &value);
@@ -197,6 +196,19 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 						break;
 					}
 					operand_values[i] = value;
+					break;
+				}
+			case OPERAND_TYPE_ADDR8:
+				{
+					u8 value_u;
+					Result read_result = buffer_reader_read_u8 (&bytecode_buffer, &value_u);
+					if (read_result.code != RESULT_SUCCESS) {
+						parsing_failed = true;
+						break;
+					}
+					/* Sign-extend relative offsets */
+					i8 value_s = (i8)value_u;
+					operand_values[i] = (u32)(i32)value_s;
 					break;
 				}
 
@@ -215,7 +227,6 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 			case OPERAND_TYPE_REG32:
 			case OPERAND_TYPE_UINT32:
 			case OPERAND_TYPE_IMM32:
-			case OPERAND_TYPE_ADDR32:
 				{
 					u32 value;
 					Result read_result = buffer_reader_read_u32 (&bytecode_buffer, &value);
@@ -224,6 +235,19 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 						break;
 					}
 					operand_values[i] = value;
+					break;
+				}
+			case OPERAND_TYPE_ADDR32:
+				{
+					u32 value_u;
+					Result read_result = buffer_reader_read_u32 (&bytecode_buffer, &value_u);
+					if (read_result.code != RESULT_SUCCESS) {
+						parsing_failed = true;
+						break;
+					}
+					/* Sign-extend relative offsets */
+					i32 value_s = (i32)value_u;
+					operand_values[i] = (u32)value_s;
 					break;
 				}
 			case OPERAND_TYPE_DOUBLE:

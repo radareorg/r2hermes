@@ -36,6 +36,14 @@ static bool is_operand_register(const Instruction *inst, int idx) {
 	return t == OPERAND_TYPE_REG8 || t == OPERAND_TYPE_REG32;
 }
 
+static bool is_operand_addr(const Instruction *inst, int idx) {
+	if (!inst || idx < 0 || idx >= 6) {
+		return false;
+	}
+	OperandType t = inst->operands[idx].operand_type;
+	return t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32;
+}
+
 static u32 get_operand_value(const ParsedInstruction *insn, int idx) {
 	switch (idx) {
 	case 0: return insn->arg1;
@@ -44,6 +52,61 @@ static u32 get_operand_value(const ParsedInstruction *insn, int idx) {
 	case 3: return insn->arg4;
 	case 4: return insn->arg5;
 	default: return insn->arg6;
+	}
+}
+
+static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
+	u32 v = get_operand_value (insn, op_index);
+	u32 base = insn->original_pos;
+	if (is_jump_instruction (insn->opcode)) {
+		base += insn->inst->binary_size;
+	}
+	return base + v;
+}
+
+static const char *jump_cmp_operator(u8 op) {
+	switch (op) {
+	case OP_JEqual:
+	case OP_JEqualLong: return "==";
+	case OP_JNotEqual:
+	case OP_JNotEqualLong: return "!=";
+	case OP_JStrictEqual:
+	case OP_JStrictEqualLong: return "===";
+	case OP_JStrictNotEqual:
+	case OP_JStrictNotEqualLong: return "!==";
+	case OP_JLess:
+	case OP_JLessLong:
+	case OP_JLessN:
+	case OP_JLessNLong: return "<";
+	case OP_JNotLess:
+	case OP_JNotLessLong:
+	case OP_JNotLessN:
+	case OP_JNotLessNLong: return ">=";
+	case OP_JLessEqual:
+	case OP_JLessEqualLong:
+	case OP_JLessEqualN:
+	case OP_JLessEqualNLong: return "<=";
+	case OP_JNotLessEqual:
+	case OP_JNotLessEqualLong:
+	case OP_JNotLessEqualN:
+	case OP_JNotLessEqualNLong: return ">";
+	case OP_JGreater:
+	case OP_JGreaterLong:
+	case OP_JGreaterN:
+	case OP_JGreaterNLong: return ">";
+	case OP_JNotGreater:
+	case OP_JNotGreaterLong:
+	case OP_JNotGreaterN:
+	case OP_JNotGreaterNLong: return "<=";
+	case OP_JGreaterEqual:
+	case OP_JGreaterEqualLong:
+	case OP_JGreaterEqualN:
+	case OP_JGreaterEqualNLong: return ">=";
+	case OP_JNotGreaterEqual:
+	case OP_JNotGreaterEqualLong:
+	case OP_JNotGreaterEqualN:
+	case OP_JNotGreaterEqualNLong: return "<";
+	default: return NULL;
 	}
 }
 
@@ -315,108 +378,67 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	case OP_CreateEnvironment:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("new_env()")));
+			/* Create a new environment object in rD */
+			if (is_operand_register (insn->inst, 0)) {
+				RETURN_IF_ERROR (add (out, create_new_environment_token ((int)get_operand_value (insn_c, 0))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_env_invalid*/")));
+			}
 			break;
 		}
 	case OP_CreateInnerEnvironment:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			StringBuffer sb;
-			string_buffer_init (&sb, 48);
-			string_buffer_append (&sb, "new_inner_env(");
-			char nb[16];
-			/* arg2 should be register; validate operand type */
-			if (is_operand_register(insn->inst, 1)) {
-				snprintf (nb, sizeof (nb), "r%u", (unsigned)insn->arg2);
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
+				RETURN_IF_ERROR (add (out, create_new_inner_environment_token (
+					(int)get_operand_value (insn_c, 0),
+					(int)get_operand_value (insn_c, 1),
+					(int)get_operand_value (insn_c, 2))));
 			} else {
-				snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_inner_env_invalid*/")));
 			}
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ", ");
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg3);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "new_inner_env(r0,0)");
-			string_buffer_free (&sb);
-			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
-			}
-			RETURN_IF_ERROR (add (out, t));
 			break;
 		}
 	case OP_CreateClosure:
 	case OP_CreateClosureLongIndex:
 		{
-			/* rD = closure (fn_id, envReg) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			StringBuffer sb;
-			string_buffer_init (&sb, 48);
-			string_buffer_append (&sb, "closure(fn_");
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%u", (unsigned) ((op == OP_CreateClosure)? insn->arg3: insn->arg3));
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ", r");
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "closure(fn_0,r0)");
-			string_buffer_free (&sb);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
 			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			RETURN_IF_ERROR (add (out, t));
+			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->is_closure = true;
+			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
 		}
 	case OP_CreateGeneratorClosure:
 	case OP_CreateGeneratorClosureLongIndex:
 		{
-			/* rD = gen_closure (fn_id, envReg) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			StringBuffer sb;
-			string_buffer_init (&sb, 48);
-			string_buffer_append (&sb, "gen_closure(fn_");
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg3);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ", r");
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "gen_closure(fn_0,r0)");
-			string_buffer_free (&sb);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
 			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			RETURN_IF_ERROR (add (out, t));
+			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->is_closure = true;
+			t->is_generator = true;
+			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
 		}
 	case OP_CreateGenerator:
 	case OP_CreateGeneratorLongIndex:
 		{
-			/* rD = generator (fn_id, envReg) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			StringBuffer sb;
-			string_buffer_init (&sb, 48);
-			string_buffer_append (&sb, "generator(fn_");
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg3);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ", r");
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "generator(fn_0,r0)");
-			string_buffer_free (&sb);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
 			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			RETURN_IF_ERROR (add (out, t));
+			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->is_generator = true;
+			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
 		}
 	case OP_NewObject:
@@ -626,43 +648,32 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_SaveGenerator:
 	case OP_SaveGeneratorLong:
 		{
-			if (is_operand_register(insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_save_generator_token (insn->arg1)));
-			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*save_gen_invalid*/")));
-			}
+			u32 target = compute_target_address (insn, 0);
+			RETURN_IF_ERROR (add (out, create_save_generator_token (target)));
 			break;
 		}
 	case OP_GetEnvironment:
 		{
-			/* rD = env (depth) */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			StringBuffer sb;
-			string_buffer_init (&sb, 32);
-			string_buffer_append (&sb, "env(");
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "env(0)");
-			string_buffer_free (&sb);
-			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+			if (is_operand_register (insn->inst, 0)) {
+				RETURN_IF_ERROR (add (out, create_get_environment_token (
+					(int)get_operand_value (insn_c, 0),
+					(int)get_operand_value (insn_c, 1))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*get_env_invalid*/")));
 			}
-			RETURN_IF_ERROR (add (out, t));
 			break;
 		}
 	case OP_StoreToEnvironment:
 	case OP_StoreToEnvironmentL:
 		{
-			/* env[slot] = value (env reg in arg1, slot in arg2/arg2L, value in arg3) */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 2)) {
+				RETURN_IF_ERROR (add (out, create_store_to_environment_token (
+					(int)get_operand_value (insn_c, 0),
+					(int)get_operand_value (insn_c, 1),
+					(int)get_operand_value (insn_c, 2))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_store_invalid*/")));
+			}
 			break;
 		}
 	case OP_StoreNPToEnvironment:
@@ -688,13 +699,16 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_LoadFromEnvironment:
 	case OP_LoadFromEnvironmentL:
 		{
-			/* rD = envReg[slot] */
+			/* rD = load_from_env(envReg, slot) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			if (is_operand_register (insn->inst, 1)) {
+				RETURN_IF_ERROR (add (out, create_load_from_environment_token (
+					(int)get_operand_value (insn_c, 1),
+					(int)get_operand_value (insn_c, 2))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_load_invalid*/")));
+			}
 			break;
 		}
 	case OP_NewObjectWithBuffer:
@@ -1066,135 +1080,103 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_Jmp:
 	case OP_JmpLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg1)));
+			i32 rel = (i32)get_operand_value (insn_c, 0);
+			u32 target = compute_target_address (insn, 0);
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("false")));
+			} else {
+				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("true")));
+			}
 			break;
 		}
 	case OP_JmpTrue:
 	case OP_JmpTrueLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_true(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			i32 rel = (i32)get_operand_value (insn_c, 0);
+			u32 target = compute_target_address (insn, 0);
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			}
 			break;
 		}
 	case OP_JmpFalse:
 	case OP_JmpFalseLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_false(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			i32 rel = (i32)get_operand_value (insn_c, 0);
+			u32 target = compute_target_address (insn, 0);
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			}
 			break;
 		}
 	case OP_JmpUndefined:
 	case OP_JmpUndefinedLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_undefined(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			i32 rel = (i32)get_operand_value (insn_c, 0);
+			u32 target = compute_target_address (insn, 0);
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("!==")));
+				RETURN_IF_ERROR (add (out, create_raw_token ("undefined")));
+			} else {
+				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("===")));
+				RETURN_IF_ERROR (add (out, create_raw_token ("undefined")));
+			}
 			break;
 		}
 	/* Conditional jump instructions */
 	case OP_JLess:
 	case OP_JLessLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_less(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotLess:
 	case OP_JNotLessLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_less(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JGreater:
 	case OP_JGreaterLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_greater(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotGreater:
 	case OP_JNotGreaterLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_greater(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JEqual:
 	case OP_JEqualLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_equal(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotEqual:
 	case OP_JNotEqualLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_equal(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JStrictEqual:
 	case OP_JStrictEqualLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_strict_equal(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JStrictNotEqual:
 	case OP_JStrictNotEqualLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_strict_not_equal(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			const char *cmp = jump_cmp_operator (op);
+			if (!cmp) {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
+				break;
+			}
+			i32 rel = (i32)get_operand_value (insn_c, 0);
+			u32 target = compute_target_address (insn, 0);
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+				RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+			} else {
+				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+			}
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+			}
 			break;
 		}
 	/* 32-bit ops */
@@ -1264,9 +1246,13 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("builtin_closure(")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 1), NULL);
+			if (!t) {
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
+			}
+			t->is_builtin = true;
+			t->is_closure = true;
+			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
 		}
 	case OP_CallDirect:
@@ -1480,22 +1466,32 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	/* Property list operations */
 	case OP_GetPNameList:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("get_prop_names(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
+				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3)) {
+				RETURN_IF_ERROR (add (out, create_for_in_loop_init_token (
+					(int)get_operand_value (insn_c, 0),
+					(int)get_operand_value (insn_c, 1),
+					(int)get_operand_value (insn_c, 2),
+					(int)get_operand_value (insn_c, 3))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_init_invalid*/")));
+			}
 			break;
 		}
 	case OP_GetNextPName:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("next_prop_name(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
+				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3) &&
+				is_operand_register (insn->inst, 4)) {
+				RETURN_IF_ERROR (add (out, create_for_in_loop_next_iter_token (
+					(int)get_operand_value (insn_c, 0),
+					(int)get_operand_value (insn_c, 1),
+					(int)get_operand_value (insn_c, 2),
+					(int)get_operand_value (insn_c, 3),
+					(int)get_operand_value (insn_c, 4))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_next_invalid*/")));
+			}
 			break;
 		}
 	/* Async closures */
@@ -1504,119 +1500,54 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			StringBuffer sb;
-			string_buffer_init (&sb, 48);
-			string_buffer_append (&sb, "async_closure(fn_");
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg3);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ", r");
-			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
-			string_buffer_append (&sb, nb);
-			string_buffer_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "async_closure(fn_0,r0)");
-			string_buffer_free (&sb);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
 			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			RETURN_IF_ERROR (add (out, t));
+			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->is_async = true;
+			t->is_closure = true;
+			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
 		}
-	/* Jump with numeric comparisons */
+	/* Conditional jump instructions (N variants) */
 	case OP_JLessN:
 	case OP_JLessNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_less_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotLessN:
 	case OP_JNotLessNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_less_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JGreaterN:
 	case OP_JGreaterNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_greater_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotGreaterN:
 	case OP_JNotGreaterNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_greater_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JLessEqualN:
 	case OP_JLessEqualNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_less_equal_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotLessEqualN:
 	case OP_JNotLessEqualNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_less_equal_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JGreaterEqualN:
 	case OP_JGreaterEqualNLong:
-		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_greater_equal_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
-			break;
-		}
 	case OP_JNotGreaterEqualN:
 	case OP_JNotGreaterEqualNLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_greater_equal_n(")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			const char *cmp = jump_cmp_operator (op);
+			if (!cmp) {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
+				break;
+			}
+			i32 rel = (i32)get_operand_value (insn_c, 0);
+			u32 target = compute_target_address (insn, 0);
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+				RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+			} else {
+				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+			}
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			if (rel > 0) {
+				RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+			}
 			break;
 		}
 	/* Load operations */
@@ -1727,20 +1658,39 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	default:
 		{
-			if (true) {
-				/* Fallback: emit a comment-like raw token with mnemonic */
-				StringBuffer sb;
-				string_buffer_init (&sb, 64);
-				string_buffer_append (&sb, "/* ");
-				string_buffer_append (&sb, insn->inst->name);
-				string_buffer_append (&sb, " */");
-				Token *t = create_raw_token (sb.data? sb.data: "/* insn */");
-				string_buffer_free (&sb);
-				if (!t) {
-					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+			/* Generic compare-jump fallback (covers variants not explicitly handled above). */
+			const char *cmp = jump_cmp_operator (op);
+			if (cmp && is_operand_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
+				i32 rel = (i32)get_operand_value (insn_c, 0);
+				u32 target = compute_target_address (insn, 0);
+				if (rel > 0) {
+					RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+					RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+					RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+				} else {
+					RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
 				}
-				RETURN_IF_ERROR (add (out, t));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+				RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
+				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+				if (rel > 0) {
+					RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+				}
+				break;
 			}
+
+			/* Fallback: emit a comment-like raw token with mnemonic */
+			StringBuffer sb;
+			string_buffer_init (&sb, 64);
+			string_buffer_append (&sb, "/* ");
+			string_buffer_append (&sb, insn->inst->name);
+			string_buffer_append (&sb, " */");
+			Token *t = create_raw_token (sb.data? sb.data: "/* insn */");
+			string_buffer_free (&sb);
+			if (!t) {
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+			}
+			RETURN_IF_ERROR (add (out, t));
 			break;
 		}
 	}

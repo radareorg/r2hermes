@@ -63,6 +63,12 @@ typedef struct {
 	u32 label_count;
 } AddressLabels;
 
+/* Decompiled code nesting frame (e.g. for..in loop body scope) */
+typedef struct {
+	u32 start_address;
+	u32 end_address;
+} NestedFrame;
+
 /* Function body decompilation state */
 struct DecompiledFunctionBody {
 	bool is_global;
@@ -102,11 +108,19 @@ struct DecompiledFunctionBody {
 	Environment **local_items; /* Map from env_register to Environment */
 	u32 local_items_count;
 	u32 local_items_capacity;
+	Environment **owned_environments; /* Environments allocated for this function */
+	u32 owned_environments_count;
+	u32 owned_environments_capacity;
 
 	/* Control flow structures */
 	BasicBlock *basic_blocks;
 	u32 basic_blocks_count;
 	u32 basic_blocks_capacity;
+
+	/* Decompiled-code nesting frames */
+	NestedFrame *nested_frames;
+	u32 nested_frames_count;
+	u32 nested_frames_capacity;
 
 	/* Generated code */
 	TokenString *statements;
@@ -126,6 +140,7 @@ typedef struct HermesDecompiler {
 	u32 calldirect_function_ids_count;
 	u32 calldirect_function_ids_capacity;
 	int indent_level;
+	HBCDecompileOptions options;
 	StringBuffer output;
 } HermesDecompiler;
 

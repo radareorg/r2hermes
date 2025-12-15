@@ -123,7 +123,7 @@ Token *create_function_table_index_token(u32 function_id, struct HermesDecompile
 	}
 	t->function_id = function_id;
 	t->state = state;
-	t->environment_id = 0;
+	t->environment_id = -1;
 	t->is_closure = false;
 	t->is_builtin = false;
 	t->is_generator = false;
