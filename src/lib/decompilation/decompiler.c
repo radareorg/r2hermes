@@ -274,6 +274,9 @@ static Result bbvec_push(BasicBlock ***arr, u32 *count, u32 *cap, BasicBlock *bb
 }
 
 static BasicBlock *find_block_by_start(DecompiledFunctionBody *fb, u32 start) {
+	if (!fb) {
+		return NULL;
+	}
 	for (u32 i = 0; i < fb->basic_blocks_count; i++) {
 		if (fb->basic_blocks[i].start_address == start) {
 			return &fb->basic_blocks[i];
@@ -443,6 +446,20 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 			bb->is_unconditional_throw_anchor = true;
 			continue;
 		}
+		/* Handle switch statements: add edges to all jump table targets */
+		if (last->switch_jump_table && last->switch_jump_table_size) {
+			for (u32 j = 0; j < last->switch_jump_table_size; j++) {
+				u32 tgt = last->switch_jump_table[j];
+				if (tgt < fh->bytecodeSizeInBytes) {
+					BasicBlock *child = find_block_by_start (out_body, tgt);
+					if (child) {
+						RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, child));
+					}
+				}
+			}
+			/* switch is unconditional in the sense that one target must be taken */
+			bb->is_unconditional_jump_anchor = true;
+		}
 		if (is_jump_instruction (op)) {
 			/* compute targets */
 			for (int j = 0; j < 6; j++) {
@@ -450,9 +467,11 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 					continue;
 				}
 				u32 tgt = compute_target_address (last, j);
-				BasicBlock *child = find_block_by_start (out_body, tgt);
-				if (child) {
-					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, child));
+				if (tgt < fh->bytecodeSizeInBytes) {
+					BasicBlock *child = find_block_by_start (out_body, tgt);
+					if (child) {
+						RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, child));
+					}
 				}
 			}
 			/* conditional: also add fallthrough */
