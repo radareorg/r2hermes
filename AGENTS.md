@@ -35,4 +35,11 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
 - Use `make test` for basic tests.
 - Compare with Python reference for validation.
 
+**Key Modules**
+- `src/lib/decompilation/translator.c` - Instruction-to-token translation with operand validation
+  - All register operands checked via `reg_l_safe()` / `reg_r_safe()` helpers
+  - Operand types validated via `is_operand_register()` before use
+  - Register bounds checked via `is_valid_register()` against function frameSize
+  - See TRANSLATION_FIX.md for implementation details
+
 This file applies to the entire repo. When editing, stay focused and minimal: prefer surgical changes and preserve the current structure.

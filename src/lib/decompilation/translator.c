@@ -11,12 +11,76 @@ static Result add(TokenString *ts, Token *t) {
 	return token_string_add_token (ts, t);
 }
 
-static Token *reg_l(int r) {
-	return create_left_hand_reg_token (r);
+/* Validate register bounds against function register count */
+static bool is_valid_register(u32 reg_num, const ParsedInstruction *insn) {
+	if (!insn || !insn->inst) {
+		return false;
+	}
+	/* frameSize holds register count; max registers = frameSize */
+	if (!insn->hbc_reader) {
+		return true; /* can't validate without reader */
+	}
+	if (insn->function_offset >= insn->hbc_reader->header.functionCount) {
+		return false;
+	}
+	FunctionHeader *fh = &insn->hbc_reader->function_headers[insn->function_offset];
+	return reg_num < fh->frameSize;
 }
-static Token *reg_r(int r) {
-	return create_right_hand_reg_token (r);
+
+/* Get operand value with type validation */
+static bool is_operand_register(const Instruction *inst, int idx) {
+	if (!inst || idx < 0 || idx >= 6) {
+		return false;
+	}
+	OperandType t = inst->operands[idx].operand_type;
+	return t == OPERAND_TYPE_REG8 || t == OPERAND_TYPE_REG32;
 }
+
+static u32 get_operand_value(const ParsedInstruction *insn, int idx) {
+	switch (idx) {
+	case 0: return insn->arg1;
+	case 1: return insn->arg2;
+	case 2: return insn->arg3;
+	case 3: return insn->arg4;
+	case 4: return insn->arg5;
+	default: return insn->arg6;
+	}
+}
+
+/* Safe register token creation with validation */
+static Token *reg_l_safe(const ParsedInstruction *insn, int idx) {
+	if (!insn || !insn->inst) {
+		return create_raw_token("r?");
+	}
+	if (!is_operand_register(insn->inst, idx)) {
+		return create_raw_token("/*not_reg*/");
+	}
+	u32 r = get_operand_value(insn, idx);
+	if (!is_valid_register(r, insn)) {
+		char buf[32];
+		snprintf(buf, sizeof(buf), "r%u_OOB", r);
+		return create_raw_token(buf);
+	}
+	return create_left_hand_reg_token((int)r);
+}
+
+static Token *reg_r_safe(const ParsedInstruction *insn, int idx) {
+	if (!insn || !insn->inst) {
+		return create_raw_token("r?");
+	}
+	if (!is_operand_register(insn->inst, idx)) {
+		return create_raw_token("/*not_reg*/");
+	}
+	u32 r = get_operand_value(insn, idx);
+	if (!is_valid_register(r, insn)) {
+		char buf[32];
+		snprintf(buf, sizeof(buf), "r%u_OOB", r);
+		return create_raw_token(buf);
+	}
+	return create_right_hand_reg_token((int)r);
+}
+
+
 
 static Token *num_token_u32(u32 v) {
 	char buf[32];
@@ -86,63 +150,63 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_MovLong:
 		{
 			/* dest <- src */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_LoadConstUndefined:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("undefined")));
 			break;
 		}
 	case OP_LoadConstNull:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("null")));
 			break;
 		}
 	case OP_LoadConstTrue:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("true")));
 			break;
 		}
 	case OP_LoadConstFalse:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("false")));
 			break;
 		}
 	case OP_LoadConstZero:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("0")));
 			break;
 		}
 	case OP_LoadConstUInt8:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
 			break;
 		}
 	case OP_LoadConstInt:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
 			break;
 		}
 	case OP_LoadConstDouble:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, double_token (insn->arg2, insn->arg3)));
 			break;
@@ -150,7 +214,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_LoadConstString:
 	case OP_LoadConstStringLongIndex:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg2)));
 			break;
@@ -158,7 +222,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_LoadParam:
 	case OP_LoadParamLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			/* a<idx> */
 			char buf[32];
@@ -180,11 +244,11 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			: (op == OP_Mul || op == OP_MulN)? "*"
 			: (op == OP_Div || op == OP_DivN)? "/"
 													: "%";
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (opstr)));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_Negate:
@@ -193,48 +257,48 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		{
 			const char *opstr = (op == OP_Negate)? "-": (op == OP_Not)? "!"
 									: "~";
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token (opstr)));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_StrictEq:
 		{
 			/* rD = rB === rC */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (" === ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_StrictNeq:
 		{
 			/* rD = rB !== rC */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (" !== ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_SelectObject:
 		{
 			/* rD = select_object (obj1, obj2) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("select_object(")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_raw_token (")")));
 			break;
 		}
 	case OP_ReifyArguments:
 		{
 			/* rD = arguments */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("arguments")));
 			break;
@@ -242,25 +306,34 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_Catch:
 		{
 			/* catch (rN) marker */
-			RETURN_IF_ERROR (add (out, create_catch_block_start_token ((int)insn->arg1)));
+			if (is_operand_register(insn->inst, 0)) {
+				RETURN_IF_ERROR (add (out, create_catch_block_start_token ((int)get_operand_value(insn, 0))));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*catch non-reg*/")));
+			}
 			break;
 		}
 	case OP_CreateEnvironment:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("new_env()")));
 			break;
 		}
 	case OP_CreateInnerEnvironment:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			string_buffer_init (&sb, 48);
 			string_buffer_append (&sb, "new_inner_env(");
 			char nb[16];
-			snprintf (nb, sizeof (nb), "r%u", (unsigned)insn->arg2);
+			/* arg2 should be register; validate operand type */
+			if (is_operand_register(insn->inst, 1)) {
+				snprintf (nb, sizeof (nb), "r%u", (unsigned)insn->arg2);
+			} else {
+				snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
+			}
 			string_buffer_append (&sb, nb);
 			string_buffer_append (&sb, ", ");
 			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg3);
@@ -278,7 +351,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_CreateClosureLongIndex:
 		{
 			/* rD = closure (fn_id, envReg) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			string_buffer_init (&sb, 48);
@@ -302,7 +375,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_CreateGeneratorClosureLongIndex:
 		{
 			/* rD = gen_closure (fn_id, envReg) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			string_buffer_init (&sb, 48);
@@ -326,7 +399,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_CreateGeneratorLongIndex:
 		{
 			/* rD = generator (fn_id, envReg) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			string_buffer_init (&sb, 48);
@@ -348,7 +421,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	case OP_NewObject:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("{}")));
 			break;
@@ -356,7 +429,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_NewArray:
 		{
 			/* rD = new Array (count) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("new Array(")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
@@ -367,9 +440,9 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_GetByIdShort:
 	case OP_GetByIdLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			u32 sid = insn->arg4;
 			const char *s = NULL;
 		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
@@ -398,11 +471,11 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	case OP_GetByVal:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			break;
 		}
@@ -410,7 +483,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_TryGetByIdLong:
 		{
 			/* rD = try_get (obj.prop) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			string_buffer_init (&sb, 48);
@@ -433,7 +506,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_PutNewOwnByIdLong:
 		{
 			/* obj.name = value (prefer dot accessor) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			u32 sid = (op == OP_PutNewOwnByIdShort)? insn->arg3: (op == OP_PutNewOwnById)? insn->arg3
 												: insn->arg4;
 		const char *s = (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount)? insn->hbc_reader->strings[sid]: NULL;
@@ -446,76 +519,76 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			}
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_PutOwnByIndex:
 	case OP_PutOwnByIndexL:
 		{
 			/* obj[idx] = value */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_PutByVal:
 		{
 			/* rObj[rKey] = rVal */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1))); /* use LHS token for consistency */
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0))); /* use LHS token for consistency */
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_PutById:
 	case OP_PutByIdLong:
 		{
 			/* rObj["name"] = rVal */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			u32 sid = (op == OP_PutById)? insn->arg4: insn->arg4;
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_Ret:
 		{
 			RETURN_IF_ERROR (add (out, create_return_directive_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			break;
 		}
 	case OP_Throw:
 		{
 			RETURN_IF_ERROR (add (out, create_throw_directive_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			break;
 		}
 	case OP_IteratorBegin:
 		{
 			/* rD = iterator_begin (obj) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("iterator_begin(")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (")")));
 			break;
 		}
 	case OP_IteratorNext:
 		{
 			/* rD = iterator_next (iter, state) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("iterator_next(")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_raw_token (")")));
 			break;
 		}
@@ -523,7 +596,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		{
 			/* iterator_close (iter, hint) */
 			RETURN_IF_ERROR (add (out, create_raw_token ("iterator_close(")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
 			RETURN_IF_ERROR (add (out, create_raw_token (")")));
@@ -538,7 +611,11 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_ResumeGenerator:
 		{
 			/* args: result_out, return_bool_out */
-			RETURN_IF_ERROR (add (out, create_resume_generator_token ((int)insn->arg1, (int)insn->arg2)));
+			if (is_operand_register(insn->inst, 0) && is_operand_register(insn->inst, 1)) {
+				RETURN_IF_ERROR (add (out, create_resume_generator_token ((int)insn->arg1, (int)insn->arg2)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*resume_gen_invalid*/")));
+			}
 			break;
 		}
 	case OP_CompleteGenerator:
@@ -549,13 +626,17 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_SaveGenerator:
 	case OP_SaveGeneratorLong:
 		{
-			RETURN_IF_ERROR (add (out, create_save_generator_token (insn->arg1)));
+			if (is_operand_register(insn->inst, 0)) {
+				RETURN_IF_ERROR (add (out, create_save_generator_token (insn->arg1)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*save_gen_invalid*/")));
+			}
 			break;
 		}
 	case OP_GetEnvironment:
 		{
 			/* rD = env (depth) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			string_buffer_init (&sb, 32);
@@ -576,30 +657,30 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_StoreToEnvironmentL:
 		{
 			/* env[slot] = value (env reg in arg1, slot in arg2/arg2L, value in arg3) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_StoreNPToEnvironment:
 	case OP_StoreNPToEnvironmentL:
 		{
 			/* env[slot] = value (NP variant) */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_GetGlobalObject:
 		{
 			/* rD = globalThis */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("globalThis")));
 			break;
@@ -608,9 +689,9 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_LoadFromEnvironmentL:
 		{
 			/* rD = envReg[slot] */
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
@@ -619,7 +700,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_NewObjectWithBuffer:
 	case OP_NewObjectWithBufferLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			Result r = string_buffer_init (&sb, 128);
@@ -638,7 +719,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_NewArrayWithBuffer:
 	case OP_NewArrayWithBufferLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
 			Result r = string_buffer_init (&sb, 128);
@@ -656,61 +737,61 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	case OP_Call1:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
 		}
 	case OP_Call2:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg4)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
 		}
 	case OP_Call3:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg4)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg5)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 4)));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
 		}
 	case OP_Call4:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg3)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg4)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg5)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 4)));
 			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg6)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 5)));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
 		}
@@ -719,11 +800,11 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 	case OP_Construct:
 	case OP_ConstructLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg1)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r ((int)insn->arg2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			if (true) {
 				char buf2[32];
 				snprintf (buf2, sizeof (buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
