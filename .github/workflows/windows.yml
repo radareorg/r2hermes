@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          pip install meson ninja
+          pip install meson ninja wget
           choco install wget
 
       - name: Download Radare2 release
