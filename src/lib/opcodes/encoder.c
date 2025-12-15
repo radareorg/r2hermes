@@ -4,8 +4,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <ctype.h>
+
+/* Cross-platform strcasecmp */
+static int portable_strcasecmp(const char *s1, const char *s2) {
+	while (*s1 && *s2) {
+		unsigned char c1 = tolower((unsigned char)*s1);
+		unsigned char c2 = tolower((unsigned char)*s2);
+		if (c1 != c2) {
+			return c1 - c2;
+		}
+		s1++;
+		s2++;
+	}
+	return (unsigned char)*s1 - (unsigned char)*s2;
+}
 
 /* Initialize encoder */
 Result hbc_encoder_init(HBCEncoder *encoder, u32 bytecode_version) {
@@ -50,7 +63,7 @@ static const Instruction *find_instruction_by_name(const char *mnemonic, const I
 		if (!instruction_set[i].name) {
 			continue;
 		}
-		if (strcasecmp (mnemonic, instruction_set[i].name) == 0) {
+		if (portable_strcasecmp (mnemonic, instruction_set[i].name) == 0) {
 			if (out_opcode) {
 				*out_opcode = (u8)i;
 			}
