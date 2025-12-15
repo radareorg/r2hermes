@@ -813,6 +813,918 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
 		}
+	/* Comparison operators */
+	case OP_Eq:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" == ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Neq:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" != ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Less:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" < ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_LessEq:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" <= ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Greater:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" > ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_GreaterEq:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" >= ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	/* Bitwise operators */
+	case OP_LShift:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" << ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_RShift:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" >> ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_URshift:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" >>> ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_BitAnd:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" & ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_BitXor:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" ^ ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_BitOr:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" | ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	/* Increment/Decrement */
+	case OP_Inc:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" + 1")));
+			break;
+		}
+	case OP_Dec:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" - 1")));
+			break;
+		}
+	/* Type operations */
+	case OP_TypeOf:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("typeof ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			break;
+		}
+	case OP_InstanceOf:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" instanceof ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_IsIn:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" in ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	/* Type conversion */
+	case OP_ToNumber:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("Number(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_ToNumeric:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("to_numeric(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_ToInt32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("to_int32(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_AddEmptyString:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("String(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* Delete operations */
+	case OP_DelById:
+	case OP_DelByIdLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("delete ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			u32 sid = insn->arg2;
+			const char *s = NULL;
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+				s = insn->hbc_reader->strings[sid];
+			}
+			if (s && is_js_identifier (s)) {
+				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
+				RETURN_IF_ERROR (add (out, create_raw_token (s)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			}
+			break;
+		}
+	case OP_DelByVal:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("delete ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			break;
+		}
+	/* Regex and special operations */
+	case OP_CreateRegExp:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("new RegExp(")));
+			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_LoadConstEmpty:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("empty")));
+			break;
+		}
+	case OP_LoadConstBigInt:
+	case OP_LoadConstBigIntLongIndex:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("n")));
+			break;
+		}
+	/* Jump instructions */
+	case OP_Jmp:
+	case OP_JmpLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg1)));
+			break;
+		}
+	case OP_JmpTrue:
+	case OP_JmpTrueLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_true(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JmpFalse:
+	case OP_JmpFalseLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_false(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JmpUndefined:
+	case OP_JmpUndefinedLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_undefined(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* Conditional jump instructions */
+	case OP_JLess:
+	case OP_JLessLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_less(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotLess:
+	case OP_JNotLessLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_less(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JGreater:
+	case OP_JGreaterLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_greater(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotGreater:
+	case OP_JNotGreaterLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_greater(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JEqual:
+	case OP_JEqualLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_equal(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotEqual:
+	case OP_JNotEqualLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_equal(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JStrictEqual:
+	case OP_JStrictEqualLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_strict_equal(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JStrictNotEqual:
+	case OP_JStrictNotEqualLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_strict_not_equal(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* 32-bit ops */
+	case OP_Add32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" +i32 ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Sub32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" -i32 ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Mul32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" *i32 ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Divi32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" /i32 ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_Divu32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (" /u32 ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	/* Built-in calls */
+	case OP_CallBuiltin:
+	case OP_CallBuiltinLong:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("builtin_")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+			if (insn->arg3 > 0) {
+				RETURN_IF_ERROR (add (out, create_raw_token ("/*")));
+				RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("args*/")));
+			}
+			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+			break;
+		}
+	case OP_GetBuiltinClosure:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("builtin_closure(")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_CallDirect:
+	case OP_CallDirectLongIndex:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("fn_")));
+			RETURN_IF_ERROR (add (out, num_token_u32 ((op == OP_CallDirect)? insn->arg4: insn->arg4)));
+			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("/*argc:")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
+			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+			break;
+		}
+	/* Arguments operations */
+	case OP_GetArgumentsPropByVal:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("arguments[")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			break;
+		}
+	case OP_GetArgumentsLength:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("arguments.length")));
+			break;
+		}
+	/* New target and this */
+	case OP_GetNewTarget:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("new.target")));
+			break;
+		}
+	case OP_LoadThisNS:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("this")));
+			break;
+		}
+	case OP_CoerceThisNS:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("coerce_this(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_CreateThis:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("new_this(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_NewObjectWithParent:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("new_obj_with_parent(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* Special operations */
+	case OP_Unreachable:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("unreachable()")));
+			break;
+		}
+	case OP_Debugger:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("debugger")));
+			break;
+		}
+	case OP_AsyncBreakCheck:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("async_break_check()")));
+			break;
+		}
+	case OP_ProfilePoint:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("profile_point(")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_ThrowIfEmpty:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("throw_if_empty(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_ThrowIfUndefinedInst:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("throw_if_undefined_inst()")));
+			break;
+		}
+	case OP_DirectEval:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("eval(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_DeclareGlobalVar:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("declare_global_var(")));
+			u32 sid = insn->arg1;
+			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_ThrowIfHasRestrictedGlobalProperty:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("throw_if_restricted_prop(")));
+			u32 sid = insn->arg1;
+			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_SwitchImm:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("switch(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (") /*tableSize:")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token("*/")));
+			break;
+		}
+	/* Property operations (variants) */
+	case OP_TryPutById:
+	case OP_TryPutByIdLong:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			u32 sid = insn->arg3;
+			const char *s = NULL;
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+				s = insn->hbc_reader->strings[sid];
+			}
+			if (s && is_js_identifier (s)) {
+				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
+				RETURN_IF_ERROR (add (out, create_raw_token (s)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			}
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			break;
+		}
+	case OP_PutNewOwnNEById:
+	case OP_PutNewOwnNEByIdLong:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			u32 sid = (op == OP_PutNewOwnNEById)? insn->arg3: insn->arg4;
+			const char *s = NULL;
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+				s = insn->hbc_reader->strings[sid];
+			}
+			if (s && is_js_identifier (s)) {
+				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
+				RETURN_IF_ERROR (add (out, create_raw_token (s)));
+			} else {
+				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
+				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			}
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			break;
+		}
+	case OP_PutOwnByVal:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			break;
+		}
+	case OP_PutOwnGetterSetterByVal:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			RETURN_IF_ERROR (add (out, create_raw_token (" = {getter: ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", setter: ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
+			RETURN_IF_ERROR (add (out, create_raw_token ("}")));
+			break;
+		}
+	/* Property list operations */
+	case OP_GetPNameList:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("get_prop_names(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_GetNextPName:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("next_prop_name(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* Async closures */
+	case OP_CreateAsyncClosure:
+	case OP_CreateAsyncClosureLongIndex:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			StringBuffer sb;
+			string_buffer_init (&sb, 48);
+			string_buffer_append (&sb, "async_closure(fn_");
+			char nb[16];
+			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg3);
+			string_buffer_append (&sb, nb);
+			string_buffer_append (&sb, ", r");
+			snprintf (nb, sizeof (nb), "%u", (unsigned)insn->arg2);
+			string_buffer_append (&sb, nb);
+			string_buffer_append (&sb, ")");
+			Token *t = create_raw_token (sb.data? sb.data: "async_closure(fn_0,r0)");
+			string_buffer_free (&sb);
+			if (!t) {
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+			}
+			RETURN_IF_ERROR (add (out, t));
+			break;
+		}
+	/* Jump with numeric comparisons */
+	case OP_JLessN:
+	case OP_JLessNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_less_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotLessN:
+	case OP_JNotLessNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_less_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JGreaterN:
+	case OP_JGreaterNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_greater_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotGreaterN:
+	case OP_JNotGreaterNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_greater_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JLessEqualN:
+	case OP_JLessEqualNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_less_equal_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotLessEqualN:
+	case OP_JNotLessEqualNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_less_equal_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JGreaterEqualN:
+	case OP_JGreaterEqualNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_greater_equal_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_JNotGreaterEqualN:
+	case OP_JNotGreaterEqualNLong:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("jmp_not_greater_equal_n(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* Load operations */
+	case OP_Loadi8:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("load_i8(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Loadu8:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("load_u8(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Loadi16:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("load_i16(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Loadu16:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("load_u16(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Loadi32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("load_i32(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Loadu32:
+		{
+			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, create_raw_token ("load_u32(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	/* Store operations */
+	case OP_Store8:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("store_8(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Store16:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("store_16(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_Store32:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("store_32(")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			break;
+		}
+	case OP_DebuggerCheck:
+		{
+			RETURN_IF_ERROR (add (out, create_raw_token ("debugger_check()")));
+			break;
+		}
 	default:
 		{
 			if (true) {
