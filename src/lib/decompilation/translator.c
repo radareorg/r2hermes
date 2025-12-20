@@ -200,6 +200,16 @@ static Token *quoted_string(HBCReader *r, u32 sid) {
 	return create_raw_token ("\"\"");
 }
 
+static Token *unquoted_string(HBCReader *r, u32 sid) {
+	if (r && r->strings && sid < r->header.stringCount) {
+		const char *s = r->strings[sid];
+		if (s) {
+			return create_raw_token (s);
+		}
+	}
+	return create_raw_token ("unknown");
+}
+
 Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenString *out) {
 	if (!insn_c || !out || !insn_c->inst) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "translate: bad args");
@@ -1364,10 +1374,9 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		}
 	case OP_DeclareGlobalVar:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("declare_global_var(")));
+			RETURN_IF_ERROR (add (out, create_raw_token ("declare extern var ")));
 			u32 sid = insn->arg1;
-			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, unquoted_string (insn->hbc_reader, sid)));
 			break;
 		}
 	case OP_ThrowIfHasRestrictedGlobalProperty:

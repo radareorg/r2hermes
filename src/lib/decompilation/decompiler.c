@@ -2671,28 +2671,25 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	}
 	StringBuffer *out = &state->output;
 
-	/* Function header (skip for global) */
-	if (!function_body->is_global) {
-		/* Only indent the function keyword if not inlining */
-		if (!state->inlining_function) {
-			if (function_body->is_async) {
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (string_buffer_append (out, "async "));
-			} else {
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			}
-		}
-		if (function_body->is_async && state->inlining_function) {
+	/* Function header (always output, even for global) */
+	if (!state->inlining_function) {
+		if (function_body->is_async) {
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 			RETURN_IF_ERROR (string_buffer_append (out, "async "));
+		} else if (!function_body->is_global) {
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		}
+	}
+	if (function_body->is_async && state->inlining_function) {
+		RETURN_IF_ERROR (string_buffer_append (out, "async "));
+	}
+	if (!function_body->is_global) {
 		RETURN_IF_ERROR (string_buffer_append (out, "function"));
 		if (function_body->is_generator) {
 			RETURN_IF_ERROR (string_buffer_append (out, "*"));
 		}
-		if (! (function_body->is_closure || function_body->is_generator)) {
-			RETURN_IF_ERROR (string_buffer_append (out, " "));
-			RETURN_IF_ERROR (string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
-		}
+		RETURN_IF_ERROR (string_buffer_append (out, " "));
+		RETURN_IF_ERROR (string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
 		RETURN_IF_ERROR (string_buffer_append (out, "("));
 		u32 pcnt = function_body->function_object? function_body->function_object->paramCount: 0;
 		for (u32 i = 0; i < pcnt; i++) {
@@ -2718,8 +2715,10 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			}
 		}
 		RETURN_IF_ERROR (string_buffer_append (out, "\n"));
-		state->indent_level++;
+	} else {
+		RETURN_IF_ERROR (string_buffer_append (out, "function global() {\n"));
 	}
+	state->indent_level++;
 
 	/* Collect frame start/end lists */
 	u32 nf = function_body->nested_frames_count;
@@ -2757,33 +2756,8 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	qsort (bb_starts, bbcount, sizeof (u32), cmp_u32);
 	qsort (bb_ends, bbcount, sizeof (u32), cmp_u32);
 
-	/* Determine if dispatch loop is needed.
-	 * Most functions don't need dispatch - only use if there's actual control flow
-	 * with backward jumps, loops, or complex branching.
-	 */
-	bool use_dispatch = state->options.force_dispatch;
-	if (!use_dispatch && bbcount > 1) {
-		/* Check if any basic block has multiple children (branching/looping) */
-		for (u32 i = 0; i < bbcount; i++) {
-			BasicBlock *bb = &function_body->basic_blocks[i];
-			/* If a block jumps to multiple targets, we need dispatch for control flow */
-			if (bb->child_nodes_count > 1 || bb->is_conditional_jump_anchor) {
-				use_dispatch = true;
-				break;
-			}
-		}
-	}
-	if (use_dispatch) {
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (string_buffer_append (out, "_fun"));
-		RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-		RETURN_IF_ERROR (string_buffer_append (out, ": for(var _fun"));
-		RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-		RETURN_IF_ERROR (string_buffer_append (out, "_ip = 0; ; ) switch(_fun"));
-		RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-		RETURN_IF_ERROR (string_buffer_append (out, "_ip) {\n"));
-		state->indent_level++;
-	}
+	/* Dispatch loops are disabled - always output linear code */
+	bool use_dispatch = false;
 
 	/* Dead Code Elimination: identify statements with unused register assignments */
 	bool *dce = NULL;
@@ -2898,61 +2872,9 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 
 		bool emitted_continue = false;
 		Token *head = st->head;
+		/* Skip jump statements entirely - dispatch is disabled */
 		if (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION || head->type == TOKEN_TYPE_JUMP_CONDITION) {
-			/* Serialize the condition part (tokens after the jump token) */
-			TokenString cond_ts = { .head = head->next, .tail = st->tail, .assembly = NULL };
-			StringBuffer cond;
-			RETURN_IF_ERROR (string_buffer_init (&cond, 32));
-			RETURN_IF_ERROR (token_string_to_string (&cond_ts, &cond));
-			const char *cond_s = cond.data? cond.data: "";
-			u32 tgt = (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION)
-				? ((JumpNotConditionToken *)head)->target_address
-				: ((JumpConditionToken *)head)->target_address;
-
-			if (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
-				if (strcmp (cond_s, "false") == 0) {
-					RETURN_IF_ERROR (string_buffer_append (out, "_fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					RETURN_IF_ERROR (string_buffer_append (out, "_ip = "));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)tgt));
-					RETURN_IF_ERROR (string_buffer_append (out, "; continue _fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					emitted_continue = true;
-				} else {
-					is_block_stmt = true;
-					RETURN_IF_ERROR (string_buffer_append (out, "if(!("));
-					RETURN_IF_ERROR (string_buffer_append (out, cond_s));
-					RETURN_IF_ERROR (string_buffer_append (out, ")) { _fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					RETURN_IF_ERROR (string_buffer_append (out, "_ip = "));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)tgt));
-					RETURN_IF_ERROR (string_buffer_append (out, "; continue _fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					RETURN_IF_ERROR (string_buffer_append (out, " }"));
-				}
-			} else {
-				if (strcmp (cond_s, "true") == 0) {
-					RETURN_IF_ERROR (string_buffer_append (out, "_fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					RETURN_IF_ERROR (string_buffer_append (out, "_ip = "));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)tgt));
-					RETURN_IF_ERROR (string_buffer_append (out, "; continue _fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					emitted_continue = true;
-				} else {
-					is_block_stmt = true;
-					RETURN_IF_ERROR (string_buffer_append (out, "if("));
-					RETURN_IF_ERROR (string_buffer_append (out, cond_s));
-					RETURN_IF_ERROR (string_buffer_append (out, ") { _fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					RETURN_IF_ERROR (string_buffer_append (out, "_ip = "));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)tgt));
-					RETURN_IF_ERROR (string_buffer_append (out, "; continue _fun"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-					RETURN_IF_ERROR (string_buffer_append (out, " }"));
-				}
-			}
-			string_buffer_free (&cond);
+			continue;
 		} else {
 			/* Emit all tokens, handling nested function expressions */
 			bool first_tok = true;
