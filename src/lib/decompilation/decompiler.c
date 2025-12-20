@@ -2701,7 +2701,17 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			RETURN_IF_ERROR (string_buffer_append (out, pbuf));
 		}
 		RETURN_IF_ERROR (string_buffer_append (out, ") {"));
-		if (!state->options.suppress_comments && (function_body->is_closure || function_body->is_generator)) {
+		/* First priority: check for r2 comment at function start */
+		char *r2_comment = NULL;
+		if (state->options.comment_callback) {
+			r2_comment = state->options.comment_callback (state->options.comment_context, state->options.function_base);
+		}
+		if (r2_comment) {
+			RETURN_IF_ERROR (string_buffer_append (out, " // "));
+			RETURN_IF_ERROR (string_buffer_append (out, r2_comment));
+			free (r2_comment);
+		} else if (!state->options.suppress_comments && (function_body->is_closure || function_body->is_generator)) {
+			/* Fallback to original name/environment comments */
 			if (function_body->function_name && *function_body->function_name) {
 				RETURN_IF_ERROR (string_buffer_append (out, " // Original name: "));
 				RETURN_IF_ERROR (string_buffer_append (out, function_body->function_name));
@@ -2716,7 +2726,18 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		}
 		RETURN_IF_ERROR (string_buffer_append (out, "\n"));
 	} else {
-		RETURN_IF_ERROR (string_buffer_append (out, "function global() {\n"));
+		RETURN_IF_ERROR (string_buffer_append (out, "function global() {"));
+		/* Check for r2 comment at function start for global function */
+		char *r2_comment = NULL;
+		if (state->options.comment_callback) {
+			r2_comment = state->options.comment_callback (state->options.comment_context, state->options.function_base);
+		}
+		if (r2_comment) {
+			RETURN_IF_ERROR (string_buffer_append (out, " // "));
+			RETURN_IF_ERROR (string_buffer_append (out, r2_comment));
+			free (r2_comment);
+		}
+		RETURN_IF_ERROR (string_buffer_append (out, "\n"));
 	}
 	state->indent_level++;
 
@@ -2935,7 +2956,9 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			}
 		}
 
-		/* Append r2 comment if available via callback */
+		/* Append r2 comment if available via callback
+		 * Only check comments for statements that have assembly references,
+		 * as we need the bytecode offset for the lookup. */
 		if (state->options.comment_callback && asm_ref) {
 			char *comment = state->options.comment_callback (state->options.comment_context, abs_addr);
 			if (comment) {
