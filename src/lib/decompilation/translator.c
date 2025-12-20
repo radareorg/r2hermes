@@ -120,9 +120,10 @@ static Token *reg_l_safe(const ParsedInstruction *insn, int idx) {
 	}
 	u32 r = get_operand_value (insn, idx);
 	if (!is_valid_register (r, insn)) {
-		char buf[32];
-		snprintf (buf, sizeof (buf), "r%u_OOB", r);
-		return create_raw_token (buf);
+		/* Out-of-bounds register: show normally but warn in debug mode.
+		 * This is a rare error condition indicating bytecode corruption
+		 * or a parser bug, not a normal feature. */
+		hbc_debug_printf ("WARNING: Out-of-bounds register r%u (bytecode may be corrupted)\n", r);
 	}
 	return create_left_hand_reg_token ((int)r);
 }
@@ -136,9 +137,10 @@ static Token *reg_r_safe(const ParsedInstruction *insn, int idx) {
 	}
 	u32 r = get_operand_value (insn, idx);
 	if (!is_valid_register (r, insn)) {
-		char buf[32];
-		snprintf (buf, sizeof (buf), "r%u_OOB", r);
-		return create_raw_token (buf);
+		/* Out-of-bounds register: show normally but warn in debug mode.
+		 * This is a rare error condition indicating bytecode corruption
+		 * or a parser bug, not a normal feature. */
+		hbc_debug_printf ("WARNING: Out-of-bounds register r%u (bytecode may be corrupted)\n", r);
 	}
 	return create_right_hand_reg_token ((int)r);
 }

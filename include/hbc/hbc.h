@@ -154,6 +154,10 @@ typedef struct {
 	bool skip_pass2_transform; // Skip pass 2: code transformation
 	bool skip_pass3_forin; // Skip pass 3: for-in loop parsing (structural recovery)
 	bool skip_pass4_closure; // Skip pass 4: closure variable naming
+	// Control flow rendering options
+	bool force_dispatch; // Force switch/case dispatch loop even for linear functions
+	bool inline_closures; // Inline closure definitions (default: true)
+	int inline_threshold; // Max instruction count to inline (0 = no limit, -1 = no inline)
 } HBCDecompileOptions;
 
 /* Decode context for single-instruction decoding (consolidates parameters) */

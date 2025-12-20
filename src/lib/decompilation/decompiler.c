@@ -2602,6 +2602,69 @@ Result pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *
 	return SUCCESS_RESULT ();
 }
 
+/* Dead Code Elimination (DCE): Identify statements with assignments to registers
+ * that are never read. Returns a boolean array where dce[i] = true means statement i
+ * can be eliminated.
+ */
+static Result identify_dead_assignments(DecompiledFunctionBody *function_body, bool **dce_out) {
+	if (!function_body || function_body->statements_count == 0) {
+		*dce_out = NULL;
+		return SUCCESS_RESULT ();
+	}
+
+	bool *dce = (bool *)calloc (function_body->statements_count, sizeof (bool));
+	if (!dce) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom dce");
+	}
+
+	/* Track which registers are read/written */
+	bool *register_read_after = (bool *)calloc (256, sizeof (bool));
+	if (!register_read_after) {
+		free (dce);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom register_read");
+	}
+
+	/* Scan statements in reverse to find register usage */
+	for (int si = (int)function_body->statements_count - 1; si >= 0; si--) {
+		TokenString *st = &function_body->statements[si];
+		if (!st->head) {
+			continue;
+		}
+
+		/* Detect if this is a pure assignment: starts with left-hand register token */
+		bool is_assignment = (st->head->type == TOKEN_TYPE_LEFT_HAND_REG);
+		int written_reg_num = -1;
+
+		if (is_assignment) {
+			LeftHandRegToken *lhr = (LeftHandRegToken *)st->head;
+			written_reg_num = lhr->reg_num;
+
+			/* Mark as dead if it writes a register never read after this point */
+			if (written_reg_num >= 0 && written_reg_num < 256) {
+				if (!register_read_after[written_reg_num]) {
+					dce[si] = true;
+				}
+				/* Now mark this register as written (no longer readable after) */
+				register_read_after[written_reg_num] = false;
+			}
+		}
+
+		/* Mark all registers read in this statement */
+		for (Token *tok = st->head; tok; tok = tok->next) {
+			if (tok->type == TOKEN_TYPE_RIGHT_HAND_REG) {
+				RightHandRegToken *rhr = (RightHandRegToken *)tok;
+				if (rhr->reg_num >= 0 && rhr->reg_num < 256) {
+					register_read_after[rhr->reg_num] = true;
+				}
+			}
+		}
+	}
+
+	free (register_read_after);
+	*dce_out = dce;
+	return SUCCESS_RESULT ();
+}
+
 Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !function_body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "output_code args");
@@ -2694,7 +2757,22 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	qsort (bb_starts, bbcount, sizeof (u32), cmp_u32);
 	qsort (bb_ends, bbcount, sizeof (u32), cmp_u32);
 
-	bool use_dispatch = (bbcount > 1);
+	/* Determine if dispatch loop is needed.
+	 * Most functions don't need dispatch - only use if there's actual control flow
+	 * with backward jumps, loops, or complex branching.
+	 */
+	bool use_dispatch = state->options.force_dispatch;
+	if (!use_dispatch && bbcount > 1) {
+		/* Check if any basic block has multiple children (branching/looping) */
+		for (u32 i = 0; i < bbcount; i++) {
+			BasicBlock *bb = &function_body->basic_blocks[i];
+			/* If a block jumps to multiple targets, we need dispatch for control flow */
+			if (bb->child_nodes_count > 1 || bb->is_conditional_jump_anchor) {
+				use_dispatch = true;
+				break;
+			}
+		}
+	}
 	if (use_dispatch) {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		RETURN_IF_ERROR (string_buffer_append (out, "_fun"));
@@ -2707,8 +2785,23 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		state->indent_level++;
 	}
 
+	/* Dead Code Elimination: identify statements with unused register assignments */
+	bool *dce = NULL;
+	Result dce_result = identify_dead_assignments (function_body, &dce);
+	if (dce_result.code != RESULT_SUCCESS) {
+		free (frame_starts);
+		free (frame_ends);
+		free (bb_starts);
+		free (bb_ends);
+		return dce_result;
+	}
+
 	u32 cur_bb_index = 0;
 	for (u32 si = 0; si < function_body->statements_count; si++) {
+		/* Skip dead code */
+		if (dce && dce[si]) {
+			continue;
+		}
 		TokenString *st = &function_body->statements[si];
 		ParsedInstruction *asm_ref = st->assembly;
 		if (asm_ref) {
@@ -2868,16 +2961,46 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 				if (t->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
 					FunctionTableIndexToken *fti = (FunctionTableIndexToken *)t;
 					if ((fti->is_closure || fti->is_generator) && !fti->is_builtin) {
-						if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
-							RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+						/* Determine if we should inline this closure */
+						bool should_inline = state->options.inline_closures;
+
+						/* Check threshold: negative = never inline, 0 = no limit, >0 = max bytes */
+						if (should_inline && state->options.inline_threshold < 0) {
+							/* Negative threshold = never inline */
+							should_inline = false;
+						} else if (should_inline && state->options.inline_threshold > 0) {
+							/* Positive threshold: check bytecode size */
+							if (fti->function_id < state->hbc_reader->header.functionCount) {
+								FunctionHeader *fh = &state->hbc_reader->function_headers[fti->function_id];
+								u32 bytecode_size = fh->bytecodeSizeInBytes;
+								if (bytecode_size > (u32)state->options.inline_threshold) {
+									should_inline = false;
+								}
+							}
 						}
-						int saved_indent = state->indent_level;
-						state->inlining_function = true;
-						RETURN_IF_ERROR (decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
-						state->inlining_function = false;
-						state->indent_level = saved_indent;
-						first_tok = false;
-						prev_type = TOKEN_TYPE_RAW;
+
+						if (should_inline) {
+							/* Inline the closure */
+							if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
+								RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+							}
+							int saved_indent = state->indent_level;
+							state->inlining_function = true;
+							RETURN_IF_ERROR (decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
+							state->inlining_function = false;
+							state->indent_level = saved_indent;
+							first_tok = false;
+							prev_type = TOKEN_TYPE_RAW;
+						} else {
+							/* Reference closure by function ID instead of inlining */
+							if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
+								RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+							}
+							RETURN_IF_ERROR (string_buffer_append (out, "fn_"));
+							RETURN_IF_ERROR (string_buffer_append_int (out, (int)fti->function_id));
+							first_tok = false;
+							prev_type = TOKEN_TYPE_RAW;
+						}
 						continue;
 					}
 				}
@@ -2939,6 +3062,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	free (frame_ends);
 	free (bb_starts);
 	free (bb_ends);
+	free (dce);
 	return SUCCESS_RESULT ();
 }
 

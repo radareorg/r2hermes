@@ -8,6 +8,7 @@
 #include <hbc/data_provider.h>
 #include <hbc/decompilation/decompiler.h>
 #include <string.h>
+#include <stdlib.h>
 #include <ctype.h>
 
 #ifndef R2_VERSION
@@ -171,6 +172,17 @@ static bool read_config_bool(RCore *core, const char *key, bool default_val) {
 	return strcmp (val, "true") == 0 || strcmp (val, "1") == 0;
 }
 
+static int read_config_int(RCore *core, const char *key, int default_val) {
+	if (!core || !core->config) {
+		return default_val;
+	}
+	const char *val = r_config_get (core->config, key);
+	if (!val) {
+		return default_val;
+	}
+	return atoi (val);
+}
+
 /* Create decompile options with r2 integration */
 static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
 	HBCDecompileOptions opts = {
@@ -185,7 +197,10 @@ static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets
 		.skip_pass1_metadata = read_config_bool (core, "hbc.skip_pass1", false),
 		.skip_pass2_transform = read_config_bool (core, "hbc.skip_pass2", false),
 		.skip_pass3_forin = read_config_bool (core, "hbc.skip_pass3", false),
-		.skip_pass4_closure = read_config_bool (core, "hbc.skip_pass4", false)
+		.skip_pass4_closure = read_config_bool (core, "hbc.skip_pass4", false),
+		.force_dispatch = read_config_bool (core, "hbc.force_dispatch", false),
+		.inline_closures = read_config_bool (core, "hbc.inline_closures", true),
+		.inline_threshold = read_config_int (core, "hbc.inline_threshold", 0)
 	};
 	return opts;
 }
@@ -574,6 +589,22 @@ static bool plugin_init(struct r_core_plugin_session_t *s) {
 	node = r_config_set (cfg, "hbc.skip_pass4", "false");
 	if (node) {
 		r_config_node_desc (node, "Skip pass 4: closure variable naming and environment resolution");
+	}
+
+	/* Control flow rendering options */
+	node = r_config_set (cfg, "hbc.force_dispatch", "false");
+	if (node) {
+		r_config_node_desc (node, "Force switch/case dispatch loop even for linear multi-block functions");
+	}
+
+	node = r_config_set (cfg, "hbc.inline_closures", "true");
+	if (node) {
+		r_config_node_desc (node, "Inline closure definitions into parent function (true/false)");
+	}
+
+	node = r_config_set (cfg, "hbc.inline_threshold", "0");
+	if (node) {
+		r_config_node_desc (node, "Max bytecode size (bytes) for closure inlining (0=no limit, -1=never inline)");
 	}
 
 	r_config_lock (cfg, true);

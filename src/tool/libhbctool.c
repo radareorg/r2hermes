@@ -202,7 +202,13 @@ static Result parse_output_and_disasm_options(int argc, char **argv, const char 
 
 static Result parse_output_and_decompile_options(int argc, char **argv, const char **out_path, HBCDecompileOptions *opt) {
 	*out_path = NULL;
-	*opt = (HBCDecompileOptions){ 0 };
+	*opt = (HBCDecompileOptions){
+		.pretty_literals = LITERALS_PRETTY_AUTO,
+		.suppress_comments = false,
+		.force_dispatch = false,
+		.inline_closures = true,
+		.inline_threshold = 0
+	};
 	for (int i = 0; i < argc; i++) {
 		const char *a = argv[i];
 		if (!a) {
