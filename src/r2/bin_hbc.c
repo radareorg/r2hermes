@@ -15,7 +15,19 @@ static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
 }
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 loadaddr R_UNUSED) {
-	return check (bf, buf);
+	if (!check (bf, buf)) {
+		return false;
+	}
+	/* Ensure bf->buf and bf->rbin are set for provider access */
+	if (bf) {
+		bf->buf = buf;
+		/* bf->rbin would be set by r2 core, but ensure it's not NULL
+		 * If it is, the provider will still work with just buf */
+		if (!bf->rbin && bf->rbin == NULL) {
+			/* r2 should set this, but if not, we note it */
+		}
+	}
+	return true;
 }
 
 static ut64 get_entrypoint(RBuffer *buf) {

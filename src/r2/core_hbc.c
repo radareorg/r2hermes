@@ -17,6 +17,22 @@
 /* r2 functions - weak symbol to handle different r2 versions */
 extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
 
+/**
+ * Safe wrapper for r_bin_file_cur that handles weak symbol resolution.
+ * Falls back to directly accessing bin->cur if r_bin_file_cur is not available.
+ */
+static RBinFile *safe_r_bin_file_cur(RBin *bin) {
+	if (r_bin_file_cur) {
+		return r_bin_file_cur(bin);
+	}
+	/* Fallback: use bin->cur directly (available in r_bin_t struct) */
+	if (bin) {
+		/* struct r_bin_t { const char *file; RBinFile *cur; ... } */
+		return ((struct r_bin_t *)bin)->cur;
+	}
+	return NULL;
+}
+
 typedef struct {
 	HBCState *hbc;                  /* Kept for backward compat */
 	HBCDataProvider *provider;      /* NEW: Cached provider per file */
@@ -47,6 +63,19 @@ static char *r2_comment_callback(void *context, u64 address) {
 	}
 	const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
 	return comment? strdup (comment): NULL;
+}
+
+/* Flag callback for retrieving r2 flag/symbol names at an address */
+static char *r2_flag_callback(void *context, u64 address) {
+	RCore *core = (RCore *)context;
+	if (!core || !core->flags) {
+		return NULL;
+	}
+	RFlagItem *fi = r_flag_get_at (core->flags, address, true);
+	if (fi && fi->name) {
+		return strdup (fi->name);
+	}
+	return NULL;
 }
 
 #define HBC_CONS(core) ((core)->cons)
@@ -86,9 +115,9 @@ static Result hbc_load_current_binary(RCore *core) {
 	hbc_ctx.file_path = NULL;
 
 	/* Get RBinFile from r2 (already parsed by r2) */
-	RBinFile *bf = r_bin_file_cur (core->bin);
+	RBinFile *bf = safe_r_bin_file_cur (core->bin);
 	if (!bf) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
 
 	/* Create provider from r2 RBinFile (NO file I/O) */
@@ -138,7 +167,9 @@ static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets
 		.show_offsets = show_offsets,
 		.function_base = function_base,
 		.comment_callback = r2_comment_callback,
-		.comment_context = core
+		.comment_context = core,
+		.flag_callback = r2_flag_callback,
+		.flag_context = core
 	};
 	return opts;
 }
@@ -152,8 +183,8 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 	}
 
 	u32 function_id = 0;
-	/* Get current offset - use 0 since we don't have direct access to offset in this context */
-	int found = find_function_at_offset (0, &function_id);
+	/* Get current offset from r2 core */
+	int found = find_function_at_offset ((u32)core->addr, &function_id);
 
 	if (found == 0) {
 		/* Found function at current offset - get its base address */

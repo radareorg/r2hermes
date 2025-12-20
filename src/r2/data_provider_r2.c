@@ -1,85 +1,12 @@
 /* radare2 - LGPL - Copyright 2025 - libhbc */
 /* R2DataProvider: Read HBC data from r2 RBinFile without separate file I/O */
 
+#include <r_bin.h>
 #include <hbc/hbc.h>
 #include <hbc/data_provider.h>
 #include <hbc/common.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-
-/* r2 type definitions (from r2/types.h) */
-typedef u8 ut8;
-typedef u16 ut16;
-typedef u32 ut32;
-typedef u64 ut64;
-typedef int8_t st8;
-typedef int16_t st16;
-typedef int32_t st32;
-typedef int64_t st64;
-
-/* r2 type forward declarations */
-/* These are minimal declarations sufficient for the provider */
-typedef struct {
-	void *next;
-	void *prev;
-	void *data;
-} RListItem;
-
-typedef struct {
-	RListItem *head;
-	RListItem *tail;
-	void *free;
-	size_t length;
-	void *pool;
-} RList;
-
-typedef RListItem RListIter;
-
-typedef struct {
-	char *name;       /* Symbol name */
-	ut64 paddr;       /* Physical address (file offset) */
-	ut64 vaddr;       /* Virtual address */
-	ut32 size;        /* Size in bytes */
-	ut32 ordinal;     /* Index/ordinal number */
-	int type;         /* Symbol type */
-	int bits;         /* Bits */
-} RBinSymbol;
-
-typedef struct {
-	char *string;    /* Actual string content */
-	ut64 paddr;      /* Physical address (offset in file) */
-	ut64 vaddr;      /* Virtual address */
-	ut32 length;     /* String length */
-	ut32 ordinal;    /* Index/ordinal */
-	int type;        /* String type */
-} RBinString;
-
-typedef struct r_bin_file_t {
-	RList *symbols;   /* List of RBinSymbol */
-	RList *strings;   /* List of RBinString */
-	void *rbin;       /* r2 RBin instance */
-	void *buf;        /* RBuffer */
-	char *file;       /* File path */
-	/* ... other fields ... */
-} RBinFile;
-
-typedef struct {
-	int dummy;
-} RBin;
-
-typedef struct {
-	int dummy;
-} RBuffer;
-
-/* HBCFunctionInfo and HBCStringMeta are already defined in hbc.h via typedef */
-/* No need to redefine them here */
-
-/* r2 API function declarations */
-extern int r_buf_read_at(void *buf, ut64 offset, ut8 *buf_out, int size);
-extern ut64 r_buf_size(void *buf);
-extern ut32 r_read_le32(const ut8 *buf);
-extern ut64 r_read_le64(const ut8 *buf);
 
 /**
  * R2DataProvider reads from an r2 RBinFile without opening a separate file.
@@ -103,10 +30,11 @@ struct R2DataProvider {
  * Reads data via r2's RBuffer API (no separate file opens).
  * Returns NULL if bf is NULL or invalid.
  */
-HBCDataProvider *hbc_data_provider_from_rbinfile(struct r_bin_file_t *bf) {
-	if (!bf || !bf->rbin || !bf->buf) {
+HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf) {
+	if (!bf || !bf->buf) {
 		return NULL;
 	}
+	/* Note: bf->rbin might be NULL in some r2 versions, but we only strictly need bf->buf for data reads */
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)malloc(sizeof(*rp));
 	if (!rp) {
@@ -268,7 +196,7 @@ Result hbc_data_provider_get_function_count(
 
 /**
  * Get metadata for a specific function.
- * Function data is pre-parsed by bin_hbc.c and stored in RBinFile->symbols.
+ * Function data is pre-parsed by bin_hbc.c and stored in RBinFile->bo->symbols.
  */
 Result hbc_data_provider_get_function_info(
 	HBCDataProvider *provider,
@@ -281,18 +209,21 @@ Result hbc_data_provider_get_function_info(
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
-	/* RBinFile has a list of RBinSymbol entries from bin_hbc.c::symbols() */
-	if (!rp->bf || !rp->bf->symbols) {
+	/* RBinFile->bo has a list of RBinSymbol entries from bin_hbc.c::symbols() */
+	if (!rp->bf || !rp->bf->bo) {
+		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No binary object in file");
+	}
+
+	RBinObject *bo = (RBinObject *)rp->bf->bo;
+	if (!bo->symbols) {
 		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No symbols in binary");
 	}
 
 	/* Iterate symbols to find function with matching ordinal */
-	if (rp->bf->symbols) {
-		RList *symbols = (RList *)rp->bf->symbols;
-		RListIter *iter = symbols->head;
-		
-		while (iter) {
-			RBinSymbol *sym = (RBinSymbol *)iter->data;
+	if (bo->symbols) {
+		RListIter *iter;
+		RBinSymbol *sym;
+		r_list_foreach (bo->symbols, iter, sym) {
 			if (sym && sym->ordinal == function_id) {
 				/* Found the function */
 				out->name = sym->name ? sym->name : "unknown";
@@ -301,7 +232,6 @@ Result hbc_data_provider_get_function_info(
 				out->param_count = 0;
 				return SUCCESS_RESULT();
 			}
-			iter = iter->next;
 		}
 	}
 
@@ -332,7 +262,7 @@ Result hbc_data_provider_get_string_count(
 
 /**
  * Get a string by index.
- * String data is pre-parsed by bin_hbc.c and stored in RBinFile->strings.
+ * String data is pre-parsed by bin_hbc.c and stored in RBinFile->bo->strings.
  */
 Result hbc_data_provider_get_string(
 	HBCDataProvider *provider,
@@ -345,23 +275,25 @@ Result hbc_data_provider_get_string(
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
-	/* Strings are in rp->bf->strings (RBinString list) */
-	if (!rp->bf || !rp->bf->strings) {
+	/* Strings are in rp->bf->bo->strings (RBinString list) */
+	if (!rp->bf || !rp->bf->bo) {
+		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No binary object");
+	}
+
+	RBinObject *bo = (RBinObject *)rp->bf->bo;
+	if (!bo->strings) {
 		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No strings");
 	}
 
 	/* Iterate strings to find one with matching ordinal */
-	if (rp->bf->strings) {
-		RList *strings = (RList *)rp->bf->strings;
-		RListIter *iter = strings->head;
-		
-		while (iter) {
-			RBinString *str = (RBinString *)iter->data;
+	if (bo->strings) {
+		RListIter *iter;
+		RBinString *str;
+		r_list_foreach (bo->strings, iter, str) {
 			if (str && str->ordinal == string_id) {
 				*out_str = str->string;
 				return SUCCESS_RESULT();
 			}
-			iter = iter->next;
 		}
 	}
 
@@ -382,17 +314,20 @@ Result hbc_data_provider_get_string_meta(
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
-	if (!rp->bf || !rp->bf->strings) {
+	if (!rp->bf || !rp->bf->bo) {
+		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No binary object");
+	}
+
+	RBinObject *bo = (RBinObject *)rp->bf->bo;
+	if (!bo->strings) {
 		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No strings");
 	}
 
 	/* Iterate strings to find metadata */
-	if (rp->bf->strings) {
-		RList *strings = (RList *)rp->bf->strings;
-		RListIter *iter = strings->head;
-		
-		while (iter) {
-			RBinString *str = (RBinString *)iter->data;
+	if (bo->strings) {
+		RListIter *iter;
+		RBinString *str;
+		r_list_foreach (bo->strings, iter, str) {
 			if (str && str->ordinal == string_id) {
 				out->offset = str->paddr;
 				out->length = str->length;
@@ -400,7 +335,6 @@ Result hbc_data_provider_get_string_meta(
 				out->kind = HERMES_STRING_KIND_STRING;
 				return SUCCESS_RESULT();
 			}
-			iter = iter->next;
 		}
 	}
 

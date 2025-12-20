@@ -136,6 +136,10 @@ typedef struct {
  * Returns a heap-allocated string (caller frees), or NULL if no comment */
 typedef char *(*HBCCommentCallback)(void *context, u64 address);
 
+/* Callback type for retrieving flag/symbol names at an address
+ * Returns a heap-allocated string (caller frees), or NULL if no flag */
+typedef char *(*HBCFlagCallback)(void *context, u64 address);
+
 typedef struct {
 	bool pretty_literals; // Whether to format literals nicely
 	bool suppress_comments; // Whether to omit comments
@@ -143,6 +147,8 @@ typedef struct {
 	u64 function_base; // Base offset of current function (for absolute addresses)
 	HBCCommentCallback comment_callback; // Optional callback for r2 comments
 	void *comment_context; // Context passed to comment_callback
+	HBCFlagCallback flag_callback; // Optional callback for r2 flag/symbol names
+	void *flag_context; // Context passed to flag_callback
 } HBCDecompileOptions;
 
 /* Decode context for single-instruction decoding (consolidates parameters) */

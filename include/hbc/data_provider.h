@@ -31,16 +31,15 @@ HBCDataProvider *hbc_data_provider_from_file(const char *path);
  */
 HBCDataProvider *hbc_data_provider_from_buffer(const u8 *data, size_t size);
 
-/* Forward declarations for optional r2 integration */
-struct r_bin_file_t;  /* r2 binary file handle (r_bin_file_t) */
-
 /**
  * Create a data provider from an r2 RBinFile.
  * Reads data via r2's RBuffer API (no separate file opens).
  * Returns NULL if bf is NULL or invalid.
- * AVAILABILITY: Only compiled if R2_INTEGRATION is enabled.
+ * NOTE: Only available when linked with r2 libraries.
+ * Pass RBinFile from r2's bin system.
  */
-HBCDataProvider *hbc_data_provider_from_rbinfile(struct r_bin_file_t *bf);
+typedef struct r_bin_file_t RBinFile;
+HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf);
 
 /* ============================================================================
    Query Methods - Access parsed binary data
