@@ -297,18 +297,18 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 
 	/* Check if the function count is reasonable to prevent memory exhaustion */
 	if (reader->header.functionCount > MAX_FUNCTIONS) {
-		fprintf (stderr, "Warning: Large number of functions detected (%u). This may require significant memory.\n",
+		hbc_debug_printf ("Warning: Large number of functions detected (%u). This may require significant memory.\n",
 			reader->header.functionCount);
 	}
 
 	/* Add detailed debugging about file position */
-	fprintf (stderr, "Reading functions at position %zu of %zu bytes.\n",
+	hbc_debug_printf ("Reading functions at position %zu of %zu bytes.\n",
 		reader->file_buffer.position, reader->file_buffer.size);
 
 	/* Validate if we have enough data to read function headers */
 	size_t min_bytes_needed = 16 * reader->header.functionCount; /* Each function header is at least 16 bytes */
 	if (reader->file_buffer.position + min_bytes_needed > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: File might be truncated. Need ~%zu more bytes for function headers.\n",
+		hbc_debug_printf ("Warning: File might be truncated. Need ~%zu more bytes for function headers.\n",
 			min_bytes_needed);
 		/* Continue anyway to handle whatever data is available */
 	}
@@ -330,7 +330,7 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 	/* Warn if memory allocation might be very large */
 	size_t total_memory = function_headers_size + exc_handlers_size + debug_offsets_size;
 	if (total_memory > 1024 * 1024 * 1024) { /* > 1GB */
-		fprintf (stderr, "Warning: Attempting to allocate %.2f GB for function data.\n",
+		hbc_debug_printf ("Warning: Attempting to allocate %.2f GB for function data.\n",
 			(double)total_memory / (1024 * 1024 * 1024));
 	}
 
@@ -360,14 +360,14 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 
 	/* Read each function header */
 	/* Track initial position */
-	fprintf (stderr, "Function section start position: %zu\n", reader->file_buffer.position);
+	hbc_debug_printf ("Function section start position: %zu\n", reader->file_buffer.position);
 
 	/* Set a reasonable safety limit on function count for memory protection */
 	u32 max_functions_to_read = reader->header.functionCount;
 	const u32 ABSOLUTE_MAX_FUNCTIONS = 50000; /* Absolute safety limit */
 
 	if (max_functions_to_read > ABSOLUTE_MAX_FUNCTIONS) {
-		fprintf (stderr, "Warning: Function count extremely high (%u), limiting to %u for safety\n",
+		hbc_debug_printf ("Warning: Function count extremely high (%u), limiting to %u for safety\n",
 			reader->header.functionCount, ABSOLUTE_MAX_FUNCTIONS);
 		max_functions_to_read = ABSOLUTE_MAX_FUNCTIONS;
 	}
@@ -380,14 +380,14 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 	/* Validate expected function section size - make sure there's enough data */
 	const size_t BYTES_PER_FUNCTION_HEADER = 16;
 	if (reader->file_buffer.position + (max_functions_to_read * BYTES_PER_FUNCTION_HEADER) > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: File appears too small for %u functions, may only read partial data\n",
+		hbc_debug_printf ("Warning: File appears too small for %u functions, may only read partial data\n",
 			max_functions_to_read);
 	}
 
 	for (u32 i = 0; i < max_functions_to_read; i++) {
 		/* Ensure we have enough buffer for this function header */
 		if (reader->file_buffer.position + 16 > reader->file_buffer.size) {
-			fprintf (stderr, "Warning: Reached end of file after reading %u of %u functions\n",
+			hbc_debug_printf ("Warning: Reached end of file after reading %u of %u functions\n",
 				i, reader->header.functionCount);
 
 			/* Adjust the actual function count to what we were able to read */
@@ -404,7 +404,7 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 		for (int j = 0; j < 4; j++) {
 			Result res = buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
 			if (res.code != RESULT_SUCCESS) {
-				fprintf (stderr, "Error reading function %u header word %d: %s\n",
+				hbc_debug_printf ("Error reading function %u header word %d: %s\n",
 					i, j, res.error_message);
 				read_error = true;
 				break;
@@ -413,7 +413,7 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 
 		/* Handle read errors */
 		if (read_error) {
-			fprintf (stderr, "Warning: Error while reading function headers, truncating to %u functions\n", i);
+			hbc_debug_printf ("Warning: Error while reading function headers, truncating to %u functions\n", i);
 			reader->header.functionCount = i;
 			break;
 		}
@@ -656,7 +656,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 
 	/* If we have no identifiers to read, return success */
 	if (reader->header.identifierCount == 0) {
-		fprintf (stderr, "No identifier hashes to read\n");
+		hbc_debug_printf ("No identifier hashes to read\n");
 		reader->identifier_hashes = NULL;
 		return SUCCESS_RESULT ();
 	}
@@ -664,7 +664,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	/* Align buffer */
 	Result result = align_over_padding (&reader->file_buffer, 4);
 	if (result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Error aligning buffer for identifier hashes: %s\n", result.error_message);
+		hbc_debug_printf ("Error aligning buffer for identifier hashes: %s\n", result.error_message);
 		return result;
 	}
 
@@ -679,7 +679,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	for (u32 i = 0; i < reader->header.identifierCount; i++) {
 		/* Check if we have enough buffer */
 		if (reader->file_buffer.position + sizeof (u32) > reader->file_buffer.size) {
-			fprintf (stderr, "Reached end of file after reading %u of %u identifier hashes\n",
+			hbc_debug_printf ("Reached end of file after reading %u of %u identifier hashes\n",
 				i, reader->header.identifierCount);
 			/* Adjust count to what we read */
 			reader->header.identifierCount = i;
@@ -688,7 +688,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 
 		Result read_result = buffer_reader_read_u32 (&reader->file_buffer, &reader->identifier_hashes[i]);
 		if (read_result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Error reading identifier hash %u: %s\n", i, read_result.error_message);
+			hbc_debug_printf ("Error reading identifier hash %u: %s\n", i, read_result.error_message);
 			reader->header.identifierCount = i;
 			break;
 		}
@@ -696,7 +696,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 		successful_reads++;
 	}
 
-	fprintf (stderr, "Successfully read %u identifier hashes\n", successful_reads);
+	hbc_debug_printf ("Successfully read %u identifier hashes\n", successful_reads);
 	return SUCCESS_RESULT ();
 }
 
@@ -706,11 +706,11 @@ Result hbc_reader_read_string_tables(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	fprintf (stderr, "Reading string tables at position %zu\n", reader->file_buffer.position);
+	hbc_debug_printf ("Reading string tables at position %zu\n", reader->file_buffer.position);
 
 	/* Check if the string count is reasonable */
 	if (reader->header.stringCount > MAX_STRINGS) {
-		fprintf (stderr, "Warning: Large number of strings detected (%u). This may require significant memory.\n",
+		hbc_debug_printf ("Warning: Large number of strings detected (%u). This may require significant memory.\n",
 			reader->header.stringCount);
 	}
 
@@ -872,11 +872,11 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	fprintf (stderr, "Reading arrays at position %zu\n", reader->file_buffer.position);
+	hbc_debug_printf ("Reading arrays at position %zu\n", reader->file_buffer.position);
 
 	/* Sanity check on array buffer size */
 	if (reader->header.arrayBufferSize > 100 * 1024 * 1024) { /* 100MB limit */
-		fprintf (stderr, "Warning: Very large array buffer size (%u bytes), might be corrupted\n",
+		hbc_debug_printf ("Warning: Very large array buffer size (%u bytes), might be corrupted\n",
 			reader->header.arrayBufferSize);
 		reader->header.arrayBufferSize = 0; /* Skip reading for safety */
 		return SUCCESS_RESULT ();
@@ -885,14 +885,14 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 	/* Align buffer for array buffer */
 	Result result = align_over_padding (&reader->file_buffer, 4);
 	if (result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Error aligning buffer for arrays: %s\n", result.error_message);
+		hbc_debug_printf ("Error aligning buffer for arrays: %s\n", result.error_message);
 		reader->header.arrayBufferSize = 0;
 		return SUCCESS_RESULT (); /* Continue with other sections */
 	}
 
 	/* Check if we have enough data for arrays */
 	if (reader->file_buffer.position + reader->header.arrayBufferSize > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: Not enough data for array buffer (need %u bytes, have %zu)\n",
+		hbc_debug_printf ("Warning: Not enough data for array buffer (need %u bytes, have %zu)\n",
 			reader->header.arrayBufferSize, reader->file_buffer.size - reader->file_buffer.position);
 		reader->header.arrayBufferSize = reader->file_buffer.size - reader->file_buffer.position;
 
@@ -908,21 +908,21 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 	if (reader->header.arrayBufferSize > 0) {
 		reader->arrays = (u8 *)malloc (reader->header.arrayBufferSize);
 		if (!reader->arrays) {
-			fprintf (stderr, "Failed to allocate %u bytes for array buffer\n", reader->header.arrayBufferSize);
+			hbc_debug_printf ("Failed to allocate %u bytes for array buffer\n", reader->header.arrayBufferSize);
 			reader->header.arrayBufferSize = 0;
 			return SUCCESS_RESULT (); /* Continue with other sections */
 		}
 
 		result = buffer_reader_read_bytes (&reader->file_buffer, reader->arrays, reader->header.arrayBufferSize);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Error reading array buffer: %s\n", result.error_message);
+			hbc_debug_printf ("Error reading array buffer: %s\n", result.error_message);
 			free (reader->arrays);
 			reader->arrays = NULL;
 			reader->header.arrayBufferSize = 0;
 			return SUCCESS_RESULT (); /* Continue with other sections */
 		}
 
-		fprintf (stderr, "Successfully read %u bytes of array data\n", reader->header.arrayBufferSize);
+		hbc_debug_printf ("Successfully read %u bytes of array data\n", reader->header.arrayBufferSize);
 	}
 
 	/* Handle object key buffer with safety checks */
@@ -998,17 +998,17 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	fprintf (stderr, "Reading BigInts at position %zu\n", reader->file_buffer.position);
+	hbc_debug_printf ("Reading BigInts at position %zu\n", reader->file_buffer.position);
 
 	/* Skip if not present in this version */
 	if (reader->header.version < 87) {
-		fprintf (stderr, "BigInt not supported in this bytecode version\n");
+		hbc_debug_printf ("BigInt not supported in this bytecode version\n");
 		return SUCCESS_RESULT ();
 	}
 
 	/* Validate BigInt count */
 	if (reader->header.bigIntCount > 100000) { /* Arbitrary reasonable limit */
-		fprintf (stderr, "Warning: Very large BigInt count (%u), might be invalid\n",
+		hbc_debug_printf ("Warning: Very large BigInt count (%u), might be invalid\n",
 			reader->header.bigIntCount);
 		reader->header.bigIntCount = 0;
 		reader->header.bigIntStorageSize = 0;
@@ -1018,7 +1018,7 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 	/* Try to align buffer with safety check */
 	Result align_result = align_over_padding (&reader->file_buffer, 4);
 	if (align_result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Warning: Failed to align buffer for BigInts: %s\n", align_result.error_message);
+		hbc_debug_printf ("Warning: Failed to align buffer for BigInts: %s\n", align_result.error_message);
 		reader->header.bigIntCount = 0;
 		reader->header.bigIntStorageSize = 0;
 		return SUCCESS_RESULT ();
@@ -1026,7 +1026,7 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 
 	/* Check if there's anything to read */
 	if (reader->header.bigIntCount == 0 || reader->header.bigIntStorageSize == 0) {
-		fprintf (stderr, "No BigInts to read\n");
+		hbc_debug_printf ("No BigInts to read\n");
 		reader->bigint_values = NULL;
 		reader->bigint_count = 0;
 		return SUCCESS_RESULT ();
@@ -1035,7 +1035,7 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 	/* Check if there's enough data for the BigInt table */
 	size_t bigint_table_size = reader->header.bigIntCount * sizeof (OffsetLengthPair);
 	if (reader->file_buffer.position + bigint_table_size > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: Not enough data for BigInt table (need %zu bytes)\n", bigint_table_size);
+		hbc_debug_printf ("Warning: Not enough data for BigInt table (need %zu bytes)\n", bigint_table_size);
 		reader->header.bigIntCount = 0;
 		reader->header.bigIntStorageSize = 0;
 		return SUCCESS_RESULT ();
@@ -1181,11 +1181,11 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	fprintf (stderr, "Reading RegExp data at position %zu\n", reader->file_buffer.position);
+	hbc_debug_printf ("Reading RegExp data at position %zu\n", reader->file_buffer.position);
 
 	/* Validate regexp count and storage size */
 	if (reader->header.regExpCount > 100000) { /* Arbitrary limit */
-		fprintf (stderr, "Warning: Very large RegExp count (%u), may be corrupted\n",
+		hbc_debug_printf ("Warning: Very large RegExp count (%u), may be corrupted\n",
 			reader->header.regExpCount);
 		reader->header.regExpCount = 0;
 		reader->header.regExpStorageSize = 0;
@@ -1193,7 +1193,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 	}
 
 	if (reader->header.regExpStorageSize > 100 * 1024 * 1024) { /* 100MB limit */
-		fprintf (stderr, "Warning: Very large RegExp storage size (%u bytes), may be corrupted\n",
+		hbc_debug_printf ("Warning: Very large RegExp storage size (%u bytes), may be corrupted\n",
 			reader->header.regExpStorageSize);
 		reader->header.regExpCount = 0;
 		reader->header.regExpStorageSize = 0;
@@ -1203,7 +1203,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 	/* Align buffer with error handling */
 	Result align_result = align_over_padding (&reader->file_buffer, 4);
 	if (align_result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Warning: Failed to align buffer for RegExp table: %s\n", align_result.error_message);
+		hbc_debug_printf ("Warning: Failed to align buffer for RegExp table: %s\n", align_result.error_message);
 		reader->header.regExpCount = 0;
 		reader->header.regExpStorageSize = 0;
 		return SUCCESS_RESULT ();
@@ -1211,7 +1211,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 
 	/* Check if anything to read */
 	if (reader->header.regExpCount == 0 || reader->header.regExpStorageSize == 0) {
-		fprintf (stderr, "No RegExp data to read\n");
+		hbc_debug_printf ("No RegExp data to read\n");
 		reader->regexp_table = NULL;
 		reader->regexp_storage = NULL;
 		reader->regexp_storage_size = 0;
@@ -1221,7 +1221,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 	/* Check if we have enough data for the table */
 	size_t table_size = reader->header.regExpCount * sizeof (OffsetLengthPair);
 	if (reader->file_buffer.position + table_size > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: Not enough data for RegExp table (need %zu bytes)\n", table_size);
+		hbc_debug_printf ("Warning: Not enough data for RegExp table (need %zu bytes)\n", table_size);
 		reader->header.regExpCount = 0;
 		reader->header.regExpStorageSize = 0;
 		return SUCCESS_RESULT ();
@@ -1231,7 +1231,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 	if (reader->header.regExpCount > 0) {
 		reader->regexp_table = (OffsetLengthPair *)malloc (table_size);
 		if (!reader->regexp_table) {
-			fprintf (stderr, "Failed to allocate %zu bytes for RegExp table\n", table_size);
+			hbc_debug_printf ("Failed to allocate %zu bytes for RegExp table\n", table_size);
 			reader->header.regExpCount = 0;
 			reader->header.regExpStorageSize = 0;
 			return SUCCESS_RESULT ();
@@ -1242,7 +1242,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 		for (u32 i = 0; i < reader->header.regExpCount; i++) {
 			/* Make sure there's enough data */
 			if (reader->file_buffer.position + 8 > reader->file_buffer.size) {
-				fprintf (stderr, "Reached end of file while reading RegExp table entry %u\n", i);
+				hbc_debug_printf ("Reached end of file while reading RegExp table entry %u\n", i);
 				reader->header.regExpCount = i;
 				read_error = true;
 				break;
@@ -1252,7 +1252,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 			Result res2 = buffer_reader_read_u32 (&reader->file_buffer, &reader->regexp_table[i].length);
 
 			if (res1.code != RESULT_SUCCESS || res2.code != RESULT_SUCCESS) {
-				fprintf (stderr, "Error reading RegExp table entry %u\n", i);
+				hbc_debug_printf ("Error reading RegExp table entry %u\n", i);
 				reader->header.regExpCount = i;
 				read_error = true;
 				break;
@@ -1267,7 +1267,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 	/* Align buffer for regexp storage with safety check */
 	Result storage_align_result = align_over_padding (&reader->file_buffer, 4);
 	if (storage_align_result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Warning: Failed to align buffer for RegExp storage: %s\n",
+		hbc_debug_printf ("Warning: Failed to align buffer for RegExp storage: %s\n",
 			storage_align_result.error_message);
 		reader->header.regExpStorageSize = 0;
 		return SUCCESS_RESULT ();
@@ -1275,7 +1275,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 
 	/* Check if enough data for storage */
 	if (reader->file_buffer.position + reader->header.regExpStorageSize > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: Not enough data for RegExp storage (need %u bytes)\n",
+		hbc_debug_printf ("Warning: Not enough data for RegExp storage (need %u bytes)\n",
 			reader->header.regExpStorageSize);
 		reader->header.regExpStorageSize = reader->file_buffer.size - reader->file_buffer.position;
 
@@ -1289,7 +1289,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 	if (reader->header.regExpStorageSize > 0) {
 		reader->regexp_storage = (u8 *)malloc (reader->header.regExpStorageSize);
 		if (!reader->regexp_storage) {
-			fprintf (stderr, "Failed to allocate %u bytes for RegExp storage\n",
+			hbc_debug_printf ("Failed to allocate %u bytes for RegExp storage\n",
 				reader->header.regExpStorageSize);
 			reader->header.regExpStorageSize = 0;
 			return SUCCESS_RESULT ();
@@ -1299,7 +1299,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 			reader->regexp_storage, reader->header.regExpStorageSize);
 
 		if (read_result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Error reading RegExp storage: %s\n", read_result.error_message);
+			hbc_debug_printf ("Error reading RegExp storage: %s\n", read_result.error_message);
 			free (reader->regexp_storage);
 			reader->regexp_storage = NULL;
 			reader->header.regExpStorageSize = 0;
@@ -1307,7 +1307,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 		}
 
 		reader->regexp_storage_size = reader->header.regExpStorageSize;
-		fprintf (stderr, "Successfully read %u bytes of RegExp storage\n", reader->header.regExpStorageSize);
+		hbc_debug_printf ("Successfully read %u bytes of RegExp storage\n", reader->header.regExpStorageSize);
 	}
 
 	return SUCCESS_RESULT ();
@@ -1521,13 +1521,13 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 	u32 max_functions_to_read = reader->header.functionCount;
 
 	if (max_functions_to_read > MAX_SAFE_FUNCTIONS) {
-		fprintf (stderr, "Warning: Very large function count (%u). Limiting to %u for safety.\n",
+		hbc_debug_printf ("Warning: Very large function count (%u). Limiting to %u for safety.\n",
 			reader->header.functionCount, MAX_SAFE_FUNCTIONS);
 		max_functions_to_read = MAX_SAFE_FUNCTIONS;
 	}
 
 	/* Log position info */
-	fprintf (stderr, "Reading functions at position %zu of %zu bytes.\n",
+	hbc_debug_printf ("Reading functions at position %zu of %zu bytes.\n",
 		reader->file_buffer.position, reader->file_buffer.size);
 
 	/* Align buffer */
@@ -1544,7 +1544,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 	/* Check for unreasonable memory requirements */
 	size_t total_memory = function_headers_size + exc_handlers_size + debug_offsets_size;
 	if (total_memory > 1024 * 1024 * 1024) { /* > 1GB */
-		fprintf (stderr, "Warning: Memory allocation for %u functions will require %.2f GB\n",
+		hbc_debug_printf ("Warning: Memory allocation for %u functions will require %.2f GB\n",
 			max_functions_to_read, (double)total_memory / (1024 * 1024 * 1024));
 	}
 
@@ -1577,7 +1577,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 	for (u32 i = 0; i < max_functions_to_read; i++) {
 		/* Safety check - ensure we have enough buffer for a function header (16 bytes) */
 		if (reader->file_buffer.position + 16 > reader->file_buffer.size) {
-			fprintf (stderr, "Reached end of file after reading %u of %u functions\n",
+			hbc_debug_printf ("Reached end of file after reading %u of %u functions\n",
 				i, reader->header.functionCount);
 			break; /* End reading if we reach end of buffer */
 		}
@@ -1592,7 +1592,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 		for (int j = 0; j < 4; j++) {
 			Result res = buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
 			if (res.code != RESULT_SUCCESS) {
-				fprintf (stderr, "Error reading function %u header word %d: %s\n",
+				hbc_debug_printf ("Error reading function %u header word %d: %s\n",
 					i, j, res.error_message);
 				header_read_failed = true;
 				break;
@@ -1607,7 +1607,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 
 		/* Debug: dump first header raw data to validate bit layout */
 		if (i == 0) {
-			fprintf (stderr, "Func0 raw: %08x %08x %08x %08x\n", raw_data[0], raw_data[1], raw_data[2], raw_data[3]);
+			hbc_debug_printf ("Func0 raw: %08x %08x %08x %08x\n", raw_data[0], raw_data[1], raw_data[2], raw_data[3]);
 		}
 
 		/* Process function header data */
@@ -1741,12 +1741,12 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 
 		/* Validation - check for unreasonable values */
 		if (header->bytecodeSizeInBytes > 10 * 1024 * 1024) { /* > 10MB */
-			fprintf (stderr, "Warning: Function %u has very large bytecode: %u bytes\n",
+			hbc_debug_printf ("Warning: Function %u has very large bytecode: %u bytes\n",
 				i, header->bytecodeSizeInBytes);
 		}
 
 		if (header->offset >= reader->file_buffer.size) {
-			fprintf (stderr, "Error: Function %u offset (%u) exceeds file size\n",
+			hbc_debug_printf ("Error: Function %u offset (%u) exceeds file size\n",
 				i, header->offset);
 			continue; /* Skip this function */
 		}
@@ -1759,7 +1759,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 		/* Ensure position is at next small header (16 bytes per entry) */
 		Result seek_result = buffer_reader_seek (&reader->file_buffer, start_position + 16);
 		if (seek_result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Error seeking to next function header after %u: %s\n",
+			hbc_debug_printf ("Error seeking to next function header after %u: %s\n",
 				i, seek_result.error_message);
 			break;
 		}
@@ -1767,7 +1767,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 
 	/* Adjust function count to what we actually read */
 	reader->header.functionCount = successful_functions;
-	fprintf (stderr, "Successfully read %u function headers\n", successful_functions);
+	hbc_debug_printf ("Successfully read %u function headers\n", successful_functions);
 
 	return SUCCESS_RESULT ();
 }
@@ -1795,7 +1795,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 		return result;
 	}
 
-	fprintf (stderr, "Read header successfully. Version: %u, Function count: %u, String count: %u\n",
+	hbc_debug_printf ("Read header successfully. Version: %u, Function count: %u, String count: %u\n",
 		reader->header.version, reader->header.functionCount, reader->header.stringCount);
 
 	/* Read functions using the robust implementation */
@@ -1828,7 +1828,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 		return result;
 	}
 
-	fprintf (stderr, "Read strings successfully.\n");
+	hbc_debug_printf ("Read strings successfully.\n");
 
 	/* Read arrays */
 	result = hbc_reader_read_arrays (reader);
@@ -1876,7 +1876,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 		return result;
 	}
 
-	fprintf (stderr, "Read %u functions successfully.\n", reader->header.functionCount);
+	hbc_debug_printf ("Read %u functions successfully.\n", reader->header.functionCount);
 
 	return SUCCESS_RESULT ();
 }

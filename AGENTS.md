@@ -14,10 +14,16 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
 - `tests/` placeholder for tests
 
 **Build & Run**
-- Build library + CLI: `make`
-- Debug build: `make debug`
+- Build library + CLI: `make` (no debug messages)
+- Debug build: `make debug` (includes `-DHBC_DEBUG_LOGGING=1` for verbose output)
 - Clean: `make clean`
 - Run CLI: `./bin/libhbctool <command> <input> [output]`
+
+**Debug Logging**
+- Uses inline `hbc_debug_printf()` macro defined in `include/hbc/common.h`
+- Controlled by `HBC_DEBUG_LOGGING` compile-time flag (default: 0)
+- When disabled, all debug calls compile to nothing (zero overhead)
+- Enable with: `make CFLAGS="-D HBC_DEBUG_LOGGING=1" clean all` or use `make debug`
 
 **Public API**
 - Header: `include/hermesdec/hermesdec.h`

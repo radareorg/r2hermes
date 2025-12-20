@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -pedantic -O2 -fPIC -D_POSIX_C_SOURCE=200809L
-DEBUG_FLAGS = -g -DDEBUG
+DEBUG_FLAGS = -g -DDEBUG -DHBC_DEBUG_LOGGING=1
 
 # Directories
 SRC_DIR = src/lib

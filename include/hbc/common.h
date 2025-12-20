@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #ifndef R2_VERSION
 #define R_RETURN_VAL_IF_FAIL(x, y) \
@@ -16,6 +17,23 @@
 #define R_LOG_WARN(x, ...) // (x)
 #define R_LOG_DEBUG(x, ...) // (x)
 #endif
+
+/* Debug logging support - disable by default for clean output */
+#ifndef HBC_DEBUG_LOGGING
+#define HBC_DEBUG_LOGGING 0
+#endif
+
+/* Inline debug logging macro - compiles to nothing when disabled */
+static inline void hbc_debug_printf(const char *fmt, ...) {
+#if HBC_DEBUG_LOGGING
+	va_list ap;
+	va_start (ap, fmt);
+	vfprintf (stderr, fmt, ap);
+	va_end (ap);
+#else
+	(void)fmt; /* Suppress unused parameter warning */
+#endif
+}
 
 /* Type definitions for consistent sizes */
 typedef uint8_t u8;

@@ -96,7 +96,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 	}
 
 	/* Debug info to verify offsets */
-	fprintf (stderr, "Function #%u bytecode: offset=0x%08x, size=%u\n",
+	hbc_debug_printf ("Function #%u bytecode: offset=0x%08x, size=%u\n",
 		function_id, function_header->offset, function_header->bytecodeSizeInBytes);
 
 	/* Initialize instruction list */
@@ -127,7 +127,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 		u8 opcode;
 		result = buffer_reader_read_u8 (&bytecode_buffer, &opcode);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Error reading opcode at position %zu: %s\n",
+			hbc_debug_printf ("Error reading opcode at position %zu: %s\n",
 				original_pos, result.error_message);
 			parsed_instruction_list_free (out_instructions);
 			return result;
@@ -142,7 +142,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 			}
 		}
 		if (!inst) {
-			fprintf (stderr, "Error: Unknown opcode 0x%02x at offset 0x%08x\n", opcode, (u32)original_pos);
+			hbc_debug_printf ("Error: Unknown opcode 0x%02x at offset 0x%08x\n", opcode, (u32)original_pos);
 			parsed_instruction_list_free (out_instructions);
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown opcode");
 		}
@@ -294,7 +294,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 			/* Heuristic: if values look implausibly large, treat as suspicious */
 			bool suspicious_range = (min_s < -100000 || min_s > 100000 || max_s < -100000 || max_s > 100000);
 			if (min_s > max_s) {
-				fprintf (stderr, "Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x (Function #%u)\n",
+				hbc_debug_printf ("Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x (Function #%u)\n",
 					instruction.arg4, instruction.arg5, (u32)original_pos, function_id);
 				/* Clamp to a single entry to keep parsing moving */
 				max_s = min_s;
@@ -302,7 +302,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 
 			u32 jump_table_size = (u32) ((int64_t)max_s - (int64_t)min_s + 1);
 			if (jump_table_size > 1000) {
-				fprintf (stderr, "Warning: Limiting large jump table size (%u) to 1000 at offset 0x%08x (Function #%u)\n", jump_table_size, (u32)original_pos, function_id);
+				hbc_debug_printf ("Warning: Limiting large jump table size (%u) to 1000 at offset 0x%08x (Function #%u)\n", jump_table_size, (u32)original_pos, function_id);
 				jump_table_size = 1000;
 			}
 
