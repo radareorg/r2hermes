@@ -29,7 +29,7 @@ typedef struct BytecodeModule BytecodeModule;
 /* Header structure that varies based on bytecode version */
 #ifndef HBC_HEADER_DEFINED
 #define HBC_HEADER_DEFINED
-typedef struct {
+typedef struct HBCHeader {
 	u64 magic;
 	u32 version;
 	u8 sourceHash[SHA1_NUM_BYTES];

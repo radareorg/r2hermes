@@ -6,7 +6,7 @@
 /* Public header summary (stable API independent of internal structs) */
 #ifndef HBC_HEADER_DEFINED
 #define HBC_HEADER_DEFINED
-typedef struct {
+typedef struct HBCHeader {
 	u64 magic;
 	u32 version;
 	u8 sourceHash[20];
@@ -41,7 +41,7 @@ typedef enum {
 	HERMES_STRING_KIND_PREDEFINED = 2
 } HBCStringKind;
 
-typedef struct {
+typedef struct HBCStringMeta {
 	bool isUTF16;
 	u32 offset;
 	u32 length;
@@ -98,14 +98,14 @@ typedef HBCState HBC;
 
 /* Proposed new structs for API redesign */
 
-typedef struct {
+typedef struct HBCFunctionInfo {
 	const char *name; // Valid while HBC is alive
 	u32 offset;
 	u32 size;
 	u32 param_count;
 } HBCFunctionInfo;
 
-typedef struct {
+typedef struct HBCStringTables {
 	u32 string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;

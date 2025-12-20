@@ -102,7 +102,7 @@ struct R2DataProvider {
 	RBinFile *bf;              /* r2 binary file handle (not owned) */
 	RBin *bin;                 /* r2 bin handle (not owned) */
 	void *buf;                 /* r2 buffer for binary data (not owned) */
-	
+
 	HBCHeader cached_header;   /* Cache to avoid re-parsing */
 	bool header_loaded;
 	
@@ -141,7 +141,7 @@ HBCDataProvider *hbc_data_provider_from_rbinfile(struct RBinFile *bf) {
  * Parse HBC header from RBuffer at offset 0.
  * Header format is well-defined in the HBC spec.
  */
-static Result parse_header_from_buffer(struct RBuffer *buf, HBCHeader *out) {
+static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 	if (!buf || !out) {
 		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -263,16 +263,14 @@ Result hbc_data_provider_get_header(
 Result hbc_data_provider_get_function_count(
 	HBCDataProvider *provider,
 	u32 *out_count) {
-	
+
 	if (!provider || !out_count) {
 		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-	
 	/* Get header first */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header(provider, &header);
+	Result res = hbc_data_provider_get_header(provider, (struct HBCHeader *)&header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -302,10 +300,6 @@ Result hbc_data_provider_get_function_info(
 	}
 
 	/* Iterate symbols to find function with matching ordinal */
-	RListIter *iter = NULL;
-	RBinSymbol *sym = NULL;
-
-	/* Iterate symbols to find function with matching ordinal */
 	if (rp->bf->symbols) {
 		RList *symbols = (RList *)rp->bf->symbols;
 		RListIter *iter = symbols->head;
@@ -333,16 +327,14 @@ Result hbc_data_provider_get_function_info(
 Result hbc_data_provider_get_string_count(
 	HBCDataProvider *provider,
 	u32 *out_count) {
-	
+
 	if (!provider || !out_count) {
 		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
 	/* Get header to get string count */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header(provider, &header);
+	Result res = hbc_data_provider_get_header(provider, (struct HBCHeader *)&header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -370,9 +362,6 @@ Result hbc_data_provider_get_string(
 	if (!rp->bf || !rp->bf->strings) {
 		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No strings");
 	}
-
-	RListIter *iter = NULL;
-	RBinString *str = NULL;
 
 	/* Iterate strings to find one with matching ordinal */
 	if (rp->bf->strings) {
@@ -409,9 +398,6 @@ Result hbc_data_provider_get_string_meta(
 	if (!rp->bf || !rp->bf->strings) {
 		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No strings");
 	}
-
-	RListIter *iter = NULL;
-	RBinString *str = NULL;
 
 	/* Iterate strings to find metadata */
 	if (rp->bf->strings) {

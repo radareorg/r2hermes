@@ -59,7 +59,7 @@ Result hbc_data_provider_get_function_count(
 Result hbc_data_provider_get_function_info(
     HBCDataProvider *provider,
     u32 function_id,
-    struct HBCFunctionInfo *out) {
+    HBCFunctionInfo *out) {
     
     if (!provider || !out) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
@@ -98,7 +98,7 @@ Result hbc_data_provider_get_string(
 Result hbc_data_provider_get_string_meta(
     HBCDataProvider *provider,
     u32 string_id,
-    struct HBCStringMeta *out) {
+    HBCStringMeta *out) {
     
     if (!provider || !out) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
@@ -124,7 +124,7 @@ Result hbc_data_provider_get_bytecode(
 
 Result hbc_data_provider_get_string_tables(
     HBCDataProvider *provider,
-    struct HBCStringTables *out) {
+    HBCStringTables *out) {
     
     if (!provider || !out) {
         return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");

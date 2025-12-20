@@ -8,6 +8,7 @@ typedef struct HBCDataProvider HBCDataProvider;
 
 /* Forward declarations for types defined in hbc.h (avoid circular include) */
 struct HBCHeader;
+struct HBCHeader;
 struct HBCFunctionInfo;
 struct HBCStringMeta;
 struct HBCStringTables;
@@ -52,6 +53,8 @@ HBCDataProvider *hbc_data_provider_from_rbinfile(struct RBinFile *bf);
 Result hbc_data_provider_get_header(
     HBCDataProvider *provider,
     struct HBCHeader *out);
+
+/* Use public typedefs for referenced types to avoid incompatible-pointer warnings */
 
 /**
  * Get the total number of functions in the binary.

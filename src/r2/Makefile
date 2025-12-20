@@ -15,7 +15,7 @@ LDFLAGS += $(shell pkg-config --libs r_core 2>/dev/null || echo "-L/usr/local/li
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	EXT_SO = dylib
-	LDFLAGS += -dynamiclib
+	LDFLAGS += -dynamiclib -undefined dynamic_lookup
 else ifeq ($(UNAME_S),Linux)
 	EXT_SO = so
 	LDFLAGS += -shared
@@ -32,12 +32,14 @@ ARCH_SRC = arch_hbc.c
 BIN_SRC = bin_hbc.c
 ASM_SRC = asm_hbc.c
 CORE_SRC = core_hbc.c
+R2_PROVIDER_SRC = data_provider_r2.c
 
 # Object files
 ARCH_OBJ = arch_hbc.o
 BIN_OBJ = bin_hbc.o
 ASM_OBJ = asm_hbc.o
 CORE_OBJ = core_hbc.o
+R2_PROVIDER_OBJ = data_provider_r2.o
 
 # Target plugins
 ARCH_PLUGIN = arch_hbc.$(EXT_SO)
@@ -80,8 +82,8 @@ $(ASM_PLUGIN): $(ASM_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(ASM_OBJ)
 
 # Core decompiler plugin
-$(CORE_PLUGIN): $(CORE_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(HERMES_LIB)
+$(CORE_PLUGIN): $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
 
 # Compile object files
 $(ARCH_OBJ): $(ARCH_SRC)
@@ -96,9 +98,12 @@ $(ASM_OBJ): $(ASM_SRC)
 $(CORE_OBJ): $(CORE_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(R2_PROVIDER_OBJ): $(R2_PROVIDER_SRC)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Clean build artifacts
 clean:
-	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(ALL_TARGETS)
+	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(ALL_TARGETS)
 
 # Install plugins (optional - requires radare2 installation)
 install: $(ALL_TARGETS)
