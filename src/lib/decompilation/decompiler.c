@@ -2503,7 +2503,20 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			continue;
 		}
 
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
+		/* Calculate absolute address for offset display and comments */
+		u64 abs_addr = 0;
+		if (asm_ref) {
+			abs_addr = state->options.function_base + asm_ref->original_pos;
+		}
+
+		/* Show offset if requested (pd:ho mode) */
+		if (state->options.show_offsets && asm_ref) {
+			char addr_buf[24];
+			snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)abs_addr);
+			RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+		} else {
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+		}
 
 		/* Detect `for(` header used as a block statement */
 		bool is_block_stmt = false;
@@ -2601,6 +2614,16 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			}
 		}
 
+		/* Append r2 comment if available via callback */
+		if (state->options.comment_callback && asm_ref) {
+			char *comment = state->options.comment_callback (state->options.comment_context, abs_addr);
+			if (comment) {
+				RETURN_IF_ERROR (string_buffer_append (out, " // "));
+				RETURN_IF_ERROR (string_buffer_append (out, comment));
+				free (comment);
+			}
+		}
+
 		if (is_block_stmt) {
 			RETURN_IF_ERROR (string_buffer_append (out, "\n"));
 		} else {
@@ -2659,6 +2682,9 @@ Result decompile_function(HermesDecompiler *state, u32 function_id, Environment 
 	}
 
 	RETURN_IF_ERROR (ensure_function_bytecode_loaded (reader, function_id));
+
+	/* Update function_base for current function (used for offset display) */
+	state->options.function_base = reader->function_headers[function_id].offset;
 	HBCISA isa = hbc_isa_getv (reader->header.version);
 
 	ParsedInstructionList list;

@@ -132,10 +132,17 @@ typedef struct {
 	size_t bytes_written;
 } HBCEncodeBuffer;
 
+/* Callback type for retrieving comments from r2 (or other host)
+ * Returns a heap-allocated string (caller frees), or NULL if no comment */
+typedef char *(*HBCCommentCallback)(void *context, u64 address);
+
 typedef struct {
 	bool pretty_literals; // Whether to format literals nicely
 	bool suppress_comments; // Whether to omit comments
-	// Future options can be added here
+	bool show_offsets; // Whether to show statement offsets (for pd:ho)
+	u64 function_base; // Base offset of current function (for absolute addresses)
+	HBCCommentCallback comment_callback; // Optional callback for r2 comments
+	void *comment_context; // Context passed to comment_callback
 } HBCDecompileOptions;
 
 /* Decode context for single-instruction decoding (consolidates parameters) */

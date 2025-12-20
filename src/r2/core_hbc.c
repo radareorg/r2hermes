@@ -32,6 +32,16 @@ static const char *safe_name(const char *s) {
 	return (s && *s)? s: "unknown";
 }
 
+/* Comment callback for retrieving r2 comments (CC command) at an address */
+static char *r2_comment_callback(void *context, u64 address) {
+	RCore *core = (RCore *)context;
+	if (!core) {
+		return NULL;
+	}
+	const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
+	return comment? strdup (comment): NULL;
+}
+
 #define HBC_CONS(core) ((core)->cons)
 #define HBC_PRINTF(core, fmt, ...) r_cons_printf (HBC_CONS (core), (fmt), ##__VA_ARGS__)
 #define HBC_PRINT(core, s) r_cons_print (HBC_CONS (core), (s))
@@ -98,8 +108,21 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 	return -1;
 }
 
+/* Create decompile options with r2 integration */
+static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
+	HBCDecompileOptions opts = {
+		.pretty_literals = true,
+		.suppress_comments = false,
+		.show_offsets = show_offsets,
+		.function_base = function_base,
+		.comment_callback = r2_comment_callback,
+		.comment_context = core
+	};
+	return opts;
+}
+
 /* Decompile function at current offset or all functions if not in a function */
-static void cmd_decompile_current(RCore *core) {
+static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 	Result result = hbc_load_current_binary (core);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (result.error_message));
@@ -109,12 +132,15 @@ static void cmd_decompile_current(RCore *core) {
 	u32 function_id = 0;
 	/* Get current offset - use 0 since we don't have direct access to offset in this context */
 	int found = find_function_at_offset (0, &function_id);
-	
-	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
+
 	char *output = NULL;
-	
+
 	if (found == 0) {
-		/* Found function at current offset */
+		/* Found function at current offset - get its base address */
+		HBCFunctionInfo fi;
+		Result fres = hbc_get_function_info (hbc_ctx.hbc, function_id, &fi);
+		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
+		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
 		result = hbc_decompile_function (hbc_ctx.hbc, function_id, opts, &output);
 		if (result.code == RESULT_SUCCESS && output) {
 			HBC_PRINTF (core, "%s\n", output);
@@ -123,7 +149,8 @@ static void cmd_decompile_current(RCore *core) {
 			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 		}
 	} else {
-		/* Not in a function, decompile all */
+		/* Not in a function, decompile all - use 0 as base since multiple functions */
+		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
 		result = hbc_decompile_all (hbc_ctx.hbc, opts, &output);
 		if (result.code == RESULT_SUCCESS && output) {
 			HBC_PRINTF (core, "%s\n", output);
@@ -134,15 +161,19 @@ static void cmd_decompile_current(RCore *core) {
 	}
 }
 
+static void cmd_decompile_current(RCore *core) {
+	cmd_decompile_current_ex (core, false);
+}
+
 /* Decompile all functions */
-static void cmd_decompile_all(RCore *core) {
+static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 	Result result = hbc_load_current_binary (core);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (result.error_message));
 		return;
 	}
 
-	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
+	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
 	char *output = NULL;
 	result = hbc_decompile_all (hbc_ctx.hbc, opts, &output);
 	if (result.code == RESULT_SUCCESS && output) {
@@ -153,8 +184,12 @@ static void cmd_decompile_all(RCore *core) {
 	}
 }
 
+static void cmd_decompile_all(RCore *core) {
+	cmd_decompile_all_ex (core, false);
+}
+
 /* Decompile current function by address */
-static void cmd_decompile_function(RCore *core, const char *addr_str) {
+static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool show_offsets) {
 	Result result = hbc_load_current_binary (core);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (result.error_message));
@@ -172,13 +207,17 @@ static void cmd_decompile_function(RCore *core, const char *addr_str) {
 		function_id = (u32)parsed;
 	}
 
-	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
 	char *output = NULL;
 	u32 count = hbc_function_count (hbc_ctx.hbc);
 	if (function_id >= count) {
 		HBC_PRINTF (core, "Error: function id %u out of range (count=%u)\n", function_id, count);
 		return;
 	}
+	/* Get function base address for offset calculation */
+	HBCFunctionInfo fi;
+	Result fres = hbc_get_function_info (hbc_ctx.hbc, function_id, &fi);
+	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
+	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
 	result = hbc_decompile_function (hbc_ctx.hbc, function_id, opts, &output);
 	if (result.code == RESULT_SUCCESS && output) {
 		HBC_PRINTF (core, "%s\n", output);
@@ -186,6 +225,10 @@ static void cmd_decompile_function(RCore *core, const char *addr_str) {
 	} else {
 		HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 	}
+}
+
+static void cmd_decompile_function(RCore *core, const char *addr_str) {
+	cmd_decompile_function_ex (core, addr_str, false);
 }
 
 /* List available functions */
@@ -326,7 +369,10 @@ static void cmd_help(RCore *core) {
 		"  pd:hf          - List all functions\n"
 		"  pd:hi          - Show file information\n"
 		"  pd:hj [id]     - JSON output for function\n"
-		"  pd:h?          - Show this help\n");
+		"  pd:ho [id]     - Decompile with offsets (addresses) per statement\n"
+		"  pd:hoa         - Decompile all with offsets\n"
+		"  pd:h?          - Show this help\n"
+		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
 
 /* Main handler for pd:h commands */
@@ -370,6 +416,23 @@ static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
 			addr_str++;
 		}
 		cmd_json (core, addr_str);
+	} else if (*arg == 'o') {
+		/* pd:ho [id] or pd:hoa - decompile with offsets */
+		const char *sub = arg + 1;
+		if (*sub == 'a') {
+			/* pd:hoa - decompile all with offsets */
+			cmd_decompile_all_ex (core, true);
+		} else {
+			/* pd:ho [id] - decompile function with offsets */
+			while (*sub && isspace ((unsigned char)*sub)) {
+				sub++;
+			}
+			if (*sub) {
+				cmd_decompile_function_ex (core, sub, true);
+			} else {
+				cmd_decompile_current_ex (core, true);
+			}
+		}
 	} else if (*arg == '?') {
 		/* pd:h? */
 		cmd_help (core);
