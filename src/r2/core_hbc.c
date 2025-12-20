@@ -159,17 +159,33 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 	return -1;
 }
 
+/* Helper to read boolean config value */
+static bool read_config_bool(RCore *core, const char *key, bool default_val) {
+	if (!core || !core->config) {
+		return default_val;
+	}
+	const char *val = r_config_get (core->config, key);
+	if (!val) {
+		return default_val;
+	}
+	return strcmp (val, "true") == 0 || strcmp (val, "1") == 0;
+}
+
 /* Create decompile options with r2 integration */
 static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
 	HBCDecompileOptions opts = {
-		.pretty_literals = true,
-		.suppress_comments = false,
-		.show_offsets = show_offsets,
+		.pretty_literals = read_config_bool (core, "hbc.pretty_literals", true),
+		.suppress_comments = read_config_bool (core, "hbc.suppress_comments", false),
+		.show_offsets = show_offsets || read_config_bool (core, "hbc.show_offsets", false),
 		.function_base = function_base,
 		.comment_callback = r2_comment_callback,
 		.comment_context = core,
 		.flag_callback = r2_flag_callback,
-		.flag_context = core
+		.flag_context = core,
+		.skip_pass1_metadata = read_config_bool (core, "hbc.skip_pass1", false),
+		.skip_pass2_transform = read_config_bool (core, "hbc.skip_pass2", false),
+		.skip_pass3_forin = read_config_bool (core, "hbc.skip_pass3", false),
+		.skip_pass4_closure = read_config_bool (core, "hbc.skip_pass4", false)
 	};
 	return opts;
 }
@@ -519,6 +535,51 @@ static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
 	return true;
 }
 
+static bool plugin_init(struct r_core_plugin_session_t *s) {
+	RConfig *cfg = s->core->config;
+	r_config_lock (cfg, false);
+
+	RConfigNode *node;
+	node = r_config_set (cfg, "hbc.pretty_literals", "true");
+	if (node) {
+		r_config_node_desc (node, "Format literals nicely (objects, arrays, etc)");
+	}
+
+	node = r_config_set (cfg, "hbc.suppress_comments", "false");
+	if (node) {
+		r_config_node_desc (node, "Omit comments in decompiled output");
+	}
+
+	node = r_config_set (cfg, "hbc.show_offsets", "false");
+	if (node) {
+		r_config_node_desc (node, "Show bytecode offsets for each statement");
+	}
+
+	/* Optimization/transformation pass control */
+	node = r_config_set (cfg, "hbc.skip_pass1", "false");
+	if (node) {
+		r_config_node_desc (node, "Skip pass 1: metadata collection (closure/generator/async flags)");
+	}
+
+	node = r_config_set (cfg, "hbc.skip_pass2", "false");
+	if (node) {
+		r_config_node_desc (node, "Skip pass 2: code transformation to tokens and statements");
+	}
+
+	node = r_config_set (cfg, "hbc.skip_pass3", "false");
+	if (node) {
+		r_config_node_desc (node, "Skip pass 3: for-in loop parsing (structural recovery via CFG)");
+	}
+
+	node = r_config_set (cfg, "hbc.skip_pass4", "false");
+	if (node) {
+		r_config_node_desc (node, "Skip pass 4: closure variable naming and environment resolution");
+	}
+
+	r_config_lock (cfg, true);
+	return true;
+}
+
 static bool plugin_fini(struct r_core_plugin_session_t *s) {
 	(void)s;
 	if (hbc_ctx.provider) {
@@ -544,7 +605,7 @@ static RCorePlugin r_core_plugin_hbc = {
 		.license = "LGPL-3.0-only",
 	},
 	.call = cmd_handler,
-	.init = NULL,
+	.init = plugin_init,
 	.fini = plugin_fini,
 };
 

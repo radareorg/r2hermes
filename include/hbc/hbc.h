@@ -149,6 +149,11 @@ typedef struct {
 	void *comment_context; // Context passed to comment_callback
 	HBCFlagCallback flag_callback; // Optional callback for r2 flag/symbol names
 	void *flag_context; // Context passed to flag_callback
+	// Optimization/transformation pass control
+	bool skip_pass1_metadata; // Skip pass 1: metadata collection
+	bool skip_pass2_transform; // Skip pass 2: code transformation
+	bool skip_pass3_forin; // Skip pass 3: for-in loop parsing (structural recovery)
+	bool skip_pass4_closure; // Skip pass 4: closure variable naming
 } HBCDecompileOptions;
 
 /* Decode context for single-instruction decoding (consolidates parameters) */

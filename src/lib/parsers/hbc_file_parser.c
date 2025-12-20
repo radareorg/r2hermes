@@ -953,8 +953,6 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 					free (reader->object_keys);
 					reader->object_keys = NULL;
 					reader->header.objKeyBufferSize = 0;
-				} else {
-					fprintf (stderr, "Successfully read %u bytes of object keys\n", reader->header.objKeyBufferSize);
 				}
 			}
 		}
@@ -984,8 +982,6 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 					free (reader->object_values);
 					reader->object_values = NULL;
 					reader->header.objValueBufferSize = 0;
-				} else {
-					fprintf (stderr, "Successfully read %u bytes of object values\n", reader->header.objValueBufferSize);
 				}
 			}
 		}

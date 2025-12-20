@@ -226,7 +226,7 @@ Result hbc_data_provider_get_function_info(
 		r_list_foreach (bo->symbols, iter, sym) {
 			if (sym && sym->ordinal == function_id) {
 				/* Found the function */
-				out->name = sym->name? sym->name: "unknown";
+				out->name = sym->name? (const char *)sym->name: "unknown";
 				out->offset = sym->paddr;
 				out->size = sym->size;
 				out->param_count = 0;

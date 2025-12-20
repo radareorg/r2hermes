@@ -2976,14 +2976,18 @@ Result decompile_function(HermesDecompiler *state, u32 function_id, Environment 
 	fb.instructions = list;
 	memset (&list, 0, sizeof (list));
 
-	Result r = pass1_set_metadata (state, &fb);
-	if (r.code == RESULT_SUCCESS) {
+	/* Execute transformation passes (configurable via decompile options) */
+	Result r = SUCCESS_RESULT ();
+	if (!state->options.skip_pass1_metadata) {
+		r = pass1_set_metadata (state, &fb);
+	}
+	if (r.code == RESULT_SUCCESS && !state->options.skip_pass2_transform) {
 		r = pass2_transform_code (state, &fb);
 	}
-	if (r.code == RESULT_SUCCESS) {
+	if (r.code == RESULT_SUCCESS && !state->options.skip_pass3_forin) {
 		r = pass3_parse_forin_loops (state, &fb);
 	}
-	if (r.code == RESULT_SUCCESS) {
+	if (r.code == RESULT_SUCCESS && !state->options.skip_pass4_closure) {
 		r = pass4_name_closure_vars (state, &fb);
 	}
 	if (r.code == RESULT_SUCCESS) {
