@@ -1,7 +1,7 @@
 all: new
 
 new:
-	r2r -u db/extras
+	r2r db/extras
 
 # old testsuite used in travis not used nowadays, needs care
 old:
