@@ -10,14 +10,14 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
 - `bin/` CLI output
 - `build/` static library and objects
 - `r2/` radare2 plugin sources (optional)
-- `hbctool/` Python reference implementation
+- `hbctool/` Python reference implementation (external)
 - `tests/` placeholder for tests
 
 **Build & Run**
 - Build library + CLI: `make`
 - Debug build: `make debug`
 - Clean: `make clean`
-- Run CLI: `./bin/hbctool <command> <input> [output]`
+- Run CLI: `./bin/libhbctool <command> <input> [output]`
 
 **Public API**
 - Header: `include/hermesdec/hermesdec.h`
