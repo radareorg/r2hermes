@@ -1,0 +1,14 @@
+NAME=r2hermes test
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+-a
+pd 2
+EOF
+EXPECT=<<EOF
+hbc
+            ;-- entry0:
+            ;-- global_0x000000b0:
+            0x000000b0      73000100       load_const_string r0, 0xa2  ; 0x1000013e
+            0x000000b4      5e000000       direct_eval r0, r0, 0
+EOF
+RUN
