@@ -180,7 +180,7 @@ help:
 # Dependencies
 $(HERMES_LIB):
 	@echo "Building libhbc library..."
-	$(MAKE) -C .. all
+	$(MAKE) -C ../.. all
 
 # Default target
 .DEFAULT_GOAL := all

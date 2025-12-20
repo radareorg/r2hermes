@@ -32,6 +32,8 @@ jobs:
         run: sudo dpkg -i r2.deb r2-dev.deb
       - name: Build r2 plugin
         run: make r2
+      - name: Run testsuite
+        run: make -C test
       - name: Check for tag on commit
         id: check_tag
         run: |
