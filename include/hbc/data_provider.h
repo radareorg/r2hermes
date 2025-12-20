@@ -32,7 +32,7 @@ HBCDataProvider *hbc_data_provider_from_file(const char *path);
 HBCDataProvider *hbc_data_provider_from_buffer(const u8 *data, size_t size);
 
 /* Forward declarations for optional r2 integration */
-struct RBinFile;  /* r2 binary file handle */
+struct r_bin_file_t;  /* r2 binary file handle (r_bin_file_t) */
 
 /**
  * Create a data provider from an r2 RBinFile.
@@ -40,7 +40,7 @@ struct RBinFile;  /* r2 binary file handle */
  * Returns NULL if bf is NULL or invalid.
  * AVAILABILITY: Only compiled if R2_INTEGRATION is enabled.
  */
-HBCDataProvider *hbc_data_provider_from_rbinfile(struct RBinFile *bf);
+HBCDataProvider *hbc_data_provider_from_rbinfile(struct r_bin_file_t *bf);
 
 /* ============================================================================
    Query Methods - Access parsed binary data

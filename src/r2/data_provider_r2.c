@@ -55,7 +55,7 @@ typedef struct {
 	int type;        /* String type */
 } RBinString;
 
-typedef struct RBinFile {
+typedef struct r_bin_file_t {
 	RList *symbols;   /* List of RBinSymbol */
 	RList *strings;   /* List of RBinString */
 	void *rbin;       /* r2 RBin instance */
@@ -72,21 +72,8 @@ typedef struct {
 	int dummy;
 } RBuffer;
 
-/* Define named structs for forward-declared types in data_provider.h */
-/* This works because C allows struct to be defined multiple times if identical */
-struct HBCFunctionInfo {
-	const char *name;
-	u32 offset;
-	u32 size;
-	u32 param_count;
-};
-
-struct HBCStringMeta {
-	bool isUTF16;
-	u32 offset;
-	u32 length;
-	int kind;
-};
+/* HBCFunctionInfo and HBCStringMeta are already defined in hbc.h via typedef */
+/* No need to redefine them here */
 
 /* r2 API function declarations */
 extern int r_buf_read_at(void *buf, ut64 offset, ut8 *buf_out, int size);
@@ -116,7 +103,7 @@ struct R2DataProvider {
  * Reads data via r2's RBuffer API (no separate file opens).
  * Returns NULL if bf is NULL or invalid.
  */
-HBCDataProvider *hbc_data_provider_from_rbinfile(struct RBinFile *bf) {
+HBCDataProvider *hbc_data_provider_from_rbinfile(struct r_bin_file_t *bf) {
 	if (!bf || !bf->rbin || !bf->buf) {
 		return NULL;
 	}

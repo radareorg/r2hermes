@@ -15,7 +15,7 @@
 #endif
 
 /* r2 functions - weak symbol to handle different r2 versions */
-extern struct RBinFile *r_bin_file_cur(struct RBin *bin) __attribute__((weak));
+extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
 
 typedef struct {
 	HBCState *hbc;                  /* Kept for backward compat */
