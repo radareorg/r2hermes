@@ -13,13 +13,13 @@
  * Data is already parsed and cached by r2's bin_hbc plugin.
  */
 struct R2DataProvider {
-	RBinFile *bf;              /* r2 binary file handle (not owned) */
-	RBin *bin;                 /* r2 bin handle (not owned) */
-	void *buf;                 /* r2 buffer for binary data (not owned) */
+	RBinFile *bf; /* r2 binary file handle (not owned) */
+	RBin *bin; /* r2 bin handle (not owned) */
+	void *buf; /* r2 buffer for binary data (not owned) */
 
-	HBCHeader cached_header;   /* Cache to avoid re-parsing */
+	HBCHeader cached_header; /* Cache to avoid re-parsing */
 	bool header_loaded;
-	
+
 	/* Temporary buffer for bytecode reads */
 	ut8 *tmp_read_buffer;
 	size_t tmp_buffer_size;
@@ -36,12 +36,12 @@ HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf) {
 	}
 	/* Note: bf->rbin might be NULL in some r2 versions, but we only strictly need bf->buf for data reads */
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)malloc(sizeof(*rp));
+	struct R2DataProvider *rp = (struct R2DataProvider *)malloc (sizeof (*rp));
 	if (!rp) {
 		return NULL;
 	}
 
-	memset(rp, 0, sizeof(*rp));
+	memset (rp, 0, sizeof (*rp));
 	rp->bf = bf;
 	rp->bin = bf->rbin;
 	rp->buf = bf->buf;
@@ -58,87 +58,87 @@ HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf) {
  */
 static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 	if (!buf || !out) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	ut8 header_buf[256];
-	if (r_buf_read_at(buf, 0, header_buf, 256) < 32) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_DATA, "Cannot read header");
+	if (r_buf_read_at (buf, 0, header_buf, 256) < 32) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Cannot read header");
 	}
 
 	/* Parse header fields at known offsets */
 	/* Offset 0: magic (8 bytes, little-endian) */
-	memcpy(&out->magic, header_buf + 0, 8);
-	
+	memcpy (&out->magic, header_buf + 0, 8);
+
 	/* Offset 8: version (4 bytes, little-endian) */
-	out->version = r_read_le32(header_buf + 8);
-	
+	out->version = r_read_le32 (header_buf + 8);
+
 	/* Offset 12: sourceHash (20 bytes) */
-	memcpy(out->sourceHash, header_buf + 12, 20);
-	
+	memcpy (out->sourceHash, header_buf + 12, 20);
+
 	/* Offset 32: fileLength (4 bytes) */
-	out->fileLength = r_read_le32(header_buf + 32);
-	
+	out->fileLength = r_read_le32 (header_buf + 32);
+
 	/* Offset 36: globalCodeIndex (4 bytes) */
-	out->globalCodeIndex = r_read_le32(header_buf + 36);
-	
+	out->globalCodeIndex = r_read_le32 (header_buf + 36);
+
 	/* Offset 40: functionCount (4 bytes) */
-	out->functionCount = r_read_le32(header_buf + 40);
-	
+	out->functionCount = r_read_le32 (header_buf + 40);
+
 	/* Offset 44: stringKindCount (4 bytes) */
-	out->stringKindCount = r_read_le32(header_buf + 44);
-	
+	out->stringKindCount = r_read_le32 (header_buf + 44);
+
 	/* Offset 48: identifierCount (4 bytes) */
-	out->identifierCount = r_read_le32(header_buf + 48);
-	
+	out->identifierCount = r_read_le32 (header_buf + 48);
+
 	/* Offset 52: stringCount (4 bytes) */
-	out->stringCount = r_read_le32(header_buf + 52);
-	
+	out->stringCount = r_read_le32 (header_buf + 52);
+
 	/* Offset 56: overflowStringCount (4 bytes) */
-	out->overflowStringCount = r_read_le32(header_buf + 56);
-	
+	out->overflowStringCount = r_read_le32 (header_buf + 56);
+
 	/* Offset 60: stringStorageSize (4 bytes) */
-	out->stringStorageSize = r_read_le32(header_buf + 60);
-	
+	out->stringStorageSize = r_read_le32 (header_buf + 60);
+
 	/* Offset 64: bigIntCount (4 bytes) */
-	out->bigIntCount = r_read_le32(header_buf + 64);
-	
+	out->bigIntCount = r_read_le32 (header_buf + 64);
+
 	/* Offset 68: bigIntStorageSize (4 bytes) */
-	out->bigIntStorageSize = r_read_le32(header_buf + 68);
-	
+	out->bigIntStorageSize = r_read_le32 (header_buf + 68);
+
 	/* Offset 72: regExpCount (4 bytes) */
-	out->regExpCount = r_read_le32(header_buf + 72);
-	
+	out->regExpCount = r_read_le32 (header_buf + 72);
+
 	/* Offset 76: regExpStorageSize (4 bytes) */
-	out->regExpStorageSize = r_read_le32(header_buf + 76);
-	
+	out->regExpStorageSize = r_read_le32 (header_buf + 76);
+
 	/* Offset 80: arrayBufferSize (4 bytes) */
-	out->arrayBufferSize = r_read_le32(header_buf + 80);
-	
+	out->arrayBufferSize = r_read_le32 (header_buf + 80);
+
 	/* Offset 84: objKeyBufferSize (4 bytes) */
-	out->objKeyBufferSize = r_read_le32(header_buf + 84);
-	
+	out->objKeyBufferSize = r_read_le32 (header_buf + 84);
+
 	/* Offset 88: objValueBufferSize (4 bytes) */
-	out->objValueBufferSize = r_read_le32(header_buf + 88);
-	
+	out->objValueBufferSize = r_read_le32 (header_buf + 88);
+
 	/* Offset 92: segmentID (4 bytes) */
-	out->segmentID = r_read_le32(header_buf + 92);
-	
+	out->segmentID = r_read_le32 (header_buf + 92);
+
 	/* Offset 96: cjsModuleCount (4 bytes) */
-	out->cjsModuleCount = r_read_le32(header_buf + 96);
-	
+	out->cjsModuleCount = r_read_le32 (header_buf + 96);
+
 	/* Offset 100: functionSourceCount (4 bytes) */
-	out->functionSourceCount = r_read_le32(header_buf + 100);
-	
+	out->functionSourceCount = r_read_le32 (header_buf + 100);
+
 	/* Offset 104: debugInfoOffset (4 bytes) */
-	out->debugInfoOffset = r_read_le32(header_buf + 104);
-	
+	out->debugInfoOffset = r_read_le32 (header_buf + 104);
+
 	/* Offset 108: flags (1 byte each) */
 	out->staticBuiltins = (header_buf[108] & 0x01) != 0;
 	out->cjsModulesStaticallyResolved = (header_buf[108] & 0x02) != 0;
 	out->hasAsync = (header_buf[108] & 0x04) != 0;
 
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -148,28 +148,28 @@ static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 Result hbc_data_provider_get_header(
 	HBCDataProvider *provider,
 	struct HBCHeader *out) {
-	
+
 	if (!provider || !out) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
 	/* Return cached header on subsequent calls */
 	if (rp->header_loaded) {
-		memcpy(out, &rp->cached_header, sizeof(HBCHeader));
-		return SUCCESS_RESULT();
+		memcpy (out, &rp->cached_header, sizeof (HBCHeader));
+		return SUCCESS_RESULT ();
 	}
 
 	/* Parse header on first call */
-	Result res = parse_header_from_buffer(rp->buf, &rp->cached_header);
+	Result res = parse_header_from_buffer (rp->buf, &rp->cached_header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	rp->header_loaded = true;
-	memcpy(out, &rp->cached_header, sizeof(HBCHeader));
-	return SUCCESS_RESULT();
+	memcpy (out, &rp->cached_header, sizeof (HBCHeader));
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -180,18 +180,18 @@ Result hbc_data_provider_get_function_count(
 	u32 *out_count) {
 
 	if (!provider || !out_count) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	/* Get header first */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header(provider, (struct HBCHeader *)&header);
+	Result res = hbc_data_provider_get_header (provider, (struct HBCHeader *)&header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	*out_count = header.functionCount;
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -202,21 +202,21 @@ Result hbc_data_provider_get_function_info(
 	HBCDataProvider *provider,
 	u32 function_id,
 	struct HBCFunctionInfo *out) {
-	
+
 	if (!provider || !out) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
-	/* RBinFile->bo has a list of RBinSymbol entries from bin_hbc.c::symbols() */
+	/* RBinFile->bo has a list of RBinSymbol entries from bin_hbc.c::symbols () */
 	if (!rp->bf || !rp->bf->bo) {
-		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No binary object in file");
+		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No binary object in file");
 	}
 
 	RBinObject *bo = (RBinObject *)rp->bf->bo;
 	if (!bo->symbols) {
-		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No symbols in binary");
+		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No symbols in binary");
 	}
 
 	/* Iterate symbols to find function with matching ordinal */
@@ -226,16 +226,16 @@ Result hbc_data_provider_get_function_info(
 		r_list_foreach (bo->symbols, iter, sym) {
 			if (sym && sym->ordinal == function_id) {
 				/* Found the function */
-				out->name = sym->name ? sym->name : "unknown";
+				out->name = sym->name? sym->name: "unknown";
 				out->offset = sym->paddr;
 				out->size = sym->size;
 				out->param_count = 0;
-				return SUCCESS_RESULT();
+				return SUCCESS_RESULT ();
 			}
 		}
 	}
 
-	return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "Function not found");
+	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "Function not found");
 }
 
 /**
@@ -246,18 +246,18 @@ Result hbc_data_provider_get_string_count(
 	u32 *out_count) {
 
 	if (!provider || !out_count) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	/* Get header to get string count */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header(provider, (struct HBCHeader *)&header);
+	Result res = hbc_data_provider_get_header (provider, (struct HBCHeader *)&header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	*out_count = header.stringCount;
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -268,21 +268,21 @@ Result hbc_data_provider_get_string(
 	HBCDataProvider *provider,
 	u32 string_id,
 	const char **out_str) {
-	
+
 	if (!provider || !out_str) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
 	/* Strings are in rp->bf->bo->strings (RBinString list) */
 	if (!rp->bf || !rp->bf->bo) {
-		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No binary object");
+		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No binary object");
 	}
 
 	RBinObject *bo = (RBinObject *)rp->bf->bo;
 	if (!bo->strings) {
-		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No strings");
+		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No strings");
 	}
 
 	/* Iterate strings to find one with matching ordinal */
@@ -292,12 +292,12 @@ Result hbc_data_provider_get_string(
 		r_list_foreach (bo->strings, iter, str) {
 			if (str && str->ordinal == string_id) {
 				*out_str = str->string;
-				return SUCCESS_RESULT();
+				return SUCCESS_RESULT ();
 			}
 		}
 	}
 
-	return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "String not found");
+	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
 }
 
 /**
@@ -307,20 +307,20 @@ Result hbc_data_provider_get_string_meta(
 	HBCDataProvider *provider,
 	u32 string_id,
 	struct HBCStringMeta *out) {
-	
+
 	if (!provider || !out) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
 	if (!rp->bf || !rp->bf->bo) {
-		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No binary object");
+		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No binary object");
 	}
 
 	RBinObject *bo = (RBinObject *)rp->bf->bo;
 	if (!bo->strings) {
-		return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "No strings");
+		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No strings");
 	}
 
 	/* Iterate strings to find metadata */
@@ -331,14 +331,14 @@ Result hbc_data_provider_get_string_meta(
 			if (str && str->ordinal == string_id) {
 				out->offset = str->paddr;
 				out->length = str->length;
-				out->isUTF16 = false;   /* r2 stores UTF8 strings */
+				out->isUTF16 = false; /* r2 stores UTF8 strings */
 				out->kind = HERMES_STRING_KIND_STRING;
-				return SUCCESS_RESULT();
+				return SUCCESS_RESULT ();
 			}
 		}
 	}
 
-	return ERROR_RESULT(RESULT_ERROR_NOT_FOUND, "String not found");
+	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
 }
 
 /**
@@ -349,39 +349,39 @@ Result hbc_data_provider_get_bytecode(
 	u32 function_id,
 	const u8 **out_ptr,
 	u32 *out_size) {
-	
+
 	if (!provider || !out_ptr || !out_size) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
 	/* Get function info to find bytecode location */
 	struct HBCFunctionInfo info;
-	Result res = hbc_data_provider_get_function_info(provider, function_id, &info);
+	Result res = hbc_data_provider_get_function_info (provider, function_id, &info);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	/* Allocate or reallocate temporary buffer for bytecode */
 	if (!rp->tmp_read_buffer || rp->tmp_buffer_size < info.size) {
-		ut8 *new_buf = (ut8 *)realloc(rp->tmp_read_buffer, info.size);
+		ut8 *new_buf = (ut8 *)realloc (rp->tmp_read_buffer, info.size);
 		if (!new_buf) {
-			return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 		}
 		rp->tmp_read_buffer = new_buf;
 		rp->tmp_buffer_size = info.size;
 	}
 
 	/* Read bytecode from buffer at function offset */
-	int bytes_read = r_buf_read_at(rp->buf, info.offset, rp->tmp_read_buffer, info.size);
+	int bytes_read = r_buf_read_at (rp->buf, info.offset, rp->tmp_read_buffer, info.size);
 	if (bytes_read != (int)info.size) {
-		return ERROR_RESULT(RESULT_ERROR_READ, "Cannot read bytecode");
+		return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read bytecode");
 	}
 
 	*out_ptr = rp->tmp_read_buffer;
 	*out_size = info.size;
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -390,17 +390,17 @@ Result hbc_data_provider_get_bytecode(
 Result hbc_data_provider_get_string_tables(
 	HBCDataProvider *provider,
 	struct HBCStringTables *out) {
-	
+
 	if (!provider || !out) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	(void)provider;  /* Unused in this basic implementation */
+	(void)provider; /* Unused in this basic implementation */
 
 	/* String tables would need more detailed parsing from the binary
 	 * For now, return a basic error - the decompiler can handle this
-	 * and fall back to parsing strings on-demand via get_string() */
-	return ERROR_RESULT(RESULT_ERROR_NOT_IMPLEMENTED, 
+	 * and fall back to parsing strings on-demand via get_string () */
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED,
 		"String tables not yet implemented for R2DataProvider");
 }
 
@@ -411,16 +411,16 @@ Result hbc_data_provider_get_function_source(
 	HBCDataProvider *provider,
 	u32 function_id,
 	const char **out_src) {
-	
+
 	if (!provider || !out_src) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	(void)function_id; /* Unused */
 
 	/* Function source metadata is optional; return NULL if not available */
 	*out_src = NULL;
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -431,31 +431,31 @@ Result hbc_data_provider_read_raw(
 	u64 offset,
 	u32 size,
 	const u8 **out_ptr) {
-	
+
 	if (!provider || !out_ptr) {
-		return ERROR_RESULT(RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
 
 	/* Allocate buffer if needed */
 	if (!rp->tmp_read_buffer || rp->tmp_buffer_size < size) {
-		ut8 *new_buf = (ut8 *)realloc(rp->tmp_read_buffer, size);
+		ut8 *new_buf = (ut8 *)realloc (rp->tmp_read_buffer, size);
 		if (!new_buf) {
-			return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 		}
 		rp->tmp_read_buffer = new_buf;
 		rp->tmp_buffer_size = size;
 	}
 
 	/* Read directly from r2's buffer */
-	int bytes_read = r_buf_read_at(rp->buf, (ut64)offset, rp->tmp_read_buffer, size);
+	int bytes_read = r_buf_read_at (rp->buf, (ut64)offset, rp->tmp_read_buffer, size);
 	if (bytes_read != (int)size) {
-		return ERROR_RESULT(RESULT_ERROR_READ, "Cannot read buffer");
+		return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read buffer");
 	}
 
 	*out_ptr = rp->tmp_read_buffer;
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /**
@@ -467,13 +467,13 @@ void hbc_data_provider_free(HBCDataProvider *provider) {
 	}
 
 	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-	
+
 	/* Free temporary buffers */
 	if (rp->tmp_read_buffer) {
-		free(rp->tmp_read_buffer);
+		free (rp->tmp_read_buffer);
 		rp->tmp_read_buffer = NULL;
 	}
 
 	/* Don't free bf, bin, buf: they are owned by r2 */
-	free(rp);
+	free (rp);
 }

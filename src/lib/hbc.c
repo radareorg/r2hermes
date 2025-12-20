@@ -840,7 +840,7 @@ Result hbc_disassemble_function(
 		return res;
 	}
 
-	*out_str = sb.data;  /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
@@ -864,7 +864,7 @@ Result hbc_disassemble_all(
 		return res;
 	}
 
-	*out_str = sb.data;  /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
@@ -885,7 +885,7 @@ Result hbc_decompile_all(HBCState *hd, HBCDecompileOptions options, char **out_s
 		return res;
 	}
 
-	*out_str = sb.data;  /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
@@ -906,7 +906,7 @@ Result hbc_decompile_function(HBCState *hd, u32 function_id, HBCDecompileOptions
 		return res;
 	}
 
-	*out_str = sb.data;  /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
@@ -927,8 +927,6 @@ Result hbc_validate_basic(HBCState *hd, char **out_str) {
 		return res;
 	}
 
-	*out_str = sb.data;  /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
-
-

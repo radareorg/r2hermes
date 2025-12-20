@@ -38,10 +38,8 @@ Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_cap
 Result parsed_instruction_list_add(ParsedInstructionList *list, ParsedInstruction *instruction);
 void parsed_instruction_list_free(ParsedInstructionList *list);
 
-Result parse_instruction(HBCReader *reader, FunctionHeader *function_header,
-	u32 offset, ParsedInstruction *out_instruction);
-Result parse_function_bytecode(HBCReader *reader, u32 function_id,
-	ParsedInstructionList *out_instructions, HBCISA isa);
+Result parse_instruction(HBCReader *reader, FunctionHeader *function_header, u32 offset, ParsedInstruction *out_instruction);
+Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa);
 Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string);
 
 /* Bytecode version module getters */
@@ -49,8 +47,7 @@ BytecodeModule *get_bytecode_module(u32 bytecode_version);
 const char **get_builtin_functions(BytecodeModule *module, u32 *out_count);
 
 /* Opcode handlers (defined in version-specific modules) */
-typedef Result(*OpcodeHandler)(HBCReader *reader, BufferReader *bytecode,
-	ParsedInstruction *out_instruction);
+typedef Result(*OpcodeHandler)(HBCReader *reader, BufferReader *bytecode, ParsedInstruction *out_instruction);
 
 /* Helpers to classify opcodes */
 bool is_jump_instruction(u8 opcode);

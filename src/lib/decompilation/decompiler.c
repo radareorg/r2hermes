@@ -26,20 +26,20 @@ static Result ensure_function_bytecode_loaded_from_provider(HBCDataProvider *pro
 	/* Get bytecode from provider */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_data_provider_get_bytecode(provider, function_id, &bytecode_ptr, &bytecode_size);
+	Result res = hbc_data_provider_get_bytecode (provider, function_id, &bytecode_ptr, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	/* Allocate and copy bytecode */
-	function_header->bytecode = (u8 *)malloc(bytecode_size);
+	function_header->bytecode = (u8 *)malloc (bytecode_size);
 	if (!function_header->bytecode) {
-		return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 	}
-	memcpy(function_header->bytecode, bytecode_ptr, bytecode_size);
+	memcpy (function_header->bytecode, bytecode_ptr, bytecode_size);
 	function_header->bytecodeSizeInBytes = bytecode_size;
 
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id) {
@@ -757,7 +757,7 @@ Result decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->decompiled_functions = NULL;
 	decompiler->indent_level = 0;
 	decompiler->inlining_function = false;
-	decompiler->data_provider = NULL;  /* Will be set if using provider-based API */
+	decompiler->data_provider = NULL; /* Will be set if using provider-based API */
 	decompiler->options.pretty_literals = true;
 	decompiler->options.suppress_comments = false;
 
@@ -773,7 +773,7 @@ Result decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvid
 	}
 
 	/* Initialize common fields */
-	Result res = decompiler_init(decompiler);
+	Result res = decompiler_init (decompiler);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -886,7 +886,7 @@ Result decompile_file(const char *input_file, const char *output_file) {
 }
 
 /* Internal helper kept for reference/debugging.
- * The main pipeline uses passes + `output_code()`. */
+ * The main pipeline uses passes + `output_code ()`. */
 #if 0
 static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	if (!reader || !out) {
@@ -1845,7 +1845,7 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 	/* For now, leverage existing decompile_function_to_buffer by extracting reader.
 	 * In Phase 2, we delegate to the provider API. This is a bridge.
 	 * TODO: Refactor decompile_function to work directly with provider data */
-	
+
 	/* Try to use existing decompile_function_to_buffer if we can extract HBCReader */
 	HermesDecompiler dec;
 	RETURN_IF_ERROR (decompiler_init_with_provider (&dec, provider));
@@ -1855,12 +1855,12 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 	/* Create a stub HBCReader for internal use.
 	 * The provider is responsible for all actual data access. */
 	HBCReader stub_reader;
-	memset(&stub_reader, 0, sizeof(stub_reader));
+	memset (&stub_reader, 0, sizeof (stub_reader));
 	dec.hbc_reader = &stub_reader;
 
 	/* Get header from provider and populate stub */
 	HBCHeader header;
-	Result hres = hbc_data_provider_get_header(provider, &header);
+	Result hres = hbc_data_provider_get_header (provider, &header);
 	if (hres.code != RESULT_SUCCESS) {
 		decompiler_cleanup (&dec);
 		return hres;
@@ -1879,12 +1879,12 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 		decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function_headers");
 	}
-	
+
 	for (u32 i = 0; i < header.functionCount; i++) {
 		HBCFunctionInfo fi;
-		Result fres = hbc_data_provider_get_function_info(provider, i, &fi);
+		Result fres = hbc_data_provider_get_function_info (provider, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
-			free(stub_reader.function_headers);
+			free (stub_reader.function_headers);
 			decompiler_cleanup (&dec);
 			return fres;
 		}
@@ -1898,12 +1898,12 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
 		RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
 	}
-	
+
 	/* Free allocated function_headers */
 	if (stub_reader.function_headers) {
-		free(stub_reader.function_headers);
+		free (stub_reader.function_headers);
 	}
-	
+
 	decompiler_cleanup (&dec);
 	return r;
 }
@@ -1919,12 +1919,12 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 
 	/* Create a stub HBCReader for internal use */
 	HBCReader stub_reader;
-	memset(&stub_reader, 0, sizeof(stub_reader));
+	memset (&stub_reader, 0, sizeof (stub_reader));
 	dec.hbc_reader = &stub_reader;
 
 	/* Get header from provider and populate stub */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header(provider, &header);
+	Result res = hbc_data_provider_get_header (provider, &header);
 	if (res.code != RESULT_SUCCESS) {
 		decompiler_cleanup (&dec);
 		return res;
@@ -1957,22 +1957,22 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 	/* Populate function_headers from provider */
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunctionInfo fi;
-		Result fres = hbc_data_provider_get_function_info(provider, i, &fi);
+		Result fres = hbc_data_provider_get_function_info (provider, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
-			free(stub_reader.function_headers);
+			free (stub_reader.function_headers);
 			decompiler_cleanup (&dec);
 			return fres;
 		}
 		stub_reader.function_headers[i].offset = fi.offset;
 		stub_reader.function_headers[i].bytecodeSizeInBytes = fi.size;
-		stub_reader.function_headers[i].bytecode = NULL;  /* Will be loaded on demand */
+		stub_reader.function_headers[i].bytecode = NULL; /* Will be loaded on demand */
 		/* Other fields are not needed for provider-based decompilation */
 	}
 
 	/* File preamble */
 	if (!options.suppress_comments) {
 		HBCHeader header;
-		res = hbc_data_provider_get_header(provider, &header);
+		res = hbc_data_provider_get_header (provider, &header);
 		if (res.code != RESULT_SUCCESS) {
 			decompiler_cleanup (&dec);
 			return res;
@@ -1999,13 +1999,13 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 	}
 
 	RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
-	
+
 	/* Free allocated function_headers from stub */
 	if (stub_reader.function_headers) {
-		free(stub_reader.function_headers);
+		free (stub_reader.function_headers);
 		stub_reader.function_headers = NULL;
 	}
-	
+
 	decompiler_cleanup (&dec);
 	return SUCCESS_RESULT ();
 }
@@ -2024,7 +2024,7 @@ static Result address_labels_add(AddressLabels **arr, u32 *count, u32 address, c
 		}
 		(*arr)[i].labels = nl;
 		(*arr)[i].labels[(*arr)[i].label_count] = strdup (label);
-		if (!(*arr)[i].labels[(*arr)[i].label_count]) {
+		if (! (*arr)[i].labels[(*arr)[i].label_count]) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom strdup label");
 		}
 		(*arr)[i].label_count++;
@@ -2038,11 +2038,11 @@ static Result address_labels_add(AddressLabels **arr, u32 *count, u32 address, c
 	*arr = na;
 	(*arr)[*count].address = address;
 	(*arr)[*count].labels = (char **)malloc (sizeof (char *));
-	if (!(*arr)[*count].labels) {
+	if (! (*arr)[*count].labels) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom addrlabels labels");
 	}
 	(*arr)[*count].labels[0] = strdup (label);
-	if (!(*arr)[*count].labels[0]) {
+	if (! (*arr)[*count].labels[0]) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom strdup label");
 	}
 	(*arr)[*count].label_count = 1;
@@ -2418,7 +2418,7 @@ Result pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *
 			continue;
 		}
 
-		/* Replace GetPNameList line with a `for(<next> in <obj>)` header */
+		/* Replace GetPNameList line with a `for (<next> in <obj>)` header */
 		RETURN_IF_ERROR (token_string_clear_tokens (line));
 		RETURN_IF_ERROR (token_string_add_token (line, create_raw_token ("for")));
 		RETURN_IF_ERROR (token_string_add_token (line, create_left_parenthesis_token ()));
@@ -2589,7 +2589,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		if (function_body->is_generator) {
 			RETURN_IF_ERROR (string_buffer_append (out, "*"));
 		}
-		if (!(function_body->is_closure || function_body->is_generator)) {
+		if (! (function_body->is_closure || function_body->is_generator)) {
 			RETURN_IF_ERROR (string_buffer_append (out, " "));
 			RETURN_IF_ERROR (string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
 		}
@@ -2757,7 +2757,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		}
 
-		/* Detect `for(` header used as a block statement */
+		/* Detect `for (` header used as a block statement */
 		bool is_block_stmt = false;
 		if (st->head && st->head->type == TOKEN_TYPE_RAW) {
 			RawToken *rt = (RawToken *)st->head;
@@ -2826,7 +2826,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		} else {
 			/* Emit all tokens, handling nested function expressions */
 			bool first_tok = true;
-			TokenType prev_type = (TokenType)(-1);
+			TokenType prev_type = (TokenType) (-1);
 			for (Token *t = st->head; t; t = t->next) {
 				if (t->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
 					FunctionTableIndexToken *fti = (FunctionTableIndexToken *)t;
@@ -2905,8 +2905,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	return SUCCESS_RESULT ();
 }
 
-Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment,
-	int environment_id, bool is_closure, bool is_generator, bool is_async) {
+Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async) {
 	if (!state || !state->hbc_reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "decompile_function args");
 	}

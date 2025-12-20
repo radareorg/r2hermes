@@ -249,7 +249,6 @@ Result hbc_validate_basic_to_buffer(HBCState *hd, StringBuffer *out);
 
 /* Memory management for string results */
 
-
 /* Minimal single-instruction disassembler (no file context) */
 
 /*

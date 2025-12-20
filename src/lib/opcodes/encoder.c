@@ -9,8 +9,8 @@
 /* Cross-platform strcasecmp */
 static int portable_strcasecmp(const char *s1, const char *s2) {
 	while (*s1 && *s2) {
-		unsigned char c1 = tolower((unsigned char)*s1);
-		unsigned char c2 = tolower((unsigned char)*s2);
+		unsigned char c1 = tolower ((unsigned char)*s1);
+		unsigned char c2 = tolower ((unsigned char)*s2);
 		if (c1 != c2) {
 			return c1 - c2;
 		}
@@ -75,8 +75,7 @@ static const Instruction *find_instruction_by_name(const char *mnemonic, const I
 }
 
 /* Parse instruction line in asm format */
-Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line,
-	HBCEncodedInstruction *out_instruction) {
+Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, HBCEncodedInstruction *out_instruction) {
 	if (!encoder || !asm_line || !out_instruction) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -308,8 +307,7 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line,
 }
 
 /* Encode instruction to bytecode */
-Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstruction *instruction,
-	u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written) {
+Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstruction *instruction, u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written) {
 	if (!encoder || !instruction || !out_buffer || !out_bytes_written) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -330,8 +328,7 @@ Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstr
 
 	size_t offset = 0;
 	u64 operand_values[6] = {
-		instruction->arg1, instruction->arg2, instruction->arg3,
-		instruction->arg4, instruction->arg5, instruction->arg6
+		instruction->arg1, instruction->arg2, instruction->arg3, instruction->arg4, instruction->arg5, instruction->arg6
 	};
 
 	/* Write opcode */
@@ -401,8 +398,7 @@ Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstr
 }
 
 /* Encode multiple instructions */
-Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text,
-	u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written) {
+Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text, u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written) {
 	if (!encoder || !asm_text || !out_buffer || !out_bytes_written) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -461,10 +457,7 @@ Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text
 		}
 
 		size_t bytes_written;
-		RETURN_IF_ERROR (hbc_encoder_encode_instruction (encoder, &instruction,
-			out_buffer + total_written,
-			buffer_size - total_written,
-			&bytes_written));
+		RETURN_IF_ERROR (hbc_encoder_encode_instruction (encoder, &instruction, out_buffer + total_written, buffer_size - total_written, &bytes_written));
 
 		total_written += bytes_written;
 

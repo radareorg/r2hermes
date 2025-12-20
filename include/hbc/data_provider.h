@@ -14,8 +14,8 @@ struct HBCStringMeta;
 struct HBCStringTables;
 
 /* ============================================================================
-   Factory Functions - Create a provider from different sources
-   ============================================================================ */
+Factory Functions - Create a provider from different sources
+============================================================================ */
 
 /**
  * Create a data provider from a file on disk.
@@ -42,16 +42,16 @@ typedef struct r_bin_file_t RBinFile;
 HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf);
 
 /* ============================================================================
-   Query Methods - Access parsed binary data
-   ============================================================================ */
+Query Methods - Access parsed binary data
+============================================================================ */
 
 /**
  * Get the HBC file header.
  * Returns RESULT_SUCCESS if header was read successfully.
  */
 Result hbc_data_provider_get_header(
-    HBCDataProvider *provider,
-    struct HBCHeader *out);
+	HBCDataProvider *provider,
+	struct HBCHeader *out);
 
 /* Use public typedefs for referenced types to avoid incompatible-pointer warnings */
 
@@ -60,68 +60,68 @@ Result hbc_data_provider_get_header(
  * Returns RESULT_SUCCESS on success, RESULT_ERROR_INVALID_ARGUMENT if provider is NULL.
  */
 Result hbc_data_provider_get_function_count(
-    HBCDataProvider *provider,
-    u32 *out_count);
+	HBCDataProvider *provider,
+	u32 *out_count);
 
 /**
  * Get metadata for a specific function.
  * out->name is valid while provider is alive; caller must not free.
  */
 Result hbc_data_provider_get_function_info(
-    HBCDataProvider *provider,
-    u32 function_id,
-    struct HBCFunctionInfo *out);
+	HBCDataProvider *provider,
+	u32 function_id,
+	struct HBCFunctionInfo *out);
 
 /**
  * Get the total number of strings in the binary.
  */
 Result hbc_data_provider_get_string_count(
-    HBCDataProvider *provider,
-    u32 *out_count);
+	HBCDataProvider *provider,
+	u32 *out_count);
 
 /**
  * Get a string by index (const reference, valid while provider is alive).
  * out_str should not be freed by caller.
  */
 Result hbc_data_provider_get_string(
-    HBCDataProvider *provider,
-    u32 string_id,
-    const char **out_str);
+	HBCDataProvider *provider,
+	u32 string_id,
+	const char **out_str);
 
 /**
  * Get metadata for a string (offset, length, kind).
  */
 Result hbc_data_provider_get_string_meta(
-    HBCDataProvider *provider,
-    u32 string_id,
-    struct HBCStringMeta *out);
+	HBCDataProvider *provider,
+	u32 string_id,
+	struct HBCStringMeta *out);
 
 /**
  * Get the raw bytecode bytes for a function.
  * out_ptr and out_size should not be freed; valid while provider is alive.
  */
 Result hbc_data_provider_get_bytecode(
-    HBCDataProvider *provider,
-    u32 function_id,
-    const u8 **out_ptr,
-    u32 *out_size);
+	HBCDataProvider *provider,
+	u32 function_id,
+	const u8 **out_ptr,
+	u32 *out_size);
 
 /**
  * Get pre-parsed string table data (small_string_table, overflow_string_table, etc).
  * Used for efficient string ID resolution during instruction decoding.
  */
 Result hbc_data_provider_get_string_tables(
-    HBCDataProvider *provider,
-    struct HBCStringTables *out);
+	HBCDataProvider *provider,
+	struct HBCStringTables *out);
 
 /**
  * Get source/module name associated with a function (optional, may be NULL).
  * Used for contextual naming in decompilation output.
  */
 Result hbc_data_provider_get_function_source(
-    HBCDataProvider *provider,
-    u32 function_id,
-    const char **out_src);
+	HBCDataProvider *provider,
+	u32 function_id,
+	const char **out_src);
 
 /**
  * Low-level: Read raw bytes from the binary at a specific offset.
@@ -129,14 +129,14 @@ Result hbc_data_provider_get_function_source(
  * out_ptr is valid until next provider call; do not hold references.
  */
 Result hbc_data_provider_read_raw(
-    HBCDataProvider *provider,
-    u64 offset,
-    u32 size,
-    const u8 **out_ptr);
+	HBCDataProvider *provider,
+	u64 offset,
+	u32 size,
+	const u8 **out_ptr);
 
 /* ============================================================================
-   Lifecycle
-   ============================================================================ */
+Lifecycle
+============================================================================ */
 
 /**
  * Free a data provider and all associated resources.

@@ -80,7 +80,8 @@ Result buffer_reader_read_u8(BufferReader *reader, u8 *out_value) {
 	if (reader->position + sizeof (u8) > reader->size) {
 		/* Provide a default but warn */
 		hbc_debug_printf ("Warning: Buffer overflow prevented in read_u8 at position %zu of %zu bytes\n",
-			reader->position, reader->size);
+			reader->position,
+			reader->size);
 		*out_value = 0;
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u8");
 	}
@@ -111,7 +112,8 @@ Result buffer_reader_read_u16(BufferReader *reader, u16 *out_value) {
 	if (reader->position + sizeof (u16) > reader->size) {
 		/* Provide a default but warn */
 		hbc_debug_printf ("Warning: Buffer overflow prevented in read_u16 at position %zu of %zu bytes\n",
-			reader->position, reader->size);
+			reader->position,
+			reader->size);
 		*out_value = 0;
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u16");
 	}
@@ -143,7 +145,8 @@ Result buffer_reader_read_u32(BufferReader *reader, u32 *out_value) {
 	if (reader->position + sizeof (u32) > reader->size) {
 		/* Provide a default but warn */
 		hbc_debug_printf ("Warning: Buffer overflow prevented in read_u32 at position %zu of %zu bytes\n",
-			reader->position, reader->size);
+			reader->position,
+			reader->size);
 		*out_value = 0;
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u32");
 	}
@@ -209,7 +212,8 @@ Result buffer_reader_seek(BufferReader *reader, size_t position) {
 	/* Validate position */
 	if (position > reader->size) {
 		hbc_debug_printf ("Warning: Attempted to seek beyond buffer bounds (pos: %zu, size: %zu)\n",
-			position, reader->size);
+			position,
+			reader->size);
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Seek position beyond buffer size");
 	}
 

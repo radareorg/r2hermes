@@ -23,7 +23,7 @@ extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
  */
 static RBinFile *safe_r_bin_file_cur(RBin *bin) {
 	if (r_bin_file_cur) {
-		return r_bin_file_cur(bin);
+		return r_bin_file_cur (bin);
 	}
 	/* Fallback: use bin->cur directly (available in r_bin_t struct) */
 	if (bin) {
@@ -34,8 +34,8 @@ static RBinFile *safe_r_bin_file_cur(RBin *bin) {
 }
 
 typedef struct {
-	HBCState *hbc;                  /* Kept for backward compat */
-	HBCDataProvider *provider;      /* NEW: Cached provider per file */
+	HBCState *hbc; /* Kept for backward compat */
+	HBCDataProvider *provider; /* NEW: Cached provider per file */
 	RCore *core;
 	char *file_path;
 } HbcContext;
@@ -79,8 +79,8 @@ static char *r2_flag_callback(void *context, u64 address) {
 }
 
 #define HBC_CONS(core) ((core)->cons)
-#define HBC_PRINTF(core, fmt, ...) r_cons_printf (HBC_CONS (core), (fmt), ##__VA_ARGS__)
-#define HBC_PRINT(core, s) r_cons_print (HBC_CONS (core), (s))
+#define HBC_PRINTF(core, fmt, ...) r_cons_printf(HBC_CONS(core),(fmt), ## __VA_ARGS__)
+#define HBC_PRINT(core, s) r_cons_print(HBC_CONS(core),(s))
 
 static const char *current_file_path(RCore *core) {
 	if (!core || !core->bin) {
@@ -192,7 +192,7 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		Result fres = hbc_data_provider_get_function_info (hbc_ctx.provider, function_id, &fi);
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
-		StringBuffer output = {0};
+		StringBuffer output = { 0 };
 		string_buffer_init (&output, 4096);
 		result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
@@ -204,7 +204,7 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 	} else {
 		/* Not in a function, decompile all - use 0 as base since multiple functions */
 		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
-		StringBuffer output = {0};
+		StringBuffer output = { 0 };
 		string_buffer_init (&output, 4096);
 		result = decompile_all_with_provider (hbc_ctx.provider, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
@@ -229,7 +229,7 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 	}
 
 	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
-	StringBuffer output = {0};
+	StringBuffer output = { 0 };
 	string_buffer_init (&output, 8192);
 	result = decompile_all_with_provider (hbc_ctx.provider, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
@@ -278,7 +278,7 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	Result fres = hbc_data_provider_get_function_info (hbc_ctx.provider, function_id, &fi);
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
-	StringBuffer output = {0};
+	StringBuffer output = { 0 };
 	string_buffer_init (&output, 4096);
 	result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
@@ -313,8 +313,7 @@ static void cmd_list_functions(RCore *core) {
 		HBCFunctionInfo info;
 		Result res = hbc_data_provider_get_function_info (hbc_ctx.provider, i, &info);
 		if (res.code == RESULT_SUCCESS) {
-			HBC_PRINTF (core, "  [%3u] %s at 0x%08x size=0x%x params=%u\n",
-				i, safe_name (info.name), info.offset, info.size, info.param_count);
+			HBC_PRINTF (core, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, safe_name (info.name), info.offset, info.size, info.param_count);
 		}
 	}
 }
@@ -344,10 +343,14 @@ static void cmd_file_info(RCore *core) {
 		"  Global Code Index: %u\n"
 		"  Static Builtins: %s\n"
 		"  Has Async: %s\n",
-		header.version, header.fileLength, header.functionCount, header.stringCount,
-		header.identifierCount, header.globalCodeIndex,
-		header.staticBuiltins ? "yes" : "no",
-		header.hasAsync ? "yes" : "no");
+		header.version,
+		header.fileLength,
+		header.functionCount,
+		header.stringCount,
+		header.identifierCount,
+		header.globalCodeIndex,
+		header.staticBuiltins? "yes": "no",
+		header.hasAsync? "yes": "no");
 }
 
 /* JSON output for current function */
@@ -380,7 +383,7 @@ static void cmd_json(RCore *core, const char *addr_str) {
 		HBC_PRINTF (core, "{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
 		return;
 	}
-	StringBuffer output = {0};
+	StringBuffer output = { 0 };
 	string_buffer_init (&output, 4096);
 	result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 

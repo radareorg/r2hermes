@@ -13,7 +13,7 @@ typedef struct {
 	const char *program_name;
 } CliContext;
 
-typedef Result (*CommandHandler)(const CliContext *ctx, int argc, char **argv);
+typedef Result(*CommandHandler)(const CliContext *ctx, int argc, char **argv);
 
 typedef struct {
 	const char *name;
@@ -160,7 +160,7 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 		if (*out_len >= out_cap) {
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Too many bytes (max 64)");
 		}
-		out[(*out_len)++] = (u8)((hi << 4) | lo);
+		out[(*out_len)++] = (u8) ((hi << 4) | lo);
 	}
 	if (*out_len == 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No bytes parsed");

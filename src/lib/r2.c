@@ -71,23 +71,18 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	u32 function_count = reader.header.functionCount;
 
 	if (function_count > MAX_SAFE_FUNCTIONS) {
-		fprintf (stderr, "Warning: Very large function count (%u). Limiting to %u for safety.\n",
-			reader.header.functionCount, MAX_SAFE_FUNCTIONS);
+		fprintf (stderr, "Warning: Very large function count (%u). Limiting to %u for safety.\n", reader.header.functionCount, MAX_SAFE_FUNCTIONS);
 		function_count = MAX_SAFE_FUNCTIONS;
 	}
 
-	fprintf (stderr, "Reading functions at position %zu of %zu bytes.\n",
-		reader.file_buffer.position, reader.file_buffer.size);
-	fprintf (out, "# Reading %u functions from position 0x%zx\n",
-		function_count, reader.file_buffer.position);
+	fprintf (stderr, "Reading functions at position %zu of %zu bytes.\n", reader.file_buffer.position, reader.file_buffer.size);
+	fprintf (out, "# Reading %u functions from position 0x%zx\n", function_count, reader.file_buffer.position);
 
 	/* Check for reasonable function count vs file size */
 	size_t min_bytes_needed = function_count * 16; /* Each header is at least 16 bytes */
 	if (reader.file_buffer.position + min_bytes_needed > reader.file_buffer.size) {
-		fprintf (stderr, "Warning: File might be truncated. Need ~%zu more bytes for function headers.\n",
-			min_bytes_needed);
-		fprintf (out, "# Warning: File appears too small for %u functions, may only read partial data\n",
-			function_count);
+		fprintf (stderr, "Warning: File might be truncated. Need ~%zu more bytes for function headers.\n", min_bytes_needed);
+		fprintf (out, "# Warning: File appears too small for %u functions, may only read partial data\n", function_count);
 	}
 
 	/* Create temporary array for function names to solve temp_name lifetime issues */
@@ -130,8 +125,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	for (u32 i = 0; i < function_count; i++) {
 		/* Safety check - ensure we have enough buffer for a function header (16 bytes) */
 		if (reader.file_buffer.position + 16 > reader.file_buffer.size) {
-			fprintf (stderr, "Reached end of file after reading %zu of %u functions\n",
-				successful_functions, function_count);
+			fprintf (stderr, "Reached end of file after reading %zu of %u functions\n", successful_functions, function_count);
 			break; /* End reading if we reach end of buffer */
 		}
 
@@ -145,8 +139,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 		for (int j = 0; j < 4; j++) {
 			Result res = buffer_reader_read_u32 (&reader.file_buffer, &raw_data[j]);
 			if (res.code != RESULT_SUCCESS) {
-				fprintf (stderr, "Error reading function %u header word %d: %s\n",
-					i, j, res.error_message);
+				fprintf (stderr, "Error reading function %u header word %d: %s\n", i, j, res.error_message);
 				header_read_failed = true;
 				break;
 			}
@@ -241,8 +234,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 
 		/* Add size info if available */
 		if (function_sizes[i] > 0) {
-			fprintf (out, "'f func.hermes.%s 0x%x 0x%x\n", sanitized_name,
-				function_sizes[i], function_offsets[i]);
+			fprintf (out, "'f func.hermes.%s 0x%x 0x%x\n", sanitized_name, function_sizes[i], function_offsets[i]);
 		} else {
 			fprintf (out, "'f func.hermes.%s=0x%x\n", sanitized_name, function_offsets[i]);
 		}
@@ -437,8 +429,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 
 			/* Add index to name to ensure uniqueness */
 			char unique_name[96];
-			snprintf (unique_name, sizeof (unique_name), "%s_%u",
-				sanitized_name[0]? sanitized_name: "str", i);
+			snprintf (unique_name, sizeof (unique_name), "%s_%u", sanitized_name[0]? sanitized_name: "str", i);
 
 			/* Write the string flag - offset is relative to string storage base */
 			uint32_t size = (isUTF16)? length * 2: length;

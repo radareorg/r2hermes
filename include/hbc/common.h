@@ -114,6 +114,6 @@ void buffer_reader_free(BufferReader *reader);
 
 #define SUCCESS_RESULT() ((Result){ RESULT_SUCCESS, "" })
 
-#define ERROR_RESULT(code, message) ((Result){code,message})
+#define ERROR_RESULT(code, message) ((Result){ code, message })
 
 #endif /* HERMES_DEC_COMMON_H */

@@ -147,7 +147,7 @@ static const char *pseudo_rules[] = {
 	"jstrict_not_equal_long/3/if ($1 !== $2) goto $3",
 
 	/* Function calls and returns */
-	/* call: result = callee(this, args...) */
+	/* call: result = callee (this, args...) */
 	"call/2/$1($2)",
 	"call1/3/$1 = $2($3)",
 	"call2/4/$1 = $2($4)",

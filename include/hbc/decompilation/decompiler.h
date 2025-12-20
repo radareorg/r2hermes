@@ -137,7 +137,7 @@ typedef struct HermesDecompiler {
 	char *input_file;
 	char *output_file;
 	HBCReader *hbc_reader;
-	HBCDataProvider *data_provider;  /* NEW: Use data provider instead of direct file I/O */
+	HBCDataProvider *data_provider; /* NEW: Use data provider instead of direct file I/O */
 	u32 *calldirect_function_ids;
 	u32 calldirect_function_ids_count;
 	u32 calldirect_function_ids_capacity;
@@ -159,8 +159,7 @@ Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, S
 Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out);
 Result decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
 Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
-Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment,
-	int environment_id, bool is_closure, bool is_generator, bool is_async);
+Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async);
 
 /* Transformation passes */
 Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body);

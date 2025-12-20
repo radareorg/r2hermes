@@ -25,15 +25,12 @@ Result hbc_encoder_init(HBCEncoder *encoder, u32 bytecode_version);
 void hbc_encoder_cleanup(HBCEncoder *encoder);
 
 /* Parse instruction from asm text */
-Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line,
-	HBCEncodedInstruction *out_instruction);
+Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, HBCEncodedInstruction *out_instruction);
 
 /* Encode instruction to bytecode */
-Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstruction *instruction,
-	u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written);
+Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstruction *instruction, u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written);
 
 /* Encode multiple instructions from asm text */
-Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text,
-	u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written);
+Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text, u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written);
 
 #endif /* HBC_ENCODER_H */

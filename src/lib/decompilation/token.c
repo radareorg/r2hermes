@@ -190,8 +190,7 @@ Token *create_new_inner_environment_token(int dest_register, int parent_register
 	return (Token *)t;
 }
 
-Token *create_switch_imm_token(int value_reg, u32 jump_table_address, u32 default_jump_address,
-	u32 unsigned_min_value, u32 unsigned_max_value) {
+Token *create_switch_imm_token(int value_reg, u32 jump_table_address, u32 default_jump_address, u32 unsigned_min_value, u32 unsigned_max_value) {
 	SwitchImmToken *t = (SwitchImmToken *)alloc_token (TOKEN_TYPE_SWITCH_IMM, sizeof (SwitchImmToken) - sizeof (Token));
 	if (!t) {
 		return NULL;

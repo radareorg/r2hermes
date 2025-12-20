@@ -72,8 +72,7 @@ void parsed_instruction_list_free(ParsedInstructionList *list) {
 }
 
 /* Parse all bytecode instructions in a function */
-Result parse_function_bytecode(HBCReader *reader, u32 function_id,
-	ParsedInstructionList *out_instructions, HBCISA isa) {
+Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa) {
 	if (!reader || !out_instructions) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT,
 			"Invalid arguments for parse_function_bytecode");
@@ -97,7 +96,9 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 
 	/* Debug info to verify offsets */
 	hbc_debug_printf ("Function #%u bytecode: offset=0x%08x, size=%u\n",
-		function_id, function_header->offset, function_header->bytecodeSizeInBytes);
+		function_id,
+		function_header->offset,
+		function_header->bytecodeSizeInBytes);
 
 	/* Initialize instruction list */
 	RETURN_IF_ERROR (parsed_instruction_list_init (out_instructions, 32)); /* Start with space for 32 instructions */
@@ -128,7 +129,8 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 		result = buffer_reader_read_u8 (&bytecode_buffer, &opcode);
 		if (result.code != RESULT_SUCCESS) {
 			hbc_debug_printf ("Error reading opcode at position %zu: %s\n",
-				original_pos, result.error_message);
+				original_pos,
+				result.error_message);
 			parsed_instruction_list_free (out_instructions);
 			return result;
 		}
@@ -208,7 +210,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 					}
 					/* Sign-extend relative offsets */
 					i8 value_s = (i8)value_u;
-					operand_values[i] = (u32)(i32)value_s;
+					operand_values[i] = (u32) (i32)value_s;
 					break;
 				}
 
@@ -295,7 +297,10 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id,
 			bool suspicious_range = (min_s < -100000 || min_s > 100000 || max_s < -100000 || max_s > 100000);
 			if (min_s > max_s) {
 				hbc_debug_printf ("Warning: Invalid jump table range - min (%u) > max (%u) at offset 0x%08x (Function #%u)\n",
-					instruction.arg4, instruction.arg5, (u32)original_pos, function_id);
+					instruction.arg4,
+					instruction.arg5,
+					(u32)original_pos,
+					function_id);
 				/* Clamp to a single entry to keep parsing moving */
 				max_s = min_s;
 			}
@@ -567,10 +572,7 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 					}
 
 					char func_info[256];
-					snprintf (func_info, sizeof (func_info),
-						"  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x",
-						value, func_name, func->bytecodeSizeInBytes,
-						func->paramCount, func->offset);
+					snprintf (func_info, sizeof (func_info), "  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x", value, func_name, func->bytecodeSizeInBytes, func->paramCount, func->offset);
 					RETURN_IF_ERROR (string_buffer_append (out_string, func_info));
 				}
 				break;

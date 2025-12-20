@@ -42,8 +42,7 @@ Result print_function_header(Disassembler *disassembler, FunctionHeader *functio
 		reader->strings && reader->strings[function_header->functionName]) {
 		function_name = reader->strings[function_header->functionName];
 	} else if (function_header->functionName >= reader->header.stringCount) {
-		fprintf (stderr, "Warning: Function #%u has invalid name index %u (max %u)\n",
-			function_id, function_header->functionName, reader->header.stringCount);
+		fprintf (stderr, "Warning: Function #%u has invalid name index %u (max %u)\n", function_id, function_header->functionName, reader->header.stringCount);
 	}
 
 	if (verbose) {
@@ -526,9 +525,7 @@ Result disassemble_function(Disassembler *disassembler, u32 function_id) {
 		debug_func_name = reader->strings[function_header->functionName];
 	}
 
-	fprintf (stderr, "Function #%u: name=%s, offset=0x%08x, size=%u\n",
-		function_id, debug_func_name, function_header->offset,
-		function_header->bytecodeSizeInBytes);
+	fprintf (stderr, "Function #%u: name=%s, offset=0x%08x, size=%u\n", function_id, debug_func_name, function_header->offset, function_header->bytecodeSizeInBytes);
 
 	/* Only try to fetch bytecode if we don't have it yet but have valid size & offset */
 	if (function_header->bytecodeSizeInBytes > 0 && !function_header->bytecode) {
@@ -612,10 +609,7 @@ Result disassemble_function(Disassembler *disassembler, u32 function_id) {
 	if (result.code != RESULT_SUCCESS) {
 		/* Handle parsing error - Print more debug info */
 		char debug_info[512];
-		snprintf (debug_info, sizeof (debug_info),
-			"[Error parsing bytecode for function #%u: %s - Offset: %u, Size: %u]\n",
-			function_id, result.error_message[0] != '\0'? result.error_message: "Unknown error",
-			function_header->offset, function_header->bytecodeSizeInBytes);
+		snprintf (debug_info, sizeof (debug_info), "[Error parsing bytecode for function #%u: %s - Offset: %u, Size: %u]\n", function_id, result.error_message[0] != '\0'? result.error_message: "Unknown error", function_header->offset, function_header->bytecodeSizeInBytes);
 
 		RETURN_IF_ERROR (string_buffer_append (&disassembler->output, debug_info));
 
@@ -671,8 +665,7 @@ Result disassemble_all_functions(Disassembler *disassembler) {
 	if (reader->header.functionCount > 0) {
 		Result result = disassemble_function (disassembler, 0);
 		if (result.code != RESULT_SUCCESS) {
-			fprintf (stderr, "Warning: Failed to disassemble global function: %s\n",
-				result.error_message[0] != '\0'? result.error_message: "Unknown error");
+			fprintf (stderr, "Warning: Failed to disassemble global function: %s\n", result.error_message[0] != '\0'? result.error_message: "Unknown error");
 		}
 	}
 
@@ -681,8 +674,7 @@ Result disassemble_all_functions(Disassembler *disassembler) {
 		Result result = disassemble_function (disassembler, i);
 		if (result.code != RESULT_SUCCESS) {
 			/* Just log and continue with next function */
-			fprintf (stderr, "Warning: Failed to disassemble function #%u: %s\n",
-				i, result.error_message[0] != '\0'? result.error_message: "Unknown error");
+			fprintf (stderr, "Warning: Failed to disassemble function #%u: %s\n", i, result.error_message[0] != '\0'? result.error_message: "Unknown error");
 		}
 	}
 

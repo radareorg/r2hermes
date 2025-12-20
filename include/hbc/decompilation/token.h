@@ -234,13 +234,10 @@ Token *create_get_environment_token(int reg_num, int nesting_level);
 Token *create_load_from_environment_token(int reg_num, int slot_index);
 Token *create_new_environment_token(int reg_num);
 Token *create_new_inner_environment_token(int dest_register, int parent_register, int number_of_slots);
-Token *create_switch_imm_token(int value_reg, u32 jump_table_address, u32 default_jump_address,
-	u32 unsigned_min_value, u32 unsigned_max_value);
+Token *create_switch_imm_token(int value_reg, u32 jump_table_address, u32 default_jump_address, u32 unsigned_min_value, u32 unsigned_max_value);
 Token *create_store_to_environment_token(int env_register, int slot_index, int value_register);
-Token *create_for_in_loop_init_token(int obj_props_register, int obj_register,
-	int iter_index_register, int iter_size_register);
-Token *create_for_in_loop_next_iter_token(int next_value_register, int obj_props_register,
-	int obj_register, int iter_index_register, int iter_size_register);
+Token *create_for_in_loop_init_token(int obj_props_register, int obj_register, int iter_index_register, int iter_size_register);
+Token *create_for_in_loop_next_iter_token(int next_value_register, int obj_props_register, int obj_register, int iter_index_register, int iter_size_register);
 Token *create_resume_generator_token(int result_out_reg, int return_bool_out_reg);
 Token *create_save_generator_token(u32 address);
 Token *create_start_generator_token(void);
