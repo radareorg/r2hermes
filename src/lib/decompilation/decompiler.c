@@ -2091,13 +2091,19 @@ static bool bbvec_contains(BasicBlock **arr, u32 count, BasicBlock *bb) {
 }
 
 static bool token_needs_space(TokenType prev, TokenType cur) {
-	bool cur_punct = (cur == TOKEN_TYPE_LEFT_PARENTHESIS || cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR);
-	if (cur_punct || prev == TOKEN_TYPE_LEFT_PARENTHESIS || cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR) {
+	/* Space before '(' for readability */
+	if (cur == TOKEN_TYPE_LEFT_PARENTHESIS) {
+		return true;
+	}
+	/* No space before other punctuation */
+	if (cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR) {
 		return false;
 	}
-	if (prev == TOKEN_TYPE_DOT_ACCESSOR) {
+	/* No space after '(' or after '.' */
+	if (prev == TOKEN_TYPE_LEFT_PARENTHESIS || prev == TOKEN_TYPE_DOT_ACCESSOR) {
 		return false;
 	}
+	/* Always space around '=' */
 	if (prev == TOKEN_TYPE_ASSIGNMENT || cur == TOKEN_TYPE_ASSIGNMENT) {
 		return true;
 	}

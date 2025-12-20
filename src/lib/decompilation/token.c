@@ -454,16 +454,23 @@ Result token_string_to_string(TokenString *ts, StringBuffer *out) {
 	Token *cur = ts->head;
 	TokenType prev = (TokenType) (-1);
 	while (cur) {
-		/* spacing rules: no space before punctuation, no space after '(' or before ')', add spaces around '=' */
+		/* spacing rules: add space before '(', no space after '(' or before ')', add spaces around '=' */
 		if (cur != ts->head) {
 			bool need_space = true;
-			if (is_punct (cur->type) || prev == TOKEN_TYPE_LEFT_PARENTHESIS || cur->type == TOKEN_TYPE_RIGHT_PARENTHESIS || cur->type == TOKEN_TYPE_DOT_ACCESSOR) {
+			/* Space before '(' for readability */
+			if (cur->type == TOKEN_TYPE_LEFT_PARENTHESIS) {
+				need_space = true;
+			}
+			/* No space before other punctuation */
+			else if (is_punct (cur->type) || cur->type == TOKEN_TYPE_RIGHT_PARENTHESIS || cur->type == TOKEN_TYPE_DOT_ACCESSOR) {
 				need_space = false;
 			}
-			if (prev == TOKEN_TYPE_DOT_ACCESSOR) {
+			/* No space after '(' or after '.' */
+			else if (prev == TOKEN_TYPE_LEFT_PARENTHESIS || prev == TOKEN_TYPE_DOT_ACCESSOR) {
 				need_space = false;
 			}
-			if (prev == TOKEN_TYPE_ASSIGNMENT || cur->type == TOKEN_TYPE_ASSIGNMENT) {
+			/* Always space around '=' */
+			else if (prev == TOKEN_TYPE_ASSIGNMENT || cur->type == TOKEN_TYPE_ASSIGNMENT) {
 				need_space = true;
 			}
 			if (need_space) {
