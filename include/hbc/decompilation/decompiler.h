@@ -5,6 +5,7 @@
 #include <hbc/parser.h>
 #include <hbc/bytecode.h>
 #include <hbc/hbc.h>
+#include <hbc/data_provider.h>
 #include <hbc/decompilation/token.h>
 
 /* Forward declaration */
@@ -136,6 +137,7 @@ typedef struct HermesDecompiler {
 	char *input_file;
 	char *output_file;
 	HBCReader *hbc_reader;
+	HBCDataProvider *data_provider;  /* NEW: Use data provider instead of direct file I/O */
 	u32 *calldirect_function_ids;
 	u32 calldirect_function_ids_count;
 	u32 calldirect_function_ids_capacity;
@@ -148,12 +150,15 @@ typedef struct HermesDecompiler {
 
 /* Function declarations */
 Result decompiler_init(HermesDecompiler *decompiler);
+Result decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvider *provider);
 Result decompiler_cleanup(HermesDecompiler *decompiler);
 /* High-level entry points */
 Result decompile_file(const char *input_file, const char *output_file);
 /* Buffer-based APIs used by hermesdec library */
 Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out);
+Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out);
 Result decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
+Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
 Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment,
 	int environment_id, bool is_closure, bool is_generator, bool is_async);
 
