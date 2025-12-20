@@ -801,20 +801,43 @@ Result hbc_encode_instruction(
 	const char *asm_line,
 	u32 bytecode_version,
 	HBCEncodeBuffer *out) {
-	(void)asm_line;
-	(void)bytecode_version;
-	(void)out;
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not implemented");
+	if (!asm_line || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	HBCEncoder encoder;
+	RETURN_IF_ERROR (hbc_encoder_init (&encoder, bytecode_version));
+
+	HBCEncodedInstruction instruction;
+	RETURN_IF_ERROR (hbc_encoder_parse_instruction (&encoder, asm_line, &instruction));
+
+	size_t bytes_written;
+	Result r = hbc_encoder_encode_instruction (&encoder, &instruction, out->buffer, out->buffer_size, &bytes_written);
+	if (r.code == RESULT_SUCCESS) {
+		out->bytes_written = bytes_written;
+	}
+	hbc_encoder_cleanup (&encoder);
+	return r;
 }
 
 Result hbc_encode_instructions(
 	const char *asm_text,
 	u32 bytecode_version,
 	HBCEncodeBuffer *out) {
-	(void)asm_text;
-	(void)bytecode_version;
-	(void)out;
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not implemented");
+	if (!asm_text || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	HBCEncoder encoder;
+	RETURN_IF_ERROR (hbc_encoder_init (&encoder, bytecode_version));
+
+	size_t bytes_written;
+	Result r = hbc_encoder_encode_instructions (&encoder, asm_text, out->buffer, out->buffer_size, &bytes_written);
+	if (r.code == RESULT_SUCCESS) {
+		out->bytes_written = bytes_written;
+	}
+	hbc_encoder_cleanup (&encoder);
+	return r;
 }
 
 /* New string-returning APIs (Option 1: StringBuffer internalized) */

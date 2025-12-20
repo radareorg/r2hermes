@@ -309,22 +309,24 @@ static Result cmd_dis(const CliContext *ctx, int argc, char **argv) {
 	return SUCCESS_RESULT ();
 }
 
-static Result cmd_asm(const CliContext *ctx, int argc, char **argv) {
-	if (argc < 1) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s asm <asm_file> [output_file]", ctx->program_name);
-	}
-	const char *input = argv[0];
-	const char *output = (argc >= 2)? argv[1]: NULL;
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
+static Result encode_asm(const char *input, bool is_file, const char *output) {
 	char *asm_text = NULL;
 	size_t asm_len = 0;
-	RETURN_IF_ERROR (read_entire_file (input, &asm_text, &asm_len));
-	if (asm_len == 0) {
-		free (asm_text);
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Empty input file");
+
+	if (is_file) {
+		RETURN_IF_ERROR (read_entire_file (input, &asm_text, &asm_len));
+		if (asm_len == 0) {
+			free (asm_text);
+			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Empty input file");
+		}
+	} else {
+		/* Inline assembly */
+		asm_text = (char *)malloc (strlen (input) + 1);
+		if (!asm_text) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+		}
+		strcpy (asm_text, input);
+		asm_len = strlen (input);
 	}
 
 	const size_t out_cap = 64 * 1024;
@@ -344,6 +346,28 @@ static Result cmd_asm(const CliContext *ctx, int argc, char **argv) {
 	r = write_bytes (output, buffer, eb.bytes_written);
 	free (buffer);
 	return r;
+}
+
+static Result cmd_a(const CliContext *ctx, int argc, char **argv) {
+	if (argc < 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s a <asm_instruction> [output_file]", ctx->program_name);
+	}
+	const char *output = (argc >= 2)? argv[1]: NULL;
+	if (argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
+	}
+	return encode_asm (argv[0], false, output);
+}
+
+static Result cmd_asm(const CliContext *ctx, int argc, char **argv) {
+	if (argc < 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s asm <asm_file> [output_file]", ctx->program_name);
+	}
+	const char *output = (argc >= 2)? argv[1]: NULL;
+	if (argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
+	}
+	return encode_asm (argv[0], true, output);
 }
 
 static Result cmd_r(const CliContext *ctx, int argc, char **argv) {
@@ -723,7 +747,8 @@ static const Command commands[] = {
 	{ "d", "Disassemble a Hermes bytecode file", cmd_d },
 	{ "c", "Decompile a Hermes bytecode file", cmd_c },
 	{ "dis", "Disassemble raw hex bytes (rasm2-like)", cmd_dis },
-	{ "asm", "Assemble asm text to bytes", cmd_asm },
+	{ "a", "Assemble a single instruction", cmd_a },
+	{ "asm", "Assemble instructions from file", cmd_asm },
 	{ "h", "Display header information", cmd_h },
 	{ "v", "Validate file and show details", cmd_v },
 	{ "r", "Generate an r2 script with function flags", cmd_r },
@@ -739,7 +764,7 @@ static void print_usage(const char *program_name) {
 	printf ("Usage: %s <command> <args...>\n\n", program_name);
 	printf ("Commands:\n");
 	for (size_t i = 0; i < sizeof (commands) / sizeof (commands[0]); i++) {
-		printf ("  %-4s %s\n", commands[i].name, commands[i].help);
+		printf ("  %-5s %s\n", commands[i].name, commands[i].help);
 	}
 	printf ("\nOptions:\n");
 	printf ("  --verbose, -v            Show detailed metadata (d)\n");

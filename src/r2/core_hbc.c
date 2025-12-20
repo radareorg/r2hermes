@@ -63,6 +63,9 @@ static char *r2_comment_callback(void *context, u64 address) {
 		return NULL;
 	}
 	const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
+	if (comment) {
+		hbc_debug_printf ("[r2_comment_callback] Found comment at 0x%llx: %s\n", (unsigned long long)address, comment);
+	}
 	return comment? strdup (comment): NULL;
 }
 

@@ -141,10 +141,10 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, 
 			break;
 		}
 
-		/* Find end of operand (comma or end) */
+		/* Find end of operand (comma, whitespace, or end) */
 		const char *operand_end = line;
 		int paren_depth = 0;
-		while (*operand_end && (*operand_end != ',' || paren_depth > 0)) {
+		while (*operand_end && !isspace (*operand_end) && (*operand_end != ',' || paren_depth > 0)) {
 			if (*operand_end == '(') {
 				paren_depth++;
 			} else if (*operand_end == ')') {
@@ -171,10 +171,11 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, 
 		while (*trim_start && isspace (*trim_start)) {
 			trim_start++;
 		}
-		char *trim_end = trim_start + strlen (trim_start) - 1;
-		while (trim_end > trim_start && isspace (*trim_end)) {
-			*trim_end-- = '\0';
+		char *trim_end = trim_start + strlen (trim_start);
+		while (trim_end > trim_start && isspace (*(trim_end - 1))) {
+			trim_end--;
 		}
+		*trim_end = '\0';
 
 		/* Parse operand based on expected type */
 		if (operand_count < 6 && inst->operands[operand_count].operand_type != OPERAND_TYPE_NONE) {

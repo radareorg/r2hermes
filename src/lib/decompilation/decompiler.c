@@ -2792,6 +2792,10 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	}
 
 	u32 cur_bb_index = 0;
+	hbc_debug_printf ("[output_code] START function_base=0x%llx, comment_callback=%p, stmt_count=%u\n",
+		(unsigned long long)state->options.function_base,
+		(void *)state->options.comment_callback,
+		function_body->statements_count);
 	for (u32 si = 0; si < function_body->statements_count; si++) {
 		/* Skip dead code */
 		if (dce && dce[si]) {
@@ -2799,6 +2803,9 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		}
 		TokenString *st = &function_body->statements[si];
 		ParsedInstruction *asm_ref = st->assembly;
+		if (si < 10) {
+			hbc_debug_printf ("[output_code] stmt %u: asm_ref=%p\n", si, (void *)asm_ref);
+		}
 		if (asm_ref) {
 			u32 pos = asm_ref->original_pos;
 			/* Close frames */
