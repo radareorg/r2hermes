@@ -1893,16 +1893,32 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 		stub_reader.function_headers[i].bytecode = NULL;
 	}
 
+	/* Populate strings array from provider */
+	if (header.stringCount > 0) {
+		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
+		if (!stub_reader.strings) {
+			free (stub_reader.function_headers);
+			decompiler_cleanup (&dec);
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate strings array");
+		}
+		for (u32 i = 0; i < header.stringCount; i++) {
+			const char *str = NULL;
+			Result sres = hbc_data_provider_get_string (provider, i, &str);
+			if (sres.code == RESULT_SUCCESS && str) {
+				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
+			}
+		}
+	}
+
 	Result r = decompile_function (&dec, function_id, NULL, -1, false, false, false);
 	if (r.code == RESULT_SUCCESS) {
 		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
 		RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
 	}
 
-	/* Free allocated function_headers */
-	if (stub_reader.function_headers) {
-		free (stub_reader.function_headers);
-	}
+	/* Free allocated arrays (strings are owned by provider, don't free individual strings) */
+	free (stub_reader.strings);
+	free (stub_reader.function_headers);
 
 	decompiler_cleanup (&dec);
 	return r;
@@ -1969,6 +1985,23 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 		/* Other fields are not needed for provider-based decompilation */
 	}
 
+	/* Populate strings array from provider */
+	if (header.stringCount > 0) {
+		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
+		if (!stub_reader.strings) {
+			free (stub_reader.function_headers);
+			decompiler_cleanup (&dec);
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate strings array");
+		}
+		for (u32 i = 0; i < header.stringCount; i++) {
+			const char *str = NULL;
+			Result sres = hbc_data_provider_get_string (provider, i, &str);
+			if (sres.code == RESULT_SUCCESS && str) {
+				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
+			}
+		}
+	}
+
 	/* File preamble */
 	if (!options.suppress_comments) {
 		HBCHeader header;
@@ -2000,11 +2033,9 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 
 	RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
 
-	/* Free allocated function_headers from stub */
-	if (stub_reader.function_headers) {
-		free (stub_reader.function_headers);
-		stub_reader.function_headers = NULL;
-	}
+	/* Free allocated arrays (strings are owned by provider, don't free individual strings) */
+	free (stub_reader.strings);
+	free (stub_reader.function_headers);
 
 	decompiler_cleanup (&dec);
 	return SUCCESS_RESULT ();
