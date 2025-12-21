@@ -1,0 +1,200 @@
+NAME=pd:h help output
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:h?~Hermes
+EOF
+EXPECT=<<EOF
+Hermes bytecode decompiler via libhbc
+EOF
+RUN
+
+NAME=pd:h help subcommands
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:h?~pd:hf
+EOF
+EXPECT=<<EOF
+  pd:hf          - List all functions
+EOF
+RUN
+
+NAME=pd:hi file info small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~Version
+EOF
+EXPECT=<<EOF
+  Version: 96
+EOF
+RUN
+
+NAME=pd:hi file length small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~File Length
+EOF
+EXPECT=<<EOF
+  File Length: 292 bytes
+EOF
+RUN
+
+NAME=pd:hi function count small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~Functions
+EOF
+EXPECT=<<EOF
+  Functions: 1
+EOF
+RUN
+
+NAME=pd:hi string count small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~Strings
+EOF
+EXPECT=<<EOF
+  Strings: 2
+EOF
+RUN
+
+NAME=pd:hi file info large
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hi~Functions
+EOF
+EXPECT=<<EOF
+  Functions: 5388
+EOF
+RUN
+
+NAME=pd:hi strings large
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hi~Strings
+EOF
+EXPECT=<<EOF
+  Strings: 6170
+EOF
+RUN
+
+NAME=pd:hi identifiers large
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hi~Identifiers
+EOF
+EXPECT=<<EOF
+  Identifiers: 3449
+EOF
+RUN
+
+NAME=pd:hf function count large
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hf~?
+EOF
+EXPECT=<<EOF
+5389
+EOF
+RUN
+
+NAME=pd:hc decompile function 0 small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hc 0
+EOF
+EXPECT=<<EOF
+r0_OOB = "print(123);";
+r0_OOB = eval( r0_OOB );
+return r0_OOB;
+
+
+
+EOF
+RUN
+
+NAME=pd:hc decompile function eval
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hc 0~eval
+EOF
+EXPECT=<<EOF
+r0_OOB = eval( r0_OOB );
+EOF
+RUN
+
+NAME=pd:hc decompile function return
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hc 0~return
+EOF
+EXPECT=<<EOF
+return r0_OOB;
+EOF
+RUN
+
+NAME=pd:ha decompile all small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:ha~Decompiled
+EOF
+EXPECT=<<EOF
+// Decompiled Hermes bytecode
+EOF
+RUN
+
+NAME=pd:ha decompile all version
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:ha~Version
+EOF
+EXPECT=<<EOF
+// Version: 96
+EOF
+RUN
+
+NAME=pd:ho decompile with offsets
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:ho 0
+EOF
+EXPECT=<<EOF
+0x000000b0: r0_OOB = "print(123);";
+0x000000b4: r0_OOB = eval( r0_OOB );
+0x000000b8: return r0_OOB;
+
+
+
+EOF
+RUN
+
+NAME=pd:ho offset format
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:ho 0~0x000000b0
+EOF
+EXPECT=<<EOF
+0x000000b0: r0_OOB = "print(123);";
+EOF
+RUN
+
+NAME=pd:hj json output
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hj 0~function_id
+EOF
+EXPECT=<<EOF
+{"function_id":0,"decompilation":"r0_OOB = \"print(123);\";\nr0_OOB = eval( r0_OOB );\nreturn r0_OOB;\n\n\n"}
+EOF
+RUN
+
+NAME=pd:h at entry point
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+s entry0
+pd:h~eval
+EOF
+EXPECT=<<EOF
+r0_OOB = eval( r0_OOB );
+EOF
+RUN
