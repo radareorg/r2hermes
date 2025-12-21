@@ -208,6 +208,24 @@ static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets
 	return opts;
 }
 
+/* Helper to trim trailing empty lines from output */
+static char *trim_trailing_lines(const char *str) {
+	if (!str || !*str) {
+		return NULL;
+	}
+	size_t len = strlen (str);
+	/* Find the last non-whitespace character */
+	while (len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r')) {
+		len--;
+	}
+	char *result = (char *)malloc (len + 1);
+	if (result) {
+		memcpy (result, str, len);
+		result[len] = '\0';
+	}
+	return result;
+}
+
 /* Decompile function at current offset or all functions if not in a function */
 static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 	Result result = hbc_load_current_binary (core);
@@ -230,7 +248,9 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		string_buffer_init (&output, 4096);
 		result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
-			HBC_PRINTF (core, "%s\n", output.data);
+			char *trimmed = trim_trailing_lines (output.data);
+			HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
+			free (trimmed);
 		} else {
 			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 		}
@@ -242,7 +262,9 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		string_buffer_init (&output, 4096);
 		result = decompile_all_with_provider (hbc_ctx.provider, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
-			HBC_PRINTF (core, "%s\n", output.data);
+			char *trimmed = trim_trailing_lines (output.data);
+			HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
+			free (trimmed);
 		} else {
 			HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 		}
@@ -267,7 +289,9 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 	string_buffer_init (&output, 8192);
 	result = decompile_all_with_provider (hbc_ctx.provider, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
-		HBC_PRINTF (core, "%s\n", output.data);
+		char *trimmed = trim_trailing_lines (output.data);
+		HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
+		free (trimmed);
 	} else {
 		HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 	}
@@ -316,7 +340,9 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	string_buffer_init (&output, 4096);
 	result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
-		HBC_PRINTF (core, "%s\n", output.data);
+		char *trimmed = trim_trailing_lines (output.data);
+		HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
+		free (trimmed);
 	} else {
 		HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 	}

@@ -2674,14 +2674,31 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	/* Function header (always output, even for global) */
 	if (!state->inlining_function) {
 		if (function_body->is_async) {
-			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			if (state->options.show_offsets) {
+				char addr_buf[24];
+				snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
+				RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+			} else {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			}
 			RETURN_IF_ERROR (string_buffer_append (out, "async "));
 		} else if (!function_body->is_global) {
-			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			if (state->options.show_offsets) {
+				char addr_buf[24];
+				snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
+				RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+			} else {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			}
 		}
 	}
 	if (function_body->is_async && state->inlining_function) {
 		RETURN_IF_ERROR (string_buffer_append (out, "async "));
+	}
+	if (state->options.show_offsets) {
+		char addr_buf[24];
+		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
+		RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
 	}
 	if (!function_body->is_global) {
 		RETURN_IF_ERROR (string_buffer_append (out, "function"));
@@ -2726,6 +2743,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		}
 		RETURN_IF_ERROR (string_buffer_append (out, "\n"));
 	} else {
+		/* Global function */
 		RETURN_IF_ERROR (string_buffer_append (out, "function global() {"));
 		/* Check for r2 comment at function start for global function */
 		char *r2_comment = NULL;
@@ -2885,6 +2903,8 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			char addr_buf[24];
 			snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)abs_addr);
 			RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+			/* Add indentation after offset */
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		} else {
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		}
@@ -3004,11 +3024,17 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
 	}
-	if (!function_body->is_global) {
-		state->indent_level--;
+	/* Closing brace for all functions (global and non-global) */
+	state->indent_level--;
+	if (state->options.show_offsets) {
+		/* In pd:ho mode, closing brace must start with an offset */
+		char addr_buf[24];
+		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
+		RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+	} else {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (string_buffer_append (out, "}"));
 	}
+	RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
 
 	free (frame_starts);
 	free (frame_ends);
