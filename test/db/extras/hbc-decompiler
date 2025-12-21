@@ -104,12 +104,11 @@ CMDS=<<EOF
 pd:hc 0
 EOF
 EXPECT=<<EOF
-r0_OOB = "print(123);";
-r0_OOB = eval( r0_OOB );
-return r0_OOB;
-
-
-
+function global() {
+  r0 = "print(123);";
+  r0 = eval( r0 );
+  return r0;
+}
 EOF
 RUN
 
@@ -119,7 +118,7 @@ CMDS=<<EOF
 pd:hc 0~eval
 EOF
 EXPECT=<<EOF
-r0_OOB = eval( r0_OOB );
+  r0 = eval( r0 );
 EOF
 RUN
 
@@ -129,7 +128,7 @@ CMDS=<<EOF
 pd:hc 0~return
 EOF
 EXPECT=<<EOF
-return r0_OOB;
+  return r0;
 EOF
 RUN
 
@@ -159,12 +158,11 @@ CMDS=<<EOF
 pd:ho 0
 EOF
 EXPECT=<<EOF
-0x000000b0: r0_OOB = "print(123);";
-0x000000b4: r0_OOB = eval( r0_OOB );
-0x000000b8: return r0_OOB;
-
-
-
+0x000000b0: function global() {
+0x000000b0:   r0 = "print(123);";
+0x000000b4:   r0 = eval( r0 );
+0x000000b8:   return r0;
+0x000000b0: }
 EOF
 RUN
 
@@ -174,7 +172,9 @@ CMDS=<<EOF
 pd:ho 0~0x000000b0
 EOF
 EXPECT=<<EOF
-0x000000b0: r0_OOB = "print(123);";
+0x000000b0: function global() {
+0x000000b0:   r0 = "print(123);";
+0x000000b0: }
 EOF
 RUN
 
@@ -184,7 +184,7 @@ CMDS=<<EOF
 pd:hj 0~function_id
 EOF
 EXPECT=<<EOF
-{"function_id":0,"decompilation":"r0_OOB = \"print(123);\";\nr0_OOB = eval( r0_OOB );\nreturn r0_OOB;\n\n\n"}
+{"function_id":0,"decompilation":"function global() {\n  r0 = \"print(123);\";\n  r0 = eval( r0 );\n  return r0;\n}\n\n\n"}
 EOF
 RUN
 
@@ -195,6 +195,6 @@ s entry0
 pd:h~eval
 EOF
 EXPECT=<<EOF
-r0_OOB = eval( r0_OOB );
+  r0 = eval( r0 );
 EOF
 RUN
