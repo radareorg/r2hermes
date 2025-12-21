@@ -2171,6 +2171,8 @@ static int info(RArchSession *s, ut32 q) {
 	switch (q) {
 	case R_ARCH_INFO_CODE_ALIGN:
 		return 1;
+	case R_ARCH_INFO_ISVM:
+		return R_ARCH_INFO_ISVM;
 	case R_ARCH_INFO_MAXOP_SIZE:
 		return MAX_OP_SIZE;
 	case R_ARCH_INFO_INVOP_SIZE:
