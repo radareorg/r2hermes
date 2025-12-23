@@ -71,14 +71,14 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 	}
 	size_t saved = reader->file_buffer.position;
-	Result sr = buffer_reader_seek (&reader->file_buffer, function_header->offset);
+	Result sr = _hbc_buffer_reader_seek (&reader->file_buffer, function_header->offset);
 	if (sr.code != RESULT_SUCCESS) {
 		free (function_header->bytecode);
 		function_header->bytecode = NULL;
 		reader->file_buffer.position = saved;
 		return sr;
 	}
-	sr = buffer_reader_read_bytes (&reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes);
+	sr = _hbc_buffer_reader_read_bytes (&reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes);
 	reader->file_buffer.position = saved;
 	if (sr.code != RESULT_SUCCESS) {
 		free (function_header->bytecode);
@@ -108,7 +108,7 @@ static inline bool operand_is_addr(const Instruction *inst, int idx) {
 static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
 	u32 v = insn_get_operand_value (insn, op_index);
 	u32 base = insn->original_pos;
-	if (is_jump_instruction (insn->opcode)) {
+	if (_hbc_is_jump_instruction (insn->opcode)) {
 		base += insn->inst->binary_size;
 	}
 	return base + v;
@@ -184,7 +184,7 @@ static void label_name(char *buf, size_t bufsz, u32 addr) {
 #endif
 static Result append_indent(StringBuffer *sb, int level) {
 	for (int i = 0; i < level; i++) {
-		RETURN_IF_ERROR (string_buffer_append (sb, "  "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (sb, "  "));
 	}
 	return SUCCESS_RESULT ();
 }
@@ -251,11 +251,11 @@ static const char *cmp_op_for_jump(u8 op) {
 #if 0
 static Result append_regname(StringBuffer *sb, int r, char **names, u32 cap) {
 	if (r >= 0 && (u32)r < cap && names && names[r]) {
-		return string_buffer_append (sb, names[r]);
+		return _hbc_string_buffer_append (sb, names[r]);
 	}
 	char buf[16];
 	snprintf (buf, sizeof (buf), "r%d", r);
-	return string_buffer_append (sb, buf);
+	return _hbc_string_buffer_append (sb, buf);
 }
 
 static void apply_register_naming(TokenString *ts, char **names, u32 cap) {
@@ -287,7 +287,7 @@ static void apply_register_naming(TokenString *ts, char **names, u32 cap) {
 					ts->tail = rt;
 				}
 				rt->next = nxt;
-				token_free (cur);
+				_hbc_token_free (cur);
 				cur = rt;
 			}
 		}
@@ -302,7 +302,7 @@ static Result token_string_clear_tokens(TokenString *ts) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_clear_tokens: ts NULL");
 	}
 	ParsedInstruction *asm_ref = ts->assembly;
-	token_string_cleanup (ts);
+	_hbc_token_string_cleanup (ts);
 	ts->assembly = asm_ref;
 	return SUCCESS_RESULT ();
 }
@@ -469,7 +469,7 @@ static BasicBlock *find_block_by_start(DecompiledFunctionBody *fb, u32 start) {
 	return NULL;
 }
 
-Result function_body_init(DecompiledFunctionBody *body, u32 function_id, FunctionHeader *function_object, bool is_global) {
+Result _hbc_function_body_init(DecompiledFunctionBody *body, u32 function_id, FunctionHeader *function_object, bool is_global) {
 	if (!body || !function_object) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "fb_init args");
 	}
@@ -496,7 +496,7 @@ Result function_body_init(DecompiledFunctionBody *body, u32 function_id, Functio
 	return SUCCESS_RESULT ();
 }
 
-void function_body_cleanup(DecompiledFunctionBody *body) {
+void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 	if (!body) {
 		return;
 	}
@@ -563,17 +563,17 @@ void function_body_cleanup(DecompiledFunctionBody *body) {
 	free (body->local_items);
 	if (body->statements) {
 		for (u32 i = 0; i < body->statements_count; i++) {
-			token_string_cleanup (&body->statements[i]);
+			_hbc_token_string_cleanup (&body->statements[i]);
 		}
 		free (body->statements);
 	}
-	parsed_instruction_list_free (&body->instructions);
+	_hbc_parsed_instruction_list_free (&body->instructions);
 	memset (body, 0, sizeof (*body));
 }
 
-Result add_jump_target(DecompiledFunctionBody *body, u32 address) {
+Result _hbc_add_jump_target(DecompiledFunctionBody *body, u32 address) {
 	if (!body) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "add_jump_target: body");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_add_jump_target: body");
 	}
 	for (u32 i = 0; i < body->jump_targets_count; i++) {
 		if (body->jump_targets[i] == address) {
@@ -584,7 +584,7 @@ Result add_jump_target(DecompiledFunctionBody *body, u32 address) {
 		u32 nc = body->jump_targets_capacity? body->jump_targets_capacity * 2: 16;
 		u32 *na = (u32 *)realloc (body->jump_targets, nc * sizeof (u32));
 		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom add_jump_target");
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom _hbc_add_jump_target");
 		}
 		body->jump_targets = na;
 		body->jump_targets_capacity = nc;
@@ -593,7 +593,7 @@ Result add_jump_target(DecompiledFunctionBody *body, u32 address) {
 	return SUCCESS_RESULT ();
 }
 
-Result create_basic_block(DecompiledFunctionBody *body, u32 start_address, u32 end_address) {
+Result _hbc_create_basic_block(DecompiledFunctionBody *body, u32 start_address, u32 end_address) {
 	if (!body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "create_bb body");
 	}
@@ -615,12 +615,12 @@ Result create_basic_block(DecompiledFunctionBody *body, u32 start_address, u32 e
 }
 
 /* Build a control-flow graph using simple leader splitting and edge wiring */
-Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstructionList *list, DecompiledFunctionBody *out_body) {
+Result _hbc_build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstructionList *list, DecompiledFunctionBody *out_body) {
 	if (!reader || !list || !out_body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "build_cfg args");
 	}
 	FunctionHeader *fh = &reader->function_headers[function_id];
-	RETURN_IF_ERROR (function_body_init (out_body, function_id, fh, function_id == reader->header.globalCodeIndex));
+	RETURN_IF_ERROR (_hbc_function_body_init (out_body, function_id, fh, function_id == reader->header.globalCodeIndex));
 	/* Leaders: entry, jump targets, fallthrough after terminators */
 	U32Set leaders = { 0 };
 	u32 func_sz = fh->bytecodeSizeInBytes;
@@ -643,7 +643,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 			if (tgt < func_sz) {
 				u32set_add (&leaders, tgt);
 			}
-			bool term = is_jump_instruction (ins->opcode) || ins->opcode == OP_Ret || ins->opcode == OP_Throw;
+			bool term = _hbc_is_jump_instruction (ins->opcode) || ins->opcode == OP_Ret || ins->opcode == OP_Throw;
 			if (term && ins->next_pos < func_sz) {
 				u32set_add (&leaders, ins->next_pos);
 			}
@@ -664,7 +664,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 				break;
 			}
 		}
-		RETURN_IF_ERROR (create_basic_block (out_body, start, end));
+		RETURN_IF_ERROR (_hbc_create_basic_block (out_body, start, end));
 	}
 	/* Anchor and wire edges */
 	for (u32 i = 0; i < out_body->basic_blocks_count; i++) {
@@ -708,7 +708,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 			/* switch is unconditional in the sense that one target must be taken */
 			bb->is_unconditional_jump_anchor = true;
 		}
-		if (is_jump_instruction (op)) {
+		if (_hbc_is_jump_instruction (op)) {
 			/* compute targets */
 			for (int j = 0; j < 6; j++) {
 				if (!operand_is_addr (last->inst, j)) {
@@ -746,7 +746,7 @@ Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstru
 	return SUCCESS_RESULT ();
 }
 
-Result decompiler_init(HermesDecompiler *decompiler) {
+Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	if (!decompiler) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler pointer");
 	}
@@ -762,18 +762,18 @@ Result decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->options.suppress_comments = false;
 
 	// Initialize string buffer for output
-	string_buffer_init (&decompiler->output, 4096); // Start with 4KB buffer
+	_hbc_string_buffer_init (&decompiler->output, 4096); // Start with 4KB buffer
 
 	return SUCCESS_RESULT ();
 }
 
-Result decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvider *provider) {
+Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvider *provider) {
 	if (!decompiler || !provider) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler or provider pointer");
 	}
 
 	/* Initialize common fields */
-	Result res = decompiler_init (decompiler);
+	Result res = _hbc_decompiler_init (decompiler);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -784,7 +784,7 @@ Result decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvid
 	return SUCCESS_RESULT ();
 }
 
-Result decompiler_cleanup(HermesDecompiler *decompiler) {
+Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler) {
 	if (!decompiler) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler pointer");
 	}
@@ -807,25 +807,25 @@ Result decompiler_cleanup(HermesDecompiler *decompiler) {
 	decompiler->data_provider = NULL;
 
 	// Cleanup string buffer
-	string_buffer_free (&decompiler->output);
+	_hbc_string_buffer_free (&decompiler->output);
 
 	return SUCCESS_RESULT ();
 }
 
-Result decompile_file(const char *input_file, const char *output_file) {
+Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 	Result result;
 	HermesDecompiler decompiler;
 	HBCReader reader;
 
 	// Initialize structs
-	result = decompiler_init (&decompiler);
+	result = _hbc_decompiler_init (&decompiler);
 	if (result.code != RESULT_SUCCESS) {
 		return result;
 	}
 
-	result = hbc_reader_init (&reader);
+	result = _hbc_reader_init (&reader);
 	if (result.code != RESULT_SUCCESS) {
-		decompiler_cleanup (&decompiler);
+		_hbc_decompiler_cleanup (&decompiler);
 		return result;
 	}
 
@@ -835,30 +835,30 @@ Result decompile_file(const char *input_file, const char *output_file) {
 	decompiler.hbc_reader = &reader;
 
 	// Read and parse the file
-	result = hbc_reader_read_file (&reader, input_file);
+	result = _hbc_reader_read_file (&reader, input_file);
 	if (result.code != RESULT_SUCCESS) {
-		hbc_reader_cleanup (&reader);
-		decompiler_cleanup (&decompiler);
+		_hbc_reader_cleanup (&reader);
+		_hbc_decompiler_cleanup (&decompiler);
 		return result;
 	}
 
 	// Read header
-	result = hbc_reader_read_header (&reader);
+	result = _hbc_reader_read_header (&reader);
 	if (result.code != RESULT_SUCCESS) {
-		hbc_reader_cleanup (&reader);
-		decompiler_cleanup (&decompiler);
+		_hbc_reader_cleanup (&reader);
+		_hbc_decompiler_cleanup (&decompiler);
 		return result;
 	}
 
 	// Produce decompilation into a temporary buffer, then write to file/stdout
 	StringBuffer sb;
-	string_buffer_init (&sb, 64 * 1024);
+	_hbc_string_buffer_init (&sb, 64 * 1024);
 	HBCDecompileOptions options = { .pretty_literals = LITERALS_PRETTY_AUTO, .suppress_comments = false };
-	result = decompile_all_to_buffer (&reader, options, &sb);
+	result = _hbc_decompile_all_to_buffer (&reader, options, &sb);
 	if (result.code != RESULT_SUCCESS) {
-		string_buffer_free (&sb);
-		hbc_reader_cleanup (&reader);
-		decompiler_cleanup (&decompiler);
+		_hbc_string_buffer_free (&sb);
+		_hbc_reader_cleanup (&reader);
+		_hbc_decompiler_cleanup (&decompiler);
 		return result;
 	}
 
@@ -866,9 +866,9 @@ Result decompile_file(const char *input_file, const char *output_file) {
 	if (output_file) {
 		out = fopen (output_file, "w");
 		if (!out) {
-			string_buffer_free (&sb);
-			hbc_reader_cleanup (&reader);
-			decompiler_cleanup (&decompiler);
+			_hbc_string_buffer_free (&sb);
+			_hbc_reader_cleanup (&reader);
+			_hbc_decompiler_cleanup (&decompiler);
 			return ERROR_RESULT (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file for writing");
 		}
 	}
@@ -876,17 +876,17 @@ Result decompile_file(const char *input_file, const char *output_file) {
 	if (output_file && out != stdout) {
 		fclose (out);
 	}
-	string_buffer_free (&sb);
+	_hbc_string_buffer_free (&sb);
 
 	// Cleanup
-	hbc_reader_cleanup (&reader);
-	decompiler_cleanup (&decompiler);
+	_hbc_reader_cleanup (&reader);
+	_hbc_decompiler_cleanup (&decompiler);
 
 	return SUCCESS_RESULT ();
 }
 
 /* Internal helper kept for reference/debugging.
- * The main pipeline uses passes + `output_code ()`. */
+ * The main pipeline uses passes + `_hbc_output_code ()`. */
 #if 0
 static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	if (!reader || !out) {
@@ -906,33 +906,33 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 	}
 
 	// Emit function signature
-	RETURN_IF_ERROR (string_buffer_append (out, "function "));
-	RETURN_IF_ERROR (string_buffer_append (out, name));
-	RETURN_IF_ERROR (string_buffer_append (out, "("));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function "));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, name));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "("));
 	for (u32 i = 0; i < fh->paramCount; i++) {
 		if (i) {
-			RETURN_IF_ERROR (string_buffer_append (out, ", "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", "));
 		}
 		char pbuf[32];
 		snprintf (pbuf, sizeof (pbuf), "a%u", i);
-		RETURN_IF_ERROR (string_buffer_append (out, pbuf));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, pbuf));
 	}
-	RETURN_IF_ERROR (string_buffer_append (out, ") {\n"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
 
 	// Emit simple header summary
-	RETURN_IF_ERROR (string_buffer_append (out, "  // id: "));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "  // id: "));
 	char nbuf[64];
 	snprintf (nbuf, sizeof (nbuf), "%u", function_id);
-	RETURN_IF_ERROR (string_buffer_append (out, nbuf));
-	RETURN_IF_ERROR (string_buffer_append (out, ", offset: 0x"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, nbuf));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", offset: 0x"));
 	char off[32];
 	snprintf (off, sizeof (off), "%x", fh->offset);
-	RETURN_IF_ERROR (string_buffer_append (out, off));
-	RETURN_IF_ERROR (string_buffer_append (out, ", size: "));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, off));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", size: "));
 	char sz[32];
 	snprintf (sz, sizeof (sz), "%u", fh->bytecodeSizeInBytes);
-	RETURN_IF_ERROR (string_buffer_append (out, sz));
-	RETURN_IF_ERROR (string_buffer_append (out, " bytes\n"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, sz));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, " bytes\n"));
 
 	/* Ensure bytecode is available */
 	RETURN_IF_ERROR (ensure_function_bytecode_loaded (reader, function_id));
@@ -940,14 +940,14 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 	/* Parse function into instructions */
 	ParsedInstructionList list;
 	HBCISA isa = hbc_isa_getv (reader->header.version);
-	RETURN_IF_ERROR (parse_function_bytecode (reader, function_id, &list, isa));
+	RETURN_IF_ERROR (_hbc_parse_function_bytecode (reader, function_id, &list, isa));
 
 	/* Build CFG (anchors, blocks, edges) to prepare future structuring */
 	DecompiledFunctionBody fbody;
-	Result cfg_res = build_control_flow_graph (reader, function_id, &list, &fbody);
+	Result cfg_res = _hbc_build_control_flow_graph (reader, function_id, &list, &fbody);
 	if (cfg_res.code == RESULT_SUCCESS) {
 		/* Currently unused in emission, but keeps analysis ready */
-		function_body_cleanup (&fbody);
+		_hbc_function_body_cleanup (&fbody);
 	}
 
 	/* Collect label targets */
@@ -972,7 +972,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			if (taddr < func_end) {
 				u32set_add (&labels, taddr);
 			}
-			bool ends = is_jump_instruction (ins->opcode) || ins->opcode == OP_Ret || ins->opcode == OP_Throw;
+			bool ends = _hbc_is_jump_instruction (ins->opcode) || ins->opcode == OP_Ret || ins->opcode == OP_Throw;
 			if (ends && ins->next_pos < func_end) {
 				u32set_add (&labels, ins->next_pos);
 			}
@@ -983,7 +983,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 	Recognize simple forward if / if-else and emit structured blocks. */
 	bool *skip = (bool *)calloc (list.count, sizeof (bool));
 	if (!skip) {
-		parsed_instruction_list_free (&list);
+		_hbc_parsed_instruction_list_free (&list);
 		u32set_free (&labels);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom skip");
 	}
@@ -1004,7 +1004,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 	char **reg_names = (char **)calloc (max_regs, sizeof (char *));
 	if (!reg_names) {
 		free (skip);
-		parsed_instruction_list_free (&list);
+		_hbc_parsed_instruction_list_free (&list);
 		u32set_free (&labels);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom regnames");
 	}
@@ -1025,7 +1025,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 					try_end_addr = h->end;
 					catch_target_addr = h->target;
 					RETURN_IF_ERROR (append_indent (out, base_indent));
-					RETURN_IF_ERROR (string_buffer_append (out, "try {\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "try {\n"));
 					break;
 				}
 			}
@@ -1034,7 +1034,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		/* Close try and emit catch body when we reach try end */
 		if (try_active && ins->original_pos == try_end_addr) {
 			RETURN_IF_ERROR (append_indent (out, base_indent));
-			RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 
 			int tindex = find_index_by_addr (&list, catch_target_addr);
 			int catch_reg = -1;
@@ -1088,11 +1088,11 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			/* Emit catch header */
 			RETURN_IF_ERROR (append_indent (out, base_indent));
 			if (catch_reg >= 0) {
-				RETURN_IF_ERROR (string_buffer_append (out, "catch (r"));
-				RETURN_IF_ERROR (string_buffer_append_int (out, catch_reg));
-				RETURN_IF_ERROR (string_buffer_append (out, ") {\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "catch (r"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, catch_reg));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
 			} else {
-				RETURN_IF_ERROR (string_buffer_append (out, "catch (e) {\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "catch (e) {\n"));
 			}
 
 			if (tindex >= 0) {
@@ -1105,37 +1105,37 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 						skip[k] = true;
 						ParsedInstruction *ci2 = &list.instructions[k];
 						TokenString ts2;
-						RETURN_IF_ERROR (translate_instruction_to_tokens (ci2, &ts2));
+						RETURN_IF_ERROR (_hbc_translate_instruction_to_tokens (ci2, &ts2));
 						StringBuffer line;
-						RETURN_IF_ERROR (string_buffer_init (&line, 128));
+						RETURN_IF_ERROR (_hbc_string_buffer_init (&line, 128));
 						RETURN_IF_ERROR (append_indent (&line, base_indent + 1));
-						RETURN_IF_ERROR (token_string_to_string (&ts2, &line));
-						RETURN_IF_ERROR (string_buffer_append (&line, ";"));
+						RETURN_IF_ERROR (_hbc_token_string_to_string (&ts2, &line));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, ";"));
 						StringBuffer dline;
-						string_buffer_init (&dline, 64);
-						Result sr2 = instruction_to_string (ci2, &dline);
+						_hbc_string_buffer_init (&dline, 64);
+						Result sr2 = _hbc_instruction_to_string (ci2, &dline);
 						if (sr2.code == RESULT_SUCCESS && dline.length > 0) {
-							string_buffer_append (&line, "  // ");
-							string_buffer_append (&line, dline.data);
+							_hbc_string_buffer_append (&line, "  // ");
+							_hbc_string_buffer_append (&line, dline.data);
 						}
-						string_buffer_free (&dline);
-						string_buffer_append (&line, "\n");
-						string_buffer_append (out, line.data);
-						string_buffer_free (&line);
-						token_string_cleanup (&ts2);
+						_hbc_string_buffer_free (&dline);
+						_hbc_string_buffer_append (&line, "\n");
+						_hbc_string_buffer_append (out, line.data);
+						_hbc_string_buffer_free (&line);
+						_hbc_token_string_cleanup (&ts2);
 					}
 				} else {
 					/* Fallback */
 					RETURN_IF_ERROR (append_indent (out, base_indent + 1));
 					char clab[32];
 					label_name (clab, sizeof (clab), catch_target_addr);
-					RETURN_IF_ERROR (string_buffer_append (out, "goto "));
-					RETURN_IF_ERROR (string_buffer_append (out, clab));
-					RETURN_IF_ERROR (string_buffer_append (out, ";\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "goto "));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, clab));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 				}
 			}
 			RETURN_IF_ERROR (append_indent (out, base_indent));
-			RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 			try_active = false;
 		}
 
@@ -1143,8 +1143,8 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		if (u32set_contains (&labels, ins->original_pos)) {
 			char lbuf[32];
 			label_name (lbuf, sizeof (lbuf), ins->original_pos);
-			RETURN_IF_ERROR (string_buffer_append (out, lbuf));
-			RETURN_IF_ERROR (string_buffer_append (out, ":\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbuf));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ":\n"));
 		}
 
 		/* Do-while loop detection: find a later conditional jump back to this header */
@@ -1154,7 +1154,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 			int b_addr_idx = -1;
 			for (u32 k = i + 1; k < list.count; k++) {
 				ParsedInstruction *ji = &list.instructions[k];
-				if (!is_jump_instruction (ji->opcode)) {
+				if (!_hbc_is_jump_instruction (ji->opcode)) {
 					continue;
 				}
 				int aidx = -1;
@@ -1186,35 +1186,35 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 				if (bcmp || is_bool) {
 					/* Emit do header */
 					RETURN_IF_ERROR (append_indent (out, base_indent));
-					RETURN_IF_ERROR (string_buffer_append (out, "do {\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "do {\n"));
 					/* Emit body from i to back_idx-1 */
 					for (u32 k = i; k < (u32)back_idx; k++) {
 						skip[k] = true;
 						ParsedInstruction *bi = &list.instructions[k];
 						TokenString ts2;
-						RETURN_IF_ERROR (translate_instruction_to_tokens (bi, &ts2));
+						RETURN_IF_ERROR (_hbc_translate_instruction_to_tokens (bi, &ts2));
 						apply_register_naming (&ts2, reg_names, max_regs);
 						StringBuffer line;
-						string_buffer_init (&line, 128);
+						_hbc_string_buffer_init (&line, 128);
 						RETURN_IF_ERROR (append_indent (&line, base_indent + 1));
-						RETURN_IF_ERROR (token_string_to_string (&ts2, &line));
-						RETURN_IF_ERROR (string_buffer_append (&line, ";"));
+						RETURN_IF_ERROR (_hbc_token_string_to_string (&ts2, &line));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, ";"));
 						StringBuffer dline;
-						string_buffer_init (&dline, 64);
-						Result sr2 = instruction_to_string (bi, &dline);
+						_hbc_string_buffer_init (&dline, 64);
+						Result sr2 = _hbc_instruction_to_string (bi, &dline);
 						if (sr2.code == RESULT_SUCCESS && dline.length > 0) {
-							string_buffer_append (&line, "  // ");
-							string_buffer_append (&line, dline.data);
+							_hbc_string_buffer_append (&line, "  // ");
+							_hbc_string_buffer_append (&line, dline.data);
 						}
-						string_buffer_free (&dline);
-						string_buffer_append (&line, "\n");
-						string_buffer_append (out, line.data);
-						string_buffer_free (&line);
-						token_string_cleanup (&ts2);
+						_hbc_string_buffer_free (&dline);
+						_hbc_string_buffer_append (&line, "\n");
+						_hbc_string_buffer_append (out, line.data);
+						_hbc_string_buffer_free (&line);
+						_hbc_token_string_cleanup (&ts2);
 					}
 					/* Emit while tail */
 					RETURN_IF_ERROR (append_indent (out, base_indent));
-					RETURN_IF_ERROR (string_buffer_append (out, "} while ("));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} while ("));
 					if (bcmp) {
 						int r1 = -1, r2 = -1;
 						for (int j = 0; j < 6; j++) {
@@ -1232,9 +1232,9 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 						}
 						/* Jump back on true => continue on cond */
 						RETURN_IF_ERROR (append_regname (out, r1, reg_names, max_regs));
-						RETURN_IF_ERROR (string_buffer_append (out, " "));
-						RETURN_IF_ERROR (string_buffer_append (out, bcmp));
-						RETURN_IF_ERROR (string_buffer_append (out, " "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, " "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, bcmp));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, " "));
 						RETURN_IF_ERROR (append_regname (out, r2, reg_names, max_regs));
 					} else {
 						int ridx = -1;
@@ -1251,11 +1251,11 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 						int rr = (ridx >= 0)? (int)insn_get_operand_value (&list.instructions[back_idx], ridx): 0;
 						bool is_true = (bop == OP_JmpTrue || bop == OP_JmpTrueLong);
 						if (!is_true) {
-							RETURN_IF_ERROR (string_buffer_append (out, "!"));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (out, "!"));
 						}
 						RETURN_IF_ERROR (append_regname (out, rr, reg_names, max_regs));
 					}
-					RETURN_IF_ERROR (string_buffer_append (out, ");\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ");\n"));
 					/* Skip the back-edge jmp */
 					skip[back_idx] = true;
 					continue;
@@ -1270,7 +1270,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 		/* Try to recognize while-loop pattern: JmpFalse/JmpTrue to forward exit, body ends with Jmp back to header */
 		int addr_idx = -1;
-		if (is_jump_instruction (ins->opcode)) {
+		if (_hbc_is_jump_instruction (ins->opcode)) {
 			for (int j = 0; j < 6; j++) {
 				if (operand_is_addr (ins->inst, j)) {
 					addr_idx = j;
@@ -1302,9 +1302,9 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 								if (back_addr == ins->original_pos) {
 									/* Emit while header */
 									StringBuffer hdr;
-									RETURN_IF_ERROR (string_buffer_init (&hdr, 64));
+									RETURN_IF_ERROR (_hbc_string_buffer_init (&hdr, 64));
 									RETURN_IF_ERROR (append_indent (&hdr, base_indent));
-									RETURN_IF_ERROR (string_buffer_append (&hdr, "while ("));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, "while ("));
 									/* build boolean condition from ins */
 									int reg_idx = -1;
 									for (int j = 0; j < 6; j++) {
@@ -1317,59 +1317,59 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 									int r = (reg_idx >= 0)? (int)insn_get_operand_value (ins, reg_idx): 0;
 									bool neg = (opw == OP_JmpTrue || opw == OP_JmpTrueLong); /* jump on true to exit => loop while !r */
 									if (neg) {
-										RETURN_IF_ERROR (string_buffer_append (&hdr, "!"));
+										RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, "!"));
 									}
 									RETURN_IF_ERROR (append_regname (&hdr, r, reg_names, max_regs));
-									RETURN_IF_ERROR (string_buffer_append (&hdr, ") {\n"));
-									RETURN_IF_ERROR (string_buffer_append (out, hdr.data));
-									string_buffer_free (&hdr);
+									RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, ") {\n"));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, hdr.data));
+									_hbc_string_buffer_free (&hdr);
 
 									/* Emit loop body lines from i+1 to back_idx-1 */
 									for (u32 k = i + 1; k < (u32)back_idx; k++) {
 										skip[k] = true;
 										ParsedInstruction *bi = &list.instructions[k];
 										TokenString ts2;
-										Result sr_ts = translate_instruction_to_tokens (bi, &ts2);
+										Result sr_ts = _hbc_translate_instruction_to_tokens (bi, &ts2);
 										if (sr_ts.code != RESULT_SUCCESS) {
-											token_string_cleanup (&ts2);
+											_hbc_token_string_cleanup (&ts2);
 											RETURN_IF_ERROR (sr_ts);
 										}
 										StringBuffer line;
-										Result sr_init = string_buffer_init (&line, 128);
+										Result sr_init = _hbc_string_buffer_init (&line, 128);
 										if (sr_init.code != RESULT_SUCCESS) {
-											token_string_cleanup (&ts2);
+											_hbc_token_string_cleanup (&ts2);
 											RETURN_IF_ERROR (sr_init);
 										}
 										Result sr_indent = append_indent (&line, base_indent + 1);
 										if (sr_indent.code != RESULT_SUCCESS) {
-											string_buffer_free (&line);
-											token_string_cleanup (&ts2);
+											_hbc_string_buffer_free (&line);
+											_hbc_token_string_cleanup (&ts2);
 											RETURN_IF_ERROR (sr_indent);
 										}
-										Result sr_ts2str = token_string_to_string (&ts2, &line);
+										Result sr_ts2str = _hbc_token_string_to_string (&ts2, &line);
 										if (sr_ts2str.code != RESULT_SUCCESS) {
-											string_buffer_free (&line);
-											token_string_cleanup (&ts2);
+											_hbc_string_buffer_free (&line);
+											_hbc_token_string_cleanup (&ts2);
 											RETURN_IF_ERROR (sr_ts2str);
 										}
-										string_buffer_append (&line, ";");
+										_hbc_string_buffer_append (&line, ";");
 										StringBuffer dline;
-										string_buffer_init (&dline, 64);
-										Result sr2 = instruction_to_string (bi, &dline);
+										_hbc_string_buffer_init (&dline, 64);
+										Result sr2 = _hbc_instruction_to_string (bi, &dline);
 										if (sr2.code == RESULT_SUCCESS && dline.length > 0) {
-											string_buffer_append (&line, "  // ");
-											string_buffer_append (&line, dline.data);
+											_hbc_string_buffer_append (&line, "  // ");
+											_hbc_string_buffer_append (&line, dline.data);
 										}
-										string_buffer_free (&dline);
-										string_buffer_append (&line, "\n");
-										string_buffer_append (out, line.data);
-										string_buffer_free (&line);
-										token_string_cleanup (&ts2);
+										_hbc_string_buffer_free (&dline);
+										_hbc_string_buffer_append (&line, "\n");
+										_hbc_string_buffer_append (out, line.data);
+										_hbc_string_buffer_free (&line);
+										_hbc_token_string_cleanup (&ts2);
 									}
 
 									/* Close while */
 									RETURN_IF_ERROR (append_indent (out, base_indent));
-									RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 									/* Skip header, body, back jump */
 									skip[i] = true;
 									skip[back_idx] = true;
@@ -1417,10 +1417,10 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 					/* Emit if header */
 					StringBuffer hdr;
-					RETURN_IF_ERROR (string_buffer_init (&hdr, 64));
+					RETURN_IF_ERROR (_hbc_string_buffer_init (&hdr, 64));
 					RETURN_IF_ERROR (append_indent (&hdr, base_indent));
 					/* condition */
-					RETURN_IF_ERROR (string_buffer_append (&hdr, "if ("));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, "if ("));
 					const char *cmp = cmp_op_for_jump (op);
 					bool jump_on_true_hdr = (cmp != NULL) || (op == OP_JmpTrue || op == OP_JmpTrueLong) || (op == OP_JmpUndefined || op == OP_JmpUndefinedLong);
 					bool invert_hdr = jump_on_true_hdr; /* then is fallthrough if jump taken */
@@ -1440,15 +1440,15 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 							}
 						}
 						if (invert_hdr) {
-							RETURN_IF_ERROR (string_buffer_append (&hdr, "!("));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, "!("));
 						}
 						RETURN_IF_ERROR (append_regname (&hdr, r1, reg_names, max_regs));
-						RETURN_IF_ERROR (string_buffer_append (&hdr, " "));
-						RETURN_IF_ERROR (string_buffer_append (&hdr, cmp));
-						RETURN_IF_ERROR (string_buffer_append (&hdr, " "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, " "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, cmp));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, " "));
 						RETURN_IF_ERROR (append_regname (&hdr, r2, reg_names, max_regs));
 						if (invert_hdr) {
-							RETURN_IF_ERROR (string_buffer_append (&hdr, ")"));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, ")"));
 						}
 					} else {
 						int reg_idx = -1;
@@ -1461,55 +1461,55 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 						}
 						int r = (reg_idx >= 0)? (int)insn_get_operand_value (ins, reg_idx): 0;
 						if (invert_hdr || op == OP_JmpFalse || op == OP_JmpFalseLong) {
-							RETURN_IF_ERROR (string_buffer_append (&hdr, "!"));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, "!"));
 						}
 						RETURN_IF_ERROR (append_regname (&hdr, r, reg_names, max_regs));
 					}
-					RETURN_IF_ERROR (string_buffer_append (&hdr, ") {\n"));
-					RETURN_IF_ERROR (string_buffer_append (out, hdr.data));
-					string_buffer_free (&hdr);
+					RETURN_IF_ERROR (_hbc_string_buffer_append (&hdr, ") {\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, hdr.data));
+					_hbc_string_buffer_free (&hdr);
 
 					/* Emit then-body */
 					for (int k = then_begin; k < then_end; k++) {
 						skip[k] = true; /* avoid re-emitting */
 						ParsedInstruction *ti = &list.instructions[k];
 						TokenString ts2;
-						Result sr_ts = translate_instruction_to_tokens (ti, &ts2);
+						Result sr_ts = _hbc_translate_instruction_to_tokens (ti, &ts2);
 						if (sr_ts.code != RESULT_SUCCESS) {
-							token_string_cleanup (&ts2);
+							_hbc_token_string_cleanup (&ts2);
 							RETURN_IF_ERROR (sr_ts);
 						}
 						StringBuffer line;
-						Result sr_init = string_buffer_init (&line, 128);
+						Result sr_init = _hbc_string_buffer_init (&line, 128);
 						if (sr_init.code != RESULT_SUCCESS) {
-							token_string_cleanup (&ts2);
+							_hbc_token_string_cleanup (&ts2);
 							RETURN_IF_ERROR (sr_init);
 						}
 						Result sr_indent = append_indent (&line, base_indent + 1);
 						if (sr_indent.code != RESULT_SUCCESS) {
-							string_buffer_free (&line);
-							token_string_cleanup (&ts2);
+							_hbc_string_buffer_free (&line);
+							_hbc_token_string_cleanup (&ts2);
 							RETURN_IF_ERROR (sr_indent);
 						}
-						Result sr_ts2str = token_string_to_string (&ts2, &line);
+						Result sr_ts2str = _hbc_token_string_to_string (&ts2, &line);
 						if (sr_ts2str.code != RESULT_SUCCESS) {
-							string_buffer_free (&line);
-							token_string_cleanup (&ts2);
+							_hbc_string_buffer_free (&line);
+							_hbc_token_string_cleanup (&ts2);
 							RETURN_IF_ERROR (sr_ts2str);
 						}
-						string_buffer_append (&line, ";");
+						_hbc_string_buffer_append (&line, ";");
 						StringBuffer dline;
-						string_buffer_init (&dline, 64);
-						Result sr2 = instruction_to_string (ti, &dline);
+						_hbc_string_buffer_init (&dline, 64);
+						Result sr2 = _hbc_instruction_to_string (ti, &dline);
 						if (sr2.code == RESULT_SUCCESS && dline.length > 0) {
-							string_buffer_append (&line, "  // ");
-							string_buffer_append (&line, dline.data);
+							_hbc_string_buffer_append (&line, "  // ");
+							_hbc_string_buffer_append (&line, dline.data);
 						}
-						string_buffer_free (&dline);
-						string_buffer_append (&line, "\n");
-						string_buffer_append (out, line.data);
-						string_buffer_free (&line);
-						token_string_cleanup (&ts2);
+						_hbc_string_buffer_free (&dline);
+						_hbc_string_buffer_append (&line, "\n");
+						_hbc_string_buffer_append (out, line.data);
+						_hbc_string_buffer_free (&line);
+						_hbc_token_string_cleanup (&ts2);
 					}
 					/* If there was an else, skip the trailing unconditional jmp */
 					if (else_begin >= 0 && then_end - 1 > (int)i) {
@@ -1518,57 +1518,57 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 
 					/* Close then */
 					RETURN_IF_ERROR (append_indent (out, base_indent));
-					RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 
 					/* Else part */
 					if (else_begin >= 0 && else_end > else_begin) {
 						/* Emit else header */
 						RETURN_IF_ERROR (append_indent (out, base_indent));
-						RETURN_IF_ERROR (string_buffer_append (out, "else {\n"));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, "else {\n"));
 						for (int k = else_begin; k < else_end; k++) {
 							skip[k] = true;
 							ParsedInstruction *ei = &list.instructions[k];
 							TokenString ts3;
-							Result sr_ts = translate_instruction_to_tokens (ei, &ts3);
+							Result sr_ts = _hbc_translate_instruction_to_tokens (ei, &ts3);
 							if (sr_ts.code != RESULT_SUCCESS) {
-								token_string_cleanup (&ts3);
+								_hbc_token_string_cleanup (&ts3);
 								RETURN_IF_ERROR (sr_ts);
 							}
 							StringBuffer line;
-							Result sr_init = string_buffer_init (&line, 128);
+							Result sr_init = _hbc_string_buffer_init (&line, 128);
 							if (sr_init.code != RESULT_SUCCESS) {
-								token_string_cleanup (&ts3);
+								_hbc_token_string_cleanup (&ts3);
 								RETURN_IF_ERROR (sr_init);
 							}
 							Result sr_indent = append_indent (&line, base_indent + 1);
 							if (sr_indent.code != RESULT_SUCCESS) {
-								string_buffer_free (&line);
-								token_string_cleanup (&ts3);
+								_hbc_string_buffer_free (&line);
+								_hbc_token_string_cleanup (&ts3);
 								RETURN_IF_ERROR (sr_indent);
 							}
-							Result sr_ts3str = token_string_to_string (&ts3, &line);
+							Result sr_ts3str = _hbc_token_string_to_string (&ts3, &line);
 							if (sr_ts3str.code != RESULT_SUCCESS) {
-								string_buffer_free (&line);
-								token_string_cleanup (&ts3);
+								_hbc_string_buffer_free (&line);
+								_hbc_token_string_cleanup (&ts3);
 								RETURN_IF_ERROR (sr_ts3str);
 							}
-							string_buffer_append (&line, ";");
+							_hbc_string_buffer_append (&line, ";");
 							StringBuffer dline;
-							string_buffer_init (&dline, 64);
-							Result sr3 = instruction_to_string (ei, &dline);
+							_hbc_string_buffer_init (&dline, 64);
+							Result sr3 = _hbc_instruction_to_string (ei, &dline);
 							if (sr3.code == RESULT_SUCCESS && dline.length > 0) {
-								string_buffer_append (&line, "  // ");
-								string_buffer_append (&line, dline.data);
+								_hbc_string_buffer_append (&line, "  // ");
+								_hbc_string_buffer_append (&line, dline.data);
 							}
-							string_buffer_free (&dline);
-							string_buffer_append (&line, "\n");
-							string_buffer_append (out, line.data);
-							string_buffer_free (&line);
-							token_string_cleanup (&ts3);
+							_hbc_string_buffer_free (&dline);
+							_hbc_string_buffer_append (&line, "\n");
+							_hbc_string_buffer_append (out, line.data);
+							_hbc_string_buffer_free (&line);
+							_hbc_token_string_cleanup (&ts3);
 						}
 						/* Close else */
 						RETURN_IF_ERROR (append_indent (out, base_indent));
-						RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 					}
 					/* Mark current conditional as handled */
 					skip[i] = true;
@@ -1581,26 +1581,26 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		if (ins->opcode == OP_SwitchImm) {
 			/* arg1: value reg, arg4: min, arg5: max, arg3: default (Addr32), switch_jump_table[] holds case targets (function-relative) */
 			StringBuffer sbh;
-			RETURN_IF_ERROR (string_buffer_init (&sbh, 64));
+			RETURN_IF_ERROR (_hbc_string_buffer_init (&sbh, 64));
 			RETURN_IF_ERROR (append_indent (&sbh, base_indent));
-			RETURN_IF_ERROR (string_buffer_append (&sbh, "switch (r"));
-			RETURN_IF_ERROR (string_buffer_append_int (&sbh, (int)ins->arg1));
-			RETURN_IF_ERROR (string_buffer_append (&sbh, ") {\n"));
-			RETURN_IF_ERROR (string_buffer_append (out, sbh.data));
-			string_buffer_free (&sbh);
+			RETURN_IF_ERROR (_hbc_string_buffer_append (&sbh, "switch (r"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append_int (&sbh, (int)ins->arg1));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (&sbh, ") {\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, sbh.data));
+			_hbc_string_buffer_free (&sbh);
 			u32 minv = ins->arg4, maxv = ins->arg5;
 			for (u32 v = minv; v <= maxv && (v - minv) < ins->switch_jump_table_size; v++) {
 				u32 tgt = ins->switch_jump_table[v - minv];
 				char lab[32];
 				label_name (lab, sizeof (lab), tgt);
 				RETURN_IF_ERROR (append_indent (out, base_indent + 1));
-				RETURN_IF_ERROR (string_buffer_append (out, "case "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "case "));
 				char nbuf[32];
 				snprintf (nbuf, sizeof (nbuf), "%u", v);
-				RETURN_IF_ERROR (string_buffer_append (out, nbuf));
-				RETURN_IF_ERROR (string_buffer_append (out, ": goto "));
-				RETURN_IF_ERROR (string_buffer_append (out, lab));
-				RETURN_IF_ERROR (string_buffer_append (out, ";\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, nbuf));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ": goto "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, lab));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 			}
 			/* default */
 			int def_idx = -1;
@@ -1615,12 +1615,12 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 				char dlab[32];
 				label_name (dlab, sizeof (dlab), defaddr);
 				RETURN_IF_ERROR (append_indent (out, base_indent + 1));
-				RETURN_IF_ERROR (string_buffer_append (out, "default: goto "));
-				RETURN_IF_ERROR (string_buffer_append (out, dlab));
-				RETURN_IF_ERROR (string_buffer_append (out, ";\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "default: goto "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, dlab));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 			}
 			RETURN_IF_ERROR (append_indent (out, base_indent));
-			RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 			skip[i] = true;
 			continue;
 		}
@@ -1639,13 +1639,13 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		}
 
 		TokenString ts;
-		RETURN_IF_ERROR (translate_instruction_to_tokens (ins, &ts));
+		RETURN_IF_ERROR (_hbc_translate_instruction_to_tokens (ins, &ts));
 		apply_register_naming (&ts, reg_names, max_regs);
 		StringBuffer line;
-		RETURN_IF_ERROR (string_buffer_init (&line, 128));
+		RETURN_IF_ERROR (_hbc_string_buffer_init (&line, 128));
 		RETURN_IF_ERROR (append_indent (&line, base_indent));
 		bool handled_cf = false;
-		if (is_jump_instruction (ins->opcode)) {
+		if (_hbc_is_jump_instruction (ins->opcode)) {
 			int aidx = -1;
 			for (int j = 0; j < 6; j++) {
 				if (operand_is_addr (ins->inst, j)) {
@@ -1660,8 +1660,8 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 				u8 op = ins->opcode;
 				if (op == OP_Jmp || op == OP_JmpLong) {
 					if (taddr != ins->next_pos) {
-						string_buffer_append (&line, "goto ");
-						string_buffer_append (&line, tlabel);
+						_hbc_string_buffer_append (&line, "goto ");
+						_hbc_string_buffer_append (&line, tlabel);
 					}
 					handled_cf = true;
 				}
@@ -1669,7 +1669,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 		}
 		if (!handled_cf) {
 			/* Improve default CF printing for compare-and-jump and simple boolean/undefined jumps */
-			if (is_jump_instruction (ins->opcode)) {
+			if (_hbc_is_jump_instruction (ins->opcode)) {
 				int aidx = -1;
 				for (int j = 0; j < 6; j++) {
 					if (operand_is_addr (ins->inst, j)) {
@@ -1697,14 +1697,14 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 								}
 							}
 						}
-						RETURN_IF_ERROR (string_buffer_append (&line, "if ("));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, "if ("));
 						RETURN_IF_ERROR (append_regname (&line, r1, reg_names, max_regs));
-						RETURN_IF_ERROR (string_buffer_append (&line, " "));
-						RETURN_IF_ERROR (string_buffer_append (&line, cmp));
-						RETURN_IF_ERROR (string_buffer_append (&line, " "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, " "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, cmp));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, " "));
 						RETURN_IF_ERROR (append_regname (&line, r2, reg_names, max_regs));
-						RETURN_IF_ERROR (string_buffer_append (&line, ") goto "));
-						RETURN_IF_ERROR (string_buffer_append (&line, tlabel));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, ") goto "));
+						RETURN_IF_ERROR (_hbc_string_buffer_append (&line, tlabel));
 						handled_cf = true;
 					} else {
 						/* Handle JmpTrue/JmpFalse/JmpUndefined (+ long) */
@@ -1722,82 +1722,82 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 								}
 							}
 							int rr = (ridx >= 0)? (int)insn_get_operand_value (ins, ridx): 0;
-							RETURN_IF_ERROR (string_buffer_append (&line, "if ("));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (&line, "if ("));
 							if (opj == OP_JmpFalse || opj == OP_JmpFalseLong) {
-								RETURN_IF_ERROR (string_buffer_append (&line, "!"));
+								RETURN_IF_ERROR (_hbc_string_buffer_append (&line, "!"));
 								RETURN_IF_ERROR (append_regname (&line, rr, reg_names, max_regs));
 							} else if (opj == OP_JmpUndefined || opj == OP_JmpUndefinedLong) {
 								RETURN_IF_ERROR (append_regname (&line, rr, reg_names, max_regs));
-								RETURN_IF_ERROR (string_buffer_append (&line, " === undefined"));
+								RETURN_IF_ERROR (_hbc_string_buffer_append (&line, " === undefined"));
 							} else {
 								RETURN_IF_ERROR (append_regname (&line, rr, reg_names, max_regs));
 							}
-							RETURN_IF_ERROR (string_buffer_append (&line, ") goto "));
-							RETURN_IF_ERROR (string_buffer_append (&line, tlabel));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (&line, ") goto "));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (&line, tlabel));
 							handled_cf = true;
 						}
 					}
 				}
 			}
 			if (!handled_cf) {
-				RETURN_IF_ERROR (token_string_to_string (&ts, &line));
+				RETURN_IF_ERROR (_hbc_token_string_to_string (&ts, &line));
 			}
 		}
-		RETURN_IF_ERROR (string_buffer_append (&line, ";"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&line, ";"));
 		/* Append trailing disassembly as a comment unless disabled */
 		if (!options.suppress_comments) {
 			StringBuffer dline;
-			string_buffer_init (&dline, 64);
-			Result sr = instruction_to_string (ins, &dline);
+			_hbc_string_buffer_init (&dline, 64);
+			Result sr = _hbc_instruction_to_string (ins, &dline);
 			if (sr.code == RESULT_SUCCESS && dline.length > 0) {
-				string_buffer_append (&line, "  // ");
-				string_buffer_append (&line, dline.data);
+				_hbc_string_buffer_append (&line, "  // ");
+				_hbc_string_buffer_append (&line, dline.data);
 			}
-			string_buffer_free (&dline);
+			_hbc_string_buffer_free (&dline);
 		}
-		string_buffer_append (&line, "\n");
-		string_buffer_append (out, line.data);
-		string_buffer_free (&line);
-		token_string_cleanup (&ts);
+		_hbc_string_buffer_append (&line, "\n");
+		_hbc_string_buffer_append (out, line.data);
+		_hbc_string_buffer_free (&line);
+		_hbc_token_string_cleanup (&ts);
 	}
 	free (skip);
 	for (u32 rn = 0; rn < max_regs; rn++) {
 		free (reg_names[rn]);
 	}
 	free (reg_names);
-	parsed_instruction_list_free (&list);
+	_hbc_parsed_instruction_list_free (&list);
 	u32set_free (&labels);
 
 	// Close function body
-	RETURN_IF_ERROR (string_buffer_append (out, "}\n\n"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n\n"));
 	return SUCCESS_RESULT ();
 }
 #endif
 
-Result decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
+Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	if (!reader || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "decompile_function_to_buffer args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_to_buffer args");
 	}
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (decompiler_init (&dec));
+	RETURN_IF_ERROR (_hbc_decompiler_init (&dec));
 	dec.hbc_reader = reader;
 	dec.options = options;
 	dec.indent_level = 0;
-	Result r = decompile_function (&dec, function_id, NULL, -1, false, false, false);
+	Result r = _hbc_decompile_function (&dec, function_id, NULL, -1, false, false, false);
 	if (r.code == RESULT_SUCCESS) {
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
-		RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
 	}
-	decompiler_cleanup (&dec);
+	_hbc_decompiler_cleanup (&dec);
 	return r;
 }
 
-Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out) {
+Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out) {
 	if (!reader || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for decompile_all_to_buffer");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_to_buffer");
 	}
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (decompiler_init (&dec));
+	RETURN_IF_ERROR (_hbc_decompiler_init (&dec));
 	dec.hbc_reader = reader;
 	dec.options = options;
 	dec.indent_level = 0;
@@ -1805,18 +1805,18 @@ Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, S
 	/* Allocate tracking array for decompiled functions */
 	dec.decompiled_functions = (bool *)calloc (reader->header.functionCount, sizeof (bool));
 	if (!dec.decompiled_functions) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
 	}
 
 	/* File preamble */
 	if (!options.suppress_comments) {
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "// Version: "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Version: "));
 		char vbuf[32];
 		snprintf (vbuf, sizeof (vbuf), "%u", reader->header.version);
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, vbuf));
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, vbuf));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
 	}
 
 	for (u32 i = 0; i < reader->header.functionCount; i++) {
@@ -1824,31 +1824,31 @@ Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, S
 		if (dec.decompiled_functions[i]) {
 			continue;
 		}
-		Result r = decompile_function (&dec, i, NULL, -1, false, false, false);
+		Result r = _hbc_decompile_function (&dec, i, NULL, -1, false, false, false);
 		if (r.code != RESULT_SUCCESS) {
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return r;
 		}
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
 	}
 
-	RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
-	decompiler_cleanup (&dec);
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
+	_hbc_decompiler_cleanup (&dec);
 	return SUCCESS_RESULT ();
 }
 
-Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
+Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
 	if (!provider || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "decompile_function_with_provider args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_with_provider args");
 	}
 
-	/* For now, leverage existing decompile_function_to_buffer by extracting reader.
+	/* For now, leverage existing _hbc_decompile_function_to_buffer by extracting reader.
 	 * In Phase 2, we delegate to the provider API. This is a bridge.
-	 * TODO: Refactor decompile_function to work directly with provider data */
+	 * TODO: Refactor _hbc_decompile_function to work directly with provider data */
 
-	/* Try to use existing decompile_function_to_buffer if we can extract HBCReader */
+	/* Try to use existing _hbc_decompile_function_to_buffer if we can extract HBCReader */
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (decompiler_init_with_provider (&dec, provider));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, provider));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -1862,21 +1862,21 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 	HBCHeader header;
 	Result hres = hbc_data_provider_get_header (provider, &header);
 	if (hres.code != RESULT_SUCCESS) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return hres;
 	}
 	stub_reader.header = header;
 
 	/* Validate function_id */
 	if (function_id >= header.functionCount) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
 
 	/* Allocate and populate function_headers */
 	stub_reader.function_headers = (FunctionHeader *)calloc (header.functionCount, sizeof (FunctionHeader));
 	if (!stub_reader.function_headers) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function_headers");
 	}
 
@@ -1885,7 +1885,7 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 		Result fres = hbc_data_provider_get_function_info (provider, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return fres;
 		}
 		stub_reader.function_headers[i].offset = fi.offset;
@@ -1898,7 +1898,7 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
 		if (!stub_reader.strings) {
 			free (stub_reader.function_headers);
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate strings array");
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
@@ -1910,26 +1910,26 @@ Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_
 		}
 	}
 
-	Result r = decompile_function (&dec, function_id, NULL, -1, false, false, false);
+	Result r = _hbc_decompile_function (&dec, function_id, NULL, -1, false, false, false);
 	if (r.code == RESULT_SUCCESS) {
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
-		RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
 	}
 
 	/* Free allocated arrays (strings are owned by provider, don't free individual strings) */
 	free (stub_reader.strings);
 	free (stub_reader.function_headers);
 
-	decompiler_cleanup (&dec);
+	_hbc_decompiler_cleanup (&dec);
 	return r;
 }
 
-Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out) {
+Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out) {
 	if (!provider || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for decompile_all_with_provider");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_with_provider");
 	}
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (decompiler_init_with_provider (&dec, provider));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, provider));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -1942,7 +1942,7 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 	HBCHeader header;
 	Result res = hbc_data_provider_get_header (provider, &header);
 	if (res.code != RESULT_SUCCESS) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return res;
 	}
 	stub_reader.header = header;
@@ -1951,22 +1951,22 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 	u32 func_count = header.functionCount;
 	if (func_count == 0) {
 		/* No functions to decompile */
-		RETURN_IF_ERROR (string_buffer_append (out, ""));
-		decompiler_cleanup (&dec);
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ""));
+		_hbc_decompiler_cleanup (&dec);
 		return SUCCESS_RESULT ();
 	}
 
 	/* Allocate tracking array for decompiled functions */
 	dec.decompiled_functions = (bool *)calloc (func_count, sizeof (bool));
 	if (!dec.decompiled_functions) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
 	}
 
 	/* Allocate function_headers array for the stub */
 	stub_reader.function_headers = (FunctionHeader *)calloc (func_count, sizeof (FunctionHeader));
 	if (!stub_reader.function_headers) {
-		decompiler_cleanup (&dec);
+		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function_headers");
 	}
 
@@ -1976,7 +1976,7 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 		Result fres = hbc_data_provider_get_function_info (provider, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return fres;
 		}
 		stub_reader.function_headers[i].offset = fi.offset;
@@ -1990,7 +1990,7 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
 		if (!stub_reader.strings) {
 			free (stub_reader.function_headers);
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate strings array");
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
@@ -2007,15 +2007,15 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 		HBCHeader header;
 		res = hbc_data_provider_get_header (provider, &header);
 		if (res.code != RESULT_SUCCESS) {
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return res;
 		}
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "// Version: "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Version: "));
 		char vbuf[32];
 		snprintf (vbuf, sizeof (vbuf), "%u", header.version);
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, vbuf));
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, vbuf));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
 	}
 
 	for (u32 i = 0; i < func_count; i++) {
@@ -2023,21 +2023,21 @@ Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOption
 		if (dec.decompiled_functions[i]) {
 			continue;
 		}
-		Result r = decompile_function (&dec, i, NULL, -1, false, false, false);
+		Result r = _hbc_decompile_function (&dec, i, NULL, -1, false, false, false);
 		if (r.code != RESULT_SUCCESS) {
-			decompiler_cleanup (&dec);
+			_hbc_decompiler_cleanup (&dec);
 			return r;
 		}
-		RETURN_IF_ERROR (string_buffer_append (&dec.output, "\n\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
 	}
 
-	RETURN_IF_ERROR (string_buffer_append (out, dec.output.data? dec.output.data: ""));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
 
 	/* Free allocated arrays (strings are owned by provider, don't free individual strings) */
 	free (stub_reader.strings);
 	free (stub_reader.function_headers);
 
-	decompiler_cleanup (&dec);
+	_hbc_decompiler_cleanup (&dec);
 	return SUCCESS_RESULT ();
 }
 
@@ -2110,9 +2110,9 @@ static bool token_needs_space(TokenType prev, TokenType cur) {
 	return true;
 }
 
-Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
+Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !state->hbc_reader || !function_body || !function_body->function_object) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "pass1_set_metadata args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_pass1_set_metadata args");
 	}
 
 	HBCReader *reader = state->hbc_reader;
@@ -2186,7 +2186,7 @@ Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *funct
 		}
 		u32 next = ins->next_pos;
 		if (next <= func_sz) {
-			if (is_jump_instruction (ins->opcode) || ins->opcode == OP_SwitchImm) {
+			if (_hbc_is_jump_instruction (ins->opcode) || ins->opcode == OP_SwitchImm) {
 				function_body->jump_anchors[next] = ins;
 			} else if (ins->opcode == OP_Ret) {
 				function_body->ret_anchors[next] = ins;
@@ -2196,14 +2196,14 @@ Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *funct
 		}
 
 		/* jump targets */
-		if (is_jump_instruction (ins->opcode)) {
+		if (_hbc_is_jump_instruction (ins->opcode)) {
 			for (int j = 0; j < 6; j++) {
 				if (!operand_is_addr (ins->inst, j)) {
 					continue;
 				}
 				u32 taddr = compute_target_address (ins, j);
 				if (taddr <= func_sz) {
-					RETURN_IF_ERROR (add_jump_target (function_body, taddr));
+					RETURN_IF_ERROR (_hbc_add_jump_target (function_body, taddr));
 				}
 			}
 		} else if (ins->opcode == OP_SwitchImm) {
@@ -2214,14 +2214,14 @@ Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *funct
 				}
 				u32 defaddr = compute_target_address (ins, j);
 				if (defaddr <= func_sz) {
-					RETURN_IF_ERROR (add_jump_target (function_body, defaddr));
+					RETURN_IF_ERROR (_hbc_add_jump_target (function_body, defaddr));
 				}
 				break;
 			}
 			if (ins->switch_jump_table && ins->switch_jump_table_size) {
 				for (u32 k = 0; k < ins->switch_jump_table_size; k++) {
 					if (ins->switch_jump_table[k] <= func_sz) {
-						RETURN_IF_ERROR (add_jump_target (function_body, ins->switch_jump_table[k]));
+						RETURN_IF_ERROR (_hbc_add_jump_target (function_body, ins->switch_jump_table[k]));
 					}
 				}
 			}
@@ -2270,7 +2270,7 @@ Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *funct
 		if (start == end) {
 			continue;
 		}
-		RETURN_IF_ERROR (create_basic_block (function_body, start, end));
+		RETURN_IF_ERROR (_hbc_create_basic_block (function_body, start, end));
 		BasicBlock *bb = &function_body->basic_blocks[function_body->basic_blocks_count - 1];
 
 		if (may_have_fallen_through && prev) {
@@ -2381,9 +2381,9 @@ Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *funct
 	return SUCCESS_RESULT ();
 }
 
-Result pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
+Result _hbc_pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !function_body) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "pass2_transform_code args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_pass2_transform_code args");
 	}
 	/* Translate each parsed instruction into a TokenString line */
 	for (u32 i = 0; i < function_body->instructions.count; i++) {
@@ -2392,24 +2392,24 @@ Result pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody *fun
 			continue;
 		}
 		TokenString ts;
-		Result tr = translate_instruction_to_tokens (ins, &ts);
+		Result tr = _hbc_translate_instruction_to_tokens (ins, &ts);
 		if (tr.code != RESULT_SUCCESS) {
-			token_string_cleanup (&ts);
+			_hbc_token_string_cleanup (&ts);
 			return tr;
 		}
 		Result pr = statements_push (function_body, &ts);
 		if (pr.code != RESULT_SUCCESS) {
-			token_string_cleanup (&ts);
+			_hbc_token_string_cleanup (&ts);
 			return pr;
 		}
 	}
 	return SUCCESS_RESULT ();
 }
 
-Result pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
+Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	(void)state;
 	if (!function_body) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "pass3_parse_forin_loops args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_pass3_parse_forin_loops args");
 	}
 	/* Recreate simple for..in structures (non-nested case) */
 	for (u32 i = 0; i < function_body->statements_count; i++) {
@@ -2457,12 +2457,12 @@ Result pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *
 
 		/* Replace GetPNameList line with a `for (<next> in <obj>)` header */
 		RETURN_IF_ERROR (token_string_clear_tokens (line));
-		RETURN_IF_ERROR (token_string_add_token (line, create_raw_token ("for")));
-		RETURN_IF_ERROR (token_string_add_token (line, create_left_parenthesis_token ()));
-		RETURN_IF_ERROR (token_string_add_token (line, create_left_hand_reg_token (filni->next_value_register)));
-		RETURN_IF_ERROR (token_string_add_token (line, create_raw_token ("in")));
-		RETURN_IF_ERROR (token_string_add_token (line, create_right_hand_reg_token (fili->obj_register)));
-		RETURN_IF_ERROR (token_string_add_token (line, create_right_parenthesis_token ()));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("for")));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_parenthesis_token ()));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_hand_reg_token (filni->next_value_register)));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("in")));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (fili->obj_register)));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_parenthesis_token ()));
 
 		/* Silence the loop plumbing instructions */
 		RETURN_IF_ERROR (token_string_clear_tokens (j1));
@@ -2472,10 +2472,10 @@ Result pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *
 	return SUCCESS_RESULT ();
 }
 
-Result pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
+Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	(void)state;
 	if (!function_body) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "pass4_name_closure_vars args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_pass4_name_closure_vars args");
 	}
 	Environment *parent_environment = function_body->parent_environment;
 
@@ -2553,11 +2553,11 @@ Result pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *
 				}
 				RETURN_IF_ERROR (token_string_clear_tokens (line));
 				if (first) {
-					RETURN_IF_ERROR (token_string_add_token (line, create_raw_token ("var")));
+					RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("var")));
 				}
-				RETURN_IF_ERROR (token_string_add_token (line, create_raw_token (existing)));
-				RETURN_IF_ERROR (token_string_add_token (line, create_assignment_token ()));
-				RETURN_IF_ERROR (token_string_add_token (line, create_right_hand_reg_token (t->value_register)));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token (existing)));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_assignment_token ()));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (t->value_register)));
 				break;
 			} else if (tok->type == TOKEN_TYPE_LOAD_FROM_ENVIRONMENT) {
 				LoadFromEnvironmentToken *t = (LoadFromEnvironmentToken *)tok;
@@ -2594,7 +2594,7 @@ Result pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *
 				if (line->tail == tok) {
 					line->tail = (Token *)rt;
 				}
-				token_free (tok);
+				_hbc_token_free (tok);
 				break;
 			}
 		}
@@ -2665,9 +2665,9 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 	return SUCCESS_RESULT ();
 }
 
-Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
+Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !function_body) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "output_code args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_output_code args");
 	}
 	StringBuffer *out = &state->output;
 
@@ -2677,85 +2677,85 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			if (state->options.show_offsets) {
 				char addr_buf[24];
 				snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-				RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
 			} else {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 			}
-			RETURN_IF_ERROR (string_buffer_append (out, "async "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "async "));
 		} else if (!function_body->is_global) {
 			if (state->options.show_offsets) {
 				char addr_buf[24];
 				snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-				RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
 			} else {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 			}
 		}
 	}
 	if (function_body->is_async && state->inlining_function) {
-		RETURN_IF_ERROR (string_buffer_append (out, "async "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "async "));
 	}
 	if (state->options.show_offsets) {
 		char addr_buf[24];
 		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-		RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
 	}
 	if (!function_body->is_global) {
-		RETURN_IF_ERROR (string_buffer_append (out, "function"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function"));
 		if (function_body->is_generator) {
-			RETURN_IF_ERROR (string_buffer_append (out, "*"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "*"));
 		}
-		RETURN_IF_ERROR (string_buffer_append (out, " "));
-		RETURN_IF_ERROR (string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
-		RETURN_IF_ERROR (string_buffer_append (out, "("));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, " "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "("));
 		u32 pcnt = function_body->function_object? function_body->function_object->paramCount: 0;
 		for (u32 i = 0; i < pcnt; i++) {
 			if (i) {
-				RETURN_IF_ERROR (string_buffer_append (out, ", "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", "));
 			}
 			char pbuf[16];
 			snprintf (pbuf, sizeof (pbuf), "a%u", i);
-			RETURN_IF_ERROR (string_buffer_append (out, pbuf));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, pbuf));
 		}
-		RETURN_IF_ERROR (string_buffer_append (out, ") {"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {"));
 		/* First priority: check for r2 comment at function start */
 		char *r2_comment = NULL;
 		if (state->options.comment_callback) {
 			r2_comment = state->options.comment_callback (state->options.comment_context, state->options.function_base);
 		}
 		if (r2_comment) {
-			RETURN_IF_ERROR (string_buffer_append (out, " // "));
-			RETURN_IF_ERROR (string_buffer_append (out, r2_comment));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
 			free (r2_comment);
 		} else if (!state->options.suppress_comments && (function_body->is_closure || function_body->is_generator)) {
 			/* Fallback to original name/environment comments */
 			if (function_body->function_name && *function_body->function_name) {
-				RETURN_IF_ERROR (string_buffer_append (out, " // Original name: "));
-				RETURN_IF_ERROR (string_buffer_append (out, function_body->function_name));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Original name: "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name));
 				if (function_body->environment_id >= 0) {
-					RETURN_IF_ERROR (string_buffer_append (out, ", environment: r"));
-					RETURN_IF_ERROR (string_buffer_append_int (out, function_body->environment_id));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", environment: r"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
 				}
 			} else if (function_body->environment_id >= 0) {
-				RETURN_IF_ERROR (string_buffer_append (out, " // Environment: r"));
-				RETURN_IF_ERROR (string_buffer_append_int (out, function_body->environment_id));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Environment: r"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
 			}
 		}
-		RETURN_IF_ERROR (string_buffer_append (out, "\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 	} else {
 		/* Global function */
-		RETURN_IF_ERROR (string_buffer_append (out, "function global() {"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function global() {"));
 		/* Check for r2 comment at function start for global function */
 		char *r2_comment = NULL;
 		if (state->options.comment_callback) {
 			r2_comment = state->options.comment_callback (state->options.comment_context, state->options.function_base);
 		}
 		if (r2_comment) {
-			RETURN_IF_ERROR (string_buffer_append (out, " // "));
-			RETURN_IF_ERROR (string_buffer_append (out, r2_comment));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
 			free (r2_comment);
 		}
-		RETURN_IF_ERROR (string_buffer_append (out, "\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 	}
 	state->indent_level++;
 
@@ -2810,7 +2810,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	}
 
 	u32 cur_bb_index = 0;
-	hbc_debug_printf ("[output_code] START function_base=0x%llx, comment_callback=%p, stmt_count=%u\n",
+	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, comment_callback=%p, stmt_count=%u\n",
 		(unsigned long long)state->options.function_base,
 		(void *)state->options.comment_callback,
 		function_body->statements_count);
@@ -2822,7 +2822,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		TokenString *st = &function_body->statements[si];
 		ParsedInstruction *asm_ref = st->assembly;
 		if (si < 10) {
-			hbc_debug_printf ("[output_code] stmt %u: asm_ref=%p\n", si, (void *)asm_ref);
+			hbc_debug_printf ("[_hbc_output_code] stmt %u: asm_ref=%p\n", si, (void *)asm_ref);
 		}
 		if (asm_ref) {
 			u32 pos = asm_ref->original_pos;
@@ -2833,7 +2833,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 				frame_ends_count--;
 				state->indent_level--;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 			}
 
 			/* Basic block case label */
@@ -2841,36 +2841,36 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 				bool is_bb_start = (bsearch (&pos, bb_starts, bbcount, sizeof (u32), cmp_u32) != NULL);
 				if (is_bb_start) {
 					RETURN_IF_ERROR (append_indent (out, state->indent_level));
-					RETURN_IF_ERROR (string_buffer_append (out, "case "));
-					RETURN_IF_ERROR (string_buffer_append_int (out, (int)pos));
-					RETURN_IF_ERROR (string_buffer_append (out, ":"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "case "));
+					RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)pos));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ":"));
 					if (!state->options.suppress_comments) {
 						for (u32 li = 0; li < function_body->try_starts_count; li++) {
 							if (function_body->try_starts[li].address == pos) {
 								for (u32 k = 0; k < function_body->try_starts[li].label_count; k++) {
-									RETURN_IF_ERROR (string_buffer_append (out, " // "));
-									RETURN_IF_ERROR (string_buffer_append (out, function_body->try_starts[li].labels[k]));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->try_starts[li].labels[k]));
 								}
 							}
 						}
 						for (u32 li = 0; li < function_body->try_ends_count; li++) {
 							if (function_body->try_ends[li].address == pos) {
 								for (u32 k = 0; k < function_body->try_ends[li].label_count; k++) {
-									RETURN_IF_ERROR (string_buffer_append (out, " // "));
-									RETURN_IF_ERROR (string_buffer_append (out, function_body->try_ends[li].labels[k]));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->try_ends[li].labels[k]));
 								}
 							}
 						}
 						for (u32 li = 0; li < function_body->catch_targets_count; li++) {
 							if (function_body->catch_targets[li].address == pos) {
 								for (u32 k = 0; k < function_body->catch_targets[li].label_count; k++) {
-									RETURN_IF_ERROR (string_buffer_append (out, " // "));
-									RETURN_IF_ERROR (string_buffer_append (out, function_body->catch_targets[li].labels[k]));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+									RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->catch_targets[li].labels[k]));
 								}
 							}
 						}
 					}
-					RETURN_IF_ERROR (string_buffer_append (out, "\n"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 					/* track current basic block */
 					while (cur_bb_index < bbcount && function_body->basic_blocks[cur_bb_index].start_address != pos) {
 						cur_bb_index++;
@@ -2883,7 +2883,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 				memmove (frame_starts, frame_starts + 1, (frame_starts_count - 1) * sizeof (u32));
 				frame_starts_count--;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (string_buffer_append (out, "{\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "{\n"));
 				state->indent_level++;
 			}
 		}
@@ -2902,7 +2902,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		if (state->options.show_offsets && asm_ref) {
 			char addr_buf[24];
 			snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)abs_addr);
-			RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
 			/* Add indentation after offset */
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		} else {
@@ -2952,11 +2952,11 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 						if (should_inline) {
 							/* Inline the closure */
 							if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
-								RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+								RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
 							}
 							int saved_indent = state->indent_level;
 							state->inlining_function = true;
-							RETURN_IF_ERROR (decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
+							RETURN_IF_ERROR (_hbc_decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
 							state->inlining_function = false;
 							state->indent_level = saved_indent;
 							first_tok = false;
@@ -2964,10 +2964,10 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 						} else {
 							/* Reference closure by function ID instead of inlining */
 							if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
-								RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+								RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
 							}
-							RETURN_IF_ERROR (string_buffer_append (out, "fn_"));
-							RETURN_IF_ERROR (string_buffer_append_int (out, (int)fti->function_id));
+							RETURN_IF_ERROR (_hbc_string_buffer_append (out, "fn_"));
+							RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)fti->function_id));
 							first_tok = false;
 							prev_type = TOKEN_TYPE_RAW;
 						}
@@ -2975,9 +2975,9 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 					}
 				}
 				if (!first_tok && token_needs_space (prev_type, t->type)) {
-					RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+					RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
 				}
-				RETURN_IF_ERROR (token_to_string (t, out));
+				RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 				first_tok = false;
 				prev_type = t->type;
 			}
@@ -2989,16 +2989,16 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		if (state->options.comment_callback && asm_ref) {
 			char *comment = state->options.comment_callback (state->options.comment_context, abs_addr);
 			if (comment) {
-				RETURN_IF_ERROR (string_buffer_append (out, " // "));
-				RETURN_IF_ERROR (string_buffer_append (out, comment));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, comment));
 				free (comment);
 			}
 		}
 
 		if (is_block_stmt) {
-			RETURN_IF_ERROR (string_buffer_append (out, "\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 		} else {
-			RETURN_IF_ERROR (string_buffer_append (out, ";\n"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 		}
 
 		/* Insert fallthrough ip update at end of basic block */
@@ -3007,13 +3007,13 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 			bool is_last_in_block = (asm_ref->next_pos == bb->end_address);
 			if (is_last_in_block && !emitted_continue && !bb->is_unconditional_jump_anchor && !bb->is_unconditional_return_end && !bb->is_unconditional_throw_anchor) {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (string_buffer_append (out, "_fun"));
-				RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-				RETURN_IF_ERROR (string_buffer_append (out, "_ip = "));
-				RETURN_IF_ERROR (string_buffer_append_int (out, (int)bb->end_address));
-				RETURN_IF_ERROR (string_buffer_append (out, "; continue _fun"));
-				RETURN_IF_ERROR (string_buffer_append_int (out, (int)function_body->function_id));
-				RETURN_IF_ERROR (string_buffer_append (out, ";\n"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "_fun"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)function_body->function_id));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "_ip = "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)bb->end_address));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "; continue _fun"));
+				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)function_body->function_id));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 			}
 		}
 	}
@@ -3022,7 +3022,7 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	if (use_dispatch) {
 		state->indent_level--;
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 	}
 	/* Closing brace for all functions (global and non-global) */
 	state->indent_level--;
@@ -3030,11 +3030,11 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 		/* In pd:ho mode, closing brace must start with an offset */
 		char addr_buf[24];
 		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-		RETURN_IF_ERROR (string_buffer_append (out, addr_buf));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
 	} else {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	}
-	RETURN_IF_ERROR (string_buffer_append (out, "}\n"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 
 	free (frame_starts);
 	free (frame_ends);
@@ -3044,13 +3044,13 @@ Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_bod
 	return SUCCESS_RESULT ();
 }
 
-Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async) {
+Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async) {
 	if (!state || !state->hbc_reader) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "decompile_function args");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function args");
 	}
 	HBCReader *reader = state->hbc_reader;
 	if (function_id >= reader->header.functionCount) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "decompile_function bad id");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function bad id");
 	}
 
 	/* Mark function as decompiled to prevent duplicate processing */
@@ -3070,10 +3070,10 @@ Result decompile_function(HermesDecompiler *state, u32 function_id, Environment 
 	HBCISA isa = hbc_isa_getv (reader->header.version);
 
 	ParsedInstructionList list;
-	RETURN_IF_ERROR (parse_function_bytecode (reader, function_id, &list, isa));
+	RETURN_IF_ERROR (_hbc_parse_function_bytecode (reader, function_id, &list, isa));
 
 	DecompiledFunctionBody fb;
-	RETURN_IF_ERROR (function_body_init (&fb, function_id, &reader->function_headers[function_id], function_id == reader->header.globalCodeIndex));
+	RETURN_IF_ERROR (_hbc_function_body_init (&fb, function_id, &reader->function_headers[function_id], function_id == reader->header.globalCodeIndex));
 	fb.parent_environment = parent_environment;
 	fb.environment_id = environment_id;
 	fb.is_closure = is_closure;
@@ -3087,22 +3087,22 @@ Result decompile_function(HermesDecompiler *state, u32 function_id, Environment 
 	/* Execute transformation passes (configurable via decompile options) */
 	Result r = SUCCESS_RESULT ();
 	if (!state->options.skip_pass1_metadata) {
-		r = pass1_set_metadata (state, &fb);
+		r = _hbc_pass1_set_metadata (state, &fb);
 	}
 	if (r.code == RESULT_SUCCESS && !state->options.skip_pass2_transform) {
-		r = pass2_transform_code (state, &fb);
+		r = _hbc_pass2_transform_code (state, &fb);
 	}
 	if (r.code == RESULT_SUCCESS && !state->options.skip_pass3_forin) {
-		r = pass3_parse_forin_loops (state, &fb);
+		r = _hbc_pass3_parse_forin_loops (state, &fb);
 	}
 	if (r.code == RESULT_SUCCESS && !state->options.skip_pass4_closure) {
-		r = pass4_name_closure_vars (state, &fb);
+		r = _hbc_pass4_name_closure_vars (state, &fb);
 	}
 	if (r.code == RESULT_SUCCESS) {
-		r = output_code (state, &fb);
+		r = _hbc_output_code (state, &fb);
 	}
 
-	function_body_cleanup (&fb);
+	_hbc_function_body_cleanup (&fb);
 	return r;
 }
 

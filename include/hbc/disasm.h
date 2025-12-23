@@ -17,21 +17,21 @@ typedef struct {
 } Disassembler;
 
 /* Function declarations */
-Result disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisassemblyOptions options);
-void disassembler_cleanup(Disassembler *disassembler);
+Result _hbc_disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisassemblyOptions options);
+void _hbc_disassembler_cleanup(Disassembler *disassembler);
 
-Result disassemble_file(const char *input_file, const char *output_file, HBCDisassemblyOptions options);
-Result disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisassemblyOptions options);
-Result disassemble_function(Disassembler *disassembler, u32 function_id);
-Result disassemble_all_functions(Disassembler *disassembler);
+Result _hbc_disassemble_file(const char *input_file, const char *output_file, HBCDisassemblyOptions options);
+Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisassemblyOptions options);
+Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id);
+Result _hbc_disassemble_all_functions(Disassembler *disassembler);
 
-Result output_disassembly(Disassembler *disassembler, const char *output_file);
+Result _hbc_output_disassembly(Disassembler *disassembler, const char *output_file);
 
 /* r2 script generation function */
-Result generate_r2_script(const char *input_file, const char *output_file);
+Result _hbc_generate_r2_script(const char *input_file, const char *output_file);
 
 /* Utility functions */
-Result print_function_header(Disassembler *disassembler, FunctionHeader *function_header, u32 function_id);
-Result print_instruction(Disassembler *disassembler, ParsedInstruction *instruction);
+Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *function_header, u32 function_id);
+Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *instruction);
 
 #endif /* HERMES_DEC_HBC_DISASSEMBLER_H */

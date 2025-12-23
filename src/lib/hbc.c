@@ -26,15 +26,15 @@ Result hbc_open(const char *path, HBCState **out) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
 	}
 
-	Result res = hbc_reader_init (&hd->reader);
+	Result res = _hbc_reader_init (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		free (hd);
 		return res;
 	}
 
-	res = hbc_reader_read_whole_file (&hd->reader, path);
+	res = _hbc_reader_read_whole_file (&hd->reader, path);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_reader_cleanup (&hd->reader);
+		_hbc_reader_cleanup (&hd->reader);
 		free (hd);
 		return res;
 	}
@@ -53,71 +53,71 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBCState **out) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
 	}
 
-	Result res = hbc_reader_init (&hd->reader);
+	Result res = _hbc_reader_init (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		free (hd);
 		return res;
 	}
 
-	res = buffer_reader_init_from_memory (&hd->reader.file_buffer, data, size);
+	res = _hbc_buffer_reader_init_from_memory (&hd->reader.file_buffer, data, size);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_reader_cleanup (&hd->reader);
+		_hbc_reader_cleanup (&hd->reader);
 		free (hd);
 		return res;
 	}
 
 	/* Parse header and all sections */
-	res = hbc_reader_read_header (&hd->reader);
+	res = _hbc_reader_read_header (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_functions_robust (&hd->reader);
+	res = _hbc_reader_read_functions_robust (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_string_kinds (&hd->reader);
+	res = _hbc_reader_read_string_kinds (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_identifier_hashes (&hd->reader);
+	res = _hbc_reader_read_identifier_hashes (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_string_tables (&hd->reader);
+	res = _hbc_reader_read_string_tables (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_arrays (&hd->reader);
+	res = _hbc_reader_read_arrays (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_bigints (&hd->reader);
+	res = _hbc_reader_read_bigints (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_regexp (&hd->reader);
+	res = _hbc_reader_read_regexp (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_cjs_modules (&hd->reader);
+	res = _hbc_reader_read_cjs_modules (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	res = hbc_reader_read_function_sources (&hd->reader);
+	res = _hbc_reader_read_function_sources (&hd->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hd);
 		return res;
 	}
-	(void)hbc_reader_read_debug_info;
+	(void)_hbc_reader_read_debug_info;
 
 	*out = hd;
 	return SUCCESS_RESULT ();
@@ -127,7 +127,7 @@ void hbc_close(HBCState *hd) {
 	if (!hd) {
 		return;
 	}
-	hbc_reader_cleanup (&hd->reader);
+	_hbc_reader_cleanup (&hd->reader);
 	free (hd);
 }
 
@@ -281,7 +281,7 @@ Result hbc_get_function_bytecode(HBCState *hd, u32 function_id, const u8 **out_p
  * ============================================================================ */
 
 Result hbc_decompile_file(const char *input_file, const char *output_file) {
-	return decompile_file (input_file, output_file);
+	return _hbc_decompile_file (input_file, output_file);
 }
 
 /* ============================================================================
@@ -298,14 +298,14 @@ Result hbc_data_provider_decompile_function(
 	}
 
 	StringBuffer sb;
-	Result res = string_buffer_init (&sb, 16 * 1024);
+	Result res = _hbc_string_buffer_init (&sb, 16 * 1024);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
-	res = decompile_function_with_provider (provider, function_id, options, &sb);
+	res = _hbc_decompile_function_with_provider (provider, function_id, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
-		string_buffer_free (&sb);
+		_hbc_string_buffer_free (&sb);
 		return res;
 	}
 
@@ -322,14 +322,14 @@ Result hbc_data_provider_decompile_all(
 	}
 
 	StringBuffer sb;
-	Result res = string_buffer_init (&sb, 32 * 1024);
+	Result res = _hbc_string_buffer_init (&sb, 32 * 1024);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
-	res = decompile_all_with_provider (provider, options, &sb);
+	res = _hbc_decompile_all_with_provider (provider, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
-		string_buffer_free (&sb);
+		_hbc_string_buffer_free (&sb);
 		return res;
 	}
 

@@ -34,23 +34,23 @@ typedef struct {
 } ParsedInstructionList;
 
 /* Function declarations */
-Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity);
-Result parsed_instruction_list_add(ParsedInstructionList *list, ParsedInstruction *instruction);
-void parsed_instruction_list_free(ParsedInstructionList *list);
+Result _hbc_parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity);
+Result _hbc_parsed_instruction_list_add(ParsedInstructionList *list, ParsedInstruction *instruction);
+void _hbc_parsed_instruction_list_free(ParsedInstructionList *list);
 
-Result parse_instruction(HBCReader *reader, FunctionHeader *function_header, u32 offset, ParsedInstruction *out_instruction);
-Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa);
-Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string);
+Result _hbc_parse_instruction(HBCReader *reader, FunctionHeader *function_header, u32 offset, ParsedInstruction *out_instruction);
+Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa);
+Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string);
 
 /* Bytecode version module getters */
-BytecodeModule *get_bytecode_module(u32 bytecode_version);
-const char **get_builtin_functions(BytecodeModule *module, u32 *out_count);
+BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);
+const char **_hbc_get_builtin_functions(BytecodeModule *module, u32 *out_count);
 
 /* Opcode handlers (defined in version-specific modules) */
 typedef Result(*OpcodeHandler)(HBCReader *reader, BufferReader *bytecode, ParsedInstruction *out_instruction);
 
 /* Helpers to classify opcodes */
-bool is_jump_instruction(u8 opcode);
-bool is_call_instruction(u8 opcode);
+bool _hbc_is_jump_instruction(u8 opcode);
+bool _hbc_is_call_instruction(u8 opcode);
 
 #endif /* HERMES_DEC_HBC_BYTECODE_H */

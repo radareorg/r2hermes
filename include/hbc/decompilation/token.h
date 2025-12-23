@@ -211,8 +211,8 @@ typedef struct {
 } TokenString;
 
 /* Function declarations */
-Result token_string_init(TokenString *token_string, ParsedInstruction *instruction);
-void token_string_cleanup(TokenString *token_string);
+Result _hbc_token_string_init(TokenString *token_string, ParsedInstruction *instruction);
+void _hbc_token_string_cleanup(TokenString *token_string);
 
 /* Token creation functions */
 Token *create_raw_token(const char *text);
@@ -244,9 +244,9 @@ Token *create_start_generator_token(void);
 Token *create_catch_block_start_token(int arg_register);
 
 /* Token manipulation */
-Result token_string_add_token(TokenString *token_string, Token *token);
-void token_free(Token *token);
-Result token_to_string(Token *token, StringBuffer *buffer);
-Result token_string_to_string(TokenString *token_string, StringBuffer *buffer);
+Result _hbc_token_string_add_token(TokenString *token_string, Token *token);
+void _hbc_token_free(Token *token);
+Result _hbc_token_to_string(Token *token, StringBuffer *buffer);
+Result _hbc_token_string_to_string(TokenString *token_string, StringBuffer *buffer);
 
 #endif /* HERMES_DEC_TOKEN_H */

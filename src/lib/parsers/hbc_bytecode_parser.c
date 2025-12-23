@@ -6,7 +6,7 @@
 #include <string.h>
 
 /* Initialize parsed instruction list */
-Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity) {
+Result _hbc_parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity) {
 	if (!list) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "List is NULL");
 	}
@@ -23,9 +23,9 @@ Result parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_cap
 }
 
 /* Add instruction to parsed instruction list */
-Result parsed_instruction_list_add(ParsedInstructionList *list, ParsedInstruction *instruction) {
+Result _hbc_parsed_instruction_list_add(ParsedInstructionList *list, ParsedInstruction *instruction) {
 	if (!list || !instruction) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for parsed_instruction_list_add");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_parsed_instruction_list_add");
 	}
 
 	/* Resize list if needed */
@@ -50,7 +50,7 @@ Result parsed_instruction_list_add(ParsedInstructionList *list, ParsedInstructio
 }
 
 /* Free parsed instruction list */
-void parsed_instruction_list_free(ParsedInstructionList *list) {
+void _hbc_parsed_instruction_list_free(ParsedInstructionList *list) {
 	if (!list) {
 		return;
 	}
@@ -72,10 +72,10 @@ void parsed_instruction_list_free(ParsedInstructionList *list) {
 }
 
 /* Parse all bytecode instructions in a function */
-Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa) {
+Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa) {
 	if (!reader || !out_instructions) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT,
-			"Invalid arguments for parse_function_bytecode");
+			"Invalid arguments for _hbc_parse_function_bytecode");
 	}
 
 	/* Check function ID */
@@ -101,16 +101,16 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 		function_header->bytecodeSizeInBytes);
 
 	/* Initialize instruction list */
-	RETURN_IF_ERROR (parsed_instruction_list_init (out_instructions, 32)); /* Start with space for 32 instructions */
+	RETURN_IF_ERROR (_hbc_parsed_instruction_list_init (out_instructions, 32)); /* Start with space for 32 instructions */
 
 	/* Create a fresh bytecode buffer similar to the Python BytesIO approach */
 	BufferReader bytecode_buffer;
-	Result result = buffer_reader_init_from_memory (&bytecode_buffer,
+	Result result = _hbc_buffer_reader_init_from_memory (&bytecode_buffer,
 		function_header->bytecode,
 		function_header->bytecodeSizeInBytes);
 
 	if (result.code != RESULT_SUCCESS) {
-		parsed_instruction_list_free (out_instructions);
+		_hbc_parsed_instruction_list_free (out_instructions);
 		return result;
 	}
 
@@ -126,12 +126,12 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 
 		/* Read opcode */
 		u8 opcode;
-		result = buffer_reader_read_u8 (&bytecode_buffer, &opcode);
+		result = _hbc_buffer_reader_read_u8 (&bytecode_buffer, &opcode);
 		if (result.code != RESULT_SUCCESS) {
 			hbc_debug_printf ("Error reading opcode at position %zu: %s\n",
 				original_pos,
 				result.error_message);
-			parsed_instruction_list_free (out_instructions);
+			_hbc_parsed_instruction_list_free (out_instructions);
 			return result;
 		}
 
@@ -145,7 +145,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 		}
 		if (!inst) {
 			hbc_debug_printf ("Error: Unknown opcode 0x%02x at offset 0x%08x\n", opcode, (u32)original_pos);
-			parsed_instruction_list_free (out_instructions);
+			_hbc_parsed_instruction_list_free (out_instructions);
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown opcode");
 		}
 
@@ -192,7 +192,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			case OPERAND_TYPE_UINT8:
 				{
 					u8 value;
-					Result read_result = buffer_reader_read_u8 (&bytecode_buffer, &value);
+					Result read_result = _hbc_buffer_reader_read_u8 (&bytecode_buffer, &value);
 					if (read_result.code != RESULT_SUCCESS) {
 						parsing_failed = true;
 						break;
@@ -203,7 +203,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			case OPERAND_TYPE_ADDR8:
 				{
 					u8 value_u;
-					Result read_result = buffer_reader_read_u8 (&bytecode_buffer, &value_u);
+					Result read_result = _hbc_buffer_reader_read_u8 (&bytecode_buffer, &value_u);
 					if (read_result.code != RESULT_SUCCESS) {
 						parsing_failed = true;
 						break;
@@ -217,7 +217,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			case OPERAND_TYPE_UINT16:
 				{
 					u16 value;
-					Result read_result = buffer_reader_read_u16 (&bytecode_buffer, &value);
+					Result read_result = _hbc_buffer_reader_read_u16 (&bytecode_buffer, &value);
 					if (read_result.code != RESULT_SUCCESS) {
 						parsing_failed = true;
 						break;
@@ -231,7 +231,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			case OPERAND_TYPE_IMM32:
 				{
 					u32 value;
-					Result read_result = buffer_reader_read_u32 (&bytecode_buffer, &value);
+					Result read_result = _hbc_buffer_reader_read_u32 (&bytecode_buffer, &value);
 					if (read_result.code != RESULT_SUCCESS) {
 						parsing_failed = true;
 						break;
@@ -242,7 +242,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			case OPERAND_TYPE_ADDR32:
 				{
 					u32 value_u;
-					Result read_result = buffer_reader_read_u32 (&bytecode_buffer, &value_u);
+					Result read_result = _hbc_buffer_reader_read_u32 (&bytecode_buffer, &value_u);
 					if (read_result.code != RESULT_SUCCESS) {
 						parsing_failed = true;
 						break;
@@ -255,7 +255,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			case OPERAND_TYPE_DOUBLE:
 				{
 					double value;
-					Result read_result = buffer_reader_read_u64 (&bytecode_buffer, (u64 *)&value);
+					Result read_result = _hbc_buffer_reader_read_u64 (&bytecode_buffer, (u64 *)&value);
 					if (read_result.code != RESULT_SUCCESS) {
 						parsing_failed = true;
 						break;
@@ -314,7 +314,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			/* Allocate table even if suspicious; we'll fill defaults if we can't resolve */
 			instruction.switch_jump_table = (u32 *)malloc (jump_table_size * sizeof (u32));
 			if (!instruction.switch_jump_table) {
-				parsed_instruction_list_free (out_instructions);
+				_hbc_parsed_instruction_list_free (out_instructions);
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate jump table");
 			}
 			instruction.switch_jump_table_size = jump_table_size;
@@ -340,7 +340,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 				}
 
 				/* Seek and align to 4 bytes */
-				Result seek_result = buffer_reader_seek (&reader->file_buffer, jt_off);
+				Result seek_result = _hbc_buffer_reader_seek (&reader->file_buffer, jt_off);
 				if (seek_result.code != RESULT_SUCCESS) {
 					continue;
 				}
@@ -349,7 +349,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 					if (reader->file_buffer.position + (4 - rem) > fsz) {
 						continue;
 					}
-					buffer_reader_seek (&reader->file_buffer, reader->file_buffer.position + (4 - rem));
+					_hbc_buffer_reader_seek (&reader->file_buffer, reader->file_buffer.position + (4 - rem));
 				}
 
 				/* Validate that the whole table fits */
@@ -371,7 +371,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 				bool fail = false;
 				for (u32 i = 0; i < jump_table_size; i++) {
 					u32 rel;
-					Result rr = buffer_reader_read_u32 (&reader->file_buffer, &rel);
+					Result rr = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &rel);
 					if (rr.code != RESULT_SUCCESS) {
 						fail = true;
 						break;
@@ -384,7 +384,7 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 			}
 
 			/* Restore file position */
-			buffer_reader_seek (&reader->file_buffer, saved_pos);
+			_hbc_buffer_reader_seek (&reader->file_buffer, saved_pos);
 
 			if (!read_ok) {
 				/* Fill with safe defaults */
@@ -395,9 +395,9 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 		}
 
 		/* Add instruction to list */
-		result = parsed_instruction_list_add (out_instructions, &instruction);
+		result = _hbc_parsed_instruction_list_add (out_instructions, &instruction);
 		if (result.code != RESULT_SUCCESS) {
-			parsed_instruction_list_free (out_instructions);
+			_hbc_parsed_instruction_list_free (out_instructions);
 			return result;
 		}
 	}
@@ -406,10 +406,10 @@ Result parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstruc
 }
 
 /* Convert instruction to string */
-Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string) {
+Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string) {
 	if (!instruction || !out_string || !instruction->inst) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT,
-			"Invalid arguments for instruction_to_string");
+			"Invalid arguments for _hbc_instruction_to_string");
 	}
 
 	/* Format offset */
@@ -417,10 +417,10 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 	snprintf (offset_str, sizeof (offset_str), "%08x", instruction->function_offset + instruction->original_pos);
 
 	/* Add address */
-	RETURN_IF_ERROR (string_buffer_append (out_string, offset_str));
-	RETURN_IF_ERROR (string_buffer_append (out_string, ": <"));
-	RETURN_IF_ERROR (string_buffer_append (out_string, instruction->inst->name));
-	RETURN_IF_ERROR (string_buffer_append (out_string, ">: <"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, offset_str));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ": <"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, instruction->inst->name));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ">: <"));
 
 	/* Get operands */
 	bool first = true;
@@ -430,7 +430,7 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 		}
 
 		if (!first) {
-			RETURN_IF_ERROR (string_buffer_append (out_string, ", "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ", "));
 		}
 		first = false;
 
@@ -511,17 +511,17 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 		}
 
 		/* Print operand name and value */
-		RETURN_IF_ERROR (string_buffer_append (out_string, operand_name));
-		RETURN_IF_ERROR (string_buffer_append (out_string, ": "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, operand_name));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ": "));
 
 		/* Format value based on operand type */
 		char value_str[32];
 		snprintf (value_str, sizeof (value_str), "%u", value);
-		RETURN_IF_ERROR (string_buffer_append (out_string, value_str));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, value_str));
 	}
 
 	/* Close operands bracket */
-	RETURN_IF_ERROR (string_buffer_append (out_string, ">"));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ">"));
 
 	/* Add comments for special operands */
 	HBCReader *reader = instruction->hbc_reader;
@@ -546,20 +546,20 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 			switch (operand_meaning) {
 			case OPERAND_MEANING_STRING_ID:
 				if (value < reader->header.stringCount) {
-					RETURN_IF_ERROR (string_buffer_append (out_string, "  # String: \""));
-					RETURN_IF_ERROR (string_buffer_append (out_string, reader->strings[value]));
-					RETURN_IF_ERROR (string_buffer_append (out_string, "\" ("));
-					RETURN_IF_ERROR (string_buffer_append (out_string, string_kind_to_string (reader->string_kinds[value])));
-					RETURN_IF_ERROR (string_buffer_append (out_string, ")"));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # String: \""));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, reader->strings[value]));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "\" ("));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, _hbc_string_kind_to_string (reader->string_kinds[value])));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ")"));
 				}
 				break;
 
 			case OPERAND_MEANING_BIGINT_ID:
 				if (value < reader->bigint_count) {
-					RETURN_IF_ERROR (string_buffer_append (out_string, "  # BigInt: "));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # BigInt: "));
 					char bigint_str[32];
 					snprintf (bigint_str, sizeof (bigint_str), "%lld", (long long)reader->bigint_values[value]);
-					RETURN_IF_ERROR (string_buffer_append (out_string, bigint_str));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, bigint_str));
 				}
 				break;
 
@@ -573,16 +573,16 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 
 					char func_info[256];
 					snprintf (func_info, sizeof (func_info), "  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x", value, func_name, func->bytecodeSizeInBytes, func->paramCount, func->offset);
-					RETURN_IF_ERROR (string_buffer_append (out_string, func_info));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, func_info));
 				}
 				break;
 
 			case OPERAND_MEANING_BUILTIN_ID:
 				/* Add support for builtin functions when available */
-				RETURN_IF_ERROR (string_buffer_append (out_string, "  # Built-in function: "));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # Built-in function: "));
 				char builtin_id_str[16];
 				snprintf (builtin_id_str, sizeof (builtin_id_str), "#%u", value);
-				RETURN_IF_ERROR (string_buffer_append (out_string, builtin_id_str));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, builtin_id_str));
 				break;
 
 			default:
@@ -613,26 +613,26 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 
 			char addr_comment[32];
 			snprintf (addr_comment, sizeof (addr_comment), "  # Address: %08x", absolute_address);
-			RETURN_IF_ERROR (string_buffer_append (out_string, addr_comment));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, addr_comment));
 		}
 
 		/* Add jump table for switch instructions */
 		if (strcmp (instruction->inst->name, "SwitchImm") == 0 &&
 			instruction->switch_jump_table && instruction->switch_jump_table_size > 0) {
 
-			RETURN_IF_ERROR (string_buffer_append (out_string, "  # Jump table: ["));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # Jump table: ["));
 
 			for (u32 i = 0; i < instruction->switch_jump_table_size; i++) {
 				if (i > 0) {
-					RETURN_IF_ERROR (string_buffer_append (out_string, ", "));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ", "));
 				}
 
 				char table_entry[16];
 				snprintf (table_entry, sizeof (table_entry), "%08x", instruction->function_offset + instruction->switch_jump_table[i]);
-				RETURN_IF_ERROR (string_buffer_append (out_string, table_entry));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, table_entry));
 			}
 
-			RETURN_IF_ERROR (string_buffer_append (out_string, "]"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "]"));
 		}
 	}
 
@@ -640,7 +640,7 @@ Result instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_s
 }
 
 /* Helper function - check if an opcode is a jump instruction */
-bool is_jump_instruction(u8 opcode) {
+bool _hbc_is_jump_instruction(u8 opcode) {
 	switch (opcode) {
 	case OP_Jmp: /* 142 */
 	case OP_JmpLong: /* 143 */
@@ -699,7 +699,7 @@ bool is_jump_instruction(u8 opcode) {
 }
 
 /* Helper function - check if an opcode is a call instruction */
-bool is_call_instruction(u8 opcode) {
+bool _hbc_is_call_instruction(u8 opcode) {
 	switch (opcode) {
 	case OP_Call: /* 79 */
 	case OP_Construct: /* 80 */

@@ -413,31 +413,31 @@ static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
 
 	/* Basic validation: check magic and version */
 	StringBuffer sb;
-	r = string_buffer_init(&sb, 1024);
+	r = _hbc_string_buffer_init(&sb, 1024);
 	if (r.code != RESULT_SUCCESS) {
 		hbc_data_provider_free(provider);
 		return r;
 	}
 
-	string_buffer_append(&sb, "HBC File Validation Report\n");
-	string_buffer_append(&sb, "===========================\n\n");
+	_hbc_string_buffer_append(&sb, "HBC File Validation Report\n");
+	_hbc_string_buffer_append(&sb, "===========================\n\n");
 	
-	string_buffer_append_int(&sb, header.magic);
-	string_buffer_append(&sb, " (magic)\n");
+	_hbc_string_buffer_append_int(&sb, header.magic);
+	_hbc_string_buffer_append(&sb, " (magic)\n");
 	
-	string_buffer_append_int(&sb, header.version);
-	string_buffer_append(&sb, " (version)\n");
+	_hbc_string_buffer_append_int(&sb, header.version);
+	_hbc_string_buffer_append(&sb, " (version)\n");
 	
-	string_buffer_append_int(&sb, header.functionCount);
-	string_buffer_append(&sb, " functions\n");
+	_hbc_string_buffer_append_int(&sb, header.functionCount);
+	_hbc_string_buffer_append(&sb, " functions\n");
 	
-	string_buffer_append_int(&sb, header.stringCount);
-	string_buffer_append(&sb, " strings\n");
+	_hbc_string_buffer_append_int(&sb, header.stringCount);
+	_hbc_string_buffer_append(&sb, " strings\n");
 	
-	string_buffer_append(&sb, "\nFile appears valid.\n");
+	_hbc_string_buffer_append(&sb, "\nFile appears valid.\n");
 
 	r = write_text(output, sb.data);
-	string_buffer_free(&sb);
+	_hbc_string_buffer_free(&sb);
 	hbc_data_provider_free(provider);
 	return r;
 }

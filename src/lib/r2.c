@@ -9,24 +9,24 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 
 	/* Initialize HBC reader */
 	HBCReader reader;
-	Result result = hbc_reader_init (&reader);
+	Result result = _hbc_reader_init (&reader);
 	if (result.code != RESULT_SUCCESS) {
 		return result;
 	}
 
 	/* Read and parse the file */
-	result = hbc_reader_read_file (&reader, input_file);
+	result = _hbc_reader_read_file (&reader, input_file);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading file: %s\n", result.error_message);
-		hbc_reader_cleanup (&reader);
+		_hbc_reader_cleanup (&reader);
 		return result;
 	}
 
 	/* Parse header and function info */
-	result = hbc_reader_read_header (&reader);
+	result = _hbc_reader_read_header (&reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading header: %s\n", result.error_message);
-		hbc_reader_cleanup (&reader);
+		_hbc_reader_cleanup (&reader);
 		return result;
 	}
 
@@ -36,7 +36,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 		out = fopen (output_file, "w");
 		if (!out) {
 			fprintf (stderr, "Error opening output file: %s\n", output_file);
-			hbc_reader_cleanup (&reader);
+			_hbc_reader_cleanup (&reader);
 			return ERROR_RESULT (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file");
 		}
 	}
@@ -58,11 +58,11 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	/* ================= ROBUST FUNCTION PARSING ================= */
 
 	/* Align buffer */
-	result = buffer_reader_align (&reader.file_buffer, 4);
+	result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Warning: Error aligning buffer for functions: %s\n", result.error_message);
 		fprintf (out, "# Warning: Error aligning buffer for functions: %s\n", result.error_message);
-		hbc_reader_cleanup (&reader);
+		_hbc_reader_cleanup (&reader);
 		return SUCCESS_RESULT (); /* Return success since we've written what we can */
 	}
 
@@ -92,7 +92,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 		if (output_file) {
 			fclose (out);
 		}
-		hbc_reader_cleanup (&reader);
+		_hbc_reader_cleanup (&reader);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function names");
 	}
 
@@ -114,7 +114,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 		if (output_file) {
 			fclose (out);
 		}
-		hbc_reader_cleanup (&reader);
+		_hbc_reader_cleanup (&reader);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate memory");
 	}
 
@@ -137,7 +137,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 		bool header_read_failed = false;
 
 		for (int j = 0; j < 4; j++) {
-			Result res = buffer_reader_read_u32 (&reader.file_buffer, &raw_data[j]);
+			Result res = _hbc_buffer_reader_read_u32 (&reader.file_buffer, &raw_data[j]);
 			if (res.code != RESULT_SUCCESS) {
 				fprintf (stderr, "Error reading function %u header word %d: %s\n", i, j, res.error_message);
 				header_read_failed = true;
@@ -147,7 +147,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 
 		if (header_read_failed) {
 			/* Restore position and break */
-			buffer_reader_seek (&reader.file_buffer, start_position);
+			_hbc_buffer_reader_seek (&reader.file_buffer, start_position);
 			break;
 		}
 
@@ -246,34 +246,34 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 
 	/* First try to locate and read the string tables */
 	/* Reset file position */
-	if (buffer_reader_seek (&reader.file_buffer, sizeof (HBCHeader)).code == RESULT_SUCCESS) {
+	if (_hbc_buffer_reader_seek (&reader.file_buffer, sizeof (HBCHeader)).code == RESULT_SUCCESS) {
 		/* Skip over functions section */
 		u32 function_headers_bytes = reader.header.functionCount * 16; /* 16 bytes per small header */
-		result = buffer_reader_seek (&reader.file_buffer, reader.file_buffer.position + function_headers_bytes);
+		result = _hbc_buffer_reader_seek (&reader.file_buffer, reader.file_buffer.position + function_headers_bytes);
 
 		if (result.code == RESULT_SUCCESS) {
 			/* Align for string kinds */
-			result = buffer_reader_align (&reader.file_buffer, 4);
+			result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
 			if (result.code == RESULT_SUCCESS) {
 				/* Skip over string kinds section */
 				if (reader.header.stringKindCount > 0) {
-					result = buffer_reader_seek (&reader.file_buffer,
+					result = _hbc_buffer_reader_seek (&reader.file_buffer,
 						reader.file_buffer.position + reader.header.stringKindCount * sizeof (u32));
 				}
 
 				if (result.code == RESULT_SUCCESS) {
 					/* Skip over identifier hashes section */
 					if (reader.header.identifierCount > 0) {
-						result = buffer_reader_align (&reader.file_buffer, 4);
+						result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
 						if (result.code == RESULT_SUCCESS) {
-							result = buffer_reader_seek (&reader.file_buffer,
+							result = _hbc_buffer_reader_seek (&reader.file_buffer,
 								reader.file_buffer.position + reader.header.identifierCount * sizeof (u32));
 						}
 					}
 
 					if (result.code == RESULT_SUCCESS) {
 						/* Prepare to read string tables */
-						result = buffer_reader_align (&reader.file_buffer, 4);
+						result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
 
 						if (result.code == RESULT_SUCCESS && reader.header.stringCount > 0) {
 							fprintf (stderr, "Reading string tables at position %zu\n", reader.file_buffer.position);
@@ -292,7 +292,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 								bool read_success = true;
 								for (u32 i = 0; i < safe_string_count; i++) {
 									u32 entry;
-									result = buffer_reader_read_u32 (&reader.file_buffer, &entry);
+									result = _hbc_buffer_reader_read_u32 (&reader.file_buffer, &entry);
 									if (result.code != RESULT_SUCCESS) {
 										read_success = false;
 										break;
@@ -306,10 +306,10 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 
 								/* Skip overflow string table if present */
 								if (read_success && reader.header.overflowStringCount > 0) {
-									result = buffer_reader_align (&reader.file_buffer, 4);
+									result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
 									if (result.code == RESULT_SUCCESS) {
 										/* Skip past each overflow entry (8 bytes each) */
-										result = buffer_reader_seek (&reader.file_buffer,
+										result = _hbc_buffer_reader_seek (&reader.file_buffer,
 											reader.file_buffer.position + reader.header.overflowStringCount * 8);
 									}
 								}
@@ -317,7 +317,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 								/* Now read the actual string data */
 								if (read_success && result.code == RESULT_SUCCESS) {
 									/* Align buffer for string storage */
-									result = buffer_reader_align (&reader.file_buffer, 4);
+									result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
 									if (result.code == RESULT_SUCCESS && reader.header.stringStorageSize > 0) {
 										/* Safety check - limit large string storage */
 										size_t storage_size = reader.header.stringStorageSize;
@@ -331,7 +331,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 											string_storage = (u8 *)malloc (storage_size);
 											if (string_storage) {
 												/* Read entire string storage section */
-												result = buffer_reader_read_bytes (&reader.file_buffer, string_storage, storage_size);
+												result = _hbc_buffer_reader_read_bytes (&reader.file_buffer, string_storage, storage_size);
 												if (result.code == RESULT_SUCCESS) {
 													string_storage_size = storage_size;
 													strings_parsed = true;
@@ -479,7 +479,7 @@ Result hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	}
 
 	/* Clean up */
-	hbc_reader_cleanup (&reader);
+	_hbc_reader_cleanup (&reader);
 
 	return SUCCESS_RESULT ();
 }

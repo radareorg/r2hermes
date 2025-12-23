@@ -149,32 +149,32 @@ typedef struct HermesDecompiler {
 } HermesDecompiler;
 
 /* Function declarations */
-Result decompiler_init(HermesDecompiler *decompiler);
-Result decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvider *provider);
-Result decompiler_cleanup(HermesDecompiler *decompiler);
+Result _hbc_decompiler_init(HermesDecompiler *decompiler);
+Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvider *provider);
+Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler);
 /* High-level entry points */
-Result decompile_file(const char *input_file, const char *output_file);
+Result _hbc_decompile_file(const char *input_file, const char *output_file);
 /* Buffer-based APIs used by hermesdec library */
-Result decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out);
-Result decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out);
-Result decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
-Result decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
-Result decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async);
+Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out);
+Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out);
+Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
+Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
+Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async);
 
 /* Transformation passes */
-Result pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body);
-Result pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody *function_body);
-Result pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *function_body);
-Result pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *function_body);
-Result output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body);
+Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body);
+Result _hbc_pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody *function_body);
+Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionBody *function_body);
+Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionBody *function_body);
+Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body);
 
 /* Helper functions */
-Result function_body_init(DecompiledFunctionBody *body, u32 function_id, FunctionHeader *function_object, bool is_global);
-void function_body_cleanup(DecompiledFunctionBody *body);
-Result add_jump_target(DecompiledFunctionBody *body, u32 address);
-Result create_basic_block(DecompiledFunctionBody *body, u32 start_address, u32 end_address);
+Result _hbc_function_body_init(DecompiledFunctionBody *body, u32 function_id, FunctionHeader *function_object, bool is_global);
+void _hbc_function_body_cleanup(DecompiledFunctionBody *body);
+Result _hbc_add_jump_target(DecompiledFunctionBody *body, u32 address);
+Result _hbc_create_basic_block(DecompiledFunctionBody *body, u32 start_address, u32 end_address);
 
 /* Internal: build CFG and anchors for a function */
-Result build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstructionList *list, DecompiledFunctionBody *out_body);
+Result _hbc_build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstructionList *list, DecompiledFunctionBody *out_body);
 
 #endif /* HERMES_DEC_DECOMPILER_H */

@@ -268,25 +268,25 @@ struct HBCReader {
 };
 
 /* Function declarations */
-Result hbc_reader_init(HBCReader *reader);
-Result hbc_reader_cleanup(HBCReader *reader);
-Result hbc_reader_read_file(HBCReader *reader, const char *filename);
-Result hbc_reader_read_header(HBCReader *reader);
-Result hbc_reader_read_functions(HBCReader *reader);
-Result hbc_reader_read_functions_robust(HBCReader *reader);
-Result hbc_reader_read_string_kinds(HBCReader *reader);
-Result hbc_reader_read_identifier_hashes(HBCReader *reader);
-Result hbc_reader_read_string_tables(HBCReader *reader);
-Result hbc_reader_read_arrays(HBCReader *reader);
-Result hbc_reader_read_bigints(HBCReader *reader);
-Result hbc_reader_read_regexp(HBCReader *reader);
-Result hbc_reader_read_cjs_modules(HBCReader *reader);
-Result hbc_reader_read_function_sources(HBCReader *reader);
-Result hbc_reader_read_debug_info(HBCReader *reader);
-Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename);
+Result _hbc_reader_init(HBCReader *reader);
+Result _hbc_reader_cleanup(HBCReader *reader);
+Result _hbc_reader_read_file(HBCReader *reader, const char *filename);
+Result _hbc_reader_read_header(HBCReader *reader);
+Result _hbc_reader_read_functions(HBCReader *reader);
+Result _hbc_reader_read_functions_robust(HBCReader *reader);
+Result _hbc_reader_read_string_kinds(HBCReader *reader);
+Result _hbc_reader_read_identifier_hashes(HBCReader *reader);
+Result _hbc_reader_read_string_tables(HBCReader *reader);
+Result _hbc_reader_read_arrays(HBCReader *reader);
+Result _hbc_reader_read_bigints(HBCReader *reader);
+Result _hbc_reader_read_regexp(HBCReader *reader);
+Result _hbc_reader_read_cjs_modules(HBCReader *reader);
+Result _hbc_reader_read_function_sources(HBCReader *reader);
+Result _hbc_reader_read_debug_info(HBCReader *reader);
+Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename);
 
 /* Utility functions */
-const char *string_kind_to_string(StringKind kind);
-BytecodeModule *get_bytecode_module(u32 bytecode_version);
+const char *_hbc_string_kind_to_string(StringKind kind);
+BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);
 
 #endif /* HERMES_DEC_HBC_FILE_PARSER_H */

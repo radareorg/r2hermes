@@ -1,6 +1,6 @@
 #include <hbc/common.h>
 
-Result string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
+Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -21,7 +21,7 @@ Result string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	return SUCCESS_RESULT ();
 }
 
-Result string_buffer_append(StringBuffer *buffer, const char *str) {
+Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
 	if (!buffer || !str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer or string is NULL");
 	}
@@ -56,7 +56,7 @@ Result string_buffer_append(StringBuffer *buffer, const char *str) {
 	return SUCCESS_RESULT ();
 }
 
-Result string_buffer_append_char(StringBuffer *buffer, char c) {
+Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -83,7 +83,7 @@ Result string_buffer_append_char(StringBuffer *buffer, char c) {
 	return SUCCESS_RESULT ();
 }
 
-Result string_buffer_append_int(StringBuffer *buffer, int value) {
+Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -91,10 +91,10 @@ Result string_buffer_append_int(StringBuffer *buffer, int value) {
 	char temp[32]; /* Enough for any integer */
 	snprintf (temp, sizeof (temp), "%d", value);
 
-	return string_buffer_append (buffer, temp);
+	return _hbc_string_buffer_append (buffer, temp);
 }
 
-void string_buffer_free(StringBuffer *buffer) {
+void _hbc_string_buffer_free(StringBuffer *buffer) {
 	if (buffer && buffer->data) {
 		free (buffer->data);
 		buffer->data = NULL;
