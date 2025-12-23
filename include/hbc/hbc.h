@@ -130,6 +130,9 @@ typedef struct {
 /* Opaque data provider handle - PRIMARY PUBLIC INTERFACE */
 typedef struct HBCDataProvider HBCDataProvider;
 
+/* Typedef shorthand for convenience (HBC is more concise) */
+typedef HBCDataProvider HBC;
+
 /* ============================================================================
  * HBCDataProvider Factories - Create a provider from different sources
  * ============================================================================ */
@@ -194,6 +197,9 @@ typedef struct HBCFunctionInfo {
 	u32 size;         // Size in bytes
 	u32 param_count;  // Number of parameters
 } HBCFunctionInfo;
+
+/* Typedef shorthand for convenience */
+typedef HBCFunctionInfo HBCFunc;
 
 /**
  * Get metadata for a specific function.
@@ -462,5 +468,134 @@ Result hbc_decompile_file(const char *input_file, const char *output_file);
  * Convenience wrapper for CLI usage.
  */
 Result hbc_generate_r2_script(const char *input_file, const char *output_file);
+
+/* ============================================================================
+ * SHORTER CONVENIENCE ALIASES (Primary Recommended API)
+ * ============================================================================ */
+
+/* Short struct aliases for cleaner code */
+typedef HBCDisassemblyOptions HBCDisOptions;
+typedef HBCDecompileOptions HBCDecompOptions;
+typedef HBCDecodeContext HBCDecodeCtx;
+typedef HBCSingleInstructionInfo HBCInsnInfo;
+typedef HBCFunctionArray HBCFuncArray;
+typedef HBCDecodedInstructions HBCInsns;
+typedef HBCStringTables HBCStrs;
+typedef HBCEncodeBuffer HBCEncBuf;
+
+/* Short function name aliases for cleaner API */
+
+/* Factory functions */
+static inline HBC *hbc_new_file(const char *path) {
+	return hbc_data_provider_from_file(path);
+}
+
+static inline HBC *hbc_new_buf(const u8 *data, size_t size) {
+	return hbc_data_provider_from_buffer(data, size);
+}
+
+static inline HBC *hbc_new_r2(RBinFile *bf) {
+	return hbc_data_provider_from_rbinfile(bf);
+}
+
+static inline void hbc_free(HBC *h) {
+	hbc_data_provider_free(h);
+}
+
+/* Query functions */
+static inline Result hbc_hdr(HBC *h, HBCHeader *out) {
+	return hbc_data_provider_get_header(h, out);
+}
+
+static inline Result hbc_func_count(HBC *h, u32 *out) {
+	return hbc_data_provider_get_function_count(h, out);
+}
+
+static inline Result hbc_func_info(HBC *h, u32 id, HBCFunc *out) {
+	return hbc_data_provider_get_function_info(h, id, out);
+}
+
+static inline Result hbc_str_count(HBC *h, u32 *out) {
+	return hbc_data_provider_get_string_count(h, out);
+}
+
+static inline Result hbc_str(HBC *h, u32 id, const char **out) {
+	return hbc_data_provider_get_string(h, id, out);
+}
+
+static inline Result hbc_str_meta(HBC *h, u32 id, HBCStringMeta *out) {
+	return hbc_data_provider_get_string_meta(h, id, out);
+}
+
+static inline Result hbc_bytecode(HBC *h, u32 id, const u8 **ptr, u32 *size) {
+	return hbc_data_provider_get_bytecode(h, id, ptr, size);
+}
+
+static inline Result hbc_str_tbl(HBC *h, HBCStrs *out) {
+	return hbc_data_provider_get_string_tables(h, out);
+}
+
+static inline Result hbc_src(HBC *h, u32 id, const char **out) {
+	return hbc_data_provider_get_function_source(h, id, out);
+}
+
+static inline Result hbc_read(HBC *h, u64 off, u32 size, const u8 **ptr) {
+	return hbc_data_provider_read_raw(h, off, size, ptr);
+}
+
+/* Decompilation functions */
+static inline Result hbc_decomp_fn(HBC *h, u32 id, HBCDecompOptions opts, char **out) {
+	return hbc_data_provider_decompile_function(h, id, opts, out);
+}
+
+static inline Result hbc_decomp_all(HBC *h, HBCDecompOptions opts, char **out) {
+	return hbc_data_provider_decompile_all(h, opts, out);
+}
+
+/* Disassembly functions */
+static inline Result hbc_disasm_fn(HBC *h, u32 id, HBCDisOptions opts, char **out) {
+	return hbc_data_provider_disassemble_function(h, id, opts, out);
+}
+
+static inline Result hbc_disasm_all(HBC *h, HBCDisOptions opts, char **out) {
+	return hbc_data_provider_disassemble_all(h, opts, out);
+}
+
+/* Function array operations */
+static inline Result hbc_all_funcs(HBC *h, HBCFuncArray *out) {
+	return hbc_data_provider_get_all_functions(h, out);
+}
+
+static inline void hbc_free_funcs(HBCFuncArray *a) {
+	hbc_free_function_array(a);
+}
+
+/* Instruction operations */
+static inline Result hbc_decode_fn(HBC *h, u32 id, HBCInsns *out) {
+	return hbc_data_provider_decode_function_instructions(h, id, out);
+}
+
+static inline void hbc_free_insns(HBCInstruction *insns, u32 count) {
+	hbc_free_instructions(insns, count);
+}
+
+/* Single instruction decode */
+static inline Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
+	return hbc_decode(ctx, out);
+}
+
+static inline Result hbc_dec_insn(const u8 *bytes, size_t len, u32 ver, u64 pc,
+	bool asm_syn, bool resolve_strs, const HBCStrs *strs, HBCInsnInfo *out) {
+	return hbc_decode_single_instruction(bytes, len, ver, pc, asm_syn, resolve_strs, strs, out);
+}
+
+/* Encoding functions */
+static inline Result hbc_enc(const char *line, u32 ver, HBCEncBuf *out) {
+	return hbc_encode_instruction(line, ver, out);
+}
+
+static inline Result hbc_enc_multi(const char *text, u32 ver, HBCEncBuf *out) {
+	return hbc_encode_instructions(text, ver, out);
+}
 
 #endif /* HERMESDEC_API_H */
