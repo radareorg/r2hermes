@@ -1,5 +1,6 @@
 #include <hbc/hbc.h>
 #include <hbc/data_provider.h>
+#include "hbc_internal_legacy.h"
 #include <stdlib.h>
 #include <string.h>
 

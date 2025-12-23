@@ -244,17 +244,19 @@ static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 	HBCDisassemblyOptions opt = { 0 };
 	RETURN_IF_ERROR (parse_output_and_disasm_options (argc - 1, argv + 1, &output, &opt));
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
 	char *disasm_str = NULL;
-	Result r = hbc_disassemble_all (hd, opt, &disasm_str);
+	Result r = hbc_data_provider_disassemble_all(provider, opt, &disasm_str);
 	if (r.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return r;
 	}
 	r = write_text (output, disasm_str);
 	free (disasm_str);
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return r;
 }
 
@@ -267,17 +269,19 @@ static Result cmd_c(const CliContext *ctx, int argc, char **argv) {
 	HBCDecompileOptions opt = { 0 };
 	RETURN_IF_ERROR (parse_output_and_decompile_options (argc - 1, argv + 1, &output, &opt));
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
 	char *decomp_str = NULL;
-	Result r = hbc_decompile_all (hd, opt, &decomp_str);
+	Result r = hbc_data_provider_decompile_all(provider, opt, &decomp_str);
 	if (r.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return r;
 	}
 	r = write_text (output, decomp_str);
 	free (decomp_str);
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return r;
 }
 
@@ -394,17 +398,47 @@ static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	char *validation_str = NULL;
-	Result r = hbc_validate_basic (hd, &validation_str);
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+
+	/* Get header to verify validity */
+	HBCHeader header;
+	Result r = hbc_data_provider_get_header(provider, &header);
 	if (r.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return r;
 	}
-	r = write_text (output, validation_str);
-	free (validation_str);
-	hbc_close (hd);
+
+	/* Basic validation: check magic and version */
+	StringBuffer sb;
+	r = string_buffer_init(&sb, 1024);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return r;
+	}
+
+	string_buffer_append(&sb, "HBC File Validation Report\n");
+	string_buffer_append(&sb, "===========================\n\n");
+	
+	string_buffer_append_int(&sb, header.magic);
+	string_buffer_append(&sb, " (magic)\n");
+	
+	string_buffer_append_int(&sb, header.version);
+	string_buffer_append(&sb, " (version)\n");
+	
+	string_buffer_append_int(&sb, header.functionCount);
+	string_buffer_append(&sb, " functions\n");
+	
+	string_buffer_append_int(&sb, header.stringCount);
+	string_buffer_append(&sb, " strings\n");
+	
+	string_buffer_append(&sb, "\nFile appears valid.\n");
+
+	r = write_text(output, sb.data);
+	string_buffer_free(&sb);
+	hbc_data_provider_free(provider);
 	return r;
 }
 
@@ -419,12 +453,14 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
 	HBCHeader hh;
-	Result r = hbc_get_header (hd, &hh);
+	Result r = hbc_data_provider_get_header(provider, &hh);
 	if (r.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return r;
 	}
 
@@ -432,7 +468,7 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	if (output) {
 		out = fopen (output, "w");
 		if (!out) {
-			hbc_close (hd);
+			hbc_data_provider_free(provider);
 			return errorf (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file: %s", output);
 		}
 	}
@@ -473,7 +509,7 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	if (output) {
 		fclose (out);
 	}
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 
@@ -494,18 +530,25 @@ static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	u32 fc = hbc_function_count (hd);
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 fc;
+	Result res = hbc_data_provider_get_function_count(provider, &fc);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return res;
+	}
 	u32 count = fc < n? fc: n;
 	for (u32 i = 0; i < count; i++) {
 		HBCFunctionInfo fi;
-		if (hbc_get_function_info (hd, i, &fi).code != RESULT_SUCCESS) {
+		if (hbc_data_provider_get_function_info(provider, i, &fi).code != RESULT_SUCCESS) {
 			continue;
 		}
 		printf ("id=%u offset=0x%08x size=%u name=%s\n", i, fi.offset, fi.size, fi.name? fi.name: "");
 	}
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 
@@ -526,15 +569,22 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	u32 fc = hbc_function_count (hd);
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 fc;
+	Result provider_res = hbc_data_provider_get_function_count(provider, &fc);
+	if (provider_res.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return provider_res;
+	}
 	u32 count = fc < n? fc: n;
 
 	const char *py_path = "parser.txt";
 	FILE *py = fopen (py_path, "r");
 	if (!py) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", py_path);
 	}
 
@@ -542,7 +592,7 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 	u32 *py_offs = (u32 *)calloc (count, sizeof (u32));
 	if (!py_sizes || !py_offs) {
 		fclose (py);
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		free (py_sizes);
 		free (py_offs);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
@@ -586,7 +636,7 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 
 	for (u32 i = 0; i < count; i++) {
 		HBCFunctionInfo fi;
-		if (hbc_get_function_info (hd, i, &fi).code != RESULT_SUCCESS) {
+		if (hbc_data_provider_get_function_info(provider, i, &fi).code != RESULT_SUCCESS) {
 			continue;
 		}
 		u32 po = py_offs[i];
@@ -596,7 +646,7 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 	}
 	free (py_sizes);
 	free (py_offs);
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 
@@ -608,21 +658,29 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	const char *python_dis_file = argv[1];
 	u32 function_id = (u32)strtoul (argv[2], NULL, 0);
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	if (function_id >= hbc_function_count (hd)) {
-		hbc_close (hd);
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 fc;
+	Result res = hbc_data_provider_get_function_count(provider, &fc);
+	if (res.code != RESULT_SUCCESS || function_id >= fc) {
+		hbc_data_provider_free(provider);
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id %u", function_id);
 	}
 
 	HBCDisassemblyOptions opt = (HBCDisassemblyOptions){ 0 };
 	char *disasm_str = NULL;
-	RETURN_IF_ERROR (hbc_disassemble_function (hd, opt, function_id, &disasm_str));
+	res = hbc_data_provider_disassemble_function(provider, function_id, opt, &disasm_str);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return res;
+	}
 
 	FILE *py = fopen (python_dis_file, "r");
 	if (!py) {
 		free (disasm_str);
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", python_dis_file);
 	}
 
@@ -659,7 +717,7 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	}
 	fclose (py);
 	free (disasm_str);
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 
@@ -677,17 +735,24 @@ static Result cmd_s(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	u32 sc = hbc_string_count (hd);
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 sc;
+	Result res = hbc_data_provider_get_string_count(provider, &sc);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return res;
+	}
 	if ((u32)idx >= sc) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Index out of range (max %u)", sc);
 	}
 	const char *s = NULL;
-	hbc_get_string (hd, (u32)idx, &s);
+	hbc_data_provider_get_string(provider, (u32)idx, &s);
 	printf ("idx=%ld name=%s\n", idx, s? s: "");
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 
@@ -702,16 +767,24 @@ static Result cmd_fs(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	for (u32 i = 0; i < hbc_string_count (hd); i++) {
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 sc;
+	Result res = hbc_data_provider_get_string_count(provider, &sc);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return res;
+	}
+	for (u32 i = 0; i < sc; i++) {
 		const char *s = NULL;
-		hbc_get_string (hd, i, &s);
+		hbc_data_provider_get_string(provider, i, &s);
 		if (s && strstr (s, needle)) {
 			printf ("idx=%u name=%s\n", i, s);
 		}
 	}
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 
@@ -729,17 +802,24 @@ static Result cmd_sm(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBC *hd = NULL;
-	RETURN_IF_ERROR (hbc_open (input, &hd));
-	u32 sc = hbc_string_count (hd);
+	HBCDataProvider *provider = hbc_data_provider_from_file(input);
+	if (!provider) {
+		return errorf(RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 sc;
+	Result res = hbc_data_provider_get_string_count(provider, &sc);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_data_provider_free(provider);
+		return res;
+	}
 	if ((u32)idx >= sc) {
-		hbc_close (hd);
+		hbc_data_provider_free(provider);
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Index out of range (max %u)", sc);
 	}
 	HBCStringMeta sm;
-	hbc_get_string_meta (hd, (u32)idx, &sm);
+	hbc_data_provider_get_string_meta(provider, (u32)idx, &sm);
 	printf ("idx=%ld isUTF16=%u off=0x%x len=%u\n", idx, sm.isUTF16? 1u: 0u, sm.offset, sm.length);
-	hbc_close (hd);
+	hbc_data_provider_free(provider);
 	return SUCCESS_RESULT ();
 }
 

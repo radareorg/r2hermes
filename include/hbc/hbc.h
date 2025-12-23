@@ -3,7 +3,11 @@
 
 #include <hbc/common.h>
 
-/* Public header summary (stable API independent of internal structs) */
+/* ============================================================================
+ * PUBLIC TYPES (Stable across library versions)
+ * ============================================================================ */
+
+/* HBC File Header */
 #ifndef HBC_HEADER_DEFINED
 #define HBC_HEADER_DEFINED
 typedef struct HBCHeader {
@@ -58,6 +62,31 @@ typedef struct {
 	bool resolve_string_ids; /* Resolve string IDs to actual addresses */
 } HBCDisassemblyOptions;
 
+/* Callback types for decompilation integration with host tools (r2, IDE, etc) */
+typedef char *(*HBCCommentCallback)(void *context, u64 address);
+typedef char *(*HBCFlagCallback)(void *context, u64 address);
+
+/* Public decompilation options */
+typedef struct {
+	bool pretty_literals; /* Whether to format literals nicely */
+	bool suppress_comments; /* Whether to omit comments */
+	bool show_offsets; /* Whether to show statement offsets */
+	u64 function_base; /* Base offset of current function (for absolute addresses) */
+	HBCCommentCallback comment_callback; /* Optional callback for r2 comments */
+	void *comment_context; /* Context passed to comment_callback */
+	HBCFlagCallback flag_callback; /* Optional callback for r2 flag/symbol names */
+	void *flag_context; /* Context passed to flag_callback */
+	/* Optimization/transformation pass control */
+	bool skip_pass1_metadata; /* Skip pass 1: metadata collection */
+	bool skip_pass2_transform; /* Skip pass 2: code transformation */
+	bool skip_pass3_forin; /* Skip pass 3: for-in loop parsing */
+	bool skip_pass4_closure; /* Skip pass 4: closure variable naming */
+	/* Control flow rendering options */
+	bool force_dispatch; /* Force switch/case dispatch loop for linear functions */
+	bool inline_closures; /* Inline closure definitions (default: true) */
+	int inline_threshold; /* Max instruction count to inline (0 = no limit, -1 = no inline) */
+} HBCDecompileOptions;
+
 /* Public per-instruction details */
 typedef struct {
 	/* Addresses */
@@ -90,21 +119,129 @@ typedef struct {
 	char *text;
 } HBCInstruction;
 
-/* Opaque public state */
-typedef struct HBCState HBCState;
+/* ============================================================================
+ * PRIMARY API: HBCDataProvider
+ * 
+ * This is the recommended interface for all libhbc consumers.
+ * HBCDataProvider abstracts the data source (file, memory buffer, r2 RBinFile)
+ * and provides unified query and decompilation operations.
+ * ============================================================================ */
 
-/* Backward-compatible alias */
-typedef HBCState HBC;
+/* Opaque data provider handle - PRIMARY PUBLIC INTERFACE */
+typedef struct HBCDataProvider HBCDataProvider;
 
-/* Proposed new structs for API redesign */
+/* ============================================================================
+ * HBCDataProvider Factories - Create a provider from different sources
+ * ============================================================================ */
 
+/**
+ * Create a data provider from a file on disk.
+ * Internally opens and manages the file. Returns NULL on failure.
+ * RECOMMENDED for standalone tools and CLI usage.
+ */
+HBCDataProvider *hbc_data_provider_from_file(const char *path);
+
+/**
+ * Create a data provider from a memory buffer.
+ * Data must remain valid for the lifetime of the provider.
+ * Returns NULL on failure.
+ * RECOMMENDED for in-memory bytecode analysis.
+ */
+HBCDataProvider *hbc_data_provider_from_buffer(const u8 *data, size_t size);
+
+/**
+ * Create a data provider from an r2 RBinFile.
+ * Reads data via r2's RBuffer API (no separate file opens).
+ * Returns NULL if bf is NULL or invalid.
+ * NOTE: Only available when linked with r2 libraries.
+ * RECOMMENDED for r2 plugin integration.
+ */
+typedef struct r_bin_file_t RBinFile;
+HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf);
+
+/**
+ * Free a data provider and all associated resources.
+ * After this call, all pointers returned by provider queries are invalid.
+ */
+void hbc_data_provider_free(HBCDataProvider *provider);
+
+/* ============================================================================
+ * HBCDataProvider Query Methods - Access parsed binary data
+ * ============================================================================ */
+
+/**
+ * Get the HBC file header.
+ * Returns RESULT_SUCCESS if header was read successfully.
+ */
+Result hbc_data_provider_get_header(
+	HBCDataProvider *provider,
+	HBCHeader *out);
+
+/**
+ * Get the total number of functions in the binary.
+ * Returns RESULT_SUCCESS on success, RESULT_ERROR_INVALID_ARGUMENT if provider is NULL.
+ */
+Result hbc_data_provider_get_function_count(
+	HBCDataProvider *provider,
+	u32 *out_count);
+
+/**
+ * Function metadata structure
+ */
 typedef struct HBCFunctionInfo {
-	const char *name; // Valid while HBC is alive
-	u32 offset;
-	u32 size;
-	u32 param_count;
+	const char *name; // Valid while provider is alive; caller must not free
+	u32 offset;       // Bytecode offset in file
+	u32 size;         // Size in bytes
+	u32 param_count;  // Number of parameters
 } HBCFunctionInfo;
 
+/**
+ * Get metadata for a specific function.
+ * out->name is valid while provider is alive; caller must not free.
+ */
+Result hbc_data_provider_get_function_info(
+	HBCDataProvider *provider,
+	u32 function_id,
+	HBCFunctionInfo *out);
+
+/**
+ * Get the total number of strings in the binary.
+ */
+Result hbc_data_provider_get_string_count(
+	HBCDataProvider *provider,
+	u32 *out_count);
+
+/**
+ * Get a string by index (const reference, valid while provider is alive).
+ * out_str should not be freed by caller.
+ */
+Result hbc_data_provider_get_string(
+	HBCDataProvider *provider,
+	u32 string_id,
+	const char **out_str);
+
+/**
+ * Get metadata for a string (offset, length, kind).
+ */
+Result hbc_data_provider_get_string_meta(
+	HBCDataProvider *provider,
+	u32 string_id,
+	HBCStringMeta *out);
+
+/**
+ * Get the raw bytecode bytes for a function.
+ * out_ptr and out_size should not be freed; valid while provider is alive.
+ */
+Result hbc_data_provider_get_bytecode(
+	HBCDataProvider *provider,
+	u32 function_id,
+	const u8 **out_ptr,
+	u32 *out_size);
+
+/**
+ * Get pre-parsed string table data (small_string_table, overflow_string_table, etc).
+ * Used for efficient string ID resolution during instruction decoding.
+ */
 typedef struct HBCStringTables {
 	u32 string_count;
 	const void *small_string_table;
@@ -112,6 +249,75 @@ typedef struct HBCStringTables {
 	u64 string_storage_offset;
 } HBCStringTables;
 
+Result hbc_data_provider_get_string_tables(
+	HBCDataProvider *provider,
+	HBCStringTables *out);
+
+/**
+ * Get source/module name associated with a function (optional, may be NULL).
+ * Used for contextual naming in decompilation output.
+ */
+Result hbc_data_provider_get_function_source(
+	HBCDataProvider *provider,
+	u32 function_id,
+	const char **out_src);
+
+/**
+ * Low-level: Read raw bytes from the binary at a specific offset.
+ * Used internally for parsing variable-length structures.
+ * out_ptr is valid until next provider call; do not hold references.
+ */
+Result hbc_data_provider_read_raw(
+	HBCDataProvider *provider,
+	u64 offset,
+	u32 size,
+	const u8 **out_ptr);
+
+/* ============================================================================
+ * HBCDataProvider Decompilation - Primary decompilation API
+ * ============================================================================ */
+
+/**
+ * Decompile a specific function.
+ * Returns allocated string that caller must free with free().
+ */
+Result hbc_data_provider_decompile_function(
+	HBCDataProvider *provider,
+	u32 function_id,
+	HBCDecompileOptions options,
+	char **out_str);
+
+/**
+ * Decompile all functions.
+ * Returns allocated string that caller must free with free().
+ */
+Result hbc_data_provider_decompile_all(
+	HBCDataProvider *provider,
+	HBCDecompileOptions options,
+	char **out_str);
+
+/**
+ * Disassemble a specific function.
+ * Returns allocated string that caller must free with free().
+ */
+Result hbc_data_provider_disassemble_function(
+	HBCDataProvider *provider,
+	u32 function_id,
+	HBCDisassemblyOptions options,
+	char **out_str);
+
+/**
+ * Disassemble all functions.
+ * Returns allocated string that caller must free with free().
+ */
+Result hbc_data_provider_disassemble_all(
+	HBCDataProvider *provider,
+	HBCDisassemblyOptions options,
+	char **out_str);
+
+/**
+ * Single instruction decode output
+ */
 typedef struct {
 	char *text; // Caller must free with free ()
 	u32 size;
@@ -121,161 +327,93 @@ typedef struct {
 	u64 jump_target;
 } HBCSingleInstructionInfo;
 
+/**
+ * Batch function query (convenience helper)
+ */
+typedef struct {
+	HBCFunctionInfo *functions;  // Caller must free with hbc_free_function_array
+	u32 count;
+} HBCFunctionArray;
+
+/**
+ * Get all functions at once.
+ * Returns array that caller must free with hbc_free_function_array.
+ */
+Result hbc_data_provider_get_all_functions(
+	HBCDataProvider *provider,
+	HBCFunctionArray *out);
+
+/**
+ * Free function array returned by hbc_data_provider_get_all_functions.
+ */
+void hbc_free_function_array(HBCFunctionArray *arr);
+
+/**
+ * Decoded instructions list
+ */
 typedef struct {
 	HBCInstruction *instructions; // Caller must free with hbc_free_instructions
 	u32 count;
 } HBCDecodedInstructions;
 
+/**
+ * Decode a function into an array of HBCInstruction entries.
+ * Works with any data provider.
+ */
+Result hbc_data_provider_decode_function_instructions(
+	HBCDataProvider *provider,
+	u32 function_id,
+	HBCDecodedInstructions *out);
+
+/**
+ * Free an array returned by hbc_data_provider_decode_function_instructions.
+ */
+void hbc_free_instructions(HBCInstruction *insns, u32 count);
+
+/**
+ * Encoding buffer and functions
+ */
 typedef struct {
 	u8 *buffer;
 	size_t buffer_size;
 	size_t bytes_written;
 } HBCEncodeBuffer;
 
-/* Callback type for retrieving comments from r2 (or other host)
- * Returns a heap-allocated string (caller frees), or NULL if no comment */
-typedef char *(*HBCCommentCallback)(void *context, u64 address);
+/* ============================================================================
+ * Single-Instruction Decoding (Stateless API)
+ * ============================================================================ */
 
-/* Callback type for retrieving flag/symbol names at an address
- * Returns a heap-allocated string (caller frees), or NULL if no flag */
-typedef char *(*HBCFlagCallback)(void *context, u64 address);
-
-typedef struct {
-	bool pretty_literals; // Whether to format literals nicely
-	bool suppress_comments; // Whether to omit comments
-	bool show_offsets; // Whether to show statement offsets (for pd:ho)
-	u64 function_base; // Base offset of current function (for absolute addresses)
-	HBCCommentCallback comment_callback; // Optional callback for r2 comments
-	void *comment_context; // Context passed to comment_callback
-	HBCFlagCallback flag_callback; // Optional callback for r2 flag/symbol names
-	void *flag_context; // Context passed to flag_callback
-	// Optimization/transformation pass control
-	bool skip_pass1_metadata; // Skip pass 1: metadata collection
-	bool skip_pass2_transform; // Skip pass 2: code transformation
-	bool skip_pass3_forin; // Skip pass 3: for-in loop parsing (structural recovery)
-	bool skip_pass4_closure; // Skip pass 4: closure variable naming
-	// Control flow rendering options
-	bool force_dispatch; // Force switch/case dispatch loop even for linear functions
-	bool inline_closures; // Inline closure definitions (default: true)
-	int inline_threshold; // Max instruction count to inline (0 = no limit, -1 = no inline)
-} HBCDecompileOptions;
-
-/* Decode context for single-instruction decoding (consolidates parameters) */
+/** Configuration for single-instruction decode */
 typedef struct {
 	/* Input data */
-	const u8 *bytes; // Raw bytecode bytes
-	size_t len; // Length of bytes buffer
-	u64 pc; // Program counter / absolute address
+	const u8 *bytes;            // Raw bytecode bytes
+	size_t len;                 // Length of bytes buffer
+	u64 pc;                     // Program counter / absolute address
 
 	/* Configuration */
-	u32 bytecode_version; // Hermes bytecode version (e.g., 96)
-	bool asm_syntax; // Output CPU-like asm syntax
-	bool resolve_string_ids; // Resolve string IDs to addresses
+	u32 bytecode_version;       // Hermes bytecode version (e.g., 96)
+	bool asm_syntax;            // Output CPU-like asm syntax
+	bool resolve_string_ids;    // Resolve string IDs to addresses
 
 	/* String tables (optional, for string resolution) */
 	const HBCStringTables *string_tables;
 } HBCDecodeContext;
 
-/* Lifecycle */
-Result hbc_open(const char *path, HBCState **out);
-Result hbc_open_from_memory(const u8 *data, size_t size, HBCState **out);
-void hbc_close(HBCState *hd);
-
-/* Introspection */
-u32 hbc_function_count(HBCState *hd);
-u32 hbc_string_count(HBCState *hd);
-Result hbc_get_header(HBCState *hd, HBCHeader *out);
-
-/* Retrieve basic function info */
-Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunctionInfo *out);
-
-/* Resolve string by index (pointer valid while hd is alive) */
-Result hbc_get_string(HBCState *hd, u32 index, const char **out_str);
-Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out);
-
-/* Get raw string table data for single-instruction decoding */
-Result hbc_get_string_tables(HBCState *hd, HBCStringTables *out);
-/* Optional metadata: map function_id to an associated source string (version >= 84).
- * This commonly references a string tied to the function, which can sometimes
- * encode module/container context. Returns SUCCESS with out_str=NULL if not found. */
-Result hbc_get_function_source(HBCState *hd, u32 function_id, const char **out_str);
-
-/* Function bytecode access */
-Result hbc_get_function_bytecode(HBCState *hd, u32 function_id, const u8 **out_ptr, u32 *out_size);
-
-/* Disassembly helpers - new API returns allocated strings */
-Result hbc_disassemble_function(
-	HBCState *hd,
-	HBCDisassemblyOptions options,
-	u32 function_id,
-	char **out_str);
-
-Result hbc_disassemble_all(
-	HBCState *hd,
-	HBCDisassemblyOptions options,
-	char **out_str);
-
-/* Legacy buffer-based API (deprecated, use hbc_disassemble_* above) */
-Result hbc_disassemble_function_to_buffer(
-	HBCState *hd,
-	HBCDisassemblyOptions options,
-	u32 function_id,
-	StringBuffer *out);
-
-Result hbc_disassemble_all_to_buffer(
-	HBCState *hd,
-	HBCDisassemblyOptions options,
-	StringBuffer *out);
-
-/* Decode a function into an array of HBCInstruction entries */
-Result hbc_decode_function_instructions(
-	HBCState *hd,
-	u32 function_id,
-	HBCDecodedInstructions *out);
-
-/* Free an array returned by hbc_decode_function_instructions */
-void hbc_free_instructions(HBCInstruction *insns, u32 count);
-
-/* Decompiler APIs - new versions return allocated strings */
-Result hbc_decompile_all(HBCState *hd, HBCDecompileOptions options, char **out_str);
-Result hbc_decompile_function(HBCState *hd, u32 function_id, HBCDecompileOptions options, char **out_str);
-
-/* Legacy buffer-based API (deprecated, use hbc_decompile_* above) */
-Result hbc_decompile_all_to_buffer(HBCState *hd, HBCDecompileOptions options, StringBuffer *out);
-Result hbc_decompile_function_to_buffer(HBCState *hd, u32 function_id, HBCDecompileOptions options, StringBuffer *out);
-
-/* File-based convenience functions */
-Result hbc_decompile_file(const char *input_file, const char *output_file);
-
-/* r2 script generation function */
-Result hbc_generate_r2_script(const char *input_file, const char *output_file);
-
-/* Validation/report helpers */
-Result hbc_validate_basic(HBCState *hd, char **out_str);
-
-/* Legacy buffer-based validation (deprecated) */
-Result hbc_validate_basic_to_buffer(HBCState *hd, StringBuffer *out);
-
-/* Memory management for string results */
-
-/* Minimal single-instruction disassembler (no file context) */
-
-/*
+/**
  * Decode a single instruction using a context struct (preferred API).
  * All configuration is passed via the HBCDecodeContext struct.
  * Returns decoded info in out.
  */
 Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out);
 
-/*
+/**
  * Legacy API: Decode a single instruction from raw bytes.
- * Prefer hbc_decode () with HBCDecodeContext for new code.
- * - bytecode_version: Hermes bytecode version (e.g. 96). If 0, defaults to 96 with a warning.
- * - pc: absolute address used only to compute jump targets for pretty printing.
- * - asm_syntax: when true, renders mnemonic and operands like a CPU asm line.
- * - resolve_string_ids: when true, resolves string IDs to actual addresses using provided tables.
+ * DEPRECATED - use hbc_decode() with HBCDecodeContext instead.
+ * - bytecode_version: Hermes bytecode version (e.g. 96). If 0, defaults to 96.
+ * - pc: absolute address used to compute jump targets for pretty printing.
+ * - asm_syntax: when true, renders mnemonic and operands like CPU asm.
+ * - resolve_string_ids: when true, resolves string IDs to actual addresses.
  * - string_ctx: string table context.
- * Returns decoded info in out.
  */
 Result hbc_decode_single_instruction(
 	const u8 *bytes,
@@ -287,18 +425,42 @@ Result hbc_decode_single_instruction(
 	const HBCStringTables *string_ctx,
 	HBCSingleInstructionInfo *out);
 
-/* Encoding functions */
+/* ============================================================================
+ * Instruction Encoding
+ * ============================================================================ */
 
-/* Encode a single instruction from asm text to bytecode */
+/**
+ * Encode a single instruction from asm text to bytecode.
+ * Returns bytecode in buffer that caller must free with free().
+ */
 Result hbc_encode_instruction(
 	const char *asm_line,
 	u32 bytecode_version,
 	HBCEncodeBuffer *out);
 
-/* Encode multiple instructions from asm text to bytecode */
+/**
+ * Encode multiple instructions from asm text to bytecode.
+ * Returns bytecode in buffer that caller must free with free().
+ */
 Result hbc_encode_instructions(
 	const char *asm_text,
 	u32 bytecode_version,
 	HBCEncodeBuffer *out);
+
+/* ============================================================================
+ * CLI Convenience Functions
+ * ============================================================================ */
+
+/**
+ * Decompile a file and write output to another file.
+ * Convenience wrapper for CLI usage.
+ */
+Result hbc_decompile_file(const char *input_file, const char *output_file);
+
+/**
+ * Generate an r2 script from a bytecode file.
+ * Convenience wrapper for CLI usage.
+ */
+Result hbc_generate_r2_script(const char *input_file, const char *output_file);
 
 #endif /* HERMESDEC_API_H */

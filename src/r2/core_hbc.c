@@ -35,14 +35,12 @@ static RBinFile *safe_r_bin_file_cur(RBin *bin) {
 }
 
 typedef struct {
-	HBCState *hbc; /* Kept for backward compat */
-	HBCDataProvider *provider; /* NEW: Cached provider per file */
+	HBCDataProvider *provider; /* Cached provider per file */
 	RCore *core;
 	char *file_path;
 } HbcContext;
 
 static HbcContext hbc_ctx = {
-	.hbc = NULL,
 	.provider = NULL,
 	.core = NULL,
 	.file_path = NULL
@@ -110,10 +108,6 @@ static Result hbc_load_current_binary(RCore *core) {
 	if (hbc_ctx.provider) {
 		hbc_data_provider_free (hbc_ctx.provider);
 		hbc_ctx.provider = NULL;
-	}
-	if (hbc_ctx.hbc) {
-		hbc_close (hbc_ctx.hbc);
-		hbc_ctx.hbc = NULL;
 	}
 	free (hbc_ctx.file_path);
 	hbc_ctx.file_path = NULL;
@@ -645,10 +639,6 @@ static bool plugin_fini(struct r_core_plugin_session_t *s) {
 	if (hbc_ctx.provider) {
 		hbc_data_provider_free (hbc_ctx.provider);
 		hbc_ctx.provider = NULL;
-	}
-	if (hbc_ctx.hbc) {
-		hbc_close (hbc_ctx.hbc);
-		hbc_ctx.hbc = NULL;
 	}
 	hbc_ctx.core = NULL;
 	free (hbc_ctx.file_path);
