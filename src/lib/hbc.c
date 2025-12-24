@@ -471,16 +471,145 @@ Result hbc_dec_insn(
 	const HBCStrs *string_ctx,
 	HBCInsnInfo *out) {
 
-	HBCDecodeCtx ctx = {
-		.bytes = bytes,
-		.len = len,
-		.pc = pc,
-		.bytecode_version = bytecode_version,
-		.asm_syntax = asm_syntax,
-		.resolve_string_ids = resolve_string_ids,
-		.string_tables = string_ctx
-	};
-	return hbc_dec (&ctx, out);
+	if (!bytes || !out || len == 0) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+
+	/* Get the ISA for this bytecode version */
+	HBCISA isa = hbc_isa_getv (bytecode_version);
+	if (!isa.instructions || isa.count == 0) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid bytecode version");
+	}
+
+	/* Read opcode */
+	u8 opcode = bytes[0];
+
+	/* Find instruction definition */
+	const Instruction *inst = NULL;
+	for (u32 i = 0; i < isa.count; i++) {
+		if (i == opcode) {
+			inst = &isa.instructions[i];
+			break;
+		}
+	}
+
+	if (!inst || !inst->name) {
+		out->text = strdup ("unk");
+		out->size = 1;
+		out->opcode = opcode;
+		out->is_jump = false;
+		out->is_call = false;
+		out->jump_target = 0;
+		return SUCCESS_RESULT ();
+	}
+
+	/* Parse operands */
+	u32 operand_values[6] = {0};
+	size_t pos = 1; /* Start after opcode */
+
+	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+		OperandType operand_type = inst->operands[i].operand_type;
+
+		/* Check if we have enough bytes */
+		size_t need = 0;
+		switch (operand_type) {
+		case OPERAND_TYPE_REG8:
+		case OPERAND_TYPE_UINT8:
+		case OPERAND_TYPE_ADDR8: need = 1; break;
+		case OPERAND_TYPE_UINT16: need = 2; break;
+		case OPERAND_TYPE_REG32:
+		case OPERAND_TYPE_UINT32:
+		case OPERAND_TYPE_IMM32:
+		case OPERAND_TYPE_ADDR32: need = 4; break;
+		case OPERAND_TYPE_DOUBLE: need = 8; break;
+		default: need = 0; break;
+		}
+
+		if (pos + need > len) {
+			break;
+		}
+
+		/* Read operand value */
+		switch (operand_type) {
+		case OPERAND_TYPE_REG8:
+		case OPERAND_TYPE_UINT8:
+		case OPERAND_TYPE_ADDR8:
+			operand_values[i] = bytes[pos];
+			pos += 1;
+			break;
+		case OPERAND_TYPE_UINT16:
+			operand_values[i] = bytes[pos] | (bytes[pos + 1] << 8);
+			pos += 2;
+			break;
+		case OPERAND_TYPE_REG32:
+		case OPERAND_TYPE_UINT32:
+		case OPERAND_TYPE_IMM32:
+		case OPERAND_TYPE_ADDR32:
+			operand_values[i] = bytes[pos] | (bytes[pos + 1] << 8) |
+			                    (bytes[pos + 2] << 16) | (bytes[pos + 3] << 24);
+			pos += 4;
+			break;
+		case OPERAND_TYPE_DOUBLE:
+			/* Skip for now */
+			pos += 8;
+			break;
+		default:
+			break;
+		}
+	}
+
+	/* Format output string */
+	char buf[512];
+	int offset = 0;
+
+	if (asm_syntax) {
+		/* ASM syntax: mnemonic operand1, operand2, ... */
+		offset = snprintf (buf, sizeof (buf), "%s", inst->name);
+
+		bool first = true;
+		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+			if (first) {
+				offset += snprintf (buf + offset, sizeof (buf) - offset, " ");
+				first = false;
+			} else {
+				offset += snprintf (buf + offset, sizeof (buf) - offset, ", ");
+			}
+
+			OperandType operand_type = inst->operands[i].operand_type;
+			if (operand_type == OPERAND_TYPE_REG8 || operand_type == OPERAND_TYPE_REG32) {
+				offset += snprintf (buf + offset, sizeof (buf) - offset, "r%u", operand_values[i]);
+			} else {
+				offset += snprintf (buf + offset, sizeof (buf) - offset, "%u", operand_values[i]);
+			}
+		}
+	} else {
+		/* Default syntax */
+		offset = snprintf (buf, sizeof (buf), "%s", inst->name);
+
+		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+			offset += snprintf (buf + offset, sizeof (buf) - offset, " %u", operand_values[i]);
+		}
+	}
+
+	out->text = strdup (buf);
+	out->size = (u32)pos;
+	out->opcode = opcode;
+
+	/* Detect jumps and calls */
+	const char *name = inst->name;
+	out->is_jump = (strncmp (name, "Jmp", 3) == 0) || (strncmp (name, "J", 1) == 0 && name[1] >= 'A' && name[1] <= 'Z');
+	out->is_call = (strncmp (name, "Call", 4) == 0) || (strcmp (name, "Construct") == 0);
+	out->jump_target = 0;
+
+	if (out->is_jump && operand_values[0] != 0) {
+		/* Calculate jump target (relative offset) */
+		out->jump_target = pc + (i32)operand_values[0];
+	}
+
+	(void)resolve_string_ids;
+	(void)string_ctx;
+
+	return SUCCESS_RESULT ();
 }
 
 /* Encoding functions */

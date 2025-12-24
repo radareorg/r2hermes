@@ -156,70 +156,26 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 	return -1;
 }
 
-/* Helper to read boolean config value */
-// AITODO: remove this function and use just r_config_getb() in the callers
-static bool read_config_bool(RCore *core, const char *key, bool default_val) {
-	if (!core || !core->config) {
-		return default_val;
-	}
-	const char *val = r_config_get (core->config, key);
-	if (!val) {
-		return default_val;
-	}
-	return strcmp (val, "true") == 0 || strcmp (val, "1") == 0;
-}
-
-// AITODO: remove this function and use just r_config_geti() in the callers
-static int read_config_int(RCore *core, const char *key, int default_val) {
-	if (!core || !core->config) {
-		return default_val;
-	}
-	const char *val = r_config_get (core->config, key);
-	if (!val) {
-		return default_val;
-	}
-	return atoi (val);
-}
-
 /* Create decompile options with r2 integration */
 static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
 	HBCDecompileOptions opts = {
-		.pretty_literals = read_config_bool (core, "hbc.pretty_literals", true),
-		.suppress_comments = read_config_bool (core, "hbc.suppress_comments", false),
-		.show_offsets = show_offsets || read_config_bool (core, "hbc.show_offsets", false),
+		.pretty_literals = r_config_get_b (core->config, "hbc.pretty_literals"),
+		.suppress_comments = r_config_get_b (core->config, "hbc.suppress_comments"),
+		.show_offsets = show_offsets || r_config_get_b (core->config, "hbc.show_offsets"),
 		.function_base = function_base,
 		.comment_callback = r2_comment_callback,
 		.comment_context = core,
 		.flag_callback = r2_flag_callback,
 		.flag_context = core,
-		.skip_pass1_metadata = read_config_bool (core, "hbc.skip_pass1", false),
-		.skip_pass2_transform = read_config_bool (core, "hbc.skip_pass2", false),
-		.skip_pass3_forin = read_config_bool (core, "hbc.skip_pass3", false),
-		.skip_pass4_closure = read_config_bool (core, "hbc.skip_pass4", false),
-		.force_dispatch = read_config_bool (core, "hbc.force_dispatch", false),
-		.inline_closures = read_config_bool (core, "hbc.inline_closures", true),
-		.inline_threshold = read_config_int (core, "hbc.inline_threshold", 0)
+		.skip_pass1_metadata = r_config_get_b (core->config, "hbc.skip_pass1"),
+		.skip_pass2_transform = r_config_get_b (core->config, "hbc.skip_pass2"),
+		.skip_pass3_forin = r_config_get_b (core->config, "hbc.skip_pass3"),
+		.skip_pass4_closure = r_config_get_b (core->config, "hbc.skip_pass4"),
+		.force_dispatch = r_config_get_b (core->config, "hbc.force_dispatch"),
+		.inline_closures = r_config_get_b (core->config, "hbc.inline_closures"),
+		.inline_threshold = r_config_get_i (core->config, "hbc.inline_threshold")
 	};
 	return opts;
-}
-
-/* Helper to trim trailing empty lines from output */
-// AITODO: i think this is just r_str_trim(). remove this function and use r_str_trim() in the callers
-static char *trim_trailing_lines(const char *str) {
-	if (!str || !*str) {
-		return NULL;
-	}
-	size_t len = strlen (str);
-	/* Find the last non-whitespace character */
-	while (len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r')) {
-		len--;
-	}
-	char *result = (char *)malloc (len + 1);
-	if (result) {
-		memcpy (result, str, len);
-		result[len] = '\0';
-	}
-	return result;
 }
 
 /* Decompile function at current offset or all functions if not in a function */
@@ -244,9 +200,8 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		_hbc_string_buffer_init (&output, 4096);
 		result = _hbc_decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
-			char *trimmed = trim_trailing_lines (output.data);
-			HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-			free (trimmed);
+			r_str_trim (output.data);
+			HBC_PRINTF (core, "%s\n", output.data);
 		} else {
 			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 		}
@@ -258,9 +213,8 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		_hbc_string_buffer_init (&output, 4096);
 		result = _hbc_decompile_all_with_provider (hbc_ctx.provider, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
-			char *trimmed = trim_trailing_lines (output.data);
-			HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-			free (trimmed);
+			r_str_trim (output.data);
+			HBC_PRINTF (core, "%s\n", output.data);
 		} else {
 			HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 		}
@@ -285,9 +239,8 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 	_hbc_string_buffer_init (&output, 8192);
 	result = _hbc_decompile_all_with_provider (hbc_ctx.provider, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
-		char *trimmed = trim_trailing_lines (output.data);
-		HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-		free (trimmed);
+		r_str_trim (output.data);
+		HBC_PRINTF (core, "%s\n", output.data);
 	} else {
 		HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 	}
@@ -336,9 +289,8 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	_hbc_string_buffer_init (&output, 4096);
 	result = _hbc_decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
-		char *trimmed = trim_trailing_lines (output.data);
-		HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-		free (trimmed);
+		r_str_trim (output.data);
+		HBC_PRINTF (core, "%s\n", output.data);
 	} else {
 		HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 	}

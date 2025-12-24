@@ -31,12 +31,20 @@ STATIC_LIB = $(BUILD_DIR)/libhbc.a
 INCLUDES = -I$(INCLUDE_DIR)
 
 # Targets
-.PHONY: all clean debug
+.PHONY: all clean debug asan
 
 all: prepare $(BIN_FILE)
 
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: all
+
+ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer -g
+
+asan:
+	$(MAKE) clean
+	$(MAKE) all CFLAGS="$(CFLAGS) $(ASAN_FLAGS)" LDFLAGS="$(LDFLAGS) -fsanitize=address"
+	CFLAGS="$(ASAN_FLAGS)" LDFLAGS="-fsanitize=address" $(MAKE) -C src/r2
+	$(MAKE) -C src/r2 user-install
 
 format indent fmt:
 	clang-format-radare2 $(shell find src include src/r2 | grep '\.[c|h]$$')

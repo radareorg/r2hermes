@@ -69,71 +69,27 @@ static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 	/* Parse header fields at known offsets */
 	/* Offset 0: magic (8 bytes, little-endian) */
 	memcpy (&out->magic, header_buf + 0, 8);
-
-	/* Offset 8: version (4 bytes, little-endian) */
 	out->version = r_read_le32 (header_buf + 8);
-
-	/* Offset 12: sourceHash (20 bytes) */
 	memcpy (out->sourceHash, header_buf + 12, 20);
-
-	/* Offset 32: fileLength (4 bytes) */
 	out->fileLength = r_read_le32 (header_buf + 32);
-
-	/* Offset 36: globalCodeIndex (4 bytes) */
 	out->globalCodeIndex = r_read_le32 (header_buf + 36);
-
-	/* Offset 40: functionCount (4 bytes) */
 	out->functionCount = r_read_le32 (header_buf + 40);
-
-	/* Offset 44: stringKindCount (4 bytes) */
 	out->stringKindCount = r_read_le32 (header_buf + 44);
-
-	/* Offset 48: identifierCount (4 bytes) */
 	out->identifierCount = r_read_le32 (header_buf + 48);
-
-	/* Offset 52: stringCount (4 bytes) */
 	out->stringCount = r_read_le32 (header_buf + 52);
-
-	/* Offset 56: overflowStringCount (4 bytes) */
 	out->overflowStringCount = r_read_le32 (header_buf + 56);
-
-	/* Offset 60: stringStorageSize (4 bytes) */
 	out->stringStorageSize = r_read_le32 (header_buf + 60);
-
-	/* Offset 64: bigIntCount (4 bytes) */
 	out->bigIntCount = r_read_le32 (header_buf + 64);
-
-	/* Offset 68: bigIntStorageSize (4 bytes) */
 	out->bigIntStorageSize = r_read_le32 (header_buf + 68);
-
-	/* Offset 72: regExpCount (4 bytes) */
 	out->regExpCount = r_read_le32 (header_buf + 72);
-
-	/* Offset 76: regExpStorageSize (4 bytes) */
 	out->regExpStorageSize = r_read_le32 (header_buf + 76);
-
-	/* Offset 80: arrayBufferSize (4 bytes) */
 	out->arrayBufferSize = r_read_le32 (header_buf + 80);
-
-	/* Offset 84: objKeyBufferSize (4 bytes) */
 	out->objKeyBufferSize = r_read_le32 (header_buf + 84);
-
-	/* Offset 88: objValueBufferSize (4 bytes) */
 	out->objValueBufferSize = r_read_le32 (header_buf + 88);
-
-	/* Offset 92: segmentID (4 bytes) */
 	out->segmentID = r_read_le32 (header_buf + 92);
-
-	/* Offset 96: cjsModuleCount (4 bytes) */
 	out->cjsModuleCount = r_read_le32 (header_buf + 96);
-
-	/* Offset 100: functionSourceCount (4 bytes) */
 	out->functionSourceCount = r_read_le32 (header_buf + 100);
-
-	/* Offset 104: debugInfoOffset (4 bytes) */
 	out->debugInfoOffset = r_read_le32 (header_buf + 104);
-
-	/* Offset 108: flags (1 byte each) */
 	out->staticBuiltins = (header_buf[108] & 0x01) != 0;
 	out->cjsModulesStaticallyResolved = (header_buf[108] & 0x02) != 0;
 	out->hasAsync = (header_buf[108] & 0x04) != 0;
@@ -145,10 +101,7 @@ static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
  * Get the HBC file header.
  * Caches the header on first call to avoid re-parsing.
  */
-Result hbc_data_provider_get_header(
-	HBCDataProvider *provider,
-	struct HBCHeader *out) {
-
+Result hbc_data_provider_get_header(HBCDataProvider *provider, struct HBCHeader *out) {
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -303,10 +256,7 @@ Result hbc_data_provider_get_string(
 /**
  * Get metadata for a string (offset, length, kind).
  */
-Result hbc_data_provider_get_string_meta(
-	HBCDataProvider *provider,
-	u32 string_id,
-	struct HBCStringMeta *out) {
+Result hbc_data_provider_get_string_meta(HBCDataProvider *provider, u32 string_id, struct HBCStringMeta *out) {
 
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
@@ -387,10 +337,7 @@ Result hbc_data_provider_get_bytecode(
 /**
  * Get pre-parsed string table data.
  */
-Result hbc_data_provider_get_string_tables(
-	HBCDataProvider *provider,
-	struct HBCStringTables *out) {
-
+Result hbc_data_provider_get_string_tables(HBCDataProvider *provider, struct HBCStringTables *out) {
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -407,10 +354,7 @@ Result hbc_data_provider_get_string_tables(
 /**
  * Get source/module name associated with a function (optional, may be NULL).
  */
-Result hbc_data_provider_get_function_source(
-	HBCDataProvider *provider,
-	u32 function_id,
-	const char **out_src) {
+Result hbc_data_provider_get_function_source(HBCDataProvider *provider, u32 function_id, const char **out_src) {
 
 	if (!provider || !out_src) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
