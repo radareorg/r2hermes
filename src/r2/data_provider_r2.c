@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
+/* radare2 - LGPL - Copyright 2025 - pancake */
 /* R2DataProvider: Read HBC data from r2 RBinFile without separate file I/O */
 
 #include <r_bin.h>

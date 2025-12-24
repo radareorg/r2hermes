@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
+/* radare2 - LGPL - Copyright 2025 - pancake */
 /* r2 core plugin for Hermes bytecode decompilation */
 
 #include <r_core.h>

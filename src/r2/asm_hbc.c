@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
+/* radare2 - LGPL - Copyright 2025 - pancake */
 
 #include <r_asm.h>
 #include <r_util.h>

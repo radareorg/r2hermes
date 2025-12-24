@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
+/* radare2 - LGPL - Copyright 2025 - pancake */
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
@@ -7,7 +7,7 @@
 
 static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
 	if (r_buf_size (b) >= 8) {
-		ut64 magic;
+		ut64 magic = 0;
 		r_buf_read_at (b, 0, (ut8 *)&magic, sizeof (magic));
 		return magic == HEADER_MAGIC;
 	}
@@ -43,25 +43,20 @@ static ut64 get_entrypoint(RBuffer *buf) {
 
 // Get entrypoint using the hermesdec library
 static ut64 get_entrypoint_from_file(const char *file_path) {
-	if (!file_path) {
-		return 0;
+	if (file_path) {
+		HBCDataProvider *provider = hbc_new_file (file_path);
+		if (provider) {
+			HBCHeader hh;
+			Result result = hbc_hdr (provider, &hh);
+			ut64 entrypoint = 0;
+			if (result.code == RESULT_SUCCESS) {
+				entrypoint = hh.globalCodeIndex;
+			}
+			hbc_free (provider);
+			return entrypoint;
+		}
 	}
-
-	HBCDataProvider *provider = hbc_new_file (file_path);
-	if (!provider) {
-		return 0;
-	}
-
-	HBCHeader hh;
-	Result result = hbc_hdr (provider, &hh);
-	if (result.code != RESULT_SUCCESS) {
-		hbc_free (provider);
-		return 0;
-	}
-
-	ut64 entrypoint = hh.globalCodeIndex;
-	hbc_free (provider);
-	return entrypoint;
+	return 0;
 }
 
 static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut32 version) {
@@ -70,15 +65,12 @@ static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut
 	ret->rclass = strdup ("hermes");
 	ret->arch = strdup ("hbc");
 	ret->os = strdup ("any");
-	ret->bits = 32; // Hermes bytecode is typically 32-bit
-
+	ret->bits = 32;
+	ret->type = strdup ("Hermes bytecode");
+	ret->machine = strdup ("Hermes VM");
 	if (has_version) {
-		ret->type = r_str_newf ("Hermes bytecode v%u", version);
-		ret->machine = r_str_newf ("Hermes VM v%u", version);
 		ret->cpu = r_str_newf ("%u", version);
 	} else {
-		ret->type = strdup ("Hermes bytecode");
-		ret->machine = strdup ("Hermes VM");
 		ret->cpu = strdup ("unknown");
 	}
 }
