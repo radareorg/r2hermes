@@ -47,20 +47,20 @@ static ut64 get_entrypoint_from_file(const char *file_path) {
 		return 0;
 	}
 
-	HBCDataProvider *provider = hbc_data_provider_from_file(file_path);
+	HBCDataProvider *provider = hbc_new_file (file_path);
 	if (!provider) {
 		return 0;
 	}
 
 	HBCHeader hh;
-	Result result = hbc_data_provider_get_header(provider, &hh);
+	Result result = hbc_hdr (provider, &hh);
 	if (result.code != RESULT_SUCCESS) {
-		hbc_data_provider_free(provider);
+		hbc_free (provider);
 		return 0;
 	}
 
 	ut64 entrypoint = hh.globalCodeIndex;
-	hbc_data_provider_free(provider);
+	hbc_free (provider);
 	return entrypoint;
 }
 
@@ -89,15 +89,15 @@ static RBinInfo *info(RBinFile *bf) {
 	ut32 version = 0;
 
 	if (bf->file) {
-		HBCDataProvider *provider = hbc_data_provider_from_file(bf->file);
+		HBCDataProvider *provider = hbc_new_file (bf->file);
 		if (provider) {
 			HBCHeader hh;
-			Result result = hbc_data_provider_get_header(provider, &hh);
+			Result result = hbc_hdr (provider, &hh);
 			if (result.code == RESULT_SUCCESS) {
 				has_version = true;
 				version = hh.version;
 			}
-			hbc_data_provider_free(provider);
+			hbc_free (provider);
 		}
 	}
 
@@ -140,28 +140,28 @@ static ut64 get_entrypoint_from_symbols(const char *file_path) {
 		return 0;
 	}
 
-	HBCDataProvider *provider = hbc_data_provider_from_file(file_path);
+	HBCDataProvider *provider = hbc_new_file (file_path);
 	if (!provider) {
 		return 0;
 	}
 
 	u32 func_count;
-	Result result = hbc_data_provider_get_function_count(provider, &func_count);
+	Result result = hbc_func_count (provider, &func_count);
 	if (result.code != RESULT_SUCCESS) {
-		hbc_data_provider_free(provider);
+		hbc_free (provider);
 		return 0;
 	}
 
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunctionInfo fi;
-		Result func_result = hbc_data_provider_get_function_info(provider, i, &fi);
+		Result func_result = hbc_func_info (provider, i, &fi);
 		if (func_result.code == RESULT_SUCCESS && fi.name && strcmp (fi.name, "MainAppContent") == 0) {
-			hbc_data_provider_free(provider);
+			hbc_free (provider);
 			return fi.offset;
 		}
 	}
 
-	hbc_data_provider_free(provider);
+	hbc_free (provider);
 	return 0;
 }
 
@@ -215,13 +215,13 @@ static RList *entries(RBinFile *bf) {
 
 	// If entrypoint is still invalid, try to find any valid function offset
 	if (entrypoint == 0 && bf->file) {
-		HBCDataProvider *provider = hbc_data_provider_from_file(bf->file);
+		HBCDataProvider *provider = hbc_new_file (bf->file);
 		if (provider) {
 			u32 func_count;
-			Result result = hbc_data_provider_get_function_count(provider, &func_count);
+			Result result = hbc_func_count (provider, &func_count);
 			if (result.code == RESULT_SUCCESS && func_count > 0) {
 				HBCFunctionInfo fi;
-				Result func_result = hbc_data_provider_get_function_info(provider, 0, &fi);
+				Result func_result = hbc_func_info (provider, 0, &fi);
 				if (func_result.code == RESULT_SUCCESS && fi.offset != 0) {
 					// Check if this offset is also valid
 					ut64 file_size = r_buf_size (bf->buf);
@@ -242,7 +242,7 @@ static RList *entries(RBinFile *bf) {
 					}
 				}
 			}
-			hbc_data_provider_free(provider);
+			hbc_free (provider);
 		}
 	}
 
@@ -268,14 +268,14 @@ static RList *symbols(RBinFile *bf) {
 
 	// Try to parse the file and extract function symbols using the library
 	if (bf->file) {
-		HBCDataProvider *provider = hbc_data_provider_from_file(bf->file);
+		HBCDataProvider *provider = hbc_new_file (bf->file);
 		if (provider) {
 			u32 func_count;
-			Result result = hbc_data_provider_get_function_count(provider, &func_count);
+			Result result = hbc_func_count (provider, &func_count);
 			if (result.code == RESULT_SUCCESS) {
 				for (u32 i = 0; i < func_count; i++) {
 					HBCFunctionInfo fi;
-					Result func_result = hbc_data_provider_get_function_info(provider, i, &fi);
+					Result func_result = hbc_func_info (provider, i, &fi);
 					if (func_result.code == RESULT_SUCCESS) {
 						RBinSymbol *symbol = R_NEW0 (RBinSymbol);
 						/* Build a unique, sanitized name: [container__]base + _0x<offset> */
@@ -293,7 +293,7 @@ static RList *symbols(RBinFile *bf) {
 						}
 						/* optional container/source prefix if available */
 						const char *src = NULL;
-						if (hbc_data_provider_get_function_source(provider, i, &src).code == RESULT_SUCCESS && src && *src) {
+						if (hbc_src (provider, i, &src).code == RESULT_SUCCESS && src && *src) {
 							char *sp = r_name_filter_dup (src);
 							if (sp && *sp) {
 								char *withpref = r_str_newf ("%s__%s", sp, san);
@@ -321,7 +321,7 @@ static RList *symbols(RBinFile *bf) {
 				}
 			}
 
-			hbc_data_provider_free(provider);
+			hbc_free (provider);
 		}
 	}
 
@@ -335,17 +335,17 @@ static RList *strings(RBinFile *bf) {
 	}
 
 	if (bf->file) {
-		HBCDataProvider *provider = hbc_data_provider_from_file(bf->file);
+		HBCDataProvider *provider = hbc_new_file (bf->file);
 		if (provider) {
 			u32 string_count;
-			Result result = hbc_data_provider_get_string_count(provider, &string_count);
+			Result result = hbc_str_count (provider, &string_count);
 			if (result.code == RESULT_SUCCESS) {
 				for (u32 i = 0; i < string_count; i++) {
 					const char *str = NULL;
-					Result str_result = hbc_data_provider_get_string(provider, i, &str);
+					Result str_result = hbc_str (provider, i, &str);
 					if (str_result.code == RESULT_SUCCESS && str) {
 						HBCStringMeta meta;
-						Result meta_result = hbc_data_provider_get_string_meta(provider, i, &meta);
+						Result meta_result = hbc_str_meta (provider, i, &meta);
 						if (meta_result.code == RESULT_SUCCESS) {
 							RBinString *ptr = R_NEW0 (RBinString);
 							size_t str_len = strlen (str);
@@ -370,7 +370,7 @@ static RList *strings(RBinFile *bf) {
 				}
 			}
 
-			hbc_data_provider_free(provider);
+			hbc_free (provider);
 		}
 	}
 

@@ -1903,7 +1903,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_str(provider, i, &str);
+			Result sres = hbc_str (provider, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
 			}
@@ -1995,7 +1995,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_str(provider, i, &str);
+			Result sres = hbc_str (provider, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
 			}

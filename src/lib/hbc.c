@@ -217,17 +217,17 @@ Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out) {
 	if (index >= r->header.stringCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "String ID out of range");
 	}
-	
+
 	u32 is_utf16 = r->small_string_table[index].isUTF16;
 	u32 length = r->small_string_table[index].length;
 	u32 off = r->small_string_table[index].offset;
-	
+
 	if (length == 0xFF) {
 		u32 oi = off;
 		off = r->overflow_string_table[oi].offset;
 		length = r->overflow_string_table[oi].length;
 	}
-	
+
 	out->isUTF16 = is_utf16 != 0;
 	out->offset = r->string_storage_file_offset + off;
 	out->length = length;
@@ -309,7 +309,7 @@ Result hbc_decomp_fn(
 		return res;
 	}
 
-	*out_str = sb.data; /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
@@ -333,7 +333,7 @@ Result hbc_decomp_all(
 		return res;
 	}
 
-	*out_str = sb.data; /* Transfer ownership to caller */
+	 *out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
@@ -344,7 +344,7 @@ Result hbc_disasm_fn(
 	char **out_str) {
 	(void)function_id;
 	(void)options;
-	
+
 	if (!provider || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -357,7 +357,7 @@ Result hbc_disasm_all(
 	HBCDisOptions options,
 	char **out_str) {
 	(void)options;
-	
+
 	if (!provider || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -470,7 +470,7 @@ Result hbc_dec_insn(
 	bool resolve_string_ids,
 	const HBCStrs *string_ctx,
 	HBCInsnInfo *out) {
-	
+
 	HBCDecodeCtx ctx = {
 		.bytes = bytes,
 		.len = len,
@@ -489,7 +489,7 @@ Result hbc_enc(
 	const char *asm_line,
 	u32 bytecode_version,
 	HBCEncBuf *out) {
-	
+
 	if (!asm_line || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -508,7 +508,7 @@ Result hbc_enc_multi(
 	const char *asm_text,
 	u32 bytecode_version,
 	HBCEncBuf *out) {
-	
+
 	if (!asm_text || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}

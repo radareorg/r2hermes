@@ -5,7 +5,7 @@
 
 /* ============================================================================
  * INTERNAL LEGACY API - HBCState (For Data Provider Implementations Only)
- * 
+ *
  * These functions are internal only. They exist to support the data provider
  * implementations that use HBCState internally. Do NOT use these in new code.
  * ============================================================================ */

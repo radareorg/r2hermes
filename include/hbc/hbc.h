@@ -127,7 +127,7 @@ typedef HBCInstruction HBCInsn;
 
 /* ============================================================================
  * PRIMARY API: HBCDataProvider
- * 
+ *
  * This is the recommended interface for all libhbc consumers.
  * HBCDataProvider abstracts the data source (file, memory buffer, r2 RBinFile)
  * and provides unified query and decompilation operations.
@@ -193,9 +193,9 @@ Result hbc_func_count(
  */
 typedef struct HBCFunctionInfo {
 	const char *name; // Valid while provider is alive; caller must not free
-	u32 offset;       // Bytecode offset in file
-	u32 size;         // Size in bytes
-	u32 param_count;  // Number of parameters
+	u32 offset; // Bytecode offset in file
+	u32 size; // Size in bytes
+	u32 param_count; // Number of parameters
 } HBCFunctionInfo;
 
 /* Typedef shorthand for convenience */
@@ -389,14 +389,14 @@ typedef HBCEncodeBuffer HBCEncBuf;
 /** Configuration for single-instruction decode */
 typedef struct {
 	/* Input data */
-	const u8 *bytes;            // Raw bytecode bytes
-	size_t len;                 // Length of bytes buffer
-	u64 pc;                     // Program counter / absolute address
+	const u8 *bytes; // Raw bytecode bytes
+	size_t len; // Length of bytes buffer
+	u64 pc; // Program counter / absolute address
 
 	/* Configuration */
-	u32 bytecode_version;       // Hermes bytecode version (e.g., 96)
-	bool asm_syntax;            // Output CPU-like asm syntax
-	bool resolve_string_ids;    // Resolve string IDs to addresses
+	u32 bytecode_version; // Hermes bytecode version (e.g., 96)
+	bool asm_syntax; // Output CPU-like asm syntax
+	bool resolve_string_ids; // Resolve string IDs to addresses
 
 	/* String tables (optional, for string resolution) */
 	const HBCStringTables *string_tables;
