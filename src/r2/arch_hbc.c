@@ -75,1628 +75,246 @@ static void snake_to_camel(const char *src, char *dst, size_t dst_size) {
 	dst[j] = '\0';
 }
 
-static int mnemonic_to_canonical_opcode(const char *mnemonic) {
-	if (!mnemonic) {
-		return -1;
-	}
-	/* Move operations */
-	if (!strcmp (mnemonic, "Mov")) {
-		return OP_Mov;
-	}
-	if (!strcmp (mnemonic, "MovLong")) {
-		return OP_MovLong;
-	}
-	/* Arithmetic operations */
-	if (!strcmp (mnemonic, "Add")) {
-		return OP_Add;
-	}
-	if (!strcmp (mnemonic, "AddN")) {
-		return OP_AddN;
-	}
-	if (!strcmp (mnemonic, "Sub")) {
-		return OP_Sub;
-	}
-	if (!strcmp (mnemonic, "SubN")) {
-		return OP_SubN;
-	}
-	if (!strcmp (mnemonic, "Mul")) {
-		return OP_Mul;
-	}
-	if (!strcmp (mnemonic, "MulN")) {
-		return OP_MulN;
-	}
-	if (!strcmp (mnemonic, "Div")) {
-		return OP_Div;
-	}
-	if (!strcmp (mnemonic, "DivN")) {
-		return OP_DivN;
-	}
-	if (!strcmp (mnemonic, "Mod")) {
-		return OP_Mod;
-	}
-	if (!strcmp (mnemonic, "Add32")) {
-		return OP_Add32;
-	}
-	if (!strcmp (mnemonic, "Sub32")) {
-		return OP_Sub32;
-	}
-	if (!strcmp (mnemonic, "Mul32")) {
-		return OP_Mul32;
-	}
-	if (!strcmp (mnemonic, "Divi32")) {
-		return OP_Divi32;
-	}
-	if (!strcmp (mnemonic, "Divu32")) {
-		return OP_Divu32;
-	}
-	/* Unary operations */
-	if (!strcmp (mnemonic, "Negate")) {
-		return OP_Negate;
-	}
-	if (!strcmp (mnemonic, "Not")) {
-		return OP_Not;
-	}
-	if (!strcmp (mnemonic, "BitNot")) {
-		return OP_BitNot;
-	}
-	if (!strcmp (mnemonic, "Inc")) {
-		return OP_Inc;
-	}
-	if (!strcmp (mnemonic, "Dec")) {
-		return OP_Dec;
-	}
-	if (!strcmp (mnemonic, "TypeOf")) {
-		return OP_TypeOf;
-	}
-	if (!strcmp (mnemonic, "ToNumber")) {
-		return OP_ToNumber;
-	}
-	if (!strcmp (mnemonic, "ToNumeric")) {
-		return OP_ToNumeric;
-	}
-	if (!strcmp (mnemonic, "ToInt32")) {
-		return OP_ToInt32;
-	}
-	if (!strcmp (mnemonic, "AddEmptyString")) {
-		return OP_AddEmptyString;
-	}
-	if (!strcmp (mnemonic, "CoerceThisNS")) {
-		return OP_CoerceThisNS;
-	}
-	/* Bitwise operations */
-	if (!strcmp (mnemonic, "BitAnd")) {
-		return OP_BitAnd;
-	}
-	if (!strcmp (mnemonic, "BitOr")) {
-		return OP_BitOr;
-	}
-	if (!strcmp (mnemonic, "BitXor")) {
-		return OP_BitXor;
-	}
-	if (!strcmp (mnemonic, "LShift")) {
-		return OP_LShift;
-	}
-	if (!strcmp (mnemonic, "RShift")) {
-		return OP_RShift;
-	}
-	if (!strcmp (mnemonic, "URshift")) {
-		return OP_URshift;
-	}
-	/* Comparison operations */
-	if (!strcmp (mnemonic, "Eq")) {
-		return OP_Eq;
-	}
-	if (!strcmp (mnemonic, "StrictEq")) {
-		return OP_StrictEq;
-	}
-	if (!strcmp (mnemonic, "Neq")) {
-		return OP_Neq;
-	}
-	if (!strcmp (mnemonic, "StrictNeq")) {
-		return OP_StrictNeq;
-	}
-	if (!strcmp (mnemonic, "Less")) {
-		return OP_Less;
-	}
-	if (!strcmp (mnemonic, "LessEq")) {
-		return OP_LessEq;
-	}
-	if (!strcmp (mnemonic, "Greater")) {
-		return OP_Greater;
-	}
-	if (!strcmp (mnemonic, "GreaterEq")) {
-		return OP_GreaterEq;
-	}
-	if (!strcmp (mnemonic, "InstanceOf")) {
-		return OP_InstanceOf;
-	}
-	if (!strcmp (mnemonic, "IsIn")) {
-		return OP_IsIn;
-	}
-	/* Load constant operations */
-	if (!strcmp (mnemonic, "LoadConstUInt8")) {
-		return OP_LoadConstUInt8;
-	}
-	if (!strcmp (mnemonic, "LoadConstInt")) {
-		return OP_LoadConstInt;
-	}
-	if (!strcmp (mnemonic, "LoadConstDouble")) {
-		return OP_LoadConstDouble;
-	}
-	if (!strcmp (mnemonic, "LoadConstString")) {
-		return OP_LoadConstString;
-	}
-	if (!strcmp (mnemonic, "LoadConstBigInt")) {
-		return OP_LoadConstBigInt;
-	}
-	if (!strcmp (mnemonic, "LoadConstStringLongIndex")) {
-		return OP_LoadConstStringLongIndex;
-	}
-	if (!strcmp (mnemonic, "LoadConstBigIntLongIndex")) {
-		return OP_LoadConstBigIntLongIndex;
-	}
-	if (!strcmp (mnemonic, "LoadConstEmpty")) {
-		return OP_LoadConstEmpty;
-	}
-	if (!strcmp (mnemonic, "LoadConstUndefined")) {
-		return OP_LoadConstUndefined;
-	}
-	if (!strcmp (mnemonic, "LoadConstNull")) {
-		return OP_LoadConstNull;
-	}
-	if (!strcmp (mnemonic, "LoadConstTrue")) {
-		return OP_LoadConstTrue;
-	}
-	if (!strcmp (mnemonic, "LoadConstFalse")) {
-		return OP_LoadConstFalse;
-	}
-	if (!strcmp (mnemonic, "LoadConstZero")) {
-		return OP_LoadConstZero;
-	}
-	/* Load parameter operations */
-	if (!strcmp (mnemonic, "LoadParam")) {
-		return OP_LoadParam;
-	}
-	if (!strcmp (mnemonic, "LoadParamLong")) {
-		return OP_LoadParamLong;
-	}
-	/* Special register loads */
-	if (!strcmp (mnemonic, "LoadThisNS")) {
-		return OP_LoadThisNS;
-	}
-	if (!strcmp (mnemonic, "GetGlobalObject")) {
-		return OP_GetGlobalObject;
-	}
-	if (!strcmp (mnemonic, "GetNewTarget")) {
-		return OP_GetNewTarget;
-	}
-	/* Environment operations */
-	if (!strcmp (mnemonic, "GetEnvironment")) {
-		return OP_GetEnvironment;
-	}
-	if (!strcmp (mnemonic, "CreateEnvironment")) {
-		return OP_CreateEnvironment;
-	}
-	if (!strcmp (mnemonic, "StoreToEnvironment")) {
-		return OP_StoreToEnvironment;
-	}
-	if (!strcmp (mnemonic, "StoreNPToEnvironment")) {
-		return OP_StoreNPToEnvironment;
-	}
-	if (!strcmp (mnemonic, "StoreToEnvironmentL")) {
-		return OP_StoreToEnvironmentL;
-	}
-	if (!strcmp (mnemonic, "StoreNPToEnvironmentL")) {
-		return OP_StoreNPToEnvironmentL;
-	}
-	if (!strcmp (mnemonic, "LoadFromEnvironment")) {
-		return OP_LoadFromEnvironment;
-	}
-	if (!strcmp (mnemonic, "LoadFromEnvironmentL")) {
-		return OP_LoadFromEnvironmentL;
-	}
-	/* Jump operations */
-	if (!strcmp (mnemonic, "Jmp")) {
-		return OP_Jmp;
-	}
-	if (!strcmp (mnemonic, "JmpLong")) {
-		return OP_JmpLong;
-	}
-	if (!strcmp (mnemonic, "JmpTrue")) {
-		return OP_JmpTrue;
-	}
-	if (!strcmp (mnemonic, "JmpTrueLong")) {
-		return OP_JmpTrueLong;
-	}
-	if (!strcmp (mnemonic, "JmpFalse")) {
-		return OP_JmpFalse;
-	}
-	if (!strcmp (mnemonic, "JmpFalseLong")) {
-		return OP_JmpFalseLong;
-	}
-	if (!strcmp (mnemonic, "JmpUndefined")) {
-		return OP_JmpUndefined;
-	}
-	if (!strcmp (mnemonic, "JmpUndefinedLong")) {
-		return OP_JmpUndefinedLong;
-	}
-	/* Conditional jumps */
-	if (!strcmp (mnemonic, "JLess")) {
-		return OP_JLess;
-	}
-	if (!strcmp (mnemonic, "JLessN")) {
-		return OP_JLessN;
-	}
-	if (!strcmp (mnemonic, "JLessLong")) {
-		return OP_JLessLong;
-	}
-	if (!strcmp (mnemonic, "JLessNLong")) {
-		return OP_JLessNLong;
-	}
-	if (!strcmp (mnemonic, "JNotLess")) {
-		return OP_JNotLess;
-	}
-	if (!strcmp (mnemonic, "JNotLessN")) {
-		return OP_JNotLessN;
-	}
-	if (!strcmp (mnemonic, "JNotLessLong")) {
-		return OP_JNotLessLong;
-	}
-	if (!strcmp (mnemonic, "JNotLessNLong")) {
-		return OP_JNotLessNLong;
-	}
-	if (!strcmp (mnemonic, "JLessEqual")) {
-		return OP_JLessEqual;
-	}
-	if (!strcmp (mnemonic, "JLessEqualN")) {
-		return OP_JLessEqualN;
-	}
-	if (!strcmp (mnemonic, "JLessEqualLong")) {
-		return OP_JLessEqualLong;
-	}
-	if (!strcmp (mnemonic, "JLessEqualNLong")) {
-		return OP_JLessEqualNLong;
-	}
-	if (!strcmp (mnemonic, "JNotLessEqual")) {
-		return OP_JNotLessEqual;
-	}
-	if (!strcmp (mnemonic, "JNotLessEqualN")) {
-		return OP_JNotLessEqualN;
-	}
-	if (!strcmp (mnemonic, "JNotLessEqualLong")) {
-		return OP_JNotLessEqualLong;
-	}
-	if (!strcmp (mnemonic, "JNotLessEqualNLong")) {
-		return OP_JNotLessEqualNLong;
-	}
-	if (!strcmp (mnemonic, "JGreater")) {
-		return OP_JGreater;
-	}
-	if (!strcmp (mnemonic, "JGreaterN")) {
-		return OP_JGreaterN;
-	}
-	if (!strcmp (mnemonic, "JGreaterLong")) {
-		return OP_JGreaterLong;
-	}
-	if (!strcmp (mnemonic, "JGreaterNLong")) {
-		return OP_JGreaterNLong;
-	}
-	if (!strcmp (mnemonic, "JNotGreater")) {
-		return OP_JNotGreater;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterN")) {
-		return OP_JNotGreaterN;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterLong")) {
-		return OP_JNotGreaterLong;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterNLong")) {
-		return OP_JNotGreaterNLong;
-	}
-	if (!strcmp (mnemonic, "JGreaterEqual")) {
-		return OP_JGreaterEqual;
-	}
-	if (!strcmp (mnemonic, "JGreaterEqualN")) {
-		return OP_JGreaterEqualN;
-	}
-	if (!strcmp (mnemonic, "JGreaterEqualLong")) {
-		return OP_JGreaterEqualLong;
-	}
-	if (!strcmp (mnemonic, "JGreaterEqualNLong")) {
-		return OP_JGreaterEqualNLong;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterEqual")) {
-		return OP_JNotGreaterEqual;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterEqualN")) {
-		return OP_JNotGreaterEqualN;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterEqualLong")) {
-		return OP_JNotGreaterEqualLong;
-	}
-	if (!strcmp (mnemonic, "JNotGreaterEqualNLong")) {
-		return OP_JNotGreaterEqualNLong;
-	}
-	if (!strcmp (mnemonic, "JEqual")) {
-		return OP_JEqual;
-	}
-	if (!strcmp (mnemonic, "JEqualLong")) {
-		return OP_JEqualLong;
-	}
-	if (!strcmp (mnemonic, "JNotEqual")) {
-		return OP_JNotEqual;
-	}
-	if (!strcmp (mnemonic, "JNotEqualLong")) {
-		return OP_JNotEqualLong;
-	}
-	if (!strcmp (mnemonic, "JStrictEqual")) {
-		return OP_JStrictEqual;
-	}
-	if (!strcmp (mnemonic, "JStrictEqualLong")) {
-		return OP_JStrictEqualLong;
-	}
-	if (!strcmp (mnemonic, "JStrictNotEqual")) {
-		return OP_JStrictNotEqual;
-	}
-	if (!strcmp (mnemonic, "JStrictNotEqualLong")) {
-		return OP_JStrictNotEqualLong;
-	}
-	/* Return operations */
-	if (!strcmp (mnemonic, "Ret")) {
-		return OP_Ret;
-	}
-	/* Call operations */
-	if (!strcmp (mnemonic, "Call")) {
-		return OP_Call;
-	}
-	if (!strcmp (mnemonic, "CallLong")) {
-		return OP_CallLong;
-	}
-	if (!strcmp (mnemonic, "Call1")) {
-		return OP_Call1;
-	}
-	if (!strcmp (mnemonic, "Call2")) {
-		return OP_Call2;
-	}
-	if (!strcmp (mnemonic, "Call3")) {
-		return OP_Call3;
-	}
-	if (!strcmp (mnemonic, "Call4")) {
-		return OP_Call4;
-	}
-	if (!strcmp (mnemonic, "CallDirect")) {
-		return OP_CallDirect;
-	}
-	if (!strcmp (mnemonic, "CallDirectLongIndex")) {
-		return OP_CallDirectLongIndex;
-	}
-	if (!strcmp (mnemonic, "Construct")) {
-		return OP_Construct;
-	}
-	if (!strcmp (mnemonic, "ConstructLong")) {
-		return OP_ConstructLong;
-	}
-	if (!strcmp (mnemonic, "CallBuiltin")) {
-		return OP_CallBuiltin;
-	}
-	if (!strcmp (mnemonic, "CallBuiltinLong")) {
-		return OP_CallBuiltinLong;
-	}
-	/* Property access */
-	if (!strcmp (mnemonic, "GetByIdShort")) {
-		return OP_GetByIdShort;
-	}
-	if (!strcmp (mnemonic, "GetById")) {
-		return OP_GetById;
-	}
-	if (!strcmp (mnemonic, "GetByIdLong")) {
-		return OP_GetByIdLong;
-	}
-	if (!strcmp (mnemonic, "TryGetById")) {
-		return OP_TryGetById;
-	}
-	if (!strcmp (mnemonic, "TryGetByIdLong")) {
-		return OP_TryGetByIdLong;
-	}
-	if (!strcmp (mnemonic, "GetByVal")) {
-		return OP_GetByVal;
-	}
-	if (!strcmp (mnemonic, "PutById")) {
-		return OP_PutById;
-	}
-	if (!strcmp (mnemonic, "PutByIdLong")) {
-		return OP_PutByIdLong;
-	}
-	if (!strcmp (mnemonic, "TryPutById")) {
-		return OP_TryPutById;
-	}
-	if (!strcmp (mnemonic, "TryPutByIdLong")) {
-		return OP_TryPutByIdLong;
-	}
-	if (!strcmp (mnemonic, "PutByVal")) {
-		return OP_PutByVal;
-	}
-	if (!strcmp (mnemonic, "PutNewOwnByIdShort")) {
-		return OP_PutNewOwnByIdShort;
-	}
-	if (!strcmp (mnemonic, "PutNewOwnById")) {
-		return OP_PutNewOwnById;
-	}
-	if (!strcmp (mnemonic, "PutNewOwnByIdLong")) {
-		return OP_PutNewOwnByIdLong;
-	}
-	if (!strcmp (mnemonic, "PutNewOwnNEById")) {
-		return OP_PutNewOwnNEById;
-	}
-	if (!strcmp (mnemonic, "PutNewOwnNEByIdLong")) {
-		return OP_PutNewOwnNEByIdLong;
-	}
-	if (!strcmp (mnemonic, "PutOwnByIndex")) {
-		return OP_PutOwnByIndex;
-	}
-	if (!strcmp (mnemonic, "PutOwnByIndexL")) {
-		return OP_PutOwnByIndexL;
-	}
-	if (!strcmp (mnemonic, "PutOwnByVal")) {
-		return OP_PutOwnByVal;
-	}
-	if (!strcmp (mnemonic, "DelById")) {
-		return OP_DelById;
-	}
-	if (!strcmp (mnemonic, "DelByIdLong")) {
-		return OP_DelByIdLong;
-	}
-	if (!strcmp (mnemonic, "DelByVal")) {
-		return OP_DelByVal;
-	}
-	/* Object/Array creation */
-	if (!strcmp (mnemonic, "NewObject")) {
-		return OP_NewObject;
-	}
-	if (!strcmp (mnemonic, "NewObjectWithParent")) {
-		return OP_NewObjectWithParent;
-	}
-	if (!strcmp (mnemonic, "NewObjectWithBuffer")) {
-		return OP_NewObjectWithBuffer;
-	}
-	if (!strcmp (mnemonic, "NewObjectWithBufferLong")) {
-		return OP_NewObjectWithBufferLong;
-	}
-	if (!strcmp (mnemonic, "NewArray")) {
-		return OP_NewArray;
-	}
-	if (!strcmp (mnemonic, "NewArrayWithBuffer")) {
-		return OP_NewArrayWithBuffer;
-	}
-	if (!strcmp (mnemonic, "NewArrayWithBufferLong")) {
-		return OP_NewArrayWithBufferLong;
-	}
-	/* Closure/Generator creation */
-	if (!strcmp (mnemonic, "CreateClosure")) {
-		return OP_CreateClosure;
-	}
-	if (!strcmp (mnemonic, "CreateClosureLongIndex")) {
-		return OP_CreateClosureLongIndex;
-	}
-	if (!strcmp (mnemonic, "CreateGeneratorClosure")) {
-		return OP_CreateGeneratorClosure;
-	}
-	if (!strcmp (mnemonic, "CreateGeneratorClosureLongIndex")) {
-		return OP_CreateGeneratorClosureLongIndex;
-	}
-	if (!strcmp (mnemonic, "CreateAsyncClosure")) {
-		return OP_CreateAsyncClosure;
-	}
-	if (!strcmp (mnemonic, "CreateAsyncClosureLongIndex")) {
-		return OP_CreateAsyncClosureLongIndex;
-	}
-	if (!strcmp (mnemonic, "CreateGenerator")) {
-		return OP_CreateGenerator;
-	}
-	if (!strcmp (mnemonic, "CreateGeneratorLongIndex")) {
-		return OP_CreateGeneratorLongIndex;
-	}
-	if (!strcmp (mnemonic, "CreateThis")) {
-		return OP_CreateThis;
-	}
-	if (!strcmp (mnemonic, "SelectObject")) {
-		return OP_SelectObject;
-	}
-	/* Exception handling */
-	if (!strcmp (mnemonic, "Throw")) {
-		return OP_Throw;
-	}
-	if (!strcmp (mnemonic, "ThrowIfEmpty")) {
-		return OP_ThrowIfEmpty;
-	}
-	if (!strcmp (mnemonic, "Catch")) {
-		return OP_Catch;
-	}
-	/* Memory operations */
-	if (!strcmp (mnemonic, "Loadi8")) {
-		return OP_Loadi8;
-	}
-	if (!strcmp (mnemonic, "Loadu8")) {
-		return OP_Loadu8;
-	}
-	if (!strcmp (mnemonic, "Loadi16")) {
-		return OP_Loadi16;
-	}
-	if (!strcmp (mnemonic, "Loadu16")) {
-		return OP_Loadu16;
-	}
-	if (!strcmp (mnemonic, "Loadi32")) {
-		return OP_Loadi32;
-	}
-	if (!strcmp (mnemonic, "Loadu32")) {
-		return OP_Loadu32;
-	}
-	if (!strcmp (mnemonic, "Store8")) {
-		return OP_Store8;
-	}
-	if (!strcmp (mnemonic, "Store16")) {
-		return OP_Store16;
-	}
-	if (!strcmp (mnemonic, "Store32")) {
-		return OP_Store32;
-	}
-	/* Arguments operations */
-	if (!strcmp (mnemonic, "GetArgumentsPropByVal")) {
-		return OP_GetArgumentsPropByVal;
-	}
-	if (!strcmp (mnemonic, "GetArgumentsLength")) {
-		return OP_GetArgumentsLength;
-	}
-	if (!strcmp (mnemonic, "ReifyArguments")) {
-		return OP_ReifyArguments;
-	}
-	/* Iterator operations */
-	if (!strcmp (mnemonic, "IteratorBegin")) {
-		return OP_IteratorBegin;
-	}
-	if (!strcmp (mnemonic, "IteratorNext")) {
-		return OP_IteratorNext;
-	}
-	if (!strcmp (mnemonic, "IteratorClose")) {
-		return OP_IteratorClose;
-	}
-	if (!strcmp (mnemonic, "GetPNameList")) {
-		return OP_GetPNameList;
-	}
-	if (!strcmp (mnemonic, "GetNextPName")) {
-		return OP_GetNextPName;
-	}
-	/* Generator operations */
-	if (!strcmp (mnemonic, "StartGenerator")) {
-		return OP_StartGenerator;
-	}
-	if (!strcmp (mnemonic, "ResumeGenerator")) {
-		return OP_ResumeGenerator;
-	}
-	if (!strcmp (mnemonic, "CompleteGenerator")) {
-		return OP_CompleteGenerator;
-	}
-	if (!strcmp (mnemonic, "SaveGenerator")) {
-		return OP_SaveGenerator;
-	}
-	if (!strcmp (mnemonic, "SaveGeneratorLong")) {
-		return OP_SaveGeneratorLong;
-	}
-	/* Direct eval */
-	if (!strcmp (mnemonic, "DirectEval")) {
-		return OP_DirectEval;
-	}
-	/* Debug/profiling */
-	if (!strcmp (mnemonic, "Unreachable")) {
-		return OP_Unreachable;
-	}
-	if (!strcmp (mnemonic, "Debugger")) {
-		return OP_Debugger;
-	}
-	if (!strcmp (mnemonic, "AsyncBreakCheck")) {
-		return OP_AsyncBreakCheck;
-	}
-	if (!strcmp (mnemonic, "ProfilePoint")) {
-		return OP_ProfilePoint;
-	}
-	/* Other operations */
-	if (!strcmp (mnemonic, "GetBuiltinClosure")) {
-		return OP_GetBuiltinClosure;
-	}
-	if (!strcmp (mnemonic, "CreateRegExp")) {
-		return OP_CreateRegExp;
-	}
-	if (!strcmp (mnemonic, "SwitchImm")) {
-		return OP_SwitchImm;
-	}
-	if (!strcmp (mnemonic, "DeclareGlobalVar")) {
-		return OP_DeclareGlobalVar;
-	}
-	if (!strcmp (mnemonic, "ThrowIfHasRestrictedGlobalProperty")) {
-		return OP_ThrowIfHasRestrictedGlobalProperty;
-	}
-	if (!strcmp (mnemonic, "CreateInnerEnvironment")) {
-		return OP_CreateInnerEnvironment;
-	}
-	if (!strcmp (mnemonic, "PutOwnGetterSetterByVal")) {
-		return OP_PutOwnGetterSetterByVal;
-	}
-	return -1;
-}
+typedef struct {
+	const char *mnemonic;
+	int opcode;
+} HBCMnemonicOpcodeMap;
 
-static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 addr) {
-	int opcode = mnemonic_to_canonical_opcode (mnemonic);
-	if (opcode < 0) {
-		return;
-	}
-	switch (opcode) {
-	case OP_Mov:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,r%u,=", src, dst);
-			break;
-		}
-	case OP_MovLong:
-		{
-			u32 dst = READ_UINT32 (bytes, 1);
-			u32 src = READ_UINT32 (bytes, 5);
-			r_strbuf_setf (&op->esil, "r%u,r%u,=", src, dst);
-			break;
-		}
-	case OP_Add:
-	case OP_AddN:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,+,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Sub:
-	case OP_SubN:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,-,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Mul:
-	case OP_MulN:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,*,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Div:
-	case OP_DivN:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,/,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Mod:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,%%,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Add32:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,+,0xffffffff,&,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Sub32:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,-,0xffffffff,&,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Mul32:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,*,0xffffffff,&,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Negate:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,0,-,r%u,=", src, dst);
-			break;
-		}
-	case OP_Not:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,!,r%u,=", src, dst);
-			break;
-		}
-	case OP_BitNot:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,~,r%u,=", src, dst);
-			break;
-		}
-	case OP_Inc:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "1,r%u,+,r%u,=", src, dst);
-			break;
-		}
-	case OP_Dec:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "1,r%u,-,r%u,=", src, dst);
-			break;
-		}
-	case OP_BitAnd:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,&,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_BitOr:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,|,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_BitXor:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,^,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_LShift:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<<,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_RShift:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>>,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_URshift:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,0x1f,&,>>,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Divi32:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,~/,0xffffffff,&,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Divu32:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,/,0xffffffff,&,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Eq:
-	case OP_StrictEq:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Neq:
-	case OP_StrictNeq:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Less:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_Greater:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_LessEq:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<=,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_GreaterEq:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>=,r%u,=", s2, s1, dst);
-			break;
-		}
-	case OP_TypeOf:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,TYPEOF,r%u,=", src, dst);
-			break;
-		}
-	case OP_GetById:
-	case OP_GetByIdLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,GETPROP,r%u,=", obj, dst);
-			break;
-		}
-	case OP_GetByIdShort:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,GETPROP,r%u,=", obj, dst);
-			break;
-		}
-	case OP_TryGetById:
-	case OP_TryGetByIdLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,TRYGETPROP,r%u,=", obj, dst);
-			break;
-		}
-	case OP_PutById:
-	case OP_PutByIdLong:
-		{
-			u8 obj = READ_REG8 (bytes, 1);
-			u8 val = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,r%u,PUTPROP", val, obj);
-			break;
-		}
-	case OP_TryPutById:
-	case OP_TryPutByIdLong:
-		{
-			u8 obj = READ_REG8 (bytes, 1);
-			u8 val = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,r%u,TRYPUTPROP", val, obj);
-			break;
-		}
-	case OP_LoadConstUInt8:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 val = READ_UINT8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "%u,r%u,=", val, dst);
-			break;
-		}
-	case OP_LoadConstInt:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			i32 val = READ_INT32 (bytes, 2);
-			r_strbuf_setf (&op->esil, "%d,r%u,=", val, dst);
-			break;
-		}
-	case OP_LoadConstString:
-	case OP_LoadConstBigInt:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u16 idx = READ_UINT16 (bytes, 2);
-			r_strbuf_setf (&op->esil, "%u,r%u,=", idx, dst);
-			break;
-		}
-	case OP_LoadConstStringLongIndex:
-	case OP_LoadConstBigIntLongIndex:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u32 idx = READ_UINT32 (bytes, 2);
-			r_strbuf_setf (&op->esil, "%u,r%u,=", idx, dst);
-			break;
-		}
-	case OP_LoadConstEmpty:
-	case OP_LoadConstUndefined:
-	case OP_LoadConstNull:
-	case OP_LoadConstFalse:
-	case OP_LoadConstZero:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "0,r%u,=", dst);
-			break;
-		}
-	case OP_LoadConstTrue:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "1,r%u,=", dst);
-			break;
-		}
-	case OP_LoadParam:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 idx = READ_UINT8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "arg%u,r%u,=", idx, dst);
-			break;
-		}
-	case OP_Jmp:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "0x%" PFMT64x ",pc,=", addr + off);
-			break;
-		}
-	case OP_JmpLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			r_strbuf_setf (&op->esil, "0x%" PFMT64x ",pc,=", addr + off);
-			break;
-		}
-	case OP_JmpTrue:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 cond = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
-			break;
-		}
-	case OP_JmpTrueLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 cond = READ_REG8 (bytes, 5);
-			r_strbuf_setf (&op->esil, "r%u,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
-			break;
-		}
-	case OP_JmpFalse:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 cond = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,!,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
-			break;
-		}
-	case OP_JmpFalseLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 cond = READ_REG8 (bytes, 5);
-			r_strbuf_setf (&op->esil, "r%u,!,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
-			break;
-		}
-	case OP_JLess:
-	case OP_JLessN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JLessLong:
-	case OP_JLessNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JEqual:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JEqualLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotEqual:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotEqualLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JStrictEqual:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JStrictEqualLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JStrictNotEqual:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JStrictNotEqualLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotLess:
-	case OP_JNotLessN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotLessLong:
-	case OP_JNotLessNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JLessEqual:
-	case OP_JLessEqualN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JLessEqualLong:
-	case OP_JLessEqualNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JGreater:
-	case OP_JGreaterN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JGreaterLong:
-	case OP_JGreaterNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JGreaterEqual:
-	case OP_JGreaterEqualN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JGreaterEqualLong:
-	case OP_JGreaterEqualNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotLessEqual:
-	case OP_JNotLessEqualN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotLessEqualLong:
-	case OP_JNotLessEqualNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,>,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotGreater:
-	case OP_JNotGreaterN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotGreaterLong:
-	case OP_JNotGreaterNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotGreaterEqual:
-	case OP_JNotGreaterEqualN:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 2);
-			u8 s2 = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JNotGreaterEqualLong:
-	case OP_JNotGreaterEqualNLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 s1 = READ_REG8 (bytes, 5);
-			u8 s2 = READ_REG8 (bytes, 6);
-			r_strbuf_setf (&op->esil, "r%u,r%u,<,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
-			break;
-		}
-	case OP_JmpUndefined:
-		{
-			i8 off = READ_INT8 (bytes, 1);
-			u8 cond = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,!,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
-			break;
-		}
-	case OP_JmpUndefinedLong:
-		{
-			i32 off = READ_INT32 (bytes, 1);
-			u8 cond = READ_REG8 (bytes, 5);
-			r_strbuf_setf (&op->esil, "r%u,!,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
-			break;
-		}
-	case OP_LoadThisNS:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "this,r%u,=", dst);
-			break;
-		}
-	case OP_GetNewTarget:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "newtarget,r%u,=", dst);
-			break;
-		}
-	case OP_GetEnvironment:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 idx = READ_UINT8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "env%u,r%u,=", idx, dst);
-			break;
-		}
-	case OP_LoadFromEnvironment:
-	case OP_LoadFromEnvironmentL:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 env = READ_REG8 (bytes, 2);
-			u8 slot = READ_UINT8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,%u,ENVLOAD,r%u,=", env, slot, dst);
-			break;
-		}
-	case OP_StoreToEnvironment:
-	case OP_StoreToEnvironmentL:
-	case OP_StoreNPToEnvironment:
-	case OP_StoreNPToEnvironmentL:
-		{
-			u8 env = READ_REG8 (bytes, 1);
-			u8 slot = READ_UINT8 (bytes, 2);
-			u8 val = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,%u,ENVSTORE", val, env, slot);
-			break;
-		}
-	case OP_GetByVal:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			u8 idx = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,GETVAL,r%u,=", idx, obj, dst);
-			break;
-		}
-	case OP_PutByVal:
-		{
-			u8 obj = READ_REG8 (bytes, 1);
-			u8 idx = READ_REG8 (bytes, 2);
-			u8 val = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,r%u,PUTVAL", val, idx, obj);
-			break;
-		}
-	case OP_Call1:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 callee = READ_REG8 (bytes, 2);
-			u8 arg = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,CALL1,r%u,=", arg, callee, dst);
-			break;
-		}
-	case OP_Call2:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 callee = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,CALL2,r%u,=", callee, dst);
-			break;
-		}
-	case OP_Call3:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 callee = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,CALL3,r%u,=", callee, dst);
-			break;
-		}
-	case OP_Call4:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 callee = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,CALL4,r%u,=", callee, dst);
-			break;
-		}
-	case OP_Construct:
-	case OP_ConstructLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 callee = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,CONSTRUCT,r%u,=", callee, dst);
-			break;
-		}
-	case OP_CreateClosure:
-	case OP_CreateClosureLongIndex:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "CLOSURE,r%u,=", dst);
-			break;
-		}
-	case OP_LoadParamLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u32 idx = READ_UINT32 (bytes, 2);
-			r_strbuf_setf (&op->esil, "arg%u,r%u,=", idx, dst);
-			break;
-		}
-	case OP_Ret:
-		{
-			u8 val = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "r%u,ret,=", val);
-			break;
-		}
-	case OP_Call:
-	case OP_CallLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 callee = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,CALL,r%u,=", callee, dst);
-			break;
-		}
-	case OP_CallDirect:
-	case OP_CallDirectLongIndex:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "CALLDIRECT,r%u,=", dst);
-			break;
-		}
-	case OP_NewObject:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "NEWOBJ,r%u,=", dst);
-			break;
-		}
-	case OP_NewArray:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u16 size = READ_UINT16 (bytes, 2);
-			r_strbuf_setf (&op->esil, "%u,NEWARR,r%u,=", size, dst);
-			break;
-		}
-	case OP_CreateEnvironment:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "NEWENV,r%u,=", dst);
-			break;
-		}
-	case OP_GetGlobalObject:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "global,r%u,=", dst);
-			break;
-		}
-	case OP_Throw:
-		{
-			u8 val = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "r%u,THROW", val);
-			break;
-		}
-	case OP_Catch:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "CATCH,r%u,=", dst);
-			break;
-		}
-	case OP_Debugger:
-	case OP_AsyncBreakCheck:
-	case OP_ProfilePoint:
-	case OP_DebuggerCheck:
-		r_strbuf_setf (&op->esil, "");
-		break;
-	case OP_ThrowIfUndefinedInst:
-		{
-			u8 src = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "r%u,UNDEFINED,==,?{,THROW,}", src);
-			break;
-		}
-	case OP_Unreachable:
-		r_strbuf_setf (&op->esil, "UNREACHABLE");
-		break;
-	case OP_DeclareGlobalVar:
-		{
-			/* DeclareGlobalVar declares a global variable - modeled as a no-op in ESIL */
-			r_strbuf_setf (&op->esil, "");
-			break;
-		}
-	case OP_DirectEval:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,EVAL,r%u,=", src, dst);
-			break;
-		}
-	case OP_CreateThis:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 proto = READ_REG8 (bytes, 2);
-			u8 closure = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,CREATETHIS,r%u,=", closure, proto, dst);
-			break;
-		}
-	case OP_SelectObject:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			u8 base = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,SELECTOBJ,r%u,=", base, obj, dst);
-			break;
-		}
-	case OP_CoerceThisNS:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,COERCETHIS,r%u,=", src, dst);
-			break;
-		}
-	case OP_ToNumber:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,TONUM,r%u,=", src, dst);
-			break;
-		}
-	case OP_ToNumeric:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,TONUMERIC,r%u,=", src, dst);
-			break;
-		}
-	case OP_ToInt32:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,TOINT32,r%u,=", src, dst);
-			break;
-		}
-	case OP_DelById:
-	case OP_DelByIdLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,DELPROP,r%u,=", obj, dst);
-			break;
-		}
-	case OP_DelByVal:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			u8 key = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,DELVAL,r%u,=", key, obj, dst);
-			break;
-		}
-	case OP_IsIn:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 key = READ_REG8 (bytes, 2);
-			u8 obj = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,ISIN,r%u,=", obj, key, dst);
-			break;
-		}
-	case OP_InstanceOf:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 obj = READ_REG8 (bytes, 2);
-			u8 ctor = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,INSTANCEOF,r%u,=", ctor, obj, dst);
-			break;
-		}
-	case OP_NewArrayWithBuffer:
-	case OP_NewArrayWithBufferLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "NEWARRBUF,r%u,=", dst);
-			break;
-		}
-	case OP_NewObjectWithBuffer:
-	case OP_NewObjectWithBufferLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "NEWOBJBUF,r%u,=", dst);
-			break;
-		}
-	case OP_GetArgumentsPropByVal:
-	case OP_GetArgumentsLength:
-	case OP_ReifyArguments:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "arguments,r%u,=", dst);
-			break;
-		}
-	case OP_CreateRegExp:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "REGEXP,r%u,=", dst);
-			break;
-		}
-	case OP_SwitchImm:
-		{
-			/* Switch is complex - just mark as a computed jump */
-			r_strbuf_setf (&op->esil, "SWITCH");
-			break;
-		}
-	case OP_CallBuiltin:
-	case OP_CallBuiltinLong:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "BUILTIN,r%u,=", dst);
-			break;
-		}
-	case OP_GetBuiltinClosure:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "BUILTINCLOSURE,r%u,=", dst);
-			break;
-		}
-	case OP_CreateAsyncClosure:
-	case OP_CreateAsyncClosureLongIndex:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "ASYNCCLOSURE,r%u,=", dst);
-			break;
-		}
-	case OP_CreateGeneratorClosure:
-	case OP_CreateGeneratorClosureLongIndex:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "GENCLOSURE,r%u,=", dst);
-			break;
-		}
-	case OP_StartGenerator:
-	case OP_ResumeGenerator:
-	case OP_CompleteGenerator:
-	case OP_CreateGenerator:
-	case OP_SaveGenerator:
-	case OP_SaveGeneratorLong:
-		{
-			r_strbuf_setf (&op->esil, "GENERATOR");
-			break;
-		}
-	case OP_IteratorBegin:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 src = READ_REG8 (bytes, 2);
-			r_strbuf_setf (&op->esil, "r%u,ITERBEGIN,r%u,=", src, dst);
-			break;
-		}
-	case OP_IteratorNext:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			u8 iter = READ_REG8 (bytes, 2);
-			u8 src = READ_REG8 (bytes, 3);
-			r_strbuf_setf (&op->esil, "r%u,r%u,ITERNEXT,r%u,=", src, iter, dst);
-			break;
-		}
-	case OP_IteratorClose:
-		{
-			u8 iter = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "r%u,ITERCLOSE", iter);
-			break;
-		}
-	case OP_CreateInnerEnvironment:
-		{
-			u8 dst = READ_REG8 (bytes, 1);
-			r_strbuf_setf (&op->esil, "INNERENV,r%u,=", dst);
-			break;
-		}
-	case OP_ThrowIfHasRestrictedGlobalProperty:
-		{
-			r_strbuf_setf (&op->esil, "");
-			break;
-		}
-	default:
-		break;
-	}
-}
+static const HBCMnemonicOpcodeMap MNEMONIC_OPCODE_MAP[] = {
+	/* Move operations */
+	{ "mov", OP_Mov },
+	{ "movlong", OP_MovLong },
+	/* Arithmetic operations */
+	{ "add", OP_Add },
+	{ "addn", OP_AddN },
+	{ "sub", OP_Sub },
+	{ "subn", OP_SubN },
+	{ "mul", OP_Mul },
+	{ "muln", OP_MulN },
+	{ "div", OP_Div },
+	{ "divn", OP_DivN },
+	{ "mod", OP_Mod },
+	{ "add32", OP_Add32 },
+	{ "sub32", OP_Sub32 },
+	{ "mul32", OP_Mul32 },
+	{ "divi32", OP_Divi32 },
+	{ "divu32", OP_Divu32 },
+	/* Unary operations */
+	{ "negate", OP_Negate },
+	{ "not", OP_Not },
+	{ "bitnot", OP_BitNot },
+	{ "inc", OP_Inc },
+	{ "dec", OP_Dec },
+	{ "typeof", OP_TypeOf },
+	{ "tonumber", OP_ToNumber },
+	{ "tonumeric", OP_ToNumeric },
+	{ "toint32", OP_ToInt32 },
+	{ "addemptystring", OP_AddEmptyString },
+	{ "coercethisns", OP_CoerceThisNS },
+	/* Bitwise operations */
+	{ "bitand", OP_BitAnd },
+	{ "bitor", OP_BitOr },
+	{ "bitxor", OP_BitXor },
+	{ "lshift", OP_LShift },
+	{ "rshift", OP_RShift },
+	{ "urshift", OP_URshift },
+	/* Comparison operations */
+	{ "eq", OP_Eq },
+	{ "stricteq", OP_StrictEq },
+	{ "neq", OP_Neq },
+	{ "strictneq", OP_StrictNeq },
+	{ "less", OP_Less },
+	{ "lesseq", OP_LessEq },
+	{ "greater", OP_Greater },
+	{ "greatereq", OP_GreaterEq },
+	{ "instanceof", OP_InstanceOf },
+	{ "isin", OP_IsIn },
+	/* Load constant operations */
+	{ "loadconstuint8", OP_LoadConstUInt8 },
+	{ "loadconstint", OP_LoadConstInt },
+	{ "loadconstdouble", OP_LoadConstDouble },
+	{ "loadconststring", OP_LoadConstString },
+	{ "loadconstbigint", OP_LoadConstBigInt },
+	{ "loadconststringlongindex", OP_LoadConstStringLongIndex },
+	{ "loadconstbigintlongindex", OP_LoadConstBigIntLongIndex },
+	{ "loadconstempty", OP_LoadConstEmpty },
+	{ "loadconstundefined", OP_LoadConstUndefined },
+	{ "loadconstnull", OP_LoadConstNull },
+	{ "loadconsttrue", OP_LoadConstTrue },
+	{ "loadconstfalse", OP_LoadConstFalse },
+	{ "loadconstzero", OP_LoadConstZero },
+	/* Load parameter operations */
+	{ "loadparam", OP_LoadParam },
+	{ "loadparamlong", OP_LoadParamLong },
+	/* Special register loads */
+	{ "loadthisns", OP_LoadThisNS },
+	{ "getglobalobject", OP_GetGlobalObject },
+	{ "getnewtarget", OP_GetNewTarget },
+	/* Environment operations */
+	{ "getenvironment", OP_GetEnvironment },
+	{ "createenvironment", OP_CreateEnvironment },
+	{ "storetoenvironment", OP_StoreToEnvironment },
+	{ "storenptoenvironment", OP_StoreNPToEnvironment },
+	{ "storetoEnvironmentl", OP_StoreToEnvironmentL },
+	{ "storenptoenvironmentl", OP_StoreNPToEnvironmentL },
+	{ "loadfromenvironment", OP_LoadFromEnvironment },
+	{ "loadfromenvironmentl", OP_LoadFromEnvironmentL },
+	/* Jump operations */
+	{ "jmp", OP_Jmp },
+	{ "jmplong", OP_JmpLong },
+	{ "jmptrue", OP_JmpTrue },
+	{ "jmptruelong", OP_JmpTrueLong },
+	{ "jmpfalse", OP_JmpFalse },
+	{ "jmpfalselong", OP_JmpFalseLong },
+	{ "jmpundefined", OP_JmpUndefined },
+	{ "jmpundefinedlong", OP_JmpUndefinedLong },
+	/* Conditional jumps */
+	{ "jless", OP_JLess },
+	{ "jlessn", OP_JLessN },
+	{ "jlesslong", OP_JLessLong },
+	{ "jlessnlong", OP_JLessNLong },
+	{ "jnotless", OP_JNotLess },
+	{ "jnotlessn", OP_JNotLessN },
+	{ "jnotlesslong", OP_JNotLessLong },
+	{ "jnotlessnlong", OP_JNotLessNLong },
+	{ "jlessequal", OP_JLessEqual },
+	{ "jlessequaln", OP_JLessEqualN },
+	{ "jlessequallong", OP_JLessEqualLong },
+	{ "jlessegalnlong", OP_JLessEqualNLong },
+	{ "jnotlessequal", OP_JNotLessEqual },
+	{ "jnotlessequaln", OP_JNotLessEqualN },
+	{ "jnotlessequallong", OP_JNotLessEqualLong },
+	{ "jnotlessegalnlong", OP_JNotLessEqualNLong },
+	{ "jgreater", OP_JGreater },
+	{ "jgreatern", OP_JGreaterN },
+	{ "jgreaterlong", OP_JGreaterLong },
+	{ "jgreaternlong", OP_JGreaterNLong },
+	{ "jnotgreater", OP_JNotGreater },
+	{ "jnotgreatern", OP_JNotGreaterN },
+	{ "jnotgreaterlong", OP_JNotGreaterLong },
+	{ "jnotgreaternlong", OP_JNotGreaterNLong },
+	{ "jgreaterequal", OP_JGreaterEqual },
+	{ "jgreaternequal", OP_JGreaterEqualN },
+	{ "jgreaternequal", OP_JGreaterEqualN },
+	{ "jgreaterequallo", OP_JGreaterEqualLong },
+	{ "jgreaterequalNlong", OP_JGreaterEqualNLong },
+	{ "jnotgreaterequal", OP_JNotGreaterEqual },
+	{ "jnotgreaterequalen", OP_JNotGreaterEqualN },
+	{ "jnotgreaternequallo", OP_JNotGreaterEqualLong },
+	{ "jnotgreaterequalNlong", OP_JNotGreaterEqualNLong },
+	{ "jequal", OP_JEqual },
+	{ "jequallong", OP_JEqualLong },
+	{ "jnotequal", OP_JNotEqual },
+	{ "jnotequallong", OP_JNotEqualLong },
+	{ "jstrictequal", OP_JStrictEqual },
+	{ "jstrictequallong", OP_JStrictEqualLong },
+	{ "jstrictnotequal", OP_JStrictNotEqual },
+	{ "jstrictnotequallong", OP_JStrictNotEqualLong },
+	/* Return operations */
+	{ "ret", OP_Ret },
+	/* Call operations */
+	{ "call", OP_Call },
+	{ "calllong", OP_CallLong },
+	{ "call1", OP_Call1 },
+	{ "call2", OP_Call2 },
+	{ "call3", OP_Call3 },
+	{ "call4", OP_Call4 },
+	{ "calldirect", OP_CallDirect },
+	{ "calldirectlongindex", OP_CallDirectLongIndex },
+	{ "construct", OP_Construct },
+	{ "constructlong", OP_ConstructLong },
+	{ "callbuiltin", OP_CallBuiltin },
+	{ "callbuiltinlong", OP_CallBuiltinLong },
+	/* Property access */
+	{ "getbyidshort", OP_GetByIdShort },
+	{ "getbyid", OP_GetById },
+	{ "getbyidlong", OP_GetByIdLong },
+	{ "trygetbyid", OP_TryGetById },
+	{ "trygetbyidlong", OP_TryGetByIdLong },
+	{ "getbyval", OP_GetByVal },
+	{ "putbyid", OP_PutById },
+	{ "putbyidlong", OP_PutByIdLong },
+	{ "tryputbyid", OP_TryPutById },
+	{ "tryputbyidlong", OP_TryPutByIdLong },
+	{ "putbyval", OP_PutByVal },
+	{ "putnewownbyidshort", OP_PutNewOwnByIdShort },
+	{ "putnewownbyid", OP_PutNewOwnById },
+	{ "putnewownbyidlong", OP_PutNewOwnByIdLong },
+	{ "putnewownnebyid", OP_PutNewOwnNEById },
+	{ "putnewownnebyidlong", OP_PutNewOwnNEByIdLong },
+	{ "putownbyindex", OP_PutOwnByIndex },
+	{ "putownbyindexl", OP_PutOwnByIndexL },
+	{ "putownbyval", OP_PutOwnByVal },
+	{ "delbyid", OP_DelById },
+	{ "delbyidlong", OP_DelByIdLong },
+	{ "delbyval", OP_DelByVal },
+	/* Object/Array creation */
+	{ "newobject", OP_NewObject },
+	{ "newobjectwithparent", OP_NewObjectWithParent },
+	{ "newobjectwithbuffer", OP_NewObjectWithBuffer },
+	{ "newobjectwithbufferlong", OP_NewObjectWithBufferLong },
+	{ "newarray", OP_NewArray },
+	{ "newarraywithbuffer", OP_NewArrayWithBuffer },
+	{ "newarraywithbufferlong", OP_NewArrayWithBufferLong },
+	/* Closure/Generator creation */
+	{ "createclosure", OP_CreateClosure },
+	{ "createclosurelongindex", OP_CreateClosureLongIndex },
+	{ "creategeneratorclosure", OP_CreateGeneratorClosure },
+	{ "creategeneratorclosurelongindex", OP_CreateGeneratorClosureLongIndex },
+	{ "createasyncclosure", OP_CreateAsyncClosure },
+	{ "createasyncclosurelongindex", OP_CreateAsyncClosureLongIndex },
+	{ "creategenerator", OP_CreateGenerator },
+	{ "creategeneratorlongindex", OP_CreateGeneratorLongIndex },
+	{ "createthis", OP_CreateThis },
+	{ "selectobject", OP_SelectObject },
+	/* Exception handling */
+	{ "throw", OP_Throw },
+	{ "throwifempty", OP_ThrowIfEmpty },
+	{ "catch", OP_Catch },
+	/* Memory operations */
+	{ "loadi8", OP_Loadi8 },
+	{ "loadu8", OP_Loadu8 },
+	{ "loadi16", OP_Loadi16 },
+	{ "loadu16", OP_Loadu16 },
+	{ "loadi32", OP_Loadi32 },
+	{ "loadu32", OP_Loadu32 },
+	{ "store8", OP_Store8 },
+	{ "store16", OP_Store16 },
+	{ "store32", OP_Store32 },
+	/* Arguments operations */
+	{ "getargumentspropbyval", OP_GetArgumentsPropByVal },
+	{ "getargumentslength", OP_GetArgumentsLength },
+	{ "reifyarguments", OP_ReifyArguments },
+	/* Iterator operations */
+	{ "iteratorbegin", OP_IteratorBegin },
+	{ "iteratornext", OP_IteratorNext },
+	{ "iteratorclose", OP_IteratorClose },
+	{ "getpnamelist", OP_GetPNameList },
+	{ "getnextpname", OP_GetNextPName },
+	/* Generator operations */
+	{ "startgenerator", OP_StartGenerator },
+	{ "resumegenerator", OP_ResumeGenerator },
+	{ "completegenerator", OP_CompleteGenerator },
+	{ "savegenerator", OP_SaveGenerator },
+	{ "savegeneratorlong", OP_SaveGeneratorLong },
+	/* Direct eval */
+	{ "directeval", OP_DirectEval },
+	/* Debug/profiling */
+	{ "unreachable", OP_Unreachable },
+	{ "debugger", OP_Debugger },
+	{ "asyncbreakcheck", OP_AsyncBreakCheck },
+	{ "profilepoint", OP_ProfilePoint },
+	/* Other operations */
+	{ "getbuiltinclosure", OP_GetBuiltinClosure },
+	{ "createregexp", OP_CreateRegExp },
+	{ "switchimm", OP_SwitchImm },
+	{ "declareglobalvar", OP_DeclareGlobalVar },
+	{ "throwifhasrestrictedglobalproperty", OP_ThrowIfHasRestrictedGlobalProperty },
+	{ "createinnerenvironment", OP_CreateInnerEnvironment },
+	{ "putowngettersetterbyval", OP_PutOwnGetterSetterByVal },
+};
+
+#include "esil.inc.c"
 
 static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	if (!hs || !s || !s->arch || !s->arch->binb.bin) {
@@ -1819,8 +437,6 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					(bytes[pos + 1] << 8) | bytes[pos];
 				pos += 4;
 			}
-			break;
-		default:
 			break;
 		}
 
