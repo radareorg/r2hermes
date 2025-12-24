@@ -27,13 +27,12 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
 
 **Public API**
 - Primary header: `include/hbc/hbc.h`
-- **Primary interface**: HBCDataProvider (flexible data sources: files, buffers, r2)
-  - Factories: `hbc_data_provider_from_file()`, `hbc_data_provider_from_buffer()`, `hbc_data_provider_from_rbinfile()`
-  - Query: `hbc_data_provider_get_header()`, `hbc_data_provider_get_function_info()`, `hbc_data_provider_get_string()`, etc.
-  - Decompilation: `hbc_data_provider_decompile_function()`, `hbc_data_provider_decompile_all()`
-- **Legacy interface**: HBCState (deprecated, backward compatible)
-  - Use HBCDataProvider for new code
-- See `API_REFACTOR_SUMMARY.md` for full details and migration guide.
+- **Main interface**: HBC (short for HBCDataProvider, flexible data sources: files, buffers, r2)
+  - Factories: `hbc_new_file()`, `hbc_new_buf()`, `hbc_new_r2()`
+  - Query: `hbc_hdr()`, `hbc_func_info()`, `hbc_str()`, `hbc_bytecode()`, etc.
+  - Decompilation: `hbc_decomp_fn()`, `hbc_decomp_all()`
+  - Type aliases: `HBCFunc`, `HBCDisOptions`, `HBCDecompOptions`, `HBCInsns`, `HBCStrs`, etc.
+- See `API_CHANGES.md` for full list of names.
 
 **Coding Conventions**
 - C11, compiled with `-Wall -Wextra -Werror -std=c11 -pedantic`.

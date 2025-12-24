@@ -12,7 +12,7 @@ struct FileDataProvider {
 	HBCState *hbc;
 };
 
-HBCDataProvider *hbc_data_provider_from_file(const char *path) {
+HBC *hbc_new_file(const char *path) {
 	if (!path) {
 		return NULL;
 	}
@@ -28,11 +28,11 @@ HBCDataProvider *hbc_data_provider_from_file(const char *path) {
 		return NULL;
 	}
 
-	return (HBCDataProvider *)fp;
+	return (HBC *)fp;
 }
 
-Result hbc_data_provider_get_header(
-	HBCDataProvider *provider,
+Result hbc_hdr(
+	HBC *provider,
 	struct HBCHeader *out) {
 
 	if (!provider || !out) {
@@ -43,8 +43,8 @@ Result hbc_data_provider_get_header(
 	return hbc_get_header (fp->hbc, out);
 }
 
-Result hbc_data_provider_get_function_count(
-	HBCDataProvider *provider,
+Result hbc_func_count(
+	HBC *provider,
 	u32 *out_count) {
 
 	if (!provider || !out_count) {
@@ -56,10 +56,10 @@ Result hbc_data_provider_get_function_count(
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_data_provider_get_function_info(
-	HBCDataProvider *provider,
+Result hbc_func_info(
+	HBC *provider,
 	u32 function_id,
-	HBCFunctionInfo *out) {
+	HBCFunc *out) {
 
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
@@ -69,8 +69,8 @@ Result hbc_data_provider_get_function_info(
 	return hbc_get_function_info (fp->hbc, function_id, out);
 }
 
-Result hbc_data_provider_get_string_count(
-	HBCDataProvider *provider,
+Result hbc_str_count(
+	HBC *provider,
 	u32 *out_count) {
 
 	if (!provider || !out_count) {
@@ -82,8 +82,8 @@ Result hbc_data_provider_get_string_count(
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_data_provider_get_string(
-	HBCDataProvider *provider,
+Result hbc_str(
+	HBC *provider,
 	u32 string_id,
 	const char **out_str) {
 
@@ -95,8 +95,8 @@ Result hbc_data_provider_get_string(
 	return hbc_get_string (fp->hbc, string_id, out_str);
 }
 
-Result hbc_data_provider_get_string_meta(
-	HBCDataProvider *provider,
+Result hbc_str_meta(
+	HBC *provider,
 	u32 string_id,
 	HBCStringMeta *out) {
 
@@ -108,8 +108,8 @@ Result hbc_data_provider_get_string_meta(
 	return hbc_get_string_meta (fp->hbc, string_id, out);
 }
 
-Result hbc_data_provider_get_bytecode(
-	HBCDataProvider *provider,
+Result hbc_bytecode(
+	HBC *provider,
 	u32 function_id,
 	const u8 **out_ptr,
 	u32 *out_size) {
@@ -122,9 +122,9 @@ Result hbc_data_provider_get_bytecode(
 	return hbc_get_function_bytecode (fp->hbc, function_id, out_ptr, out_size);
 }
 
-Result hbc_data_provider_get_string_tables(
-	HBCDataProvider *provider,
-	HBCStringTables *out) {
+Result hbc_str_tbl(
+	HBC *provider,
+	HBCStrs *out) {
 
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
@@ -134,8 +134,8 @@ Result hbc_data_provider_get_string_tables(
 	return hbc_get_string_tables (fp->hbc, out);
 }
 
-Result hbc_data_provider_get_function_source(
-	HBCDataProvider *provider,
+Result hbc_src(
+	HBC *provider,
 	u32 function_id,
 	const char **out_src) {
 
@@ -147,8 +147,8 @@ Result hbc_data_provider_get_function_source(
 	return hbc_get_function_source (fp->hbc, function_id, out_src);
 }
 
-Result hbc_data_provider_read_raw(
-	HBCDataProvider *provider,
+Result hbc_read(
+	HBC *provider,
 	u64 offset,
 	u32 size,
 	const u8 **out_ptr) {
@@ -163,7 +163,7 @@ Result hbc_data_provider_read_raw(
 		"Raw read not available for file provider");
 }
 
-void hbc_data_provider_free(HBCDataProvider *provider) {
+void hbc_free(HBC *provider) {
 	if (!provider) {
 		return;
 	}

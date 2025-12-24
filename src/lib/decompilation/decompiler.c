@@ -26,7 +26,7 @@ static Result ensure_function_bytecode_loaded_from_provider(HBCDataProvider *pro
 	/* Get bytecode from provider */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_data_provider_get_bytecode (provider, function_id, &bytecode_ptr, &bytecode_size);
+	Result res = hbc_bytecode (provider, function_id, &bytecode_ptr, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -1860,7 +1860,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 
 	/* Get header from provider and populate stub */
 	HBCHeader header;
-	Result hres = hbc_data_provider_get_header (provider, &header);
+	Result hres = hbc_hdr (provider, &header);
 	if (hres.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return hres;
@@ -1882,7 +1882,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 
 	for (u32 i = 0; i < header.functionCount; i++) {
 		HBCFunctionInfo fi;
-		Result fres = hbc_data_provider_get_function_info (provider, i, &fi);
+		Result fres = hbc_func_info (provider, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -1903,7 +1903,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_data_provider_get_string (provider, i, &str);
+			Result sres = hbc_str(provider, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
 			}
@@ -1940,7 +1940,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 
 	/* Get header from provider and populate stub */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header (provider, &header);
+	Result res = hbc_hdr (provider, &header);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return res;
@@ -1973,7 +1973,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 	/* Populate function_headers from provider */
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunctionInfo fi;
-		Result fres = hbc_data_provider_get_function_info (provider, i, &fi);
+		Result fres = hbc_func_info (provider, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -1995,7 +1995,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_data_provider_get_string (provider, i, &str);
+			Result sres = hbc_str(provider, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
 			}
@@ -2005,7 +2005,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 	/* File preamble */
 	if (!options.suppress_comments) {
 		HBCHeader header;
-		res = hbc_data_provider_get_header (provider, &header);
+		res = hbc_hdr (provider, &header);
 		if (res.code != RESULT_SUCCESS) {
 			_hbc_decompiler_cleanup (&dec);
 			return res;

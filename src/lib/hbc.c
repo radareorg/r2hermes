@@ -285,13 +285,13 @@ Result hbc_decompile_file(const char *input_file, const char *output_file) {
 }
 
 /* ============================================================================
- * HBCDataProvider Decompilation API (Primary Public Interface)
+ * HBC Decompilation API (Primary Public Interface)
  * ============================================================================ */
 
-Result hbc_data_provider_decompile_function(
-	HBCDataProvider *provider,
+Result hbc_decomp_fn(
+	HBC *provider,
 	u32 function_id,
-	HBCDecompileOptions options,
+	HBCDecompOptions options,
 	char **out_str) {
 	if (!provider || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -313,9 +313,9 @@ Result hbc_data_provider_decompile_function(
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_data_provider_decompile_all(
-	HBCDataProvider *provider,
-	HBCDecompileOptions options,
+Result hbc_decomp_all(
+	HBC *provider,
+	HBCDecompOptions options,
 	char **out_str) {
 	if (!provider || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -337,10 +337,10 @@ Result hbc_data_provider_decompile_all(
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_data_provider_disassemble_function(
-	HBCDataProvider *provider,
+Result hbc_disasm_fn(
+	HBC *provider,
 	u32 function_id,
-	HBCDisassemblyOptions options,
+	HBCDisOptions options,
 	char **out_str) {
 	(void)function_id;
 	(void)options;
@@ -352,9 +352,9 @@ Result hbc_data_provider_disassemble_function(
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via provider not yet implemented");
 }
 
-Result hbc_data_provider_disassemble_all(
-	HBCDataProvider *provider,
-	HBCDisassemblyOptions options,
+Result hbc_disasm_all(
+	HBC *provider,
+	HBCDisOptions options,
 	char **out_str) {
 	(void)options;
 	
@@ -365,15 +365,15 @@ Result hbc_data_provider_disassemble_all(
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via provider not yet implemented");
 }
 
-Result hbc_data_provider_get_all_functions(
-	HBCDataProvider *provider,
-	HBCFunctionArray *out) {
+Result hbc_all_funcs(
+	HBC *provider,
+	HBCFuncArray *out) {
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
 	u32 count = 0;
-	Result res = hbc_data_provider_get_function_count (provider, &count);
+	Result res = hbc_func_count (provider, &count);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -384,13 +384,13 @@ Result hbc_data_provider_get_all_functions(
 		return SUCCESS_RESULT ();
 	}
 
-	out->functions = (HBCFunctionInfo *)malloc (count * sizeof (HBCFunctionInfo));
+	out->functions = (HBCFunc *)malloc (count * sizeof (HBCFunc));
 	if (!out->functions) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function array");
 	}
 
 	for (u32 i = 0; i < count; i++) {
-		res = hbc_data_provider_get_function_info (provider, i, &out->functions[i]);
+		res = hbc_func_info (provider, i, &out->functions[i]);
 		if (res.code != RESULT_SUCCESS) {
 			free (out->functions);
 			out->functions = NULL;
@@ -403,7 +403,7 @@ Result hbc_data_provider_get_all_functions(
 	return SUCCESS_RESULT ();
 }
 
-void hbc_free_function_array(HBCFunctionArray *arr) {
+void hbc_free_funcs(HBCFuncArray *arr) {
 	if (arr) {
 		free (arr->functions);
 		arr->functions = NULL;
@@ -411,23 +411,23 @@ void hbc_free_function_array(HBCFunctionArray *arr) {
 	}
 }
 
-Result hbc_data_provider_decode_function_instructions(
-	HBCDataProvider *provider,
+Result hbc_decode_fn(
+	HBC *provider,
 	u32 function_id,
-	HBCDecodedInstructions *out) {
+	HBCInsns *out) {
 	if (!provider || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
 	const u8 *bytecode = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_data_provider_get_bytecode (provider, function_id, &bytecode, &bytecode_size);
+	Result res = hbc_bytecode (provider, function_id, &bytecode, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
-	HBCStringTables string_tables = { 0 };
-	res = hbc_data_provider_get_string_tables (provider, &string_tables);
+	HBCStrs string_tables = { 0 };
+	res = hbc_str_tbl (provider, &string_tables);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -437,9 +437,9 @@ Result hbc_data_provider_decode_function_instructions(
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Instruction decoding via provider not yet implemented");
 }
 
-/* Single-instruction decode functions (unchanged) */
+/* Single-instruction decode functions */
 
-Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out) {
+Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	if (!ctx || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid context");
 	}
@@ -450,7 +450,7 @@ Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out) {
 		hbc_debug_printf ("Warning: bytecode version not specified, defaulting to %u\n", bytecode_version);
 	}
 
-	return hbc_decode_single_instruction (
+	return hbc_dec_insn (
 		ctx->bytes,
 		ctx->len,
 		bytecode_version,
@@ -461,17 +461,17 @@ Result hbc_decode(const HBCDecodeContext *ctx, HBCSingleInstructionInfo *out) {
 		out);
 }
 
-Result hbc_decode_single_instruction(
+Result hbc_dec_insn(
 	const u8 *bytes,
 	size_t len,
 	u32 bytecode_version,
 	u64 pc,
 	bool asm_syntax,
 	bool resolve_string_ids,
-	const HBCStringTables *string_ctx,
-	HBCSingleInstructionInfo *out) {
+	const HBCStrs *string_ctx,
+	HBCInsnInfo *out) {
 	
-	HBCDecodeContext ctx = {
+	HBCDecodeCtx ctx = {
 		.bytes = bytes,
 		.len = len,
 		.pc = pc,
@@ -480,15 +480,15 @@ Result hbc_decode_single_instruction(
 		.resolve_string_ids = resolve_string_ids,
 		.string_tables = string_ctx
 	};
-	return hbc_decode (&ctx, out);
+	return hbc_dec (&ctx, out);
 }
 
-/* Encoding functions (unchanged) */
+/* Encoding functions */
 
-Result hbc_encode_instruction(
+Result hbc_enc(
 	const char *asm_line,
 	u32 bytecode_version,
-	HBCEncodeBuffer *out) {
+	HBCEncBuf *out) {
 	
 	if (!asm_line || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -504,10 +504,10 @@ Result hbc_encode_instruction(
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not yet implemented");
 }
 
-Result hbc_encode_instructions(
+Result hbc_enc_multi(
 	const char *asm_text,
 	u32 bytecode_version,
-	HBCEncodeBuffer *out) {
+	HBCEncBuf *out) {
 	
 	if (!asm_text || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -523,7 +523,7 @@ Result hbc_encode_instructions(
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not yet implemented");
 }
 
-void hbc_free_instructions(HBCInstruction *insns, u32 count) {
+void hbc_free_insns(HBCInstruction *insns, u32 count) {
 	if (!insns || count == 0) {
 		return;
 	}
