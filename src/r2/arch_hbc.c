@@ -432,11 +432,22 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 		case OPERAND_TYPE_REG32:
 		case OPERAND_TYPE_UINT32:
 		case OPERAND_TYPE_ADDR32:
+		case OPERAND_TYPE_IMM32:
 			if (pos + 3 < size) {
 				operand_values[i] = (bytes[pos + 3] << 24) | (bytes[pos + 2] << 16) |
 					(bytes[pos + 1] << 8) | bytes[pos];
 				pos += 4;
 			}
+			break;
+		case OPERAND_TYPE_DOUBLE:
+			/* Double is 8 bytes - just advance position, value not used for ptr setting */
+			if (pos + 7 < size) {
+				pos += 8;
+			}
+			break;
+		case OPERAND_TYPE_NONE:
+		default:
+			/* OPERAND_TYPE_NONE is never reached due to loop condition */
 			break;
 		}
 

@@ -3,7 +3,7 @@ static int mnemonic_to_canonical_opcode(const char *mnemonic) {
 	r_str_ncpy (lm, mnemonic, sizeof (lm));
 	r_str_case (lm, false);
 	for (size_t idx = 0; idx < sizeof (MNEMONIC_OPCODE_MAP) / sizeof (MNEMONIC_OPCODE_MAP[0]); idx++) {
-		if (!strcmp (lower_mnemonic, MNEMONIC_OPCODE_MAP[idx].mnemonic)) {
+		if (!strcmp (lm, MNEMONIC_OPCODE_MAP[idx].mnemonic)) {
 			return MNEMONIC_OPCODE_MAP[idx].opcode;
 		}
 	}

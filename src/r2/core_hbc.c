@@ -141,16 +141,15 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 	}
 	u32 count;
 	Result res = hbc_func_count (hbc_ctx.provider, &count);
-	if (res.code != RESULT_SUCCESS) {
-		return -1;
-	}
-	for (u32 i = 0; i < count; i++) {
-		HBCFunctionInfo fi;
-		res = hbc_func_info (hbc_ctx.provider, i, &fi);
-		if (res.code == RESULT_SUCCESS) {
-			if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
-				*out_id = i;
-				return 0;
+	if (res.code == RESULT_SUCCESS) {
+		for (u32 i = 0; i < count; i++) {
+			HBCFunctionInfo fi;
+			res = hbc_func_info (hbc_ctx.provider, i, &fi);
+			if (res.code == RESULT_SUCCESS) {
+				if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
+					*out_id = i;
+					return 0;
+				}
 			}
 		}
 	}
@@ -158,6 +157,7 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 }
 
 /* Helper to read boolean config value */
+// AITODO: remove this function and use just r_config_getb() in the callers
 static bool read_config_bool(RCore *core, const char *key, bool default_val) {
 	if (!core || !core->config) {
 		return default_val;
@@ -169,6 +169,7 @@ static bool read_config_bool(RCore *core, const char *key, bool default_val) {
 	return strcmp (val, "true") == 0 || strcmp (val, "1") == 0;
 }
 
+// AITODO: remove this function and use just r_config_geti() in the callers
 static int read_config_int(RCore *core, const char *key, int default_val) {
 	if (!core || !core->config) {
 		return default_val;
@@ -203,6 +204,7 @@ static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets
 }
 
 /* Helper to trim trailing empty lines from output */
+// AITODO: i think this is just r_str_trim(). remove this function and use r_str_trim() in the callers
 static char *trim_trailing_lines(const char *str) {
 	if (!str || !*str) {
 		return NULL;
@@ -506,54 +508,60 @@ static void cmd_help(RCore *core) {
 }
 
 /* Main handler for pd:h commands */
-static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
+static bool cmd_handler(RCorePluginSession *s, const char *input) {
 	RCore *core = s? s->core: NULL;
 
 	if (!core || !input) {
 		return false;
 	}
 
-	/* Must start with "pd:h" */
-	if (strncmp (input, "pd:h", 4) != 0) {
+	if (!r_str_startswith (input, "pd:h")) {
 		return false;
 	}
 
 	const char *arg = input + 4;
 
-	if (*arg == '\0' || (*arg == ' ' && (arg[1] == '\0' || isspace ((unsigned char)arg[1])))) {
-		/* pd:h - decompile function at current offset */
+	switch (*arg) {
+	case '\0': /* pd:h */
+	case ' ':  /* pd:h (with spaces) */
+		if (*arg == ' ' && arg[1] != '\0' && !isspace ((unsigned char)arg[1])) {
+			HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
+			break;
+		}
 		cmd_decompile_current (core);
-	} else if (*arg == 'a') {
-		/* pd:ha - decompile all */
+		break;
+	case 'a': /* pd:ha */
 		cmd_decompile_all (core);
-	} else if (*arg == 'c') {
-		/* pd:hc [id] */
+		break;
+	case 'c': { /* pd:hc [id] */
 		const char *addr_str = arg + 1;
 		while (*addr_str && isspace ((unsigned char)*addr_str)) {
 			addr_str++;
 		}
 		cmd_decompile_function (core, addr_str);
-	} else if (*arg == 'f') {
-		/* pd:hf */
+		break;
+	}
+	case 'f': /* pd:hf */
 		cmd_list_functions (core);
-	} else if (*arg == 'i') {
-		/* pd:hi */
+		break;
+	case 'i': /* pd:hi */
 		cmd_file_info (core);
-	} else if (*arg == 'j') {
-		/* pd:hj [id] */
+		break;
+	case 'j': { /* pd:hj [id] */
 		const char *addr_str = arg + 1;
 		while (*addr_str && isspace ((unsigned char)*addr_str)) {
 			addr_str++;
 		}
 		cmd_json (core, addr_str);
-	} else if (*arg == 'o') {
-		/* pd:ho [id] or pd:hoa - decompile with offsets */
+		break;
+	}
+	case 'o': { /* pd:ho [id] or pd:hoa */
 		const char *sub = arg + 1;
 		if (*sub == 'a') {
-			/* pd:hoa - decompile all with offsets */
+			/* pd:hoa */
 			cmd_decompile_all_ex (core, true);
 		} else {
-			/* pd:ho [id] - decompile function with offsets */
+			/* pd:ho [id] */
 			while (*sub && isspace ((unsigned char)*sub)) {
 				sub++;
 			}
@@ -563,11 +571,14 @@ static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
 				cmd_decompile_current_ex (core, true);
 			}
 		}
-	} else if (*arg == '?') {
-		/* pd:h? */
+		break;
+	}
+	case '?': /* pd:h? */
 		cmd_help (core);
-	} else {
+		break;
+	default:
 		HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
+		break;
 	}
 
 	return true;
