@@ -18,6 +18,9 @@
 /* r2 functions - weak symbol to handle different r2 versions */
 extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
 
+/* Forward declaration for R2 provider free function */
+extern void hbc_data_provider_free(HBCDataProvider *provider);
+
 /**
  * Safe wrapper for r_bin_file_cur that handles weak symbol resolution.
  * Falls back to directly accessing bin->cur if r_bin_file_cur is not available.
@@ -106,7 +109,7 @@ static Result hbc_load_current_binary(RCore *core) {
 
 	/* Clean up old provider */
 	if (hbc_ctx.provider) {
-		hbc_free (hbc_ctx.provider);
+		hbc_data_provider_free (hbc_ctx.provider);
 		hbc_ctx.provider = NULL;
 	}
 	free (hbc_ctx.file_path);
@@ -600,7 +603,7 @@ static bool plugin_init(struct r_core_plugin_session_t *s) {
 static bool plugin_fini(struct r_core_plugin_session_t *s) {
 	(void)s;
 	if (hbc_ctx.provider) {
-		hbc_free (hbc_ctx.provider);
+		hbc_data_provider_free (hbc_ctx.provider);
 		hbc_ctx.provider = NULL;
 	}
 	hbc_ctx.core = NULL;

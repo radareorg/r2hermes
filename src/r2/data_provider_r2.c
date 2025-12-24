@@ -53,6 +53,13 @@ HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf) {
 }
 
 /**
+ * Wrapper for hbc_data_provider_from_rbinfile with shorter name (new API).
+ */
+HBC *hbc_new_r2(RBinFile *bf) {
+	return (HBC *)hbc_data_provider_from_rbinfile (bf);
+}
+
+/**
  * Parse HBC header from RBuffer at offset 0.
  * Header format is well-defined in the HBC spec.
  */
