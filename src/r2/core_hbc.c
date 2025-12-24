@@ -478,7 +478,7 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 
 	switch (*arg) {
 	case '\0': /* pd:h */
-	case ' ':  /* pd:h (with spaces) */
+	case ' ': /* pd:h (with spaces) */
 		if (*arg == ' ' && arg[1] != '\0' && !isspace ((unsigned char)arg[1])) {
 			HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
 			break;
@@ -630,6 +630,6 @@ R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_CORE,
 	.data = &r_core_plugin_hbc,
 	.version = R2_VERSION,
-	.abiversion = R2_ABIVERSION
+	.abiversion = 53
 };
 #endif

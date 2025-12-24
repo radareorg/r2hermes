@@ -327,7 +327,7 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 		return false;
 	}
 
-	/* Try to open the file with hermesdec */
+	/* Try to open the file with hermesdec file provider (properly parses all tables) */
 	if (hs->provider) {
 		hbc_free (hs->provider);
 		hs->provider = NULL;
@@ -936,6 +936,6 @@ R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ARCH,
 	.data = (void *)&r_arch_plugin_hermes,
 	.version = R2_VERSION,
-	.abiversion = R2_ABIVERSION
+	.abiversion = 53
 };
 #endif

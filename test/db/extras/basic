@@ -8,7 +8,7 @@ EXPECT=<<EOF
 hbc
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, 0xa2  ; 0x1000013e
+            0x000000b0      73000100       load_const_string r0, str.print_123__  ; 0x100000a2 ; 0x1000013e
             0x000000b4      5e000000       direct_eval r0, r0, 0
 EOF
 RUN

@@ -73,10 +73,10 @@ static bool is_valid_entrypoint(RBuffer *buf, ut64 offset) {
 
 	for (int i = 0; i < 8; i++) {
 		if (bytes[i] != 0) {
-			return true;  /* Found non-zero byte, valid */
+			return true; /* Found non-zero byte, valid */
 		}
 	}
-	return false;  /* All zeros, invalid */
+	return false; /* All zeros, invalid */
 }
 
 /* Unified entrypoint resolution with fallback chain */
@@ -134,7 +134,7 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBCDataProvider *provider) {
 }
 
 static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut32 version) {
-	ret->file = file_path ? strdup (file_path) : NULL;
+	ret->file = file_path? strdup (file_path): NULL;
 	ret->bclass = strdup ("Hermes bytecode");
 	ret->rclass = strdup ("hermes");
 	ret->arch = strdup ("hbc");
@@ -142,7 +142,7 @@ static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut
 	ret->bits = 32;
 	ret->type = strdup ("Hermes bytecode");
 	ret->machine = strdup ("Hermes VM");
-	ret->cpu = has_version ? r_str_newf ("%u", version) : strdup ("unknown");
+	ret->cpu = has_version? r_str_newf ("%u", version): strdup ("unknown");
 }
 
 static RBinInfo *info(RBinFile *bf) {
@@ -237,8 +237,8 @@ static RList *symbols(RBinFile *bf) {
 		RBinSymbol *symbol = R_NEW0 (RBinSymbol);
 
 		/* Build name: [container__]base_0x<offset> */
-		const char *base = (fi.name && *fi.name) ? fi.name : NULL;
-		char *san = base ? r_name_filter_dup (base) : NULL;
+		const char *base = (fi.name && *fi.name)? fi.name: NULL;
+		char *san = base? r_name_filter_dup (base): NULL;
 		if (!san || !*san) {
 			free (san);
 			san = r_str_newf ("func_%u", i);
@@ -348,6 +348,6 @@ R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_BIN,
 	.data = &r_bin_plugin_hermes,
 	.version = R2_VERSION,
-	.abiversion = R2_ABIVERSION
+	.abiversion = 53
 };
 #endif

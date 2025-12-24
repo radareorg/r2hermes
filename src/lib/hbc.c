@@ -242,7 +242,7 @@ Result hbc_get_string_tables(HBCState *hd, HBCStringTables *out) {
 	out->string_count = hd->reader.header.stringCount;
 	out->small_string_table = hd->reader.small_string_table;
 	out->overflow_string_table = hd->reader.overflow_string_table;
-	out->string_storage_offset = 0;
+	out->string_storage_offset = hd->reader.string_storage_file_offset;
 	return SUCCESS_RESULT ();
 }
 
@@ -461,6 +461,36 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		out);
 }
 
+/* Convert CamelCase to snake_case for instruction names */
+static void camel_to_snake(const char *camel, char *snake, size_t snake_size) {
+	if (!camel || !snake || snake_size == 0) {
+		return;
+	}
+
+	size_t j = 0;
+	for (size_t i = 0; camel[i] && j < snake_size - 1; i++) {
+		char c = camel[i];
+
+		/* Insert underscore before uppercase letter (except at start) */
+		if (i > 0 && c >= 'A' && c <= 'Z') {
+			/* Don't insert underscore if previous char was also uppercase */
+			/* and next char is lowercase (e.g., "ID" in "GetByID") */
+			if (! (camel[i - 1] >= 'A' && camel[i - 1] <= 'Z' &&
+				camel[i + 1] >= 'a' && camel[i + 1] <= 'z')) {
+				if (j < snake_size - 1) {
+					snake[j++] = '_';
+				}
+			}
+		}
+
+		/* Convert to lowercase */
+		if (j < snake_size - 1) {
+			snake[j++] = (c >= 'A' && c <= 'Z')? (c + 32): c;
+		}
+	}
+	snake[j] = '\0';
+}
+
 Result hbc_dec_insn(
 	const u8 *bytes,
 	size_t len,
@@ -504,7 +534,7 @@ Result hbc_dec_insn(
 	}
 
 	/* Parse operands */
-	u32 operand_values[6] = {0};
+	u32 operand_values[6] = { 0 };
 	size_t pos = 1; /* Start after opcode */
 
 	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
@@ -546,7 +576,7 @@ Result hbc_dec_insn(
 		case OPERAND_TYPE_IMM32:
 		case OPERAND_TYPE_ADDR32:
 			operand_values[i] = bytes[pos] | (bytes[pos + 1] << 8) |
-			                    (bytes[pos + 2] << 16) | (bytes[pos + 3] << 24);
+				(bytes[pos + 2] << 16) | (bytes[pos + 3] << 24);
 			pos += 4;
 			break;
 		case OPERAND_TYPE_DOUBLE:
@@ -560,11 +590,15 @@ Result hbc_dec_insn(
 
 	/* Format output string */
 	char buf[512];
+	char mnemonic[128];
 	int offset = 0;
+
+	/* Convert instruction name to snake_case */
+	camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
 
 	if (asm_syntax) {
 		/* ASM syntax: mnemonic operand1, operand2, ... */
-		offset = snprintf (buf, sizeof (buf), "%s", inst->name);
+		offset = snprintf (buf, sizeof (buf), "%s", mnemonic);
 
 		bool first = true;
 		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
@@ -576,15 +610,57 @@ Result hbc_dec_insn(
 			}
 
 			OperandType operand_type = inst->operands[i].operand_type;
+			OperandMeaning operand_meaning = inst->operands[i].operand_meaning;
+			u32 val = operand_values[i];
+
 			if (operand_type == OPERAND_TYPE_REG8 || operand_type == OPERAND_TYPE_REG32) {
-				offset += snprintf (buf + offset, sizeof (buf) - offset, "r%u", operand_values[i]);
+				offset += snprintf (buf + offset, sizeof (buf) - offset, "r%u", val);
+			} else if (operand_meaning == OPERAND_MEANING_STRING_ID) {
+				/* For string IDs, output the string storage offset (not the ID)
+				 * so r2 can replace it with flags */
+				if (resolve_string_ids && string_ctx && string_ctx->string_storage_offset != 0) {
+					u32 str_offset = 0;
+					bool found = false;
+
+					/* Cast to proper types for access */
+					const StringTableEntry *small_table = (const StringTableEntry *)string_ctx->small_string_table;
+					const OffsetLengthPair *overflow_table = (const OffsetLengthPair *)string_ctx->overflow_string_table;
+
+					/* Look up string storage offset from string tables */
+					if (val < string_ctx->string_count && small_table) {
+						if (small_table[val].length == 0xFF && overflow_table) {
+							/* Overflow string */
+							u32 overflow_idx = small_table[val].offset;
+							str_offset = overflow_table[overflow_idx].offset;
+							found = true;
+						} else {
+							str_offset = small_table[val].offset;
+							found = true;
+						}
+					}
+
+					if (found) {
+						/* Output the file-absolute string offset in hex - r2 will replace this with the string flag */
+						u32 file_offset = string_ctx->string_storage_offset + str_offset;
+						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", file_offset);
+						/* Append full virtual address as comment */
+						u32 str_addr = 0x10000000 + file_offset;
+						offset += snprintf (buf + offset, sizeof (buf) - offset, "  ; 0x%x", str_addr);
+					} else {
+						/* Fallback: just show the ID */
+						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", val);
+					}
+				} else {
+					/* No string tables available, just show the ID */
+					offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", val);
+				}
 			} else {
-				offset += snprintf (buf + offset, sizeof (buf) - offset, "%u", operand_values[i]);
+				offset += snprintf (buf + offset, sizeof (buf) - offset, "%u", val);
 			}
 		}
 	} else {
 		/* Default syntax */
-		offset = snprintf (buf, sizeof (buf), "%s", inst->name);
+		offset = snprintf (buf, sizeof (buf), "%s", mnemonic);
 
 		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
 			offset += snprintf (buf + offset, sizeof (buf) - offset, " %u", operand_values[i]);
@@ -595,19 +671,15 @@ Result hbc_dec_insn(
 	out->size = (u32)pos;
 	out->opcode = opcode;
 
-	/* Detect jumps and calls */
-	const char *name = inst->name;
-	out->is_jump = (strncmp (name, "Jmp", 3) == 0) || (strncmp (name, "J", 1) == 0 && name[1] >= 'A' && name[1] <= 'Z');
-	out->is_call = (strncmp (name, "Call", 4) == 0) || (strcmp (name, "Construct") == 0);
+	/* Detect jumps and calls (using snake_case mnemonic) */
+	out->is_jump = (strncmp (mnemonic, "jmp", 3) == 0) || (strncmp (mnemonic, "j", 1) == 0 && mnemonic[1] >= 'a' && mnemonic[1] <= 'z');
+	out->is_call = (strncmp (mnemonic, "call", 4) == 0) || (strcmp (mnemonic, "construct") == 0);
 	out->jump_target = 0;
 
 	if (out->is_jump && operand_values[0] != 0) {
 		/* Calculate jump target (relative offset) */
 		out->jump_target = pc + (i32)operand_values[0];
 	}
-
-	(void)resolve_string_ids;
-	(void)string_ctx;
 
 	return SUCCESS_RESULT ();
 }
