@@ -461,36 +461,6 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		out);
 }
 
-/* Convert CamelCase to snake_case for instruction names */
-static void camel_to_snake(const char *camel, char *snake, size_t snake_size) {
-	if (!camel || !snake || snake_size == 0) {
-		return;
-	}
-
-	size_t j = 0;
-	for (size_t i = 0; camel[i] && j < snake_size - 1; i++) {
-		char c = camel[i];
-
-		/* Insert underscore before uppercase letter (except at start) */
-		if (i > 0 && c >= 'A' && c <= 'Z') {
-			/* Don't insert underscore if previous char was also uppercase */
-			/* and next char is lowercase (e.g., "ID" in "GetByID") */
-			if (! (camel[i - 1] >= 'A' && camel[i - 1] <= 'Z' &&
-				camel[i + 1] >= 'a' && camel[i + 1] <= 'z')) {
-				if (j < snake_size - 1) {
-					snake[j++] = '_';
-				}
-			}
-		}
-
-		/* Convert to lowercase */
-		if (j < snake_size - 1) {
-			snake[j++] = (c >= 'A' && c <= 'Z')? (c + 32): c;
-		}
-	}
-	snake[j] = '\0';
-}
-
 Result hbc_dec_insn(
 	const u8 *bytes,
 	size_t len,
@@ -594,7 +564,7 @@ Result hbc_dec_insn(
 	int offset = 0;
 
 	/* Convert instruction name to snake_case */
-	camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
+	hbc_camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
 
 	if (asm_syntax) {
 		/* ASM syntax: mnemonic operand1, operand2, ... */

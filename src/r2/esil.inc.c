@@ -1,20 +1,15 @@
-static int mnemonic_to_canonical_opcode(const char *mnemonic) {
-	char lm[256];
-	r_str_ncpy (lm, mnemonic, sizeof (lm));
-	r_str_case (lm, false);
-	for (size_t idx = 0; idx < sizeof (MNEMONIC_OPCODE_MAP) / sizeof (MNEMONIC_OPCODE_MAP[0]); idx++) {
-		if (!strcmp (lm, MNEMONIC_OPCODE_MAP[idx].mnemonic)) {
-			return MNEMONIC_OPCODE_MAP[idx].opcode;
-		}
-	}
-	return -1;
-}
-
 static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 addr) {
-	int opcode = mnemonic_to_canonical_opcode (mnemonic);
-	if (opcode < 0) {
+	(void)mnemonic; /* Opcode comes directly from op now */
+	int opcode = op->type != R_ANAL_OP_TYPE_UNK? -1: -1;
+	/* Note: esil is set by opcode from decode output, not by looking up mnemonic again */
+	/* For now, use opcode directly in the switch - caller should set op->val to the opcode */
+
+	/* The actual opcode was already parsed by hbc_dec. Access via the bytes directly */
+	if (!bytes || !op) {
 		return;
 	}
+	opcode = bytes[0];
+
 	switch (opcode) {
 	case OP_Mov:
 		{

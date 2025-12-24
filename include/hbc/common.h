@@ -103,6 +103,10 @@ Result _hbc_buffer_reader_seek(BufferReader *reader, size_t position);
 Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment);
 void _hbc_buffer_reader_free(BufferReader *reader);
 
+/* String case conversion utilities */
+void hbc_camel_to_snake(const char *camel, char *snake, size_t snake_size);
+void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size);
+
 /* Utility macros for error handling */
 #define RETURN_IF_ERROR(expr) \
 	do { \
