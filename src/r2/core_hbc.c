@@ -10,22 +10,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-/**
- * Safe wrapper for r_bin_file_cur that handles weak symbol resolution.
- * Falls back to directly accessing bin->cur if r_bin_file_cur is not available.
- */
-static RBinFile *safe_r_bin_file_cur(RBin *bin) {
-	if (r_bin_file_cur) {
-		return r_bin_file_cur (bin);
-	}
-	/* Fallback: use bin->cur directly (available in r_bin_t struct) */
-	if (bin) {
-		/* struct r_bin_t { const char *file; RBinFile *cur; ... } */
-		return ((struct r_bin_t *)bin)->cur;
-	}
-	return NULL;
-}
-
 typedef struct {
 	HBC *hbc; /* Cached HBC data provider per file */
 	RCore *core;
@@ -105,7 +89,7 @@ static Result hbc_load_current_binary(RCore *core) {
 	hbc_ctx.file_path = NULL;
 
 	/* Get RBinFile from r2 (already parsed by r2) */
-	RBinFile *bf = safe_r_bin_file_cur (core->bin);
+	RBinFile *bf = core->bin->cur;
 	if (!bf) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
