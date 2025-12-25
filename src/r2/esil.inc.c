@@ -771,7 +771,7 @@ static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 ad
 	case OP_AsyncBreakCheck:
 	case OP_ProfilePoint:
 	case OP_DebuggerCheck:
-		r_strbuf_setf (&op->esil, "");
+		r_strbuf_set (&op->esil, "");
 		break;
 	case OP_ThrowIfUndefinedInst:
 		{
@@ -785,7 +785,7 @@ static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 ad
 	case OP_DeclareGlobalVar:
 		{
 			/* DeclareGlobalVar declares a global variable - modeled as a no-op in ESIL */
-			r_strbuf_setf (&op->esil, "");
+			r_strbuf_set (&op->esil, "");
 			break;
 		}
 	case OP_DirectEval:
@@ -970,7 +970,7 @@ static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 ad
 			break;
 		}
 	case OP_ThrowIfHasRestrictedGlobalProperty:
-		r_strbuf_setf (&op->esil, "");
+		r_strbuf_set (&op->esil, "");
 		break;
 	default:
 		break;
