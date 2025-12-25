@@ -276,3 +276,18 @@ EXPECT=<<EOF
             0x0003e533      5c00           ret r0
 EOF
 RUN
+
+NAME=hbc assembler
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa ret r0
+EOF
+EXPECT=<<EOF
+            ;-- entry0:
+            ;-- global_0x000000b0:
+            0x000000b0      73000100       load_const_string r0, str.print_123__  ; 0x100000a2 ; 0x1000013e
+            0x000000b4      5e000000       direct_eval r0, r0, 0
+            0x000000b8      5c00           ret r0
+EOF
+RUN

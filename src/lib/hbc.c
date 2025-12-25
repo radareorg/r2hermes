@@ -661,7 +661,7 @@ Result hbc_enc(
 	u32 bytecode_version,
 	HBCEncBuf *out) {
 
-	if (!asm_line || !out) {
+	if (!asm_line || !out || !out->buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -669,10 +669,26 @@ Result hbc_enc(
 		bytecode_version = 96;
 	}
 
-	/* Placeholder: real implementation would parse asm_line and encode */
-	(void)bytecode_version;
+	HBCEncoder encoder;
+	RETURN_IF_ERROR (hbc_encoder_init (&encoder, bytecode_version));
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not yet implemented");
+	HBCEncodedInstruction instruction;
+	Result res = hbc_encoder_parse_instruction (&encoder, asm_line, &instruction);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_encoder_cleanup (&encoder);
+		return res;
+	}
+
+	size_t bytes_written = 0;
+	res = hbc_encoder_encode_instruction (&encoder, &instruction, out->buffer, out->buffer_size, &bytes_written);
+	hbc_encoder_cleanup (&encoder);
+
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	out->bytes_written = bytes_written;
+	return SUCCESS_RESULT ();
 }
 
 Result hbc_enc_multi(
@@ -680,7 +696,7 @@ Result hbc_enc_multi(
 	u32 bytecode_version,
 	HBCEncBuf *out) {
 
-	if (!asm_text || !out) {
+	if (!asm_text || !out || !out->buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -688,10 +704,19 @@ Result hbc_enc_multi(
 		bytecode_version = 96;
 	}
 
-	/* Placeholder: real implementation would parse multiple instructions */
-	(void)bytecode_version;
+	HBCEncoder encoder;
+	RETURN_IF_ERROR (hbc_encoder_init (&encoder, bytecode_version));
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not yet implemented");
+	size_t bytes_written = 0;
+	Result res = hbc_encoder_encode_instructions (&encoder, asm_text, out->buffer, out->buffer_size, &bytes_written);
+	hbc_encoder_cleanup (&encoder);
+
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	out->bytes_written = bytes_written;
+	return SUCCESS_RESULT ();
 }
 
 void hbc_free_insns(HBCInsn *insns, u32 count) {
