@@ -7,7 +7,7 @@
 #define HBC_VADDR_BASE 0x10000000
 
 typedef struct {
-	HBCDataProvider *provider;
+	HBCDataProvider *hbc;
 } HBCBinObj;
 
 static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
@@ -30,8 +30,8 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 loadaddr R_UNUSED) {
 	}
 
 	if (bf->file) {
-		bo->provider = hbc_new_file (bf->file);
-		if (!bo->provider) {
+		bo->hbc = hbc_new_file (bf->file);
+		if (!bo->hbc) {
 			free (bo);
 			return false;
 		}
@@ -45,8 +45,8 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 loadaddr R_UNUSED) {
 static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
-		if (bo->provider) {
-			hbc_free (bo->provider);
+		if (bo->hbc) {
+			hbc_free (bo->hbc);
 		}
 		free (bo);
 	}
@@ -56,7 +56,7 @@ static HBCDataProvider *get_provider(RBinFile *bf) {
 	if (!bf || !bf->bo || !bf->bo->bin_obj) {
 		return NULL;
 	}
-	return ((HBCBinObj *)bf->bo->bin_obj)->provider;
+	return ((HBCBinObj *)bf->bo->bin_obj)->hbc;
 }
 
 /* Check if entrypoint offset is valid: in bounds and not all zeros */

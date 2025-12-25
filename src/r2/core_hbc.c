@@ -38,13 +38,13 @@ static RBinFile *safe_r_bin_file_cur(RBin *bin) {
 }
 
 typedef struct {
-	HBCDataProvider *provider; /* Cached provider per file */
+	HBCDataProvider *hbc; /* Cached HBC data provider per file */
 	RCore *core;
 	char *file_path;
 } HbcContext;
 
 static HbcContext hbc_ctx = {
-	.provider = NULL,
+	.hbc = NULL,
 	.core = NULL,
 	.file_path = NULL
 };
@@ -103,14 +103,14 @@ static Result hbc_load_current_binary(RCore *core) {
 	}
 
 	/* Reload if file changed */
-	if (hbc_ctx.provider && hbc_ctx.file_path && !strcmp (hbc_ctx.file_path, file_path)) {
+	if (hbc_ctx.hbc && hbc_ctx.file_path && !strcmp (hbc_ctx.file_path, file_path)) {
 		return SUCCESS_RESULT ();
 	}
 
 	/* Clean up old provider */
-	if (hbc_ctx.provider) {
-		hbc_data_provider_free (hbc_ctx.provider);
-		hbc_ctx.provider = NULL;
+	if (hbc_ctx.hbc) {
+		hbc_data_provider_free (hbc_ctx.hbc);
+		hbc_ctx.hbc = NULL;
 	}
 	free (hbc_ctx.file_path);
 	hbc_ctx.file_path = NULL;
@@ -122,16 +122,16 @@ static Result hbc_load_current_binary(RCore *core) {
 	}
 
 	/* Create provider from r2 RBinFile (NO file I/O) */
-	hbc_ctx.provider = hbc_new_r2 (bf);
-	if (!hbc_ctx.provider) {
+	hbc_ctx.hbc = hbc_new_r2 (bf);
+	if (!hbc_ctx.hbc) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to create provider");
 	}
 
 	hbc_ctx.core = core;
 	hbc_ctx.file_path = strdup (file_path);
 	if (!hbc_ctx.file_path) {
-		hbc_free (hbc_ctx.provider);
-		hbc_ctx.provider = NULL;
+		hbc_free (hbc_ctx.hbc);
+		hbc_ctx.hbc = NULL;
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
 	}
 	return SUCCESS_RESULT ();
@@ -139,15 +139,15 @@ static Result hbc_load_current_binary(RCore *core) {
 
 /* Find function ID at a given offset */
 static int find_function_at_offset(u32 offset, u32 *out_id) {
-	if (!out_id || !hbc_ctx.provider) {
+	if (!out_id || !hbc_ctx.hbc) {
 		return -1;
 	}
 	u32 count;
-	Result res = hbc_func_count (hbc_ctx.provider, &count);
+	Result res = hbc_func_count (hbc_ctx.hbc, &count);
 	if (res.code == RESULT_SUCCESS) {
 		for (u32 i = 0; i < count; i++) {
 			HBCFunctionInfo fi;
-			res = hbc_func_info (hbc_ctx.provider, i, &fi);
+			res = hbc_func_info (hbc_ctx.hbc, i, &fi);
 			if (res.code == RESULT_SUCCESS) {
 				if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
 					*out_id = i;
@@ -196,12 +196,12 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 	if (found == 0) {
 		/* Found function at current offset - get its base address */
 		HBCFunctionInfo fi;
-		Result fres = hbc_func_info (hbc_ctx.provider, function_id, &fi);
+		Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
 		StringBuffer output = { 0 };
 		_hbc_string_buffer_init (&output, 4096);
-		result = _hbc_decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
+		result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
 			r_str_trim (output.data);
 			HBC_PRINTF (core, "%s\n", output.data);
@@ -214,7 +214,7 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
 		StringBuffer output = { 0 };
 		_hbc_string_buffer_init (&output, 4096);
-		result = _hbc_decompile_all_with_provider (hbc_ctx.provider, opts, &output);
+		result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
 			r_str_trim (output.data);
 			HBC_PRINTF (core, "%s\n", output.data);
@@ -240,7 +240,7 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
 	StringBuffer output = { 0 };
 	_hbc_string_buffer_init (&output, 8192);
-	result = _hbc_decompile_all_with_provider (hbc_ctx.provider, opts, &output);
+	result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
 		r_str_trim (output.data);
 		HBC_PRINTF (core, "%s\n", output.data);
@@ -274,7 +274,7 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	}
 
 	u32 count;
-	result = hbc_func_count (hbc_ctx.provider, &count);
+	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: cannot get function count\n");
 		return;
@@ -285,12 +285,12 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	}
 	/* Get function base address for offset calculation */
 	HBCFunctionInfo fi;
-	Result fres = hbc_func_info (hbc_ctx.provider, function_id, &fi);
+	Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
 	StringBuffer output = { 0 };
 	_hbc_string_buffer_init (&output, 4096);
-	result = _hbc_decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
+	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
 		r_str_trim (output.data);
 		HBC_PRINTF (core, "%s\n", output.data);
@@ -313,7 +313,7 @@ static void cmd_list_functions(RCore *core) {
 	}
 
 	u32 count;
-	result = hbc_func_count (hbc_ctx.provider, &count);
+	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: cannot get function count\n");
 		return;
@@ -322,7 +322,7 @@ static void cmd_list_functions(RCore *core) {
 
 	for (u32 i = 0; i < count; i++) {
 		HBCFunctionInfo info;
-		Result res = hbc_func_info (hbc_ctx.provider, i, &info);
+		Result res = hbc_func_info (hbc_ctx.hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
 			HBC_PRINTF (core, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, safe_name (info.name), info.offset, info.size, info.param_count);
 		}
@@ -338,7 +338,7 @@ static void cmd_file_info(RCore *core) {
 	}
 
 	HBCHeader header;
-	result = hbc_hdr (hbc_ctx.provider, &header);
+	result = hbc_hdr (hbc_ctx.hbc, &header);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error reading header: %s\n", safe_errmsg (result.error_message));
 		return;
@@ -385,7 +385,7 @@ static void cmd_json(RCore *core, const char *addr_str) {
 
 	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
 	u32 count;
-	result = hbc_func_count (hbc_ctx.provider, &count);
+	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "{\"error\":\"cannot get function count\"}\n");
 		return;
@@ -396,7 +396,7 @@ static void cmd_json(RCore *core, const char *addr_str) {
 	}
 	StringBuffer output = { 0 };
 	_hbc_string_buffer_init (&output, 4096);
-	result = _hbc_decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
+	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
 
 	RStrBuf *sb = r_strbuf_newf ("{\"function_id\":%u,\"decompilation\":", function_id);
 	if (!sb) {
@@ -602,9 +602,9 @@ static bool plugin_init(struct r_core_plugin_session_t *s) {
 
 static bool plugin_fini(struct r_core_plugin_session_t *s) {
 	(void)s;
-	if (hbc_ctx.provider) {
-		hbc_data_provider_free (hbc_ctx.provider);
-		hbc_ctx.provider = NULL;
+	if (hbc_ctx.hbc) {
+		hbc_data_provider_free (hbc_ctx.hbc);
+		hbc_ctx.hbc = NULL;
 	}
 	hbc_ctx.core = NULL;
 	free (hbc_ctx.file_path);

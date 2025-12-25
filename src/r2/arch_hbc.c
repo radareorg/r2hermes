@@ -19,7 +19,7 @@
 
 typedef struct {
 	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
-	HBCDataProvider *provider; /* Hermes data provider for query access */
+	HBCDataProvider *hbc; /* Hermes data provider for query access */
 	u32 string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
@@ -68,33 +68,33 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	}
 
 	/* Try to open the file with hermesdec file provider (properly parses all tables) */
-	if (hs->provider) {
-		hbc_free (hs->provider);
-		hs->provider = NULL;
+	if (hs->hbc) {
+		hbc_free (hs->hbc);
+		hs->hbc = NULL;
 	}
 
-	hs->provider = hbc_new_file (bi->file);
-	if (!hs->provider) {
+	hs->hbc = hbc_new_file (bi->file);
+	if (!hs->hbc) {
 		return false;
 	}
 
 	/* If we can, get the file header to determine exact bytecode version */
 	HBCHeader hh;
-	if (hbc_hdr (hs->provider, &hh).code == RESULT_SUCCESS) {
+	if (hbc_hdr (hs->hbc, &hh).code == RESULT_SUCCESS) {
 		/* Cache version for instruction set selection */
 		hs->bytecode_version = hh.version;
 	}
 
 	/* Get string count */
 	u32 string_count;
-	Result count_res = hbc_str_count (hs->provider, &string_count);
+	Result count_res = hbc_str_count (hs->hbc, &string_count);
 	if (count_res.code == RESULT_SUCCESS) {
 		hs->string_count = string_count;
 	}
 
 	/* Extract string tables using the API */
 	HBCStringTables tables;
-	Result table_res = hbc_str_tbl (hs->provider, &tables);
+	Result table_res = hbc_str_tbl (hs->hbc, &tables);
 	if (table_res.code != RESULT_SUCCESS) {
 		return false;
 	}
@@ -194,9 +194,9 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 		// Check if this operand is a string ID
 		if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
 			ut32 string_id = operand_values[i];
-			if (string_id < hs->string_count && hs->provider) {
+			if (string_id < hs->string_count && hs->hbc) {
 				HBCStringMeta meta;
-				Result meta_result = hbc_str_meta (hs->provider, string_id, &meta);
+				Result meta_result = hbc_str_meta (hs->hbc, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
 					/* Set op->ptr to the virtual address of the string.
 					 * The binary is loaded at 0x10000000, so add the string offset to that. */
@@ -207,10 +207,10 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 		// Check if this operand is a function ID
 		else if (inst->operands[i].operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
 			ut32 function_id = operand_values[i];
-			if (hs->provider) {
+			if (hs->hbc) {
 				ut32 offset = 0;
 				HBCFunctionInfo fi;
-				Result func_result = hbc_func_info (hs->provider, function_id, &fi);
+				Result func_result = hbc_func_info (hs->hbc, function_id, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
 					// name = fi.name;
 					offset = fi.offset;
@@ -242,7 +242,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	}
 
 	/* Load string tables if not already loaded */
-	if (!hs->provider) {
+	if (!hs->hbc) {
 		load_string_tables (hs, s);
 	}
 
@@ -614,9 +614,9 @@ static bool fini(RArchSession *s) {
 	}
 	HermesArchSession *hs = (HermesArchSession *)s->data;
 	if (hs) {
-		if (hs->provider) {
-			hbc_free (hs->provider);
-			hs->provider = NULL;
+		if (hs->hbc) {
+			hbc_free (hs->hbc);
+			hs->hbc = NULL;
 		}
 		free (hs);
 		s->data = NULL;
