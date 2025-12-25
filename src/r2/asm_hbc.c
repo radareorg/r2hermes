@@ -236,6 +236,6 @@ R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ASM,
 	.data = &r_asm_plugin_hbc,
 	.version = R2_VERSION,
-	.abiversion = 53
+	.abiversion = R2_ABIVERSION
 };
 #endif

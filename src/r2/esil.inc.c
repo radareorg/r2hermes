@@ -970,10 +970,8 @@ static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 ad
 			break;
 		}
 	case OP_ThrowIfHasRestrictedGlobalProperty:
-		{
-			r_strbuf_setf (&op->esil, "");
-			break;
-		}
+		r_strbuf_setf (&op->esil, "");
+		break;
 	default:
 		break;
 	}

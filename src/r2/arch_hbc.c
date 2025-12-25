@@ -676,6 +676,6 @@ R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ARCH,
 	.data = (void *)&r_arch_plugin_hermes,
 	.version = R2_VERSION,
-	.abiversion = 53
+	.abiversion = R2_ABIVERSION
 };
 #endif
