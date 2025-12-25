@@ -5,10 +5,6 @@
 #include <r_lib.h>
 #include <string.h>
 
-#ifndef R2_VERSION
-#define R2_VERSION "6.0.3"
-#endif
-
 /* Pseudo transformation rules for Hermes bytecode instructions */
 static const char *pseudo_rules[] = {
 	/* Mov/Load operations */

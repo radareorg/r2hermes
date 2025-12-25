@@ -10,13 +10,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#ifndef R2_VERSION
-#define R2_VERSION "6.0.3"
-#endif
-
-/* r2 functions - weak symbol to handle different r2 versions */
-extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
-
 /**
  * Safe wrapper for r_bin_file_cur that handles weak symbol resolution.
  * Falls back to directly accessing bin->cur if r_bin_file_cur is not available.

@@ -5,10 +5,6 @@
 #include <r_util.h>
 #include <string.h>
 
-#ifndef R2_VERSION
-#define R2_VERSION "6.0.3"
-#endif
-
 // Include hermesdec headers
 #include <hbc/hbc.h>
 #include <hbc/opcodes.h>
