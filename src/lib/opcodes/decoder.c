@@ -4,7 +4,7 @@
 #include <string.h>
 
 /* Initialize disassembler */
-Result _hbc_disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisassemblyOptions options) {
+Result _hbc_disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisOptions options) {
 	if (!disassembler || !reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_disassembler_init");
 	}
@@ -710,7 +710,7 @@ Result _hbc_output_disassembly(Disassembler *disassembler, const char *output_fi
 }
 
 /* Disassemble a file */
-Result _hbc_disassemble_file(const char *input_file, const char *output_file, HBCDisassemblyOptions options) {
+Result _hbc_disassemble_file(const char *input_file, const char *output_file, HBCDisOptions options) {
 	if (!input_file) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Input file is NULL");
 	}
@@ -756,7 +756,7 @@ Result _hbc_disassemble_file(const char *input_file, const char *output_file, HB
 }
 
 /* Disassemble a buffer */
-Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisassemblyOptions options) {
+Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisOptions options) {
 	if (!buffer || size == 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer");
 	}

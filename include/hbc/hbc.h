@@ -52,7 +52,7 @@ typedef struct HBCStringMeta {
 	HBCStringKind kind;
 } HBCStringMeta;
 
-/* Public disassembly options */
+/* Disassembly options */
 typedef struct {
 	bool verbose; /* Show detailed metadata */
 	bool output_json; /* Output in JSON format instead of text */
@@ -60,15 +60,13 @@ typedef struct {
 	bool show_debug_info; /* Show debug information */
 	bool asm_syntax; /* Output CPU-like asm syntax (mnemonic operands) */
 	bool resolve_string_ids; /* Resolve string IDs to actual addresses */
-} HBCDisassemblyOptions;
-
-typedef HBCDisassemblyOptions HBCDisOptions;
+} HBCDisOptions;
 
 /* Callback types for decompilation integration with host tools (r2, IDE, etc) */
 typedef char *(*HBCCommentCallback)(void *context, u64 address);
 typedef char *(*HBCFlagCallback)(void *context, u64 address);
 
-/* Public decompilation options */
+/* Decompilation options */
 typedef struct {
 	bool pretty_literals; /* Whether to format literals nicely */
 	bool suppress_comments; /* Whether to omit comments */
@@ -87,11 +85,9 @@ typedef struct {
 	bool force_dispatch; /* Force switch/case dispatch loop for linear functions */
 	bool inline_closures; /* Inline closure definitions (default: true) */
 	int inline_threshold; /* Max instruction count to inline (0 = no limit, -1 = no inline) */
-} HBCDecompileOptions;
+} HBCDecompOptions;
 
-typedef HBCDecompileOptions HBCDecompOptions;
-
-/* Public per-instruction details */
+/* Per-instruction details */
 typedef struct {
 	/* Addresses */
 	u32 rel_addr; /* Offset within function bytecode */
@@ -121,26 +117,21 @@ typedef struct {
 
 	/* Full decoded disassembly line (heap-allocated; caller frees via hbc_free_insns) */
 	char *text;
-} HBCInstruction;
-
-typedef HBCInstruction HBCInsn;
+} HBCInsn;
 
 /* ============================================================================
- * PRIMARY API: HBCDataProvider
+ * PRIMARY API: HBC
  *
  * This is the recommended interface for all libhbc consumers.
- * HBCDataProvider abstracts the data source (file, memory buffer, r2 RBinFile)
+ * HBC abstracts the data source (file, memory buffer, r2 RBinFile)
  * and provides unified query and decompilation operations.
  * ============================================================================ */
 
 /* Opaque data provider handle */
-typedef struct HBCDataProvider HBCDataProvider;
-
-/* Typedef shorthand for convenience */
-typedef HBCDataProvider HBC;
+typedef struct HBC HBC;
 
 /* ============================================================================
- * HBCDataProvider Factories - Create a provider from different sources
+ * HBC Factories - Create a provider from different sources
  * ============================================================================ */
 
 /**
@@ -191,15 +182,12 @@ Result hbc_func_count(
 /**
  * Function metadata structure
  */
-typedef struct HBCFunctionInfo {
+typedef struct {
 	const char *name; // Valid while provider is alive; caller must not free
 	u32 offset; // Bytecode offset in file
 	u32 size; // Size in bytes
 	u32 param_count; // Number of parameters
-} HBCFunctionInfo;
-
-/* Typedef shorthand for convenience */
-typedef HBCFunctionInfo HBCFunc;
+} HBCFunc;
 
 /**
  * Get metadata for a specific function.
@@ -244,14 +232,12 @@ Result hbc_bytecode(
 /**
  * String table data.
  */
-typedef struct HBCStringTables {
+typedef struct {
 	u32 string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
-} HBCStringTables;
-
-typedef HBCStringTables HBCStrs;
+} HBCStrs;
 
 Result hbc_str_tbl(
 	HBC *provider,
@@ -322,9 +308,7 @@ typedef struct {
 	bool is_jump;
 	bool is_call;
 	u64 jump_target;
-} HBCSingleInstructionInfo;
-
-typedef HBCSingleInstructionInfo HBCInsnInfo;
+} HBCInsnInfo;
 
 /**
  * Function array structure
@@ -332,9 +316,7 @@ typedef HBCSingleInstructionInfo HBCInsnInfo;
 typedef struct {
 	HBCFunc *functions;
 	u32 count;
-} HBCFunctionArray;
-
-typedef HBCFunctionArray HBCFuncArray;
+} HBCFuncArray;
 
 /**
  * Get all functions at once.
@@ -352,11 +334,9 @@ void hbc_free_funcs(HBCFuncArray *arr);
  * Decoded instructions list
  */
 typedef struct {
-	HBCInstruction *instructions;
+	HBCInsn *instructions;
 	u32 count;
-} HBCDecodedInstructions;
-
-typedef HBCDecodedInstructions HBCInsns;
+} HBCInsns;
 
 /**
  * Decode a function into an array of instructions.
@@ -369,7 +349,7 @@ Result hbc_decode_fn(
 /**
  * Free instruction array.
  */
-void hbc_free_insns(HBCInstruction *insns, u32 count);
+void hbc_free_insns(HBCInsn *insns, u32 count);
 
 /**
  * Encoding buffer and functions
@@ -378,9 +358,7 @@ typedef struct {
 	u8 *buffer;
 	size_t buffer_size;
 	size_t bytes_written;
-} HBCEncodeBuffer;
-
-typedef HBCEncodeBuffer HBCEncBuf;
+} HBCEncBuf;
 
 /* ============================================================================
  * Single-Instruction Decoding (Stateless API)
@@ -399,10 +377,8 @@ typedef struct {
 	bool resolve_string_ids; // Resolve string IDs to addresses
 
 	/* String tables (optional, for string resolution) */
-	const HBCStringTables *string_tables;
-} HBCDecodeContext;
-
-typedef HBCDecodeContext HBCDecodeCtx;
+	const HBCStrs *string_tables;
+} HBCDecodeCtx;
 
 /**
  * Decode a single instruction using a context struct.

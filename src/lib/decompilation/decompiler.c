@@ -15,8 +15,8 @@
  * Load bytecode for a function using the data provider.
  * Used when decompiling with provider-based API.
  */
-static Result ensure_function_bytecode_loaded_from_provider(HBCDataProvider *provider, FunctionHeader *function_header, u32 function_id) {
-	if (!provider || !function_header) {
+static Result ensure_function_bytecode_loaded_from_provider(HBC *hbc, FunctionHeader *function_header, u32 function_id) {
+	if (!hbc || !function_header) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "ensure: provider or header NULL");
 	}
 	if (function_header->bytecode) {
@@ -26,7 +26,7 @@ static Result ensure_function_bytecode_loaded_from_provider(HBCDataProvider *pro
 	/* Get bytecode from provider */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_bytecode (provider, function_id, &bytecode_ptr, &bytecode_size);
+	Result res = hbc_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -757,7 +757,7 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->decompiled_functions = NULL;
 	decompiler->indent_level = 0;
 	decompiler->inlining_function = false;
-	decompiler->data_provider = NULL; /* Will be set if using provider-based API */
+	decompiler->hbc = NULL; /* Will be set if using provider-based API */
 	decompiler->options.pretty_literals = true;
 	decompiler->options.suppress_comments = false;
 
@@ -767,8 +767,8 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataProvider *provider) {
-	if (!decompiler || !provider) {
+Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBC *hbc) {
+	if (!decompiler || !hbc) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler or provider pointer");
 	}
 
@@ -779,7 +779,7 @@ Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBCDataP
 	}
 
 	/* Store provider reference */
-	decompiler->data_provider = provider;
+	decompiler->hbc = hbc;
 
 	return SUCCESS_RESULT ();
 }
@@ -804,7 +804,7 @@ Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler) {
 	// Free data provider if owned by decompiler
 	/* Note: We don't free the provider here because it may be owned by caller.
 	 * The provider lifecycle is managed externally, not by decompiler. */
-	decompiler->data_provider = NULL;
+	decompiler->hbc = NULL;
 
 	// Cleanup string buffer
 	_hbc_string_buffer_free (&decompiler->output);
@@ -853,7 +853,7 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 	// Produce decompilation into a temporary buffer, then write to file/stdout
 	StringBuffer sb;
 	_hbc_string_buffer_init (&sb, 64 * 1024);
-	HBCDecompileOptions options = { .pretty_literals = LITERALS_PRETTY_AUTO, .suppress_comments = false };
+	HBCDecompOptions options = { .pretty_literals = LITERALS_PRETTY_AUTO, .suppress_comments = false };
 	result = _hbc_decompile_all_to_buffer (&reader, options, &sb);
 	if (result.code != RESULT_SUCCESS) {
 		_hbc_string_buffer_free (&sb);
@@ -888,7 +888,7 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 /* Internal helper kept for reference/debugging.
  * The main pipeline uses passes + `_hbc_output_code ()`. */
 #if 0
-static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
+static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
 	if (!reader || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for emit_function_stub_with_disassembly");
 	}
@@ -1774,7 +1774,7 @@ static Result emit_minimal_decompiled_function(HBCReader *reader, u32 function_i
 }
 #endif
 
-Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
+Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
 	if (!reader || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_to_buffer args");
 	}
@@ -1792,7 +1792,7 @@ Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBC
 	return r;
 }
 
-Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions options, StringBuffer *out) {
+Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options, StringBuffer *out) {
 	if (!reader || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_to_buffer");
 	}
@@ -1837,8 +1837,8 @@ Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompileOptions optio
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 function_id, HBCDecompileOptions options, StringBuffer *out) {
-	if (!provider || !out) {
+Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_with_provider args");
 	}
 
@@ -1848,7 +1848,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 
 	/* Try to use existing _hbc_decompile_function_to_buffer if we can extract HBCReader */
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, provider));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, hbc));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -1860,7 +1860,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 
 	/* Get header from provider and populate stub */
 	HBCHeader header;
-	Result hres = hbc_hdr (provider, &header);
+	Result hres = hbc_hdr (hbc, &header);
 	if (hres.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return hres;
@@ -1881,8 +1881,8 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 	}
 
 	for (u32 i = 0; i < header.functionCount; i++) {
-		HBCFunctionInfo fi;
-		Result fres = hbc_func_info (provider, i, &fi);
+		HBCFunc fi;
+		Result fres = hbc_func_info (hbc, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -1903,7 +1903,7 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_str (provider, i, &str);
+			Result sres = hbc_str (hbc, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
 			}
@@ -1924,12 +1924,12 @@ Result _hbc_decompile_function_with_provider(HBCDataProvider *provider, u32 func
 	return r;
 }
 
-Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileOptions options, StringBuffer *out) {
-	if (!provider || !out) {
+Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, StringBuffer *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_with_provider");
 	}
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, provider));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, hbc));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -1940,7 +1940,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 
 	/* Get header from provider and populate stub */
 	HBCHeader header;
-	Result res = hbc_hdr (provider, &header);
+	Result res = hbc_hdr (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return res;
@@ -1972,8 +1972,8 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 
 	/* Populate function_headers from provider */
 	for (u32 i = 0; i < func_count; i++) {
-		HBCFunctionInfo fi;
-		Result fres = hbc_func_info (provider, i, &fi);
+		HBCFunc fi;
+		Result fres = hbc_func_info (hbc, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -1995,7 +1995,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_str (provider, i, &str);
+			Result sres = hbc_str (hbc, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
 			}
@@ -2005,7 +2005,7 @@ Result _hbc_decompile_all_with_provider(HBCDataProvider *provider, HBCDecompileO
 	/* File preamble */
 	if (!options.suppress_comments) {
 		HBCHeader header;
-		res = hbc_hdr (provider, &header);
+		res = hbc_hdr (hbc, &header);
 		if (res.code != RESULT_SUCCESS) {
 			_hbc_decompiler_cleanup (&dec);
 			return res;
@@ -3059,8 +3059,8 @@ Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environ
 	}
 
 	/* Load bytecode either from provider or from file buffer */
-	if (state->data_provider) {
-		RETURN_IF_ERROR (ensure_function_bytecode_loaded_from_provider (state->data_provider, &reader->function_headers[function_id], function_id));
+	if (state->hbc) {
+		RETURN_IF_ERROR (ensure_function_bytecode_loaded_from_provider (state->hbc, &reader->function_headers[function_id], function_id));
 	} else {
 		RETURN_IF_ERROR (ensure_function_bytecode_loaded (reader, function_id));
 	}

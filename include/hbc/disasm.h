@@ -12,16 +12,16 @@
 typedef struct {
 	HBCReader *reader; /* The HBC reader with parsed data */
 	StringBuffer output; /* The output buffer */
-	HBCDisassemblyOptions options; /* Disassembly options */
+	HBCDisOptions options; /* Disassembly options */
 	u32 current_function_id; /* Function currently being disassembled */
 } Disassembler;
 
 /* Function declarations */
-Result _hbc_disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisassemblyOptions options);
+Result _hbc_disassembler_init(Disassembler *disassembler, HBCReader *reader, HBCDisOptions options);
 void _hbc_disassembler_cleanup(Disassembler *disassembler);
 
-Result _hbc_disassemble_file(const char *input_file, const char *output_file, HBCDisassemblyOptions options);
-Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisassemblyOptions options);
+Result _hbc_disassemble_file(const char *input_file, const char *output_file, HBCDisOptions options);
+Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output_file, HBCDisOptions options);
 Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id);
 Result _hbc_disassemble_all_functions(Disassembler *disassembler);
 

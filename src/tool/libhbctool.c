@@ -168,9 +168,9 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 	return SUCCESS_RESULT ();
 }
 
-static Result parse_output_and_disasm_options(int argc, char **argv, const char **out_path, HBCDisassemblyOptions *opt) {
+static Result parse_output_and_disasm_options(int argc, char **argv, const char **out_path, HBCDisOptions *opt) {
 	*out_path = NULL;
-	*opt = (HBCDisassemblyOptions){ 0 };
+	*opt = (HBCDisOptions){ 0 };
 	for (int i = 0; i < argc; i++) {
 		const char *a = argv[i];
 		if (!a) {
@@ -200,9 +200,9 @@ static Result parse_output_and_disasm_options(int argc, char **argv, const char 
 	return SUCCESS_RESULT ();
 }
 
-static Result parse_output_and_decompile_options(int argc, char **argv, const char **out_path, HBCDecompileOptions *opt) {
+static Result parse_output_and_decompile_options(int argc, char **argv, const char **out_path, HBCDecompOptions *opt) {
 	*out_path = NULL;
-	*opt = (HBCDecompileOptions){
+	*opt = (HBCDecompOptions){
 		.pretty_literals = LITERALS_PRETTY_AUTO,
 		.suppress_comments = false,
 		.force_dispatch = false,
@@ -241,7 +241,7 @@ static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 	}
 	const char *input = argv[0];
 	const char *output = NULL;
-	HBCDisassemblyOptions opt = { 0 };
+	HBCDisOptions opt = { 0 };
 	RETURN_IF_ERROR (parse_output_and_disasm_options (argc - 1, argv + 1, &output, &opt));
 
 	HBC *hbc = hbc_new_file (input);
@@ -266,7 +266,7 @@ static Result cmd_c(const CliContext *ctx, int argc, char **argv) {
 	}
 	const char *input = argv[0];
 	const char *output = NULL;
-	HBCDecompileOptions opt = { 0 };
+	HBCDecompOptions opt = { 0 };
 	RETURN_IF_ERROR (parse_output_and_decompile_options (argc - 1, argv + 1, &output, &opt));
 
 	HBC *hbc = hbc_new_file (input);
@@ -302,7 +302,7 @@ static Result cmd_dis(const CliContext *ctx, int argc, char **argv) {
 	size_t bcount = 0;
 	RETURN_IF_ERROR (parse_hex_bytes (hex, bytes, sizeof (bytes), &bcount));
 
-	HBCSingleInstructionInfo sinfo;
+	HBCInsnInfo sinfo;
 	memset (&sinfo, 0, sizeof (sinfo));
 	Result r = hbc_dec_insn (bytes, bcount, 96, 0, asm_syntax, false, NULL, &sinfo);
 	if (r.code != RESULT_SUCCESS) {
@@ -340,7 +340,7 @@ static Result encode_asm(const char *input, bool is_file, const char *output) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
 
-	HBCEncodeBuffer eb = (HBCEncodeBuffer){ .buffer = buffer, .buffer_size = out_cap, .bytes_written = 0 };
+	HBCEncBuf eb = (HBCEncBuf){ .buffer = buffer, .buffer_size = out_cap, .bytes_written = 0 };
 	Result r = hbc_enc_multi (asm_text, 96, &eb);
 	free (asm_text);
 	if (r.code != RESULT_SUCCESS) {
@@ -542,7 +542,7 @@ static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 	}
 	u32 count = fc < n? fc: n;
 	for (u32 i = 0; i < count; i++) {
-		HBCFunctionInfo fi;
+		HBCFunc fi;
 		if (hbc_func_info (hbc, i, &fi).code != RESULT_SUCCESS) {
 			continue;
 		}
@@ -635,7 +635,7 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 	fclose (py);
 
 	for (u32 i = 0; i < count; i++) {
-		HBCFunctionInfo fi;
+		HBCFunc fi;
 		if (hbc_func_info (hbc, i, &fi).code != RESULT_SUCCESS) {
 			continue;
 		}
@@ -669,7 +669,7 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id %u", function_id);
 	}
 
-	HBCDisassemblyOptions opt = (HBCDisassemblyOptions){ 0 };
+	HBCDisOptions opt = (HBCDisOptions){ 0 };
 	char *disasm_str = NULL;
 	res = hbc_disasm_fn (hbc, function_id, opt, &disasm_str);
 	if (res.code != RESULT_SUCCESS) {

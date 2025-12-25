@@ -19,7 +19,7 @@
 
 typedef struct {
 	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
-	HBCDataProvider *hbc; /* Hermes data provider for query access */
+	HBC *hbc; /* Hermes data provider for query access */
 	u32 string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
@@ -93,7 +93,7 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	}
 
 	/* Extract string tables using the API */
-	HBCStringTables tables;
+	HBCStrs tables;
 	Result table_res = hbc_str_tbl (hs->hbc, &tables);
 	if (table_res.code != RESULT_SUCCESS) {
 		return false;
@@ -209,7 +209,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 			ut32 function_id = operand_values[i];
 			if (hs->hbc) {
 				ut32 offset = 0;
-				HBCFunctionInfo fi;
+				HBCFunc fi;
 				Result func_result = hbc_func_info (hs->hbc, function_id, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
 					// name = fi.name;
@@ -247,13 +247,13 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	}
 
 	/* Build decode context */
-	HBCStringTables string_tables = {
+	HBCStrs string_tables = {
 		.string_count = hs->string_count,
 		.small_string_table = hs->small_string_table,
 		.overflow_string_table = hs->overflow_string_table,
 		.string_storage_offset = hs->string_storage_offset
 	};
-	HBCDecodeContext ctx = {
+	HBCDecodeCtx ctx = {
 		.bytes = op->bytes,
 		.len = MAX_OP_SIZE,
 		.pc = op->addr,
@@ -263,7 +263,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.string_tables = &string_tables
 	};
 
-	HBCSingleInstructionInfo sinfo;
+	HBCInsnInfo sinfo;
 	if (hbc_dec (&ctx, &sinfo).code != RESULT_SUCCESS) {
 		return false;
 	}
@@ -578,7 +578,7 @@ static bool encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 	ut8 tmp[MAX_OP_SIZE];
 	size_t written = 0;
 
-	HBCEncodeBuffer outbuf = { .buffer = tmp, .buffer_size = sizeof (tmp), .bytes_written = 0 };
+	HBCEncBuf outbuf = { .buffer = tmp, .buffer_size = sizeof (tmp), .bytes_written = 0 };
 	Result res = hbc_enc (
 		asm_line,
 		hs->bytecode_version,

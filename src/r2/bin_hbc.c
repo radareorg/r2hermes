@@ -7,7 +7,7 @@
 #define HBC_VADDR_BASE 0x10000000
 
 typedef struct {
-	HBCDataProvider *hbc;
+	HBC *hbc;
 } HBCBinObj;
 
 static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
@@ -52,7 +52,7 @@ static void destroy(RBinFile *bf) {
 	}
 }
 
-static HBCDataProvider *get_provider(RBinFile *bf) {
+static HBC *get_provider(RBinFile *bf) {
 	if (!bf || !bf->bo || !bf->bo->bin_obj) {
 		return NULL;
 	}
@@ -80,13 +80,13 @@ static bool is_valid_entrypoint(RBuffer *buf, ut64 offset) {
 }
 
 /* Unified entrypoint resolution with fallback chain */
-static ut64 resolve_entrypoint(RBinFile *bf, HBCDataProvider *provider) {
+static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
 	/* Try 1: Find MainAppContent symbol */
 	if (provider) {
 		u32 func_count;
 		if (hbc_func_count (provider, &func_count).code == RESULT_SUCCESS) {
 			for (u32 i = 0; i < func_count; i++) {
-				HBCFunctionInfo fi;
+				HBCFunc fi;
 				if (hbc_func_info (provider, i, &fi).code == RESULT_SUCCESS) {
 					if (fi.name && strcmp (fi.name, "MainAppContent") == 0) {
 						if (is_valid_entrypoint (bf->buf, fi.offset)) {
@@ -112,7 +112,7 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBCDataProvider *provider) {
 	if (provider) {
 		u32 func_count;
 		if (hbc_func_count (provider, &func_count).code == RESULT_SUCCESS && func_count > 0) {
-			HBCFunctionInfo fi;
+			HBCFunc fi;
 			if (hbc_func_info (provider, 0, &fi).code == RESULT_SUCCESS) {
 				if (is_valid_entrypoint (bf->buf, fi.offset)) {
 					return fi.offset;
@@ -150,7 +150,7 @@ static RBinInfo *info(RBinFile *bf) {
 	bool has_version = false;
 	ut32 version = 0;
 
-	HBCDataProvider *provider = get_provider (bf);
+	HBC *provider = get_provider (bf);
 	if (provider) {
 		HBCHeader hh;
 		if (hbc_hdr (provider, &hh).code == RESULT_SUCCESS) {
@@ -198,7 +198,7 @@ static RList *entries(RBinFile *bf) {
 	}
 
 	RBinAddr *addr = R_NEW0 (RBinAddr);
-	HBCDataProvider *provider = get_provider (bf);
+	HBC *provider = get_provider (bf);
 	ut64 entrypoint = resolve_entrypoint (bf, provider);
 
 	addr->paddr = entrypoint;
@@ -218,7 +218,7 @@ static RList *symbols(RBinFile *bf) {
 		return NULL;
 	}
 
-	HBCDataProvider *provider = get_provider (bf);
+	HBC *provider = get_provider (bf);
 	if (!provider) {
 		return symbols;
 	}
@@ -229,7 +229,7 @@ static RList *symbols(RBinFile *bf) {
 	}
 
 	for (u32 i = 0; i < func_count; i++) {
-		HBCFunctionInfo fi;
+		HBCFunc fi;
 		if (hbc_func_info (provider, i, &fi).code != RESULT_SUCCESS) {
 			continue;
 		}
@@ -281,7 +281,7 @@ static RList *strings(RBinFile *bf) {
 		return NULL;
 	}
 
-	HBCDataProvider *provider = get_provider (bf);
+	HBC *provider = get_provider (bf);
 	if (!provider) {
 		return ret;
 	}

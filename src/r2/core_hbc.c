@@ -5,7 +5,6 @@
 #include <r_util.h>
 #include <r_lib.h>
 #include <hbc/hbc.h>
-#include <hbc/data_provider.h>
 #include <hbc/decompilation/decompiler.h>
 #include <string.h>
 #include <stdlib.h>
@@ -17,9 +16,6 @@
 
 /* r2 functions - weak symbol to handle different r2 versions */
 extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
-
-/* Forward declaration for R2 provider free function */
-extern void hbc_data_provider_free(HBCDataProvider *provider);
 
 /**
  * Safe wrapper for r_bin_file_cur that handles weak symbol resolution.
@@ -38,7 +34,7 @@ static RBinFile *safe_r_bin_file_cur(RBin *bin) {
 }
 
 typedef struct {
-	HBCDataProvider *hbc; /* Cached HBC data provider per file */
+	HBC *hbc; /* Cached HBC data provider per file */
 	RCore *core;
 	char *file_path;
 } HbcContext;
@@ -109,7 +105,7 @@ static Result hbc_load_current_binary(RCore *core) {
 
 	/* Clean up old provider */
 	if (hbc_ctx.hbc) {
-		hbc_data_provider_free (hbc_ctx.hbc);
+		hbc_free (hbc_ctx.hbc);
 		hbc_ctx.hbc = NULL;
 	}
 	free (hbc_ctx.file_path);
@@ -146,7 +142,7 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 	Result res = hbc_func_count (hbc_ctx.hbc, &count);
 	if (res.code == RESULT_SUCCESS) {
 		for (u32 i = 0; i < count; i++) {
-			HBCFunctionInfo fi;
+			HBCFunc fi;
 			res = hbc_func_info (hbc_ctx.hbc, i, &fi);
 			if (res.code == RESULT_SUCCESS) {
 				if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
@@ -160,8 +156,8 @@ static int find_function_at_offset(u32 offset, u32 *out_id) {
 }
 
 /* Create decompile options with r2 integration */
-static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
-	HBCDecompileOptions opts = {
+static HBCDecompOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
+	HBCDecompOptions opts = {
 		.pretty_literals = r_config_get_b (core->config, "hbc.pretty_literals"),
 		.suppress_comments = r_config_get_b (core->config, "hbc.suppress_comments"),
 		.show_offsets = show_offsets || r_config_get_b (core->config, "hbc.show_offsets"),
@@ -195,10 +191,10 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 
 	if (found == 0) {
 		/* Found function at current offset - get its base address */
-		HBCFunctionInfo fi;
+		HBCFunc fi;
 		Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
-		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
+		HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 		StringBuffer output = { 0 };
 		_hbc_string_buffer_init (&output, 4096);
 		result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
@@ -211,7 +207,7 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		_hbc_string_buffer_free (&output);
 	} else {
 		/* Not in a function, decompile all - use 0 as base since multiple functions */
-		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
+		HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
 		StringBuffer output = { 0 };
 		_hbc_string_buffer_init (&output, 4096);
 		result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
@@ -237,7 +233,7 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 		return;
 	}
 
-	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
+	HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
 	StringBuffer output = { 0 };
 	_hbc_string_buffer_init (&output, 8192);
 	result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
@@ -284,10 +280,10 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 		return;
 	}
 	/* Get function base address for offset calculation */
-	HBCFunctionInfo fi;
+	HBCFunc fi;
 	Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
-	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
+	HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 	StringBuffer output = { 0 };
 	_hbc_string_buffer_init (&output, 4096);
 	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
@@ -321,7 +317,7 @@ static void cmd_list_functions(RCore *core) {
 	HBC_PRINTF (core, "Functions (%u):\n", count);
 
 	for (u32 i = 0; i < count; i++) {
-		HBCFunctionInfo info;
+		HBCFunc info;
 		Result res = hbc_func_info (hbc_ctx.hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
 			HBC_PRINTF (core, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, safe_name (info.name), info.offset, info.size, info.param_count);
@@ -383,7 +379,7 @@ static void cmd_json(RCore *core, const char *addr_str) {
 		function_id = (u32)parsed;
 	}
 
-	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
+	HBCDecompOptions opts = { .pretty_literals = true, .suppress_comments = false };
 	u32 count;
 	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
@@ -603,7 +599,7 @@ static bool plugin_init(struct r_core_plugin_session_t *s) {
 static bool plugin_fini(struct r_core_plugin_session_t *s) {
 	(void)s;
 	if (hbc_ctx.hbc) {
-		hbc_data_provider_free (hbc_ctx.hbc);
+		hbc_free (hbc_ctx.hbc);
 		hbc_ctx.hbc = NULL;
 	}
 	hbc_ctx.core = NULL;

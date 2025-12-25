@@ -1,7 +1,7 @@
 #ifndef HBC_INTERNAL_LEGACY_H
 #define HBC_INTERNAL_LEGACY_H
 
-#include <hbc/common.h>
+#include <hbc/hbc.h>
 
 /* ============================================================================
  * INTERNAL LEGACY API - HBCState (For Data Provider Implementations Only)
@@ -20,16 +20,11 @@ void hbc_close(HBCState *hd);
 u32 hbc_function_count(HBCState *hd);
 u32 hbc_string_count(HBCState *hd);
 
-struct HBCHeader;
-struct HBCFunctionInfo;
-struct HBCStringMeta;
-struct HBCStringTables;
-
-Result hbc_get_header(HBCState *hd, struct HBCHeader *out);
-Result hbc_get_function_info(HBCState *hd, u32 function_id, struct HBCFunctionInfo *out);
+Result hbc_get_header(HBCState *hd, HBCHeader *out);
+Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunc *out);
 Result hbc_get_string(HBCState *hd, u32 index, const char **out_str);
-Result hbc_get_string_meta(HBCState *hd, u32 index, struct HBCStringMeta *out);
-Result hbc_get_string_tables(HBCState *hd, struct HBCStringTables *out);
+Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out);
+Result hbc_get_string_tables(HBCState *hd, HBCStrs *out);
 Result hbc_get_function_source(HBCState *hd, u32 function_id, const char **out_str);
 Result hbc_get_function_bytecode(HBCState *hd, u32 function_id, const u8 **out_ptr, u32 *out_size);
 

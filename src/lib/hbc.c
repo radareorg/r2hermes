@@ -178,7 +178,7 @@ Result hbc_get_header(HBCState *hd, HBCHeader *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunctionInfo *out) {
+Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunc *out) {
 	if (!hd || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -235,7 +235,7 @@ Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_string_tables(HBCState *hd, HBCStringTables *out) {
+Result hbc_get_string_tables(HBCState *hd, HBCStrs *out) {
 	if (!hd || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
@@ -694,7 +694,7 @@ Result hbc_enc_multi(
 	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Encoding not yet implemented");
 }
 
-void hbc_free_insns(HBCInstruction *insns, u32 count) {
+void hbc_free_insns(HBCInsn *insns, u32 count) {
 	if (!insns || count == 0) {
 		return;
 	}
