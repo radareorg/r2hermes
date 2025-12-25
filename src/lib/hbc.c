@@ -231,7 +231,7 @@ Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out) {
 	out->isUTF16 = is_utf16 != 0;
 	out->offset = r->string_storage_file_offset + off;
 	out->length = length;
-	out->kind = r->string_kinds[index];
+	out->kind = (HBCStringKind)r->string_kinds[index];
 	return SUCCESS_RESULT ();
 }
 
