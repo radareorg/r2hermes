@@ -1,5 +1,6 @@
 NAME=r2hermes test
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 -a
 pd 2
