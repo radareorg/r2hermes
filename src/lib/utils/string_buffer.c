@@ -1,6 +1,6 @@
 #include <hbc/common.h>
 
-Result string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
+Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -21,7 +21,7 @@ Result string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	return SUCCESS_RESULT ();
 }
 
-Result string_buffer_append(StringBuffer *buffer, const char *str) {
+Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
 	if (!buffer || !str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer or string is NULL");
 	}
@@ -56,7 +56,7 @@ Result string_buffer_append(StringBuffer *buffer, const char *str) {
 	return SUCCESS_RESULT ();
 }
 
-Result string_buffer_append_char(StringBuffer *buffer, char c) {
+Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -83,7 +83,7 @@ Result string_buffer_append_char(StringBuffer *buffer, char c) {
 	return SUCCESS_RESULT ();
 }
 
-Result string_buffer_append_int(StringBuffer *buffer, int value) {
+Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -91,14 +91,69 @@ Result string_buffer_append_int(StringBuffer *buffer, int value) {
 	char temp[32]; /* Enough for any integer */
 	snprintf (temp, sizeof (temp), "%d", value);
 
-	return string_buffer_append (buffer, temp);
+	return _hbc_string_buffer_append (buffer, temp);
 }
 
-void string_buffer_free(StringBuffer *buffer) {
+void _hbc_string_buffer_free(StringBuffer *buffer) {
 	if (buffer && buffer->data) {
 		free (buffer->data);
 		buffer->data = NULL;
 		buffer->length = 0;
 		buffer->capacity = 0;
 	}
+}
+
+/* Convert CamelCase to snake_case for instruction names */
+void hbc_camel_to_snake(const char *camel, char *snake, size_t snake_size) {
+	if (!camel || !snake || snake_size == 0) {
+		return;
+	}
+
+	size_t j = 0;
+	for (size_t i = 0; camel[i] && j < snake_size - 1; i++) {
+		char c = camel[i];
+
+		/* Insert underscore before uppercase letter (except at start) */
+		if (i > 0 && c >= 'A' && c <= 'Z') {
+			/* Don't insert underscore if previous char was also uppercase
+			 * and next char is lowercase (e.g., "ID" in "GetByID") */
+			if (! (camel[i - 1] >= 'A' && camel[i - 1] <= 'Z' &&
+				camel[i + 1] >= 'a' && camel[i + 1] <= 'z')) {
+				if (j < snake_size - 1) {
+					snake[j++] = '_';
+				}
+			}
+		}
+
+		/* Convert to lowercase */
+		if (j < snake_size - 1) {
+			snake[j++] = (c >= 'A' && c <= 'Z')? (c + 32): c;
+		}
+	}
+	snake[j] = '\0';
+}
+
+/* Convert snake_case to CamelCase */
+void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size) {
+	if (!snake || !camel || camel_size < 2) {
+		if (camel && camel_size > 0) {
+			camel[0] = '\0';
+		}
+		return;
+	}
+	size_t j = 0;
+	bool cap_next = true;
+	for (size_t i = 0; snake[i] && j + 1 < camel_size; i++) {
+		if (snake[i] == '_') {
+			cap_next = true;
+		} else {
+			char c = snake[i];
+			if (cap_next && c >= 'a' && c <= 'z') {
+				c = c - 32; /* to uppercase */
+			}
+			camel[j++] = c;
+			cap_next = false;
+		}
+	}
+	camel[j] = '\0';
 }

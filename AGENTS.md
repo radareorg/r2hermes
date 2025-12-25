@@ -26,8 +26,13 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
 - Enable with: `make CFLAGS="-D HBC_DEBUG_LOGGING=1" clean all` or use `make debug`
 
 **Public API**
-- Header: `include/hermesdec/hermesdec.h`
-- Functions for opening/closing files, introspection, disassembly, decompilation, and utilities.
+- Primary header: `include/hbc/hbc.h`
+- **Main interface**: HBC (short for HBCDataProvider, flexible data sources: files, buffers, r2)
+  - Factories: `hbc_new_file()`, `hbc_new_buf()`, `hbc_new_r2()`
+  - Query: `hbc_hdr()`, `hbc_func_info()`, `hbc_str()`, `hbc_bytecode()`, etc.
+  - Decompilation: `hbc_decomp_fn()`, `hbc_decomp_all()`
+  - Type aliases: `HBCFunc`, `HBCDisOptions`, `HBCDecompOptions`, `HBCInsns`, `HBCStrs`, etc.
+- See `API_CHANGES.md` for full list of names.
 
 **Coding Conventions**
 - C11, compiled with `-Wall -Wextra -Werror -std=c11 -pedantic`.

@@ -1,49 +1,23 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
+/* radare2 - LGPL - Copyright 2025 - pancake */
 /* r2 core plugin for Hermes bytecode decompilation */
 
 #include <r_core.h>
 #include <r_util.h>
 #include <r_lib.h>
 #include <hbc/hbc.h>
-#include <hbc/data_provider.h>
 #include <hbc/decompilation/decompiler.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-#ifndef R2_VERSION
-#define R2_VERSION "6.0.3"
-#endif
-
-/* r2 functions - weak symbol to handle different r2 versions */
-extern RBinFile *r_bin_file_cur(RBin *bin) __attribute__((weak));
-
-/**
- * Safe wrapper for r_bin_file_cur that handles weak symbol resolution.
- * Falls back to directly accessing bin->cur if r_bin_file_cur is not available.
- */
-static RBinFile *safe_r_bin_file_cur(RBin *bin) {
-	if (r_bin_file_cur) {
-		return r_bin_file_cur (bin);
-	}
-	/* Fallback: use bin->cur directly (available in r_bin_t struct) */
-	if (bin) {
-		/* struct r_bin_t { const char *file; RBinFile *cur; ... } */
-		return ((struct r_bin_t *)bin)->cur;
-	}
-	return NULL;
-}
-
 typedef struct {
-	HBCState *hbc; /* Kept for backward compat */
-	HBCDataProvider *provider; /* NEW: Cached provider per file */
+	HBC *hbc; /* Cached HBC data provider per file */
 	RCore *core;
 	char *file_path;
 } HbcContext;
 
 static HbcContext hbc_ctx = {
 	.hbc = NULL,
-	.provider = NULL,
 	.core = NULL,
 	.file_path = NULL
 };
@@ -102,39 +76,35 @@ static Result hbc_load_current_binary(RCore *core) {
 	}
 
 	/* Reload if file changed */
-	if (hbc_ctx.provider && hbc_ctx.file_path && !strcmp (hbc_ctx.file_path, file_path)) {
+	if (hbc_ctx.hbc && hbc_ctx.file_path && !strcmp (hbc_ctx.file_path, file_path)) {
 		return SUCCESS_RESULT ();
 	}
 
 	/* Clean up old provider */
-	if (hbc_ctx.provider) {
-		hbc_data_provider_free (hbc_ctx.provider);
-		hbc_ctx.provider = NULL;
-	}
 	if (hbc_ctx.hbc) {
-		hbc_close (hbc_ctx.hbc);
+		hbc_free (hbc_ctx.hbc);
 		hbc_ctx.hbc = NULL;
 	}
 	free (hbc_ctx.file_path);
 	hbc_ctx.file_path = NULL;
 
 	/* Get RBinFile from r2 (already parsed by r2) */
-	RBinFile *bf = safe_r_bin_file_cur (core->bin);
+	RBinFile *bf = core->bin->cur;
 	if (!bf) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
 
 	/* Create provider from r2 RBinFile (NO file I/O) */
-	hbc_ctx.provider = hbc_data_provider_from_rbinfile (bf);
-	if (!hbc_ctx.provider) {
+	hbc_ctx.hbc = hbc_new_r2 (bf);
+	if (!hbc_ctx.hbc) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to create provider");
 	}
 
 	hbc_ctx.core = core;
 	hbc_ctx.file_path = strdup (file_path);
 	if (!hbc_ctx.file_path) {
-		hbc_data_provider_free (hbc_ctx.provider);
-		hbc_ctx.provider = NULL;
+		hbc_free (hbc_ctx.hbc);
+		hbc_ctx.hbc = NULL;
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
 	}
 	return SUCCESS_RESULT ();
@@ -142,88 +112,46 @@ static Result hbc_load_current_binary(RCore *core) {
 
 /* Find function ID at a given offset */
 static int find_function_at_offset(u32 offset, u32 *out_id) {
-	if (!out_id || !hbc_ctx.provider) {
+	if (!out_id || !hbc_ctx.hbc) {
 		return -1;
 	}
 	u32 count;
-	Result res = hbc_data_provider_get_function_count (hbc_ctx.provider, &count);
-	if (res.code != RESULT_SUCCESS) {
-		return -1;
-	}
-	for (u32 i = 0; i < count; i++) {
-		HBCFunctionInfo fi;
-		res = hbc_data_provider_get_function_info (hbc_ctx.provider, i, &fi);
-		if (res.code == RESULT_SUCCESS) {
-			if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
-				*out_id = i;
-				return 0;
+	Result res = hbc_func_count (hbc_ctx.hbc, &count);
+	if (res.code == RESULT_SUCCESS) {
+		for (u32 i = 0; i < count; i++) {
+			HBCFunc fi;
+			res = hbc_func_info (hbc_ctx.hbc, i, &fi);
+			if (res.code == RESULT_SUCCESS) {
+				if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
+					*out_id = i;
+					return 0;
+				}
 			}
 		}
 	}
 	return -1;
 }
 
-/* Helper to read boolean config value */
-static bool read_config_bool(RCore *core, const char *key, bool default_val) {
-	if (!core || !core->config) {
-		return default_val;
-	}
-	const char *val = r_config_get (core->config, key);
-	if (!val) {
-		return default_val;
-	}
-	return strcmp (val, "true") == 0 || strcmp (val, "1") == 0;
-}
-
-static int read_config_int(RCore *core, const char *key, int default_val) {
-	if (!core || !core->config) {
-		return default_val;
-	}
-	const char *val = r_config_get (core->config, key);
-	if (!val) {
-		return default_val;
-	}
-	return atoi (val);
-}
-
 /* Create decompile options with r2 integration */
-static HBCDecompileOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
-	HBCDecompileOptions opts = {
-		.pretty_literals = read_config_bool (core, "hbc.pretty_literals", true),
-		.suppress_comments = read_config_bool (core, "hbc.suppress_comments", false),
-		.show_offsets = show_offsets || read_config_bool (core, "hbc.show_offsets", false),
+static HBCDecompOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
+	HBCDecompOptions opts = {
+		.pretty_literals = r_config_get_b (core->config, "hbc.pretty_literals"),
+		.suppress_comments = r_config_get_b (core->config, "hbc.suppress_comments"),
+		.show_offsets = show_offsets || r_config_get_b (core->config, "hbc.show_offsets"),
 		.function_base = function_base,
 		.comment_callback = r2_comment_callback,
 		.comment_context = core,
 		.flag_callback = r2_flag_callback,
 		.flag_context = core,
-		.skip_pass1_metadata = read_config_bool (core, "hbc.skip_pass1", false),
-		.skip_pass2_transform = read_config_bool (core, "hbc.skip_pass2", false),
-		.skip_pass3_forin = read_config_bool (core, "hbc.skip_pass3", false),
-		.skip_pass4_closure = read_config_bool (core, "hbc.skip_pass4", false),
-		.force_dispatch = read_config_bool (core, "hbc.force_dispatch", false),
-		.inline_closures = read_config_bool (core, "hbc.inline_closures", true),
-		.inline_threshold = read_config_int (core, "hbc.inline_threshold", 0)
+		.skip_pass1_metadata = r_config_get_b (core->config, "hbc.skip_pass1"),
+		.skip_pass2_transform = r_config_get_b (core->config, "hbc.skip_pass2"),
+		.skip_pass3_forin = r_config_get_b (core->config, "hbc.skip_pass3"),
+		.skip_pass4_closure = r_config_get_b (core->config, "hbc.skip_pass4"),
+		.force_dispatch = r_config_get_b (core->config, "hbc.force_dispatch"),
+		.inline_closures = r_config_get_b (core->config, "hbc.inline_closures"),
+		.inline_threshold = r_config_get_i (core->config, "hbc.inline_threshold")
 	};
 	return opts;
-}
-
-/* Helper to trim trailing empty lines from output */
-static char *trim_trailing_lines(const char *str) {
-	if (!str || !*str) {
-		return NULL;
-	}
-	size_t len = strlen (str);
-	/* Find the last non-whitespace character */
-	while (len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r')) {
-		len--;
-	}
-	char *result = (char *)malloc (len + 1);
-	if (result) {
-		memcpy (result, str, len);
-		result[len] = '\0';
-	}
-	return result;
 }
 
 /* Decompile function at current offset or all functions if not in a function */
@@ -240,35 +168,33 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 
 	if (found == 0) {
 		/* Found function at current offset - get its base address */
-		HBCFunctionInfo fi;
-		Result fres = hbc_data_provider_get_function_info (hbc_ctx.provider, function_id, &fi);
+		HBCFunc fi;
+		Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
-		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
+		HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 		StringBuffer output = { 0 };
-		string_buffer_init (&output, 4096);
-		result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
+		_hbc_string_buffer_init (&output, 4096);
+		result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
-			char *trimmed = trim_trailing_lines (output.data);
-			HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-			free (trimmed);
+			r_str_trim (output.data);
+			HBC_PRINTF (core, "%s\n", output.data);
 		} else {
 			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 		}
-		string_buffer_free (&output);
+		_hbc_string_buffer_free (&output);
 	} else {
 		/* Not in a function, decompile all - use 0 as base since multiple functions */
-		HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
+		HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
 		StringBuffer output = { 0 };
-		string_buffer_init (&output, 4096);
-		result = decompile_all_with_provider (hbc_ctx.provider, opts, &output);
+		_hbc_string_buffer_init (&output, 4096);
+		result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
 		if (result.code == RESULT_SUCCESS && output.data) {
-			char *trimmed = trim_trailing_lines (output.data);
-			HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-			free (trimmed);
+			r_str_trim (output.data);
+			HBC_PRINTF (core, "%s\n", output.data);
 		} else {
 			HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 		}
-		string_buffer_free (&output);
+		_hbc_string_buffer_free (&output);
 	}
 }
 
@@ -284,18 +210,17 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 		return;
 	}
 
-	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, 0);
+	HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
 	StringBuffer output = { 0 };
-	string_buffer_init (&output, 8192);
-	result = decompile_all_with_provider (hbc_ctx.provider, opts, &output);
+	_hbc_string_buffer_init (&output, 8192);
+	result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
-		char *trimmed = trim_trailing_lines (output.data);
-		HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-		free (trimmed);
+		r_str_trim (output.data);
+		HBC_PRINTF (core, "%s\n", output.data);
 	} else {
 		HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 	}
-	string_buffer_free (&output);
+	_hbc_string_buffer_free (&output);
 }
 
 static void cmd_decompile_all(RCore *core) {
@@ -322,7 +247,7 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	}
 
 	u32 count;
-	result = hbc_data_provider_get_function_count (hbc_ctx.provider, &count);
+	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: cannot get function count\n");
 		return;
@@ -332,21 +257,20 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 		return;
 	}
 	/* Get function base address for offset calculation */
-	HBCFunctionInfo fi;
-	Result fres = hbc_data_provider_get_function_info (hbc_ctx.provider, function_id, &fi);
+	HBCFunc fi;
+	Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
-	HBCDecompileOptions opts = make_decompile_options (core, show_offsets, func_base);
+	HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 	StringBuffer output = { 0 };
-	string_buffer_init (&output, 4096);
-	result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
+	_hbc_string_buffer_init (&output, 4096);
+	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
 	if (result.code == RESULT_SUCCESS && output.data) {
-		char *trimmed = trim_trailing_lines (output.data);
-		HBC_PRINTF (core, "%s\n", trimmed? trimmed: output.data);
-		free (trimmed);
+		r_str_trim (output.data);
+		HBC_PRINTF (core, "%s\n", output.data);
 	} else {
 		HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 	}
-	string_buffer_free (&output);
+	_hbc_string_buffer_free (&output);
 }
 
 static void cmd_decompile_function(RCore *core, const char *addr_str) {
@@ -362,7 +286,7 @@ static void cmd_list_functions(RCore *core) {
 	}
 
 	u32 count;
-	result = hbc_data_provider_get_function_count (hbc_ctx.provider, &count);
+	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error: cannot get function count\n");
 		return;
@@ -370,8 +294,8 @@ static void cmd_list_functions(RCore *core) {
 	HBC_PRINTF (core, "Functions (%u):\n", count);
 
 	for (u32 i = 0; i < count; i++) {
-		HBCFunctionInfo info;
-		Result res = hbc_data_provider_get_function_info (hbc_ctx.provider, i, &info);
+		HBCFunc info;
+		Result res = hbc_func_info (hbc_ctx.hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
 			HBC_PRINTF (core, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, safe_name (info.name), info.offset, info.size, info.param_count);
 		}
@@ -387,7 +311,7 @@ static void cmd_file_info(RCore *core) {
 	}
 
 	HBCHeader header;
-	result = hbc_data_provider_get_header (hbc_ctx.provider, &header);
+	result = hbc_hdr (hbc_ctx.hbc, &header);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "Error reading header: %s\n", safe_errmsg (result.error_message));
 		return;
@@ -432,9 +356,9 @@ static void cmd_json(RCore *core, const char *addr_str) {
 		function_id = (u32)parsed;
 	}
 
-	HBCDecompileOptions opts = { .pretty_literals = true, .suppress_comments = false };
+	HBCDecompOptions opts = { .pretty_literals = true, .suppress_comments = false };
 	u32 count;
-	result = hbc_data_provider_get_function_count (hbc_ctx.provider, &count);
+	result = hbc_func_count (hbc_ctx.hbc, &count);
 	if (result.code != RESULT_SUCCESS) {
 		HBC_PRINTF (core, "{\"error\":\"cannot get function count\"}\n");
 		return;
@@ -444,12 +368,12 @@ static void cmd_json(RCore *core, const char *addr_str) {
 		return;
 	}
 	StringBuffer output = { 0 };
-	string_buffer_init (&output, 4096);
-	result = decompile_function_with_provider (hbc_ctx.provider, function_id, opts, &output);
+	_hbc_string_buffer_init (&output, 4096);
+	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
 
 	RStrBuf *sb = r_strbuf_newf ("{\"function_id\":%u,\"decompilation\":", function_id);
 	if (!sb) {
-		string_buffer_free (&output);
+		_hbc_string_buffer_free (&output);
 		HBC_PRINT (core, "{\"error\":\"out of memory\"}\n");
 		return;
 	}
@@ -490,7 +414,7 @@ static void cmd_json(RCore *core, const char *addr_str) {
 	r_strbuf_append (sb, "}\n");
 	HBC_PRINT (core, r_strbuf_get (sb));
 	r_strbuf_free (sb);
-	string_buffer_free (&output);
+	_hbc_string_buffer_free (&output);
 }
 
 /* Show help */
@@ -512,54 +436,60 @@ static void cmd_help(RCore *core) {
 }
 
 /* Main handler for pd:h commands */
-static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
+static bool cmd_handler(RCorePluginSession *s, const char *input) {
 	RCore *core = s? s->core: NULL;
 
 	if (!core || !input) {
 		return false;
 	}
 
-	/* Must start with "pd:h" */
-	if (strncmp (input, "pd:h", 4) != 0) {
+	if (!r_str_startswith (input, "pd:h")) {
 		return false;
 	}
 
 	const char *arg = input + 4;
 
-	if (*arg == '\0' || (*arg == ' ' && (arg[1] == '\0' || isspace ((unsigned char)arg[1])))) {
-		/* pd:h - decompile function at current offset */
+	switch (*arg) {
+	case '\0': /* pd:h */
+	case ' ': /* pd:h (with spaces) */
+		if (*arg == ' ' && arg[1] != '\0' && !isspace ((unsigned char)arg[1])) {
+			HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
+			break;
+		}
 		cmd_decompile_current (core);
-	} else if (*arg == 'a') {
-		/* pd:ha - decompile all */
+		break;
+	case 'a': /* pd:ha */
 		cmd_decompile_all (core);
-	} else if (*arg == 'c') {
-		/* pd:hc [id] */
+		break;
+	case 'c': { /* pd:hc [id] */
 		const char *addr_str = arg + 1;
 		while (*addr_str && isspace ((unsigned char)*addr_str)) {
 			addr_str++;
 		}
 		cmd_decompile_function (core, addr_str);
-	} else if (*arg == 'f') {
-		/* pd:hf */
+		break;
+	}
+	case 'f': /* pd:hf */
 		cmd_list_functions (core);
-	} else if (*arg == 'i') {
-		/* pd:hi */
+		break;
+	case 'i': /* pd:hi */
 		cmd_file_info (core);
-	} else if (*arg == 'j') {
-		/* pd:hj [id] */
+		break;
+	case 'j': { /* pd:hj [id] */
 		const char *addr_str = arg + 1;
 		while (*addr_str && isspace ((unsigned char)*addr_str)) {
 			addr_str++;
 		}
 		cmd_json (core, addr_str);
-	} else if (*arg == 'o') {
-		/* pd:ho [id] or pd:hoa - decompile with offsets */
+		break;
+	}
+	case 'o': { /* pd:ho [id] or pd:hoa */
 		const char *sub = arg + 1;
 		if (*sub == 'a') {
-			/* pd:hoa - decompile all with offsets */
+			/* pd:hoa */
 			cmd_decompile_all_ex (core, true);
 		} else {
-			/* pd:ho [id] - decompile function with offsets */
+			/* pd:ho [id] */
 			while (*sub && isspace ((unsigned char)*sub)) {
 				sub++;
 			}
@@ -569,11 +499,14 @@ static bool cmd_handler(struct r_core_plugin_session_t *s, const char *input) {
 				cmd_decompile_current_ex (core, true);
 			}
 		}
-	} else if (*arg == '?') {
-		/* pd:h? */
+		break;
+	}
+	case '?': /* pd:h? */
 		cmd_help (core);
-	} else {
+		break;
+	default:
 		HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
+		break;
 	}
 
 	return true;
@@ -642,12 +575,8 @@ static bool plugin_init(struct r_core_plugin_session_t *s) {
 
 static bool plugin_fini(struct r_core_plugin_session_t *s) {
 	(void)s;
-	if (hbc_ctx.provider) {
-		hbc_data_provider_free (hbc_ctx.provider);
-		hbc_ctx.provider = NULL;
-	}
 	if (hbc_ctx.hbc) {
-		hbc_close (hbc_ctx.hbc);
+		hbc_free (hbc_ctx.hbc);
 		hbc_ctx.hbc = NULL;
 	}
 	hbc_ctx.core = NULL;

@@ -1,18 +1,18 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
-/* R2DataProvider: Read HBC data from r2 RBinFile without separate file I/O */
+/* radare2 - LGPL - Copyright 2025 - pancake */
+/* R2 HBC Provider: Read HBC data from r2 RBinFile without separate file I/O */
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
-#include <hbc/data_provider.h>
 #include <hbc/common.h>
+#include <hbc/parser.h>
 #include <stdlib.h>
 #include <string.h>
 
 /**
- * R2DataProvider reads from an r2 RBinFile without opening a separate file.
+ * R2 provider reads from an r2 RBinFile without opening a separate file.
  * Data is already parsed and cached by r2's bin_hbc plugin.
  */
-struct R2DataProvider {
+struct HBC {
 	RBinFile *bf; /* r2 binary file handle (not owned) */
 	RBin *bin; /* r2 bin handle (not owned) */
 	void *buf; /* r2 buffer for binary data (not owned) */
@@ -20,41 +20,17 @@ struct R2DataProvider {
 	HBCHeader cached_header; /* Cache to avoid re-parsing */
 	bool header_loaded;
 
+	/* String tables cache */
+	HBCStrs cached_string_tables;
+	bool string_tables_loaded;
+
 	/* Temporary buffer for bytecode reads */
 	ut8 *tmp_read_buffer;
 	size_t tmp_buffer_size;
 };
 
 /**
- * Create a data provider from an r2 RBinFile.
- * Reads data via r2's RBuffer API (no separate file opens).
- * Returns NULL if bf is NULL or invalid.
- */
-HBCDataProvider *hbc_data_provider_from_rbinfile(RBinFile *bf) {
-	if (!bf || !bf->buf) {
-		return NULL;
-	}
-	/* Note: bf->rbin might be NULL in some r2 versions, but we only strictly need bf->buf for data reads */
-
-	struct R2DataProvider *rp = (struct R2DataProvider *)malloc (sizeof (*rp));
-	if (!rp) {
-		return NULL;
-	}
-
-	memset (rp, 0, sizeof (*rp));
-	rp->bf = bf;
-	rp->bin = bf->rbin;
-	rp->buf = bf->buf;
-	rp->header_loaded = false;
-	rp->tmp_read_buffer = NULL;
-	rp->tmp_buffer_size = 0;
-
-	return (HBCDataProvider *)rp;
-}
-
-/**
  * Parse HBC header from RBuffer at offset 0.
- * Header format is well-defined in the HBC spec.
  */
 static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 	if (!buf || !out) {
@@ -66,74 +42,28 @@ static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Cannot read header");
 	}
 
-	/* Parse header fields at known offsets */
-	/* Offset 0: magic (8 bytes, little-endian) */
 	memcpy (&out->magic, header_buf + 0, 8);
-
-	/* Offset 8: version (4 bytes, little-endian) */
 	out->version = r_read_le32 (header_buf + 8);
-
-	/* Offset 12: sourceHash (20 bytes) */
 	memcpy (out->sourceHash, header_buf + 12, 20);
-
-	/* Offset 32: fileLength (4 bytes) */
 	out->fileLength = r_read_le32 (header_buf + 32);
-
-	/* Offset 36: globalCodeIndex (4 bytes) */
 	out->globalCodeIndex = r_read_le32 (header_buf + 36);
-
-	/* Offset 40: functionCount (4 bytes) */
 	out->functionCount = r_read_le32 (header_buf + 40);
-
-	/* Offset 44: stringKindCount (4 bytes) */
 	out->stringKindCount = r_read_le32 (header_buf + 44);
-
-	/* Offset 48: identifierCount (4 bytes) */
 	out->identifierCount = r_read_le32 (header_buf + 48);
-
-	/* Offset 52: stringCount (4 bytes) */
 	out->stringCount = r_read_le32 (header_buf + 52);
-
-	/* Offset 56: overflowStringCount (4 bytes) */
 	out->overflowStringCount = r_read_le32 (header_buf + 56);
-
-	/* Offset 60: stringStorageSize (4 bytes) */
 	out->stringStorageSize = r_read_le32 (header_buf + 60);
-
-	/* Offset 64: bigIntCount (4 bytes) */
 	out->bigIntCount = r_read_le32 (header_buf + 64);
-
-	/* Offset 68: bigIntStorageSize (4 bytes) */
 	out->bigIntStorageSize = r_read_le32 (header_buf + 68);
-
-	/* Offset 72: regExpCount (4 bytes) */
 	out->regExpCount = r_read_le32 (header_buf + 72);
-
-	/* Offset 76: regExpStorageSize (4 bytes) */
 	out->regExpStorageSize = r_read_le32 (header_buf + 76);
-
-	/* Offset 80: arrayBufferSize (4 bytes) */
 	out->arrayBufferSize = r_read_le32 (header_buf + 80);
-
-	/* Offset 84: objKeyBufferSize (4 bytes) */
 	out->objKeyBufferSize = r_read_le32 (header_buf + 84);
-
-	/* Offset 88: objValueBufferSize (4 bytes) */
 	out->objValueBufferSize = r_read_le32 (header_buf + 88);
-
-	/* Offset 92: segmentID (4 bytes) */
 	out->segmentID = r_read_le32 (header_buf + 92);
-
-	/* Offset 96: cjsModuleCount (4 bytes) */
 	out->cjsModuleCount = r_read_le32 (header_buf + 96);
-
-	/* Offset 100: functionSourceCount (4 bytes) */
 	out->functionSourceCount = r_read_le32 (header_buf + 100);
-
-	/* Offset 104: debugInfoOffset (4 bytes) */
 	out->debugInfoOffset = r_read_le32 (header_buf + 104);
-
-	/* Offset 108: flags (1 byte each) */
 	out->staticBuiltins = (header_buf[108] & 0x01) != 0;
 	out->cjsModulesStaticallyResolved = (header_buf[108] & 0x02) != 0;
 	out->hasAsync = (header_buf[108] & 0x04) != 0;
@@ -142,50 +72,162 @@ static Result parse_header_from_buffer(void *buf, HBCHeader *out) {
 }
 
 /**
- * Get the HBC file header.
- * Caches the header on first call to avoid re-parsing.
+ * Parse and cache string tables from the binary.
  */
-Result hbc_data_provider_get_header(
-	HBCDataProvider *provider,
-	struct HBCHeader *out) {
-
-	if (!provider || !out) {
+static Result parse_string_tables(HBC *hbc) {
+	if (!hbc || !hbc->buf) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
+	if (!hbc->header_loaded) {
+		Result res = parse_header_from_buffer (hbc->buf, &hbc->cached_header);
+		if (res.code != RESULT_SUCCESS) {
+			return res;
+		}
+		hbc->header_loaded = true;
+	}
 
-	/* Return cached header on subsequent calls */
-	if (rp->header_loaded) {
-		memcpy (out, &rp->cached_header, sizeof (HBCHeader));
+	HBCHeader *h = &hbc->cached_header;
+
+	ut64 string_kind_offset = 112 + (h->functionCount * 32);
+
+	ut8 *string_kinds = (ut8 *)malloc (h->stringKindCount);
+	if (!string_kinds) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
+	}
+	if (r_buf_read_at (hbc->buf, string_kind_offset, string_kinds, h->stringKindCount) != (int)h->stringKindCount) {
+		free (string_kinds);
+		return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read string kinds");
+	}
+
+	ut64 identifier_offset = string_kind_offset + h->stringKindCount;
+	ut64 small_table_offset = identifier_offset + (h->identifierCount * 4);
+	small_table_offset = (small_table_offset + 3) & ~3;
+
+	StringTableEntry *small_table = (StringTableEntry *)calloc (h->stringCount, sizeof (StringTableEntry));
+	if (!small_table) {
+		free (string_kinds);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
+	}
+
+	for (u32 i = 0; i < h->stringCount; i++) {
+		ut8 entry_bytes[4];
+		if (r_buf_read_at (hbc->buf, small_table_offset + (i * 4), entry_bytes, 4) != 4) {
+			free (string_kinds);
+			free (small_table);
+			return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read small string table entry");
+		}
+
+		u32 entry = entry_bytes[0] | (entry_bytes[1] << 8) | (entry_bytes[2] << 16) | (entry_bytes[3] << 24);
+
+		if (h->version >= 56) {
+			small_table[i].isUTF16 = entry & 0x1;
+			small_table[i].offset = (entry >> 1) & 0x7FFFFF;
+			small_table[i].length = (entry >> 24) & 0xFF;
+			small_table[i].isIdentifier = 0;
+		} else {
+			small_table[i].isUTF16 = entry & 0x1;
+			small_table[i].isIdentifier = (entry >> 1) & 0x1;
+			small_table[i].offset = (entry >> 2) & 0x3FFFFF;
+			small_table[i].length = (entry >> 24) & 0xFF;
+		}
+	}
+
+	ut64 overflow_table_offset = small_table_offset + (h->stringCount * 4);
+	overflow_table_offset = (overflow_table_offset + 3) & ~3;
+
+	OffsetLengthPair *overflow_table = NULL;
+	if (h->overflowStringCount > 0) {
+		overflow_table = (OffsetLengthPair *)malloc (h->overflowStringCount * sizeof (OffsetLengthPair));
+		if (!overflow_table) {
+			free (string_kinds);
+			free (small_table);
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
+		}
+
+		for (u32 i = 0; i < h->overflowStringCount; i++) {
+			ut8 offset_bytes[4], length_bytes[4];
+			ut64 entry_offset = overflow_table_offset + (i * 8);
+
+			if (r_buf_read_at (hbc->buf, entry_offset, offset_bytes, 4) != 4 ||
+				r_buf_read_at (hbc->buf, entry_offset + 4, length_bytes, 4) != 4) {
+				free (string_kinds);
+				free (small_table);
+				free (overflow_table);
+				return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read overflow string table");
+			}
+
+			overflow_table[i].offset = offset_bytes[0] | (offset_bytes[1] << 8) | (offset_bytes[2] << 16) | (offset_bytes[3] << 24);
+			overflow_table[i].length = length_bytes[0] | (length_bytes[1] << 8) | (length_bytes[2] << 16) | (length_bytes[3] << 24);
+		}
+	}
+
+	ut64 string_storage_offset = overflow_table_offset + (h->overflowStringCount * 8);
+	string_storage_offset = (string_storage_offset + 3) & ~3;
+
+	hbc->cached_string_tables.string_count = h->stringCount;
+	hbc->cached_string_tables.small_string_table = small_table;
+	hbc->cached_string_tables.overflow_string_table = overflow_table;
+	hbc->cached_string_tables.string_storage_offset = string_storage_offset;
+	hbc->string_tables_loaded = true;
+
+	free (string_kinds);
+	return SUCCESS_RESULT ();
+}
+
+/* ============================================================================
+ * Public API Implementation
+ * ============================================================================ */
+
+HBC *hbc_new_r2(RBinFile *bf) {
+	if (!bf || !bf->buf) {
+		return NULL;
+	}
+
+	HBC *hbc = (HBC *)malloc (sizeof (HBC));
+	if (!hbc) {
+		return NULL;
+	}
+
+	memset (hbc, 0, sizeof (HBC));
+	hbc->bf = bf;
+	hbc->bin = bf->rbin;
+	hbc->buf = bf->buf;
+	hbc->header_loaded = false;
+	hbc->string_tables_loaded = false;
+	hbc->tmp_read_buffer = NULL;
+	hbc->tmp_buffer_size = 0;
+
+	return hbc;
+}
+
+Result hbc_hdr(HBC *hbc, HBCHeader *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
+	}
+
+	if (hbc->header_loaded) {
+		memcpy (out, &hbc->cached_header, sizeof (HBCHeader));
 		return SUCCESS_RESULT ();
 	}
 
-	/* Parse header on first call */
-	Result res = parse_header_from_buffer (rp->buf, &rp->cached_header);
+	Result res = parse_header_from_buffer (hbc->buf, &hbc->cached_header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
-	rp->header_loaded = true;
-	memcpy (out, &rp->cached_header, sizeof (HBCHeader));
+	hbc->header_loaded = true;
+	memcpy (out, &hbc->cached_header, sizeof (HBCHeader));
 	return SUCCESS_RESULT ();
 }
 
-/**
- * Get the total number of functions in the binary.
- */
-Result hbc_data_provider_get_function_count(
-	HBCDataProvider *provider,
-	u32 *out_count) {
-
-	if (!provider || !out_count) {
+Result hbc_func_count(HBC *hbc, u32 *out_count) {
+	if (!hbc || !out_count) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	/* Get header first */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header (provider, (struct HBCHeader *)&header);
+	Result res = hbc_hdr (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -194,64 +236,42 @@ Result hbc_data_provider_get_function_count(
 	return SUCCESS_RESULT ();
 }
 
-/**
- * Get metadata for a specific function.
- * Function data is pre-parsed by bin_hbc.c and stored in RBinFile->bo->symbols.
- */
-Result hbc_data_provider_get_function_info(
-	HBCDataProvider *provider,
-	u32 function_id,
-	struct HBCFunctionInfo *out) {
-
-	if (!provider || !out) {
+Result hbc_func_info(HBC *hbc, u32 function_id, HBCFunc *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
-	/* RBinFile->bo has a list of RBinSymbol entries from bin_hbc.c::symbols () */
-	if (!rp->bf || !rp->bf->bo) {
+	if (!hbc->bf || !hbc->bf->bo) {
 		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No binary object in file");
 	}
 
-	RBinObject *bo = (RBinObject *)rp->bf->bo;
+	RBinObject *bo = (RBinObject *)hbc->bf->bo;
 	if (!bo->symbols) {
 		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No symbols in binary");
 	}
 
-	/* Iterate symbols to find function with matching ordinal */
-	if (bo->symbols) {
-		RListIter *iter;
-		RBinSymbol *sym;
-		r_list_foreach (bo->symbols, iter, sym) {
-			if (sym && sym->ordinal == function_id) {
-				/* Found the function */
-				out->name = sym->name? (const char *)sym->name: "unknown";
-				out->offset = sym->paddr;
-				out->size = sym->size;
-				out->param_count = 0;
-				return SUCCESS_RESULT ();
-			}
+	RListIter *iter;
+	RBinSymbol *sym;
+	r_list_foreach (bo->symbols, iter, sym) {
+		if (sym && sym->ordinal == function_id) {
+			out->name = sym->name? (const char *)sym->name: "unknown";
+			out->offset = sym->paddr;
+			out->size = sym->size;
+			out->param_count = 0;
+			return SUCCESS_RESULT ();
 		}
 	}
 
 	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "Function not found");
 }
 
-/**
- * Get the total number of strings in the binary.
- */
-Result hbc_data_provider_get_string_count(
-	HBCDataProvider *provider,
-	u32 *out_count) {
-
-	if (!provider || !out_count) {
+Result hbc_str_count(HBC *hbc, u32 *out_count) {
+	if (!hbc || !out_count) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	/* Get header to get string count */
 	HBCHeader header;
-	Result res = hbc_data_provider_get_header (provider, (struct HBCHeader *)&header);
+	Result res = hbc_hdr (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -260,220 +280,152 @@ Result hbc_data_provider_get_string_count(
 	return SUCCESS_RESULT ();
 }
 
-/**
- * Get a string by index.
- * String data is pre-parsed by bin_hbc.c and stored in RBinFile->bo->strings.
- */
-Result hbc_data_provider_get_string(
-	HBCDataProvider *provider,
-	u32 string_id,
-	const char **out_str) {
-
-	if (!provider || !out_str) {
+Result hbc_str(HBC *hbc, u32 string_id, const char **out_str) {
+	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
-	/* Strings are in rp->bf->bo->strings (RBinString list) */
-	if (!rp->bf || !rp->bf->bo) {
+	if (!hbc->bf || !hbc->bf->bo) {
 		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No binary object");
 	}
 
-	RBinObject *bo = (RBinObject *)rp->bf->bo;
+	RBinObject *bo = (RBinObject *)hbc->bf->bo;
 	if (!bo->strings) {
 		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No strings");
 	}
 
-	/* Iterate strings to find one with matching ordinal */
-	if (bo->strings) {
-		RListIter *iter;
-		RBinString *str;
-		r_list_foreach (bo->strings, iter, str) {
-			if (str && str->ordinal == string_id) {
-				*out_str = str->string;
-				return SUCCESS_RESULT ();
-			}
+	RListIter *iter;
+	RBinString *str;
+	r_list_foreach (bo->strings, iter, str) {
+		if (str && str->ordinal == string_id) {
+			*out_str = str->string;
+			return SUCCESS_RESULT ();
 		}
 	}
 
 	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
 }
 
-/**
- * Get metadata for a string (offset, length, kind).
- */
-Result hbc_data_provider_get_string_meta(
-	HBCDataProvider *provider,
-	u32 string_id,
-	struct HBCStringMeta *out) {
-
-	if (!provider || !out) {
+Result hbc_str_meta(HBC *hbc, u32 string_id, HBCStringMeta *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
-	if (!rp->bf || !rp->bf->bo) {
+	if (!hbc->bf || !hbc->bf->bo) {
 		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No binary object");
 	}
 
-	RBinObject *bo = (RBinObject *)rp->bf->bo;
+	RBinObject *bo = (RBinObject *)hbc->bf->bo;
 	if (!bo->strings) {
 		return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "No strings");
 	}
 
-	/* Iterate strings to find metadata */
-	if (bo->strings) {
-		RListIter *iter;
-		RBinString *str;
-		r_list_foreach (bo->strings, iter, str) {
-			if (str && str->ordinal == string_id) {
-				out->offset = str->paddr;
-				out->length = str->length;
-				out->isUTF16 = false; /* r2 stores UTF8 strings */
-				out->kind = HERMES_STRING_KIND_STRING;
-				return SUCCESS_RESULT ();
-			}
+	RListIter *iter;
+	RBinString *str;
+	r_list_foreach (bo->strings, iter, str) {
+		if (str && str->ordinal == string_id) {
+			out->offset = str->paddr;
+			out->length = str->length;
+			out->isUTF16 = false;
+			out->kind = HERMES_STRING_KIND_STRING;
+			return SUCCESS_RESULT ();
 		}
 	}
 
 	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
 }
 
-/**
- * Get the raw bytecode bytes for a function.
- */
-Result hbc_data_provider_get_bytecode(
-	HBCDataProvider *provider,
-	u32 function_id,
-	const u8 **out_ptr,
-	u32 *out_size) {
-
-	if (!provider || !out_ptr || !out_size) {
+Result hbc_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size) {
+	if (!hbc || !out_ptr || !out_size) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
-	/* Get function info to find bytecode location */
-	struct HBCFunctionInfo info;
-	Result res = hbc_data_provider_get_function_info (provider, function_id, &info);
+	HBCFunc info;
+	Result res = hbc_func_info (hbc, function_id, &info);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
-	/* Allocate or reallocate temporary buffer for bytecode */
-	if (!rp->tmp_read_buffer || rp->tmp_buffer_size < info.size) {
-		ut8 *new_buf = (ut8 *)realloc (rp->tmp_read_buffer, info.size);
+	if (!hbc->tmp_read_buffer || hbc->tmp_buffer_size < info.size) {
+		ut8 *new_buf = (ut8 *)realloc (hbc->tmp_read_buffer, info.size);
 		if (!new_buf) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 		}
-		rp->tmp_read_buffer = new_buf;
-		rp->tmp_buffer_size = info.size;
+		hbc->tmp_read_buffer = new_buf;
+		hbc->tmp_buffer_size = info.size;
 	}
 
-	/* Read bytecode from buffer at function offset */
-	int bytes_read = r_buf_read_at (rp->buf, info.offset, rp->tmp_read_buffer, info.size);
+	int bytes_read = r_buf_read_at (hbc->buf, info.offset, hbc->tmp_read_buffer, info.size);
 	if (bytes_read != (int)info.size) {
 		return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read bytecode");
 	}
 
-	*out_ptr = rp->tmp_read_buffer;
+	*out_ptr = hbc->tmp_read_buffer;
 	*out_size = info.size;
 	return SUCCESS_RESULT ();
 }
 
-/**
- * Get pre-parsed string table data.
- */
-Result hbc_data_provider_get_string_tables(
-	HBCDataProvider *provider,
-	struct HBCStringTables *out) {
-
-	if (!provider || !out) {
+Result hbc_str_tbl(HBC *hbc, HBCStrs *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	(void)provider; /* Unused in this basic implementation */
+	if (!hbc->string_tables_loaded) {
+		Result res = parse_string_tables (hbc);
+		if (res.code != RESULT_SUCCESS) {
+			return res;
+		}
+	}
 
-	/* String tables would need more detailed parsing from the binary
-	 * For now, return a basic error - the decompiler can handle this
-	 * and fall back to parsing strings on-demand via get_string () */
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED,
-		"String tables not yet implemented for R2DataProvider");
+	*out = hbc->cached_string_tables;
+	return SUCCESS_RESULT ();
 }
 
-/**
- * Get source/module name associated with a function (optional, may be NULL).
- */
-Result hbc_data_provider_get_function_source(
-	HBCDataProvider *provider,
-	u32 function_id,
-	const char **out_src) {
-
-	if (!provider || !out_src) {
+Result hbc_src(HBC *hbc, u32 function_id, const char **out_src) {
+	if (!hbc || !out_src) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
-
-	(void)function_id; /* Unused */
-
-	/* Function source metadata is optional; return NULL if not available */
+	(void)function_id;
 	*out_src = NULL;
 	return SUCCESS_RESULT ();
 }
 
-/**
- * Low-level: Read raw bytes from the binary at a specific offset.
- */
-Result hbc_data_provider_read_raw(
-	HBCDataProvider *provider,
-	u64 offset,
-	u32 size,
-	const u8 **out_ptr) {
-
-	if (!provider || !out_ptr) {
+Result hbc_read(HBC *hbc, u64 offset, u32 size, const u8 **out_ptr) {
+	if (!hbc || !out_ptr) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
-	/* Allocate buffer if needed */
-	if (!rp->tmp_read_buffer || rp->tmp_buffer_size < size) {
-		ut8 *new_buf = (ut8 *)realloc (rp->tmp_read_buffer, size);
+	if (!hbc->tmp_read_buffer || hbc->tmp_buffer_size < size) {
+		ut8 *new_buf = (ut8 *)realloc (hbc->tmp_read_buffer, size);
 		if (!new_buf) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 		}
-		rp->tmp_read_buffer = new_buf;
-		rp->tmp_buffer_size = size;
+		hbc->tmp_read_buffer = new_buf;
+		hbc->tmp_buffer_size = size;
 	}
 
-	/* Read directly from r2's buffer */
-	int bytes_read = r_buf_read_at (rp->buf, (ut64)offset, rp->tmp_read_buffer, size);
+	int bytes_read = r_buf_read_at (hbc->buf, (ut64)offset, hbc->tmp_read_buffer, size);
 	if (bytes_read != (int)size) {
 		return ERROR_RESULT (RESULT_ERROR_READ, "Cannot read buffer");
 	}
 
-	*out_ptr = rp->tmp_read_buffer;
+	*out_ptr = hbc->tmp_read_buffer;
 	return SUCCESS_RESULT ();
 }
 
-/**
- * Free a data provider and all associated resources.
- */
-void hbc_data_provider_free(HBCDataProvider *provider) {
-	if (!provider) {
+void hbc_free(HBC *hbc) {
+	if (!hbc) {
 		return;
 	}
 
-	struct R2DataProvider *rp = (struct R2DataProvider *)provider;
-
-	/* Free temporary buffers */
-	if (rp->tmp_read_buffer) {
-		free (rp->tmp_read_buffer);
-		rp->tmp_read_buffer = NULL;
+	if (hbc->string_tables_loaded) {
+		free ((void *)hbc->cached_string_tables.small_string_table);
+		free ((void *)hbc->cached_string_tables.overflow_string_table);
 	}
 
-	/* Don't free bf, bin, buf: they are owned by r2 */
-	free (rp);
+	if (hbc->tmp_read_buffer) {
+		free (hbc->tmp_read_buffer);
+	}
+
+	free (hbc);
 }

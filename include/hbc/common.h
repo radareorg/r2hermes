@@ -85,23 +85,27 @@ struct HBCReader;
 typedef struct HBCReader HBCReader;
 
 /* StringBuffer functions */
-Result string_buffer_init(StringBuffer *buffer, size_t initial_capacity);
-Result string_buffer_append(StringBuffer *buffer, const char *str);
-Result string_buffer_append_char(StringBuffer *buffer, char c);
-Result string_buffer_append_int(StringBuffer *buffer, int value);
-void string_buffer_free(StringBuffer *buffer);
+Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity);
+Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str);
+Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c);
+Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value);
+void _hbc_string_buffer_free(StringBuffer *buffer);
 
 /* BufferReader functions */
-Result buffer_reader_init_from_file(BufferReader *reader, const char *filename);
-Result buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size_t size);
-Result buffer_reader_read_u8(BufferReader *reader, u8 *out_value);
-Result buffer_reader_read_u16(BufferReader *reader, u16 *out_value);
-Result buffer_reader_read_u32(BufferReader *reader, u32 *out_value);
-Result buffer_reader_read_u64(BufferReader *reader, u64 *out_value);
-Result buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t length);
-Result buffer_reader_seek(BufferReader *reader, size_t position);
-Result buffer_reader_align(BufferReader *reader, size_t alignment);
-void buffer_reader_free(BufferReader *reader);
+Result _hbc_buffer_reader_init_from_file(BufferReader *reader, const char *filename);
+Result _hbc_buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size_t size);
+Result _hbc_buffer_reader_read_u8(BufferReader *reader, u8 *out_value);
+Result _hbc_buffer_reader_read_u16(BufferReader *reader, u16 *out_value);
+Result _hbc_buffer_reader_read_u32(BufferReader *reader, u32 *out_value);
+Result _hbc_buffer_reader_read_u64(BufferReader *reader, u64 *out_value);
+Result _hbc_buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t length);
+Result _hbc_buffer_reader_seek(BufferReader *reader, size_t position);
+Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment);
+void _hbc_buffer_reader_free(BufferReader *reader);
+
+/* String case conversion utilities */
+void hbc_camel_to_snake(const char *camel, char *snake, size_t snake_size);
+void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size);
 
 /* Utility macros for error handling */
 #define RETURN_IF_ERROR(expr) \

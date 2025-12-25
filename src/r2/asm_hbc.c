@@ -1,13 +1,9 @@
-/* radare2 - LGPL - Copyright 2025 - libhbc */
+/* radare2 - LGPL - Copyright 2025 - pancake */
 
 #include <r_asm.h>
 #include <r_util.h>
 #include <r_lib.h>
 #include <string.h>
-
-#ifndef R2_VERSION
-#define R2_VERSION "6.0.3"
-#endif
 
 /* Pseudo transformation rules for Hermes bytecode instructions */
 static const char *pseudo_rules[] = {

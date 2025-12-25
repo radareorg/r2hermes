@@ -1,6 +1,6 @@
 #include <hbc/common.h>
 
-Result buffer_reader_init_from_file(BufferReader *reader, const char *filename) {
+Result _hbc_buffer_reader_init_from_file(BufferReader *reader, const char *filename) {
 	if (!reader || !filename) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader or filename is NULL");
 	}
@@ -43,9 +43,9 @@ Result buffer_reader_init_from_file(BufferReader *reader, const char *filename) 
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size_t size) {
+Result _hbc_buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size_t size) {
 	if (!reader || !data || size == 0) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_init_from_memory");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_init_from_memory");
 	}
 
 	/* Copy the data to ensure ownership */
@@ -61,9 +61,9 @@ Result buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_read_u8(BufferReader *reader, u8 *out_value) {
+Result _hbc_buffer_reader_read_u8(BufferReader *reader, u8 *out_value) {
 	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u8");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u8");
 	}
 
 	/* Safety check - is the reader data valid? */
@@ -93,9 +93,9 @@ Result buffer_reader_read_u8(BufferReader *reader, u8 *out_value) {
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_read_u16(BufferReader *reader, u16 *out_value) {
+Result _hbc_buffer_reader_read_u16(BufferReader *reader, u16 *out_value) {
 	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u16");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u16");
 	}
 
 	/* Safety check - is the reader data valid? */
@@ -126,9 +126,9 @@ Result buffer_reader_read_u16(BufferReader *reader, u16 *out_value) {
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_read_u32(BufferReader *reader, u32 *out_value) {
+Result _hbc_buffer_reader_read_u32(BufferReader *reader, u32 *out_value) {
 	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u32");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u32");
 	}
 
 	/* Safety check - is the reader data valid? */
@@ -161,9 +161,9 @@ Result buffer_reader_read_u32(BufferReader *reader, u32 *out_value) {
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_read_u64(BufferReader *reader, u64 *out_value) {
+Result _hbc_buffer_reader_read_u64(BufferReader *reader, u64 *out_value) {
 	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_u64");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u64");
 	}
 
 	if (reader->position + sizeof (u64) > reader->size) {
@@ -184,9 +184,9 @@ Result buffer_reader_read_u64(BufferReader *reader, u64 *out_value) {
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t length) {
+Result _hbc_buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t length) {
 	if (!reader || !out_buffer) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for buffer_reader_read_bytes");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_bytes");
 	}
 
 	if (reader->position + length > reader->size) {
@@ -199,7 +199,7 @@ Result buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t len
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_seek(BufferReader *reader, size_t position) {
+Result _hbc_buffer_reader_seek(BufferReader *reader, size_t position) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -221,7 +221,7 @@ Result buffer_reader_seek(BufferReader *reader, size_t position) {
 	return SUCCESS_RESULT ();
 }
 
-Result buffer_reader_align(BufferReader *reader, size_t alignment) {
+Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -242,7 +242,7 @@ Result buffer_reader_align(BufferReader *reader, size_t alignment) {
 	return SUCCESS_RESULT ();
 }
 
-void buffer_reader_free(BufferReader *reader) {
+void _hbc_buffer_reader_free(BufferReader *reader) {
 	if (reader && reader->data) {
 		free (reader->data);
 		reader->data = NULL;

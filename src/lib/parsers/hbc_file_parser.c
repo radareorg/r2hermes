@@ -4,7 +4,7 @@
 #include <string.h>
 
 /* Initialize HBC reader */
-Result hbc_reader_init(HBCReader *reader) {
+Result _hbc_reader_init(HBCReader *reader) {
 	R_RETURN_VAL_IF_FAIL (reader,
 		ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL"));
 	memset (reader, 0, sizeof (HBCReader));
@@ -12,13 +12,13 @@ Result hbc_reader_init(HBCReader *reader) {
 }
 
 /* Clean up HBC reader */
-Result hbc_reader_cleanup(HBCReader *reader) {
+Result _hbc_reader_cleanup(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
 	/* Clean up file buffer */
-	buffer_reader_free (&reader->file_buffer);
+	_hbc_buffer_reader_free (&reader->file_buffer);
 
 	/* Clean up function data */
 	if (reader->function_headers) {
@@ -91,12 +91,12 @@ Result hbc_reader_cleanup(HBCReader *reader) {
 }
 
 /* Read file into buffer */
-Result hbc_reader_read_file(HBCReader *reader, const char *filename) {
+Result _hbc_reader_read_file(HBCReader *reader, const char *filename) {
 	if (!reader || !filename) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_reader_read_file");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_reader_read_file");
 	}
 
-	Result result = buffer_reader_init_from_file (&reader->file_buffer, filename);
+	Result result = _hbc_buffer_reader_init_from_file (&reader->file_buffer, filename);
 	if (result.code != RESULT_SUCCESS) {
 		return result;
 	}
@@ -109,7 +109,7 @@ Result hbc_reader_read_file(HBCReader *reader, const char *filename) {
 	/* Check for Hermes magic number */
 	u64 magic;
 	size_t saved_pos = reader->file_buffer.position;
-	result = buffer_reader_read_u64 (&reader->file_buffer, &magic);
+	result = _hbc_buffer_reader_read_u64 (&reader->file_buffer, &magic);
 	reader->file_buffer.position = saved_pos; /* Restore position */
 
 	if (result.code != RESULT_SUCCESS) {
@@ -162,17 +162,17 @@ static Result align_over_padding(BufferReader *reader, size_t padding_amount) {
 }
 
 /* Read and validate the header */
-Result hbc_reader_read_header(HBCReader *reader) {
+Result _hbc_reader_read_header(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
 	/* Seek to the beginning of the file */
-	RETURN_IF_ERROR (buffer_reader_seek (&reader->file_buffer, 0));
+	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, 0));
 
 	/* Read the magic number */
 	u64 magic;
-	RETURN_IF_ERROR (buffer_reader_read_u64 (&reader->file_buffer, &magic));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u64 (&reader->file_buffer, &magic));
 
 	if (magic != HEADER_MAGIC) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Invalid Hermes bytecode file (wrong magic number)");
@@ -182,7 +182,7 @@ Result hbc_reader_read_header(HBCReader *reader) {
 
 	/* Read the version */
 	u32 version;
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &version));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &version));
 	reader->header.version = version;
 
 	/* Check for supported version */
@@ -196,10 +196,10 @@ Result hbc_reader_read_header(HBCReader *reader) {
 	}
 
 	/* Read the source hash */
-	RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->header.sourceHash, SHA1_NUM_BYTES));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->header.sourceHash, SHA1_NUM_BYTES));
 
 	/* Read the file length */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.fileLength));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.fileLength));
 
 	/* Sanity check on file length */
 	if (reader->header.fileLength > reader->file_buffer.size) {
@@ -207,10 +207,10 @@ Result hbc_reader_read_header(HBCReader *reader) {
 	}
 
 	/* Read the global code index */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.globalCodeIndex));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.globalCodeIndex));
 
 	/* Read the function count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.functionCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.functionCount));
 
 	/* Sanity check on function count */
 	if (reader->header.functionCount > 1000000) {
@@ -219,63 +219,63 @@ Result hbc_reader_read_header(HBCReader *reader) {
 	}
 
 	/* Read the string kind count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.stringKindCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.stringKindCount));
 
 	/* Read the identifier count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.identifierCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.identifierCount));
 
 	/* Read the string count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.stringCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.stringCount));
 
 	/* Read the overflow string count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.overflowStringCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.overflowStringCount));
 
 	/* Read the string storage size */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.stringStorageSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.stringStorageSize));
 
 	/* Read BigInt fields if present (version >= 87) */
 	if (version >= 87) {
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.bigIntCount));
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.bigIntStorageSize));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.bigIntCount));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.bigIntStorageSize));
 	} else {
 		reader->header.bigIntCount = 0;
 		reader->header.bigIntStorageSize = 0;
 	}
 
 	/* Read the RegExp count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.regExpCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.regExpCount));
 
 	/* Read the RegExp storage size */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.regExpStorageSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.regExpStorageSize));
 
 	/* Read the array buffer size */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.arrayBufferSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.arrayBufferSize));
 
 	/* Read the object key buffer size */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objKeyBufferSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objKeyBufferSize));
 
 	/* Read the object value buffer size */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objValueBufferSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objValueBufferSize));
 
 	/* Read the segment ID (or CJS module offset for older versions) */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.segmentID));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.segmentID));
 
 	/* Read the CJS module count */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.cjsModuleCount));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.cjsModuleCount));
 
 	/* Read the function source count if present (version >= 84) */
 	if (version >= 84) {
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.functionSourceCount));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.functionSourceCount));
 	} else {
 		reader->header.functionSourceCount = 0;
 	}
 
 	/* Read the debug info offset */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->header.debugInfoOffset));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.debugInfoOffset));
 
 	/* Read the option flags */
 	u8 flags;
-	RETURN_IF_ERROR (buffer_reader_read_u8 (&reader->file_buffer, &flags));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags));
 
 	reader->header.staticBuiltins = (flags & 0x01) != 0;
 	reader->header.cjsModulesStaticallyResolved = (flags & 0x02) != 0;
@@ -288,7 +288,7 @@ Result hbc_reader_read_header(HBCReader *reader) {
 }
 
 /* Read function headers */
-Result hbc_reader_read_functions(HBCReader *reader) {
+Result _hbc_reader_read_functions(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -403,7 +403,7 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 		/* Read the raw data with explicit error handling */
 		bool read_error = false;
 		for (int j = 0; j < 4; j++) {
-			Result res = buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
+			Result res = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
 			if (res.code != RESULT_SUCCESS) {
 				hbc_debug_printf ("Error reading function %u header word %d: %s\n",
 					i,
@@ -469,27 +469,27 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 			u32 large_header_offset = (small_header.infoOffset << 16) | small_header.offset;
 
 			/* Seek to the large header */
-			RETURN_IF_ERROR (buffer_reader_seek (&reader->file_buffer, large_header_offset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, large_header_offset));
 
 			/* Read large function header */
 			LargeFunctionHeader large_header;
 
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.paramCount));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.paramCount));
 
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.bytecodeSizeInBytes));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.functionName));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.bytecodeSizeInBytes));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.functionName));
 
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.infoOffset));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.frameSize));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.infoOffset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.frameSize));
 
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &large_header.environmentSize));
-			RETURN_IF_ERROR (buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestReadCacheIndex));
-			RETURN_IF_ERROR (buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestWriteCacheIndex));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.environmentSize));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestReadCacheIndex));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestWriteCacheIndex));
 
 			/* Read flags byte */
 			u8 flags;
-			RETURN_IF_ERROR (buffer_reader_read_u8 (&reader->file_buffer, &flags));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags));
 
 			large_header.prohibitInvoke = flags & 0x3;
 			large_header.strictMode = (flags >> 2) & 0x1;
@@ -526,10 +526,10 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 		// size_t saved_pos = reader->file_buffer.position;
 
 		/* Seek to the function bytecode */
-		RETURN_IF_ERROR (buffer_reader_seek (&reader->file_buffer, header->offset));
+		RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header->offset));
 
 		/* Read the bytecode */
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, bytecode, header->bytecodeSizeInBytes));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, bytecode, header->bytecodeSizeInBytes));
 
 		/* Store the bytecode pointer */
 		header->bytecode = bytecode;
@@ -537,14 +537,14 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 		/* Read exception handlers if present */
 		if (header->hasExceptionHandler) {
 			/* Seek to the exception handler info */
-			RETURN_IF_ERROR (buffer_reader_seek (&reader->file_buffer, header->infoOffset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header->infoOffset));
 
 			/* Align buffer */
 			RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
 
 			/* Read the number of exception handlers */
 			u32 exc_handler_count;
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &exc_handler_count));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &exc_handler_count));
 
 			/* Allocate exception handlers */
 			ExceptionHandlerInfo *handlers = (ExceptionHandlerInfo *)malloc (exc_handler_count * sizeof (ExceptionHandlerInfo));
@@ -554,9 +554,9 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 
 			/* Read each exception handler */
 			for (u32 j = 0; j < exc_handler_count; j++) {
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].start));
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].end));
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].target));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].start));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].end));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].target));
 			}
 
 			/* Store the exception handlers */
@@ -570,24 +570,24 @@ Result hbc_reader_read_functions(HBCReader *reader) {
 			RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
 
 			/* Read debug offsets */
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].source_locations));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].scope_desc_data));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].source_locations));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].scope_desc_data));
 
 			/* Read textified callees if present (version >= 91) */
 			if (reader->header.version >= 91) {
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].textified_callees));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].textified_callees));
 			}
 		}
 
 		/* Restore position for next function header */
-		RETURN_IF_ERROR (buffer_reader_seek (&reader->file_buffer, current_pos));
+		RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, current_pos));
 	}
 
 	return SUCCESS_RESULT ();
 }
 
 /* Read string kinds */
-Result hbc_reader_read_string_kinds(HBCReader *reader) {
+Result _hbc_reader_read_string_kinds(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -610,7 +610,7 @@ Result hbc_reader_read_string_kinds(HBCReader *reader) {
 	u32 string_index = 0;
 	for (u32 i = 0; i < reader->header.stringKindCount; i++) {
 		u32 entry;
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &entry));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &entry));
 
 		u32 count, kind;
 
@@ -633,7 +633,7 @@ Result hbc_reader_read_string_kinds(HBCReader *reader) {
 }
 
 /* Read identifier hashes */
-Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
+Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -690,7 +690,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 			break;
 		}
 
-		Result read_result = buffer_reader_read_u32 (&reader->file_buffer, &reader->identifier_hashes[i]);
+		Result read_result = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->identifier_hashes[i]);
 		if (read_result.code != RESULT_SUCCESS) {
 			hbc_debug_printf ("Error reading identifier hash %u: %s\n", i, read_result.error_message);
 			reader->header.identifierCount = i;
@@ -705,7 +705,7 @@ Result hbc_reader_read_identifier_hashes(HBCReader *reader) {
 }
 
 /* Read string tables and string data */
-Result hbc_reader_read_string_tables(HBCReader *reader) {
+Result _hbc_reader_read_string_tables(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -752,7 +752,7 @@ Result hbc_reader_read_string_tables(HBCReader *reader) {
 	/* Read each small string table entry */
 	for (u32 i = 0; i < reader->header.stringCount; i++) {
 		u32 entry;
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &entry));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &entry));
 
 		/* Parse the entry based on version */
 		if (reader->header.version >= 56) {
@@ -781,8 +781,8 @@ Result hbc_reader_read_string_tables(HBCReader *reader) {
 		uint32_t i;
 		/* Read each overflow string table entry */
 		for (i = 0; i < reader->header.overflowStringCount; i++) {
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->overflow_string_table[i].offset));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->overflow_string_table[i].length));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->overflow_string_table[i].offset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->overflow_string_table[i].length));
 		}
 	}
 
@@ -798,7 +798,7 @@ Result hbc_reader_read_string_tables(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string storage");
 	}
 
-	RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, string_storage, reader->header.stringStorageSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, string_storage, reader->header.stringStorageSize));
 
 	/* Allocate string array */
 	reader->strings = (char **)calloc (reader->header.stringCount, sizeof (char *));
@@ -870,7 +870,7 @@ Result hbc_reader_read_string_tables(HBCReader *reader) {
 }
 
 /* Read arrays data */
-Result hbc_reader_read_arrays(HBCReader *reader) {
+Result _hbc_reader_read_arrays(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -917,7 +917,7 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 			return SUCCESS_RESULT (); /* Continue with other sections */
 		}
 
-		result = buffer_reader_read_bytes (&reader->file_buffer, reader->arrays, reader->header.arrayBufferSize);
+		result = _hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->arrays, reader->header.arrayBufferSize);
 		if (result.code != RESULT_SUCCESS) {
 			hbc_debug_printf ("Error reading array buffer: %s\n", result.error_message);
 			free (reader->arrays);
@@ -946,7 +946,7 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 				fprintf (stderr, "Failed to allocate %u bytes for object key buffer\n", reader->header.objKeyBufferSize);
 				reader->header.objKeyBufferSize = 0;
 			} else {
-				Result read_result = buffer_reader_read_bytes (
+				Result read_result = _hbc_buffer_reader_read_bytes (
 					&reader->file_buffer, reader->object_keys, reader->header.objKeyBufferSize);
 				if (read_result.code != RESULT_SUCCESS) {
 					fprintf (stderr, "Error reading object key buffer: %s\n", read_result.error_message);
@@ -975,7 +975,7 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 				fprintf (stderr, "Failed to allocate %u bytes for object value buffer\n", reader->header.objValueBufferSize);
 				reader->header.objValueBufferSize = 0;
 			} else {
-				Result read_result = buffer_reader_read_bytes (
+				Result read_result = _hbc_buffer_reader_read_bytes (
 					&reader->file_buffer, reader->object_values, reader->header.objValueBufferSize);
 				if (read_result.code != RESULT_SUCCESS) {
 					fprintf (stderr, "Error reading object value buffer: %s\n", read_result.error_message);
@@ -991,7 +991,7 @@ Result hbc_reader_read_arrays(HBCReader *reader) {
 }
 
 /* Read big integers */
-Result hbc_reader_read_bigints(HBCReader *reader) {
+Result _hbc_reader_read_bigints(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -1061,8 +1061,8 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 				break;
 			}
 
-			Result result1 = buffer_reader_read_u32 (&reader->file_buffer, &bigint_table[i].offset);
-			Result result2 = buffer_reader_read_u32 (&reader->file_buffer, &bigint_table[i].length);
+			Result result1 = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &bigint_table[i].offset);
+			Result result2 = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &bigint_table[i].length);
 
 			if (result1.code != RESULT_SUCCESS || result2.code != RESULT_SUCCESS) {
 				fprintf (stderr, "Error reading BigInt table entry %u\n", i);
@@ -1109,7 +1109,7 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 			return SUCCESS_RESULT ();
 		}
 
-		Result read_result = buffer_reader_read_bytes (&reader->file_buffer,
+		Result read_result = _hbc_buffer_reader_read_bytes (&reader->file_buffer,
 			bigint_storage,
 			reader->header.bigIntStorageSize);
 		if (read_result.code != RESULT_SUCCESS) {
@@ -1174,7 +1174,7 @@ Result hbc_reader_read_bigints(HBCReader *reader) {
 }
 
 /* Read regular expressions */
-Result hbc_reader_read_regexp(HBCReader *reader) {
+Result _hbc_reader_read_regexp(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -1246,8 +1246,8 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 				break;
 			}
 
-			Result res1 = buffer_reader_read_u32 (&reader->file_buffer, &reader->regexp_table[i].offset);
-			Result res2 = buffer_reader_read_u32 (&reader->file_buffer, &reader->regexp_table[i].length);
+			Result res1 = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->regexp_table[i].offset);
+			Result res2 = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->regexp_table[i].length);
 
 			if (res1.code != RESULT_SUCCESS || res2.code != RESULT_SUCCESS) {
 				hbc_debug_printf ("Error reading RegExp table entry %u\n", i);
@@ -1293,7 +1293,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 			return SUCCESS_RESULT ();
 		}
 
-		Result read_result = buffer_reader_read_bytes (&reader->file_buffer,
+		Result read_result = _hbc_buffer_reader_read_bytes (&reader->file_buffer,
 			reader->regexp_storage,
 			reader->header.regExpStorageSize);
 
@@ -1313,7 +1313,7 @@ Result hbc_reader_read_regexp(HBCReader *reader) {
 }
 
 /* Read CommonJS modules */
-Result hbc_reader_read_cjs_modules(HBCReader *reader) {
+Result _hbc_reader_read_cjs_modules(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -1330,7 +1330,7 @@ Result hbc_reader_read_cjs_modules(HBCReader *reader) {
 			}
 
 			for (u32 i = 0; i < reader->header.cjsModuleCount; i++) {
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->cjs_module_ids[i]));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->cjs_module_ids[i]));
 			}
 		} else {
 			/* New format: symbol-offset pairs */
@@ -1340,8 +1340,8 @@ Result hbc_reader_read_cjs_modules(HBCReader *reader) {
 			}
 
 			for (u32 i = 0; i < reader->header.cjsModuleCount; i++) {
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->cjs_modules[i].symbol_id));
-				RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->cjs_modules[i].offset));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->cjs_modules[i].symbol_id));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->cjs_modules[i].offset));
 			}
 		}
 	}
@@ -1350,7 +1350,7 @@ Result hbc_reader_read_cjs_modules(HBCReader *reader) {
 }
 
 /* Read function sources */
-Result hbc_reader_read_function_sources(HBCReader *reader) {
+Result _hbc_reader_read_function_sources(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -1372,8 +1372,8 @@ Result hbc_reader_read_function_sources(HBCReader *reader) {
 
 		/* Read function source entries */
 		for (u32 i = 0; i < reader->header.functionSourceCount; i++) {
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->function_sources[i].function_id));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->function_sources[i].string_id));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_sources[i].function_id));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_sources[i].string_id));
 		}
 
 		reader->function_source_count = reader->header.functionSourceCount;
@@ -1383,26 +1383,26 @@ Result hbc_reader_read_function_sources(HBCReader *reader) {
 }
 
 /* Read debug information */
-Result hbc_reader_read_debug_info(HBCReader *reader) {
+Result _hbc_reader_read_debug_info(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
 	/* Seek to debug info offset */
-	RETURN_IF_ERROR (buffer_reader_seek (&reader->file_buffer, reader->header.debugInfoOffset));
+	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, reader->header.debugInfoOffset));
 
 	/* Read debug info header */
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_count));
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_storage_size));
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.file_region_count));
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.scope_desc_data_offset));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_count));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_storage_size));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.file_region_count));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.scope_desc_data_offset));
 
 	if (reader->header.version >= 91) {
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.textified_data_offset));
-		RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.string_table_offset));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.textified_data_offset));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.string_table_offset));
 	}
 
-	RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.debug_data_size));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.debug_data_size));
 
 	/* Allocate debug string table */
 	if (reader->debug_info_header.filename_count > 0) {
@@ -1414,8 +1414,8 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 
 		/* Read debug string table entries */
 		for (u32 i = 0; i < reader->debug_info_header.filename_count; i++) {
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_string_table[i].offset));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_string_table[i].length));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_string_table[i].offset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_string_table[i].length));
 		}
 	}
 
@@ -1426,7 +1426,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate debug string storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->debug_string_storage, reader->debug_info_header.filename_storage_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->debug_string_storage, reader->debug_info_header.filename_storage_size));
 		reader->debug_string_storage_size = reader->debug_info_header.filename_storage_size;
 	}
 
@@ -1440,9 +1440,9 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 
 		/* Read debug file region entries */
 		for (u32 i = 0; i < reader->debug_info_header.file_region_count; i++) {
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_file_regions[i].from_address));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_file_regions[i].filename_id));
-			RETURN_IF_ERROR (buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_file_regions[i].source_mapping_id));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_file_regions[i].from_address));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_file_regions[i].filename_id));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_file_regions[i].source_mapping_id));
 		}
 
 		reader->debug_file_region_count = reader->debug_info_header.file_region_count;
@@ -1456,7 +1456,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate sources data storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->sources_data_storage, sources_data_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->sources_data_storage, sources_data_size));
 		reader->sources_data_storage_size = sources_data_size;
 
 		size_t scope_desc_data_size = reader->debug_info_header.debug_data_size - reader->debug_info_header.scope_desc_data_offset;
@@ -1465,7 +1465,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate scope desc data storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->scope_desc_data_storage, scope_desc_data_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->scope_desc_data_storage, scope_desc_data_size));
 		reader->scope_desc_data_storage_size = scope_desc_data_size;
 	} else {
 		size_t sources_data_size = reader->debug_info_header.scope_desc_data_offset;
@@ -1474,7 +1474,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate sources data storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->sources_data_storage, sources_data_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->sources_data_storage, sources_data_size));
 		reader->sources_data_storage_size = sources_data_size;
 
 		size_t scope_desc_data_size = reader->debug_info_header.textified_data_offset - reader->debug_info_header.scope_desc_data_offset;
@@ -1483,7 +1483,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate scope desc data storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->scope_desc_data_storage, scope_desc_data_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->scope_desc_data_storage, scope_desc_data_size));
 		reader->scope_desc_data_storage_size = scope_desc_data_size;
 
 		size_t textified_data_size = reader->debug_info_header.string_table_offset - reader->debug_info_header.textified_data_offset;
@@ -1492,7 +1492,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate textified data storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->textified_data_storage, textified_data_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->textified_data_storage, textified_data_size));
 		reader->textified_data_storage_size = textified_data_size;
 
 		size_t string_table_size = reader->debug_info_header.debug_data_size - reader->debug_info_header.string_table_offset;
@@ -1501,7 +1501,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string table storage");
 		}
 
-		RETURN_IF_ERROR (buffer_reader_read_bytes (&reader->file_buffer, reader->string_table_storage, string_table_size));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->string_table_storage, string_table_size));
 		reader->string_table_storage_size = string_table_size;
 	}
 
@@ -1509,7 +1509,7 @@ Result hbc_reader_read_debug_info(HBCReader *reader) {
 }
 
 /* Robust implementation of function reading */
-Result hbc_reader_read_functions_robust(HBCReader *reader) {
+Result _hbc_reader_read_functions_robust(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
@@ -1592,7 +1592,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 		bool header_read_failed = false;
 
 		for (int j = 0; j < 4; j++) {
-			Result res = buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
+			Result res = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
 			if (res.code != RESULT_SUCCESS) {
 				hbc_debug_printf ("Error reading function %u header word %d: %s\n",
 					i,
@@ -1605,7 +1605,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 
 		if (header_read_failed) {
 			/* Try to restore position and break */
-			buffer_reader_seek (&reader->file_buffer, start_position);
+			_hbc_buffer_reader_seek (&reader->file_buffer, start_position);
 			break;
 		}
 
@@ -1644,24 +1644,24 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 			u32 large_header_offset = (small_infoOffset << 16) | small_offset;
 
 			/* Seek to large header */
-			Result sr = buffer_reader_seek (&reader->file_buffer, large_header_offset);
+			Result sr = _hbc_buffer_reader_seek (&reader->file_buffer, large_header_offset);
 			if (sr.code == RESULT_SUCCESS) {
 				/* Read large function header fields explicitly */
 				LargeFunctionHeader large_header = { 0 };
 
 				/* Read in the same order as in the non-robust path */
-				if (buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset).code == RESULT_SUCCESS &&
-					buffer_reader_read_u32 (&reader->file_buffer, &large_header.paramCount).code == RESULT_SUCCESS &&
-					buffer_reader_read_u32 (&reader->file_buffer, &large_header.bytecodeSizeInBytes).code == RESULT_SUCCESS &&
-					buffer_reader_read_u32 (&reader->file_buffer, &large_header.functionName).code == RESULT_SUCCESS &&
-					buffer_reader_read_u32 (&reader->file_buffer, &large_header.infoOffset).code == RESULT_SUCCESS &&
-					buffer_reader_read_u32 (&reader->file_buffer, &large_header.frameSize).code == RESULT_SUCCESS &&
-					buffer_reader_read_u32 (&reader->file_buffer, &large_header.environmentSize).code == RESULT_SUCCESS) {
+				if (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset).code == RESULT_SUCCESS &&
+					_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.paramCount).code == RESULT_SUCCESS &&
+					_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.bytecodeSizeInBytes).code == RESULT_SUCCESS &&
+					_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.functionName).code == RESULT_SUCCESS &&
+					_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.infoOffset).code == RESULT_SUCCESS &&
+					_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.frameSize).code == RESULT_SUCCESS &&
+					_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.environmentSize).code == RESULT_SUCCESS) {
 					/* Read tail bytes */
-					buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestReadCacheIndex);
-					buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestWriteCacheIndex);
+					_hbc_buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestReadCacheIndex);
+					_hbc_buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestWriteCacheIndex);
 					u8 flags = 0;
-					buffer_reader_read_u8 (&reader->file_buffer, &flags);
+					_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags);
 					large_header.prohibitInvoke = flags & 0x3;
 					large_header.strictMode = (flags >> 2) & 0x1;
 					large_header.hasExceptionHandler = (flags >> 3) & 0x1;
@@ -1687,7 +1687,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 					header->unused = large_header.unused;
 
 					/* Restore to next small header position */
-					buffer_reader_seek (&reader->file_buffer, start_position + 16);
+					_hbc_buffer_reader_seek (&reader->file_buffer, start_position + 16);
 				} else {
 					/* Fallback to small header values on read error */
 					header->offset = small_offset;
@@ -1763,7 +1763,7 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 		successful_functions++;
 
 		/* Ensure position is at next small header (16 bytes per entry) */
-		Result seek_result = buffer_reader_seek (&reader->file_buffer, start_position + 16);
+		Result seek_result = _hbc_buffer_reader_seek (&reader->file_buffer, start_position + 16);
 		if (seek_result.code != RESULT_SUCCESS) {
 			hbc_debug_printf ("Error seeking to next function header after %u: %s\n",
 				i,
@@ -1780,23 +1780,23 @@ Result hbc_reader_read_functions_robust(HBCReader *reader) {
 }
 
 /* Read the entire file */
-Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
+Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	if (!reader || !filename) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_reader_read_whole_file");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_reader_read_whole_file");
 	}
 
 	/* Initialize reader */
-	RETURN_IF_ERROR (hbc_reader_init (reader));
+	RETURN_IF_ERROR (_hbc_reader_init (reader));
 
 	/* Read file into buffer */
-	Result result = hbc_reader_read_file (reader, filename);
+	Result result = _hbc_reader_read_file (reader, filename);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading file: %s\n", result.error_message);
 		return result;
 	}
 
 	/* Read header */
-	result = hbc_reader_read_header (reader);
+	result = _hbc_reader_read_header (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading header: %s\n", result.error_message);
 		return result;
@@ -1808,7 +1808,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 		reader->header.stringCount);
 
 	/* Read functions using the robust implementation */
-	result = hbc_reader_read_functions_robust (reader);
+	result = _hbc_reader_read_functions_robust (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading functions: %s\n", result.error_message);
 		return result;
@@ -1817,21 +1817,21 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	/* Continue with the rest of the file parsing */
 
 	/* Read string kinds */
-	result = hbc_reader_read_string_kinds (reader);
+	result = _hbc_reader_read_string_kinds (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading string kinds: %s\n", result.error_message);
 		return result;
 	}
 
 	/* Read identifier hashes */
-	result = hbc_reader_read_identifier_hashes (reader);
+	result = _hbc_reader_read_identifier_hashes (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading identifier hashes: %s\n", result.error_message);
 		return result;
 	}
 
 	/* Read string tables */
-	result = hbc_reader_read_string_tables (reader);
+	result = _hbc_reader_read_string_tables (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading string tables: %s\n", result.error_message);
 		return result;
@@ -1840,7 +1840,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	hbc_debug_printf ("Read strings successfully.\n");
 
 	/* Read arrays */
-	result = hbc_reader_read_arrays (reader);
+	result = _hbc_reader_read_arrays (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading arrays: %s\n", result.error_message);
 		return result;
@@ -1848,7 +1848,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 
 	/* Read BigInts if present */
 	if (reader->header.version >= 87) {
-		result = hbc_reader_read_bigints (reader);
+		result = _hbc_reader_read_bigints (reader);
 		if (result.code != RESULT_SUCCESS) {
 			fprintf (stderr, "Error reading BigInts: %s\n", result.error_message);
 			return result;
@@ -1856,14 +1856,14 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	}
 
 	/* Read RegExps */
-	result = hbc_reader_read_regexp (reader);
+	result = _hbc_reader_read_regexp (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading RegExp: %s\n", result.error_message);
 		return result;
 	}
 
 	/* Read CJS modules */
-	result = hbc_reader_read_cjs_modules (reader);
+	result = _hbc_reader_read_cjs_modules (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading CJS modules: %s\n", result.error_message);
 		return result;
@@ -1871,7 +1871,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 
 	/* Read function sources if present */
 	if (reader->header.version >= 84) {
-		result = hbc_reader_read_function_sources (reader);
+		result = _hbc_reader_read_function_sources (reader);
 		if (result.code != RESULT_SUCCESS) {
 			fprintf (stderr, "Error reading function sources: %s\n", result.error_message);
 			return result;
@@ -1879,7 +1879,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	}
 
 	/* Read debug info */
-	result = hbc_reader_read_debug_info (reader);
+	result = _hbc_reader_read_debug_info (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading debug info: %s\n", result.error_message);
 		return result;
@@ -1891,7 +1891,7 @@ Result hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 }
 
 /* Convert StringKind to string */
-const char *string_kind_to_string(StringKind kind) {
+const char *_hbc_string_kind_to_string(StringKind kind) {
 	switch (kind) {
 	case STRING_KIND_STRING:
 		return "String";
@@ -1904,8 +1904,8 @@ const char *string_kind_to_string(StringKind kind) {
 	}
 }
 
-/* Temporary implementation of get_bytecode_module until we implement the opcodes */
-BytecodeModule *get_bytecode_module(u32 bytecode_version) {
+/* Temporary implementation of _hbc_get_bytecode_module until we implement the opcodes */
+BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version) {
 	/* This is a placeholder that will be replaced with actual implementation */
 	static BytecodeModule dummy_module = { 0 };
 	dummy_module.version = bytecode_version;

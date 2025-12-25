@@ -8,7 +8,7 @@ static Result add(TokenString *ts, Token *t) {
 	if (!t) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "alloc token");
 	}
-	return token_string_add_token (ts, t);
+	return _hbc_token_string_add_token (ts, t);
 }
 
 /* Validate register bounds against function register count */
@@ -58,7 +58,7 @@ static u32 get_operand_value(const ParsedInstruction *insn, int idx) {
 static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
 	u32 v = get_operand_value (insn, op_index);
 	u32 base = insn->original_pos;
-	if (is_jump_instruction (insn->opcode)) {
+	if (_hbc_is_jump_instruction (insn->opcode)) {
 		base += insn->inst->binary_size;
 	}
 	return base + v;
@@ -175,26 +175,26 @@ static Token *quoted_string(HBCReader *r, u32 sid) {
 		size_t n = s? strlen (s): 0;
 		/* naive escape for quotes and backslashes */
 		StringBuffer sb;
-		if (string_buffer_init (&sb, n + 8).code != RESULT_SUCCESS) {
+		if (_hbc_string_buffer_init (&sb, n + 8).code != RESULT_SUCCESS) {
 			return NULL;
 		}
-		string_buffer_append (&sb, "\"");
+		_hbc_string_buffer_append (&sb, "\"");
 		for (size_t i = 0; i < n; i++) {
 			char c = s[i];
 			if (c == '\\' || c == '"') {
-				string_buffer_append_char (&sb, '\\');
+				_hbc_string_buffer_append_char (&sb, '\\');
 			}
 			if ((unsigned char)c < 0x20) {
 				char tmp[8];
 				snprintf (tmp, sizeof (tmp), "\\x%02x", (unsigned char)c);
-				string_buffer_append (&sb, tmp);
+				_hbc_string_buffer_append (&sb, tmp);
 			} else {
-				string_buffer_append_char (&sb, c);
+				_hbc_string_buffer_append_char (&sb, c);
 			}
 		}
-		string_buffer_append (&sb, "\"");
+		_hbc_string_buffer_append (&sb, "\"");
 		Token *t = create_raw_token (sb.data? sb.data: "\"\"");
-		string_buffer_free (&sb);
+		_hbc_string_buffer_free (&sb);
 		return t;
 	}
 	return create_raw_token ("\"\"");
@@ -210,12 +210,12 @@ static Token *unquoted_string(HBCReader *r, u32 sid) {
 	return create_raw_token ("unknown");
 }
 
-Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenString *out) {
+Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenString *out) {
 	if (!insn_c || !out || !insn_c->inst) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "translate: bad args");
 	}
 	ParsedInstruction *insn = (ParsedInstruction *)insn_c; /* for storing pointer in token_string */
-	RETURN_IF_ERROR (token_string_init (out, insn));
+	RETURN_IF_ERROR (_hbc_token_string_init (out, insn));
 
 	const u8 op = insn->opcode;
 	switch (op) {
@@ -515,15 +515,15 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			string_buffer_init (&sb, 48);
-			string_buffer_append (&sb, "try_get(");
+			_hbc_string_buffer_init (&sb, 48);
+			_hbc_string_buffer_append (&sb, "try_get(");
 			char nb[16];
 			snprintf (nb, sizeof (nb), "r%u", (unsigned)insn->arg2);
-			string_buffer_append (&sb, nb);
-			format_property_from_string_id (insn->hbc_reader, (op == OP_TryGetById)? insn->arg4: insn->arg4, &sb);
-			string_buffer_append (&sb, ")");
+			_hbc_string_buffer_append (&sb, nb);
+			_hbc_format_property_from_string_id (insn->hbc_reader, (op == OP_TryGetById)? insn->arg4: insn->arg4, &sb);
+			_hbc_string_buffer_append (&sb, ")");
 			Token *t = create_raw_token (sb.data? sb.data: "try_get(r0)");
-			string_buffer_free (&sb);
+			_hbc_string_buffer_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}
@@ -539,7 +539,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			u32 sid = (op == OP_PutNewOwnByIdShort)? insn->arg3: (op == OP_PutNewOwnById)? insn->arg3
 												: insn->arg4;
 		const char *s = (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount)? insn->hbc_reader->strings[sid]: NULL;
-		if (s && is_js_identifier (s)) {
+		if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -717,13 +717,13 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			Result r = string_buffer_init (&sb, 128);
+			Result r = _hbc_string_buffer_init (&sb, 128);
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
-			r = format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, LITERALS_PRETTY_AUTO, false);
+			r = _hbc_format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, LITERALS_PRETTY_AUTO, false);
 		Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
-			string_buffer_free (&sb);
+			_hbc_string_buffer_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}
@@ -736,13 +736,13 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			Result r = string_buffer_init (&sb, 128);
+			Result r = _hbc_string_buffer_init (&sb, 128);
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
-			r = format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, LITERALS_PRETTY_AUTO, false);
+			r = _hbc_format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, LITERALS_PRETTY_AUTO, false);
 		Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
-			string_buffer_free (&sb);
+			_hbc_string_buffer_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}
@@ -1029,7 +1029,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
-		if (s && is_js_identifier (s)) {
+		if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -1406,7 +1406,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
-		if (s && is_js_identifier (s)) {
+		if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -1427,7 +1427,7 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
-		if (s && is_js_identifier (s)) {
+		if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -1671,12 +1671,12 @@ Result translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenStr
 
 			/* Fallback: emit a comment-like raw token with mnemonic */
 			StringBuffer sb;
-			string_buffer_init (&sb, 64);
-			string_buffer_append (&sb, "/* ");
-			string_buffer_append (&sb, insn->inst->name);
-			string_buffer_append (&sb, " */");
+			_hbc_string_buffer_init (&sb, 64);
+			_hbc_string_buffer_append (&sb, "/* ");
+			_hbc_string_buffer_append (&sb, insn->inst->name);
+			_hbc_string_buffer_append (&sb, " */");
 			Token *t = create_raw_token (sb.data? sb.data: "/* insn */");
-			string_buffer_free (&sb);
+			_hbc_string_buffer_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}

@@ -14,32 +14,32 @@ static Token *alloc_token(TokenType type, size_t extra) {
 	return t;
 }
 
-Result token_string_init(TokenString *ts, ParsedInstruction *insn) {
+Result _hbc_token_string_init(TokenString *ts, ParsedInstruction *insn) {
 	if (!ts) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_init: ts NULL");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_token_string_init: ts NULL");
 	}
 	ts->head = ts->tail = NULL;
 	ts->assembly = insn;
 	return SUCCESS_RESULT ();
 }
 
-void token_string_cleanup(TokenString *ts) {
+void _hbc_token_string_cleanup(TokenString *ts) {
 	if (!ts) {
 		return;
 	}
 	Token *cur = ts->head;
 	while (cur) {
 		Token *nxt = cur->next;
-		token_free (cur);
+		_hbc_token_free (cur);
 		cur = nxt;
 	}
 	ts->head = ts->tail = NULL;
 	ts->assembly = NULL;
 }
 
-Result token_string_add_token(TokenString *ts, Token *t) {
+Result _hbc_token_string_add_token(TokenString *ts, Token *t) {
 	if (!ts || !t) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_add_token: NULL");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_token_string_add_token: NULL");
 	}
 	if (!ts->head) {
 		ts->head = ts->tail = t;
@@ -271,7 +271,7 @@ Token *create_catch_block_start_token(int arg_register) {
 	return (Token *)t;
 }
 
-void token_free(Token *tok) {
+void _hbc_token_free(Token *tok) {
 	if (!tok) {
 		return;
 	}
@@ -285,19 +285,19 @@ void token_free(Token *tok) {
 static Result append_reg(StringBuffer *b, int r) {
 	char buf[32];
 	snprintf (buf, sizeof (buf), "r%d", r);
-	return string_buffer_append (b, buf);
+	return _hbc_string_buffer_append (b, buf);
 }
 
 /* Very simple token to string printer, good enough for M1 */
-Result token_to_string(Token *token, StringBuffer *buffer) {
+Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 	if (!token || !buffer) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_to_string: NULL");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_token_to_string: NULL");
 	}
 	switch (token->type) {
 	case TOKEN_TYPE_RAW:
 		{
 			RawToken *t = (RawToken *)token;
-			return string_buffer_append (buffer, t->text? t->text: "");
+			return _hbc_string_buffer_append (buffer, t->text? t->text: "");
 		}
 	case TOKEN_TYPE_LEFT_HAND_REG:
 		{
@@ -309,19 +309,19 @@ Result token_to_string(Token *token, StringBuffer *buffer) {
 			RightHandRegToken *t = (RightHandRegToken *)token;
 			return append_reg (buffer, t->reg_num);
 		}
-	case TOKEN_TYPE_ASSIGNMENT: return string_buffer_append (buffer, "=");
-	case TOKEN_TYPE_LEFT_PARENTHESIS: return string_buffer_append (buffer, "(");
-	case TOKEN_TYPE_RIGHT_PARENTHESIS: return string_buffer_append (buffer, ")");
-	case TOKEN_TYPE_DOT_ACCESSOR: return string_buffer_append (buffer, ".");
+	case TOKEN_TYPE_ASSIGNMENT: return _hbc_string_buffer_append (buffer, "=");
+	case TOKEN_TYPE_LEFT_PARENTHESIS: return _hbc_string_buffer_append (buffer, "(");
+	case TOKEN_TYPE_RIGHT_PARENTHESIS: return _hbc_string_buffer_append (buffer, ")");
+	case TOKEN_TYPE_DOT_ACCESSOR: return _hbc_string_buffer_append (buffer, ".");
 	case TOKEN_TYPE_BIND:
 		{
 			BindToken *t = (BindToken *)token;
-			RETURN_IF_ERROR (string_buffer_append (buffer, ".bind("));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, ".bind("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			return string_buffer_append (buffer, ")");
+			return _hbc_string_buffer_append (buffer, ")");
 		}
-	case TOKEN_TYPE_RETURN_DIRECTIVE: return string_buffer_append (buffer, "return");
-	case TOKEN_TYPE_THROW_DIRECTIVE: return string_buffer_append (buffer, "throw");
+	case TOKEN_TYPE_RETURN_DIRECTIVE: return _hbc_string_buffer_append (buffer, "return");
+	case TOKEN_TYPE_THROW_DIRECTIVE: return _hbc_string_buffer_append (buffer, "throw");
 	case TOKEN_TYPE_FUNCTION_TABLE_INDEX:
 		{
 			FunctionTableIndexToken *t = (FunctionTableIndexToken *)token;
@@ -330,116 +330,116 @@ Result token_to_string(Token *token, StringBuffer *buffer) {
 				u32 name_id = t->state->hbc_reader->function_headers[t->function_id].functionName;
 			const char *name = (name_id < t->state->hbc_reader->header.stringCount && t->state->hbc_reader->strings)? t->state->hbc_reader->strings[name_id]: NULL;
 			if (name && *name) {
-					RETURN_IF_ERROR (string_buffer_append (buffer, name));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, name));
 					return SUCCESS_RESULT ();
 				}
 			}
 			char buf[32];
 			snprintf (buf, sizeof (buf), "fn_%u", t->function_id);
-			return string_buffer_append (buffer, buf);
+			return _hbc_string_buffer_append (buffer, buf);
 		}
 	case TOKEN_TYPE_JUMP_CONDITION:
 		{
 			JumpConditionToken *t = (JumpConditionToken *)token;
 			char buf[64];
 			snprintf (buf, sizeof (buf), "/* jump -> 0x%08x */", t->target_address);
-			return string_buffer_append (buffer, buf);
+			return _hbc_string_buffer_append (buffer, buf);
 		}
 	case TOKEN_TYPE_JUMP_NOT_CONDITION:
 		{
 			JumpNotConditionToken *t = (JumpNotConditionToken *)token;
 			char buf[64];
 			snprintf (buf, sizeof (buf), "/* jump_if_not -> 0x%08x */", t->target_address);
-			return string_buffer_append (buffer, buf);
+			return _hbc_string_buffer_append (buffer, buf);
 		}
 	case TOKEN_TYPE_GET_ENVIRONMENT:
 		{
 			GetEnvironmentToken *t = (GetEnvironmentToken *)token;
-			RETURN_IF_ERROR (string_buffer_append (buffer, "get_env("));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, "get_env("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			RETURN_IF_ERROR (string_buffer_append (buffer, ", "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, ", "));
 			char nb[16];
 			snprintf (nb, sizeof (nb), "%d", t->nesting_level);
-			RETURN_IF_ERROR (string_buffer_append (buffer, nb));
-			return string_buffer_append (buffer, ")");
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, nb));
+			return _hbc_string_buffer_append (buffer, ")");
 		}
 	case TOKEN_TYPE_LOAD_FROM_ENVIRONMENT:
 		{
 			LoadFromEnvironmentToken *t = (LoadFromEnvironmentToken *)token;
-			RETURN_IF_ERROR (string_buffer_append (buffer, "env_load("));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, "env_load("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			RETURN_IF_ERROR (string_buffer_append (buffer, ", "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, ", "));
 			char nb[16];
 			snprintf (nb, sizeof (nb), "%d", t->slot_index);
-			RETURN_IF_ERROR (string_buffer_append (buffer, nb));
-			return string_buffer_append (buffer, ")");
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, nb));
+			return _hbc_string_buffer_append (buffer, ")");
 		}
 	case TOKEN_TYPE_NEW_ENVIRONMENT:
 		{
 			NewEnvironmentToken *t = (NewEnvironmentToken *)token;
-			RETURN_IF_ERROR (string_buffer_append (buffer, "new_env("));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, "new_env("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			return string_buffer_append (buffer, ")");
+			return _hbc_string_buffer_append (buffer, ")");
 		}
 	case TOKEN_TYPE_NEW_INNER_ENVIRONMENT:
 		{
 			NewInnerEnvironmentToken *t = (NewInnerEnvironmentToken *)token;
 			char nb[64];
 			snprintf (nb, sizeof (nb), "new_inner_env(r%d, r%d, %d)", t->dest_register, t->parent_register, t->number_of_slots);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	case TOKEN_TYPE_SWITCH_IMM:
 		{
 			SwitchImmToken *t = (SwitchImmToken *)token;
 			char nb[128];
 			snprintf (nb, sizeof (nb), "switch(r%d /*%u..%u*/)", t->value_reg, t->unsigned_min_value, t->unsigned_max_value);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	case TOKEN_TYPE_STORE_TO_ENVIRONMENT:
 		{
 			StoreToEnvironmentToken *t = (StoreToEnvironmentToken *)token;
 			char nb[64];
 			snprintf (nb, sizeof (nb), "env_store(r%d, %d, r%d)", t->env_register, t->slot_index, t->value_register);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	case TOKEN_TYPE_FOR_IN_LOOP_INIT:
 		{
 			ForInLoopInitToken *t = (ForInLoopInitToken *)token;
 			char nb[128];
 			snprintf (nb, sizeof (nb), "forin_init(r%d, r%d, r%d, r%d)", t->obj_props_register, t->obj_register, t->iter_index_register, t->iter_size_register);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
 		{
 			ForInLoopNextIterToken *t = (ForInLoopNextIterToken *)token;
 			char nb[160];
 			snprintf (nb, sizeof (nb), "forin_next(r%d, r%d, r%d, r%d, r%d)", t->next_value_register, t->obj_props_register, t->obj_register, t->iter_index_register, t->iter_size_register);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	case TOKEN_TYPE_RESUME_GENERATOR:
 		{
 			ResumeGeneratorToken *t = (ResumeGeneratorToken *)token;
 			char nb[64];
 			snprintf (nb, sizeof (nb), "resume_gen(r%d, r%d)", t->result_out_reg, t->return_bool_out_reg);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	case TOKEN_TYPE_SAVE_GENERATOR:
 		{
 			SaveGeneratorToken *t = (SaveGeneratorToken *)token;
 			char nb[64];
 			snprintf (nb, sizeof (nb), "save_gen(0x%08x)", t->address);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
-	case TOKEN_TYPE_START_GENERATOR: return string_buffer_append (buffer, "start_generator()");
+	case TOKEN_TYPE_START_GENERATOR: return _hbc_string_buffer_append (buffer, "start_generator()");
 	case TOKEN_TYPE_CATCH_BLOCK_START:
 		{
 			CatchBlockStartToken *t = (CatchBlockStartToken *)token;
 			char nb[32];
 			snprintf (nb, sizeof (nb), "catch(r%d)", t->arg_register);
-			return string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_append (buffer, nb);
 		}
 	default:
-		return string_buffer_append (buffer, "/*token*/");
+		return _hbc_string_buffer_append (buffer, "/*token*/");
 	}
 }
 
@@ -447,9 +447,9 @@ static bool is_punct(TokenType t) {
 	return t == TOKEN_TYPE_LEFT_PARENTHESIS || t == TOKEN_TYPE_RIGHT_PARENTHESIS || t == TOKEN_TYPE_DOT_ACCESSOR;
 }
 
-Result token_string_to_string(TokenString *ts, StringBuffer *out) {
+Result _hbc_token_string_to_string(TokenString *ts, StringBuffer *out) {
 	if (!ts || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_to_string: NULL");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_token_string_to_string: NULL");
 	}
 	Token *cur = ts->head;
 	TokenType prev = (TokenType) (-1);
@@ -474,10 +474,10 @@ Result token_string_to_string(TokenString *ts, StringBuffer *out) {
 				need_space = true;
 			}
 			if (need_space) {
-				RETURN_IF_ERROR (string_buffer_append_char (out, ' '));
+				RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
 			}
 		}
-		RETURN_IF_ERROR (token_to_string (cur, out));
+		RETURN_IF_ERROR (_hbc_token_to_string (cur, out));
 		prev = cur->type;
 		cur = cur->next;
 	}
