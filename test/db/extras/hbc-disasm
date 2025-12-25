@@ -1,5 +1,6 @@
 NAME=hbc disasm basic instructions
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 pd 3
 EOF
@@ -14,6 +15,7 @@ RUN
 
 NAME=hbc file info arch
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 i~arch
 EOF
@@ -24,6 +26,7 @@ RUN
 
 NAME=hbc file info type
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 i~type
 EOF
@@ -35,6 +38,7 @@ RUN
 
 NAME=hbc file info cpu version
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 i~cpu
 EOF
@@ -45,6 +49,7 @@ RUN
 
 NAME=hbc symbols list
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 is~FUNC
 EOF
@@ -55,6 +60,7 @@ RUN
 
 NAME=hbc entry point
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 ie~program
 EOF
@@ -65,6 +71,7 @@ RUN
 
 NAME=hbc disasm ret instruction
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 s 0xb8
 pd 1
@@ -75,6 +82,7 @@ EOF
 RUN
 
 NAME=hbc disasm load_const_string
+ARGS=-e asm.sub.varmin=16
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
 s 0xb0
@@ -89,6 +97,7 @@ RUN
 
 NAME=hbc disasm direct_eval
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 s 0xb4
 pd 1
@@ -100,6 +109,7 @@ RUN
 
 NAME=hbc sections
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 iS~hermes
 EOF
@@ -110,6 +120,7 @@ RUN
 
 NAME=hbc seek and disasm
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 s entry0
 pd 2
@@ -124,6 +135,7 @@ RUN
 
 NAME=hbc print hex bytes
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 s 0xb0
 px 10
@@ -136,6 +148,7 @@ RUN
 
 NAME=hbc unreachable padding
 FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 s 0xba
 pd 2
