@@ -337,9 +337,7 @@ static void cmd_file_info(RCore *core) {
 		header.hasAsync? "yes": "no");
 
 	char hex[41] = {0};
-	for (int i = 0; i < 20; i++) {
-		snprintf (hex + i * 2, 3, "%02x", header.sourceHash[i]);
-	}
+	r_hex_bin2str (header.sourceHash, 20, hex);
 	HBC_PRINTF (core, "\nHash Information (for binary patching):\n");
 	HBC_PRINTF (core, "  Source Hash (header): %s\n", hex);
 
@@ -349,9 +347,7 @@ static void cmd_file_info(RCore *core) {
 	if (has_footer) {
 		ut8 footer[20] = {0};
 		r_io_read_at (core->io, header.fileLength, footer, 20);
-		for (int i = 0; i < 20; i++) {
-			snprintf (hex + i * 2, 3, "%02x", footer[i]);
-		}
+		r_hex_bin2str (footer, 20, hex);
 		HBC_PRINTF (core, "  Footer Hash (stored): %s\n", hex);
 
 		char *computed = r_core_cmd_strf (core, "ph sha1 %u @0", header.fileLength);
