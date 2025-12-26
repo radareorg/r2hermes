@@ -335,6 +335,36 @@ static void cmd_file_info(RCore *core) {
 		header.globalCodeIndex,
 		header.staticBuiltins? "yes": "no",
 		header.hasAsync? "yes": "no");
+
+	char hex[41] = {0};
+	r_hex_bin2str (header.sourceHash, 20, hex);
+	HBC_PRINTF (core, "\nHash Information (for binary patching):\n");
+	HBC_PRINTF (core, "  Source Hash (header): %s\n", hex);
+
+	ut64 file_size = r_io_size (core->io);
+	bool has_footer = (file_size == (ut64)header.fileLength + 20);
+
+	if (has_footer) {
+		ut8 footer[20] = {0};
+		r_io_read_at (core->io, header.fileLength, footer, 20);
+		r_hex_bin2str (footer, 20, hex);
+		HBC_PRINTF (core, "  Footer Hash (stored): %s\n", hex);
+
+		char *computed = r_core_cmd_strf (core, "ph sha1 %u @0", header.fileLength);
+		if (computed) {
+			r_str_trim (computed);
+			HBC_PRINTF (core, "  Footer Hash (computed): %s\n", computed);
+			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
+			HBC_PRINTF (core, "  Status: %s\n", valid ? "VALID" : "INVALID");
+			if (!valid) {
+				HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+			}
+			free (computed);
+		}
+	} else {
+		HBC_PRINTF (core, "  Footer: NOT PRESENT\n");
+		HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+	}
 }
 
 /* JSON output for current function */
@@ -513,7 +543,15 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 }
 
 static bool plugin_init(struct r_core_plugin_session_t *s) {
-	RConfig *cfg = s->core->config;
+	RCore *core = s->core;
+	RConfig *cfg = core->config;
+
+	/* Define fix-hbc macro using r2's generic ph and wx commands
+	 * 1. Resize file to fileLength+20 (reads fileLength from header at offset 32)
+	 * 2. Write SHA1 hash of bytes 0 to ($s-20) at offset ($s-20)
+	 * If footer already exists, resize is no-op */
+	r_core_cmd0 (core, "'(fix-hbc; ?e Fixing HBC footer hash...; r `pv4 @32`+20; wx `ph sha1 $s-20 @0` @ $s-20)");
+
 	r_config_lock (cfg, false);
 
 	RConfigNode *node;
