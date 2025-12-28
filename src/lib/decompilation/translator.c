@@ -515,7 +515,8 @@ static Result h_call_direct(const ParsedInstruction *insn, TokenString *out) {
 	return add (out, create_right_parenthesis_token ());
 }
 
-static Result h_jump_condition(const ParsedInstruction *insn, TokenString *out, bool negate __attribute__((unused))) {
+static Result h_jump_condition(const ParsedInstruction *insn, TokenString *out, bool negate) {
+	(void)negate; /* unused */
 	const char *cmp = jump_cmp_operator (insn->opcode);
 	if (!cmp) {
 		return add (out, create_raw_token ("/*jump_cmp*/"));
