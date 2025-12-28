@@ -336,7 +336,7 @@ static void cmd_file_info(RCore *core) {
 		header.staticBuiltins? "yes": "no",
 		header.hasAsync? "yes": "no");
 
-	char hex[41] = {0};
+	char hex[41] = { 0 };
 	r_hex_bin2str (header.sourceHash, 20, hex);
 	HBC_PRINTF (core, "\nHash Information (for binary patching):\n");
 	HBC_PRINTF (core, "  Source Hash (header): %s\n", hex);
@@ -345,7 +345,7 @@ static void cmd_file_info(RCore *core) {
 	bool has_footer = (file_size == (ut64)header.fileLength + 20);
 
 	if (has_footer) {
-		ut8 footer[20] = {0};
+		ut8 footer[20] = { 0 };
 		r_io_read_at (core->io, header.fileLength, footer, 20);
 		r_hex_bin2str (footer, 20, hex);
 		HBC_PRINTF (core, "  Footer Hash (stored): %s\n", hex);
@@ -355,7 +355,7 @@ static void cmd_file_info(RCore *core) {
 			r_str_trim (computed);
 			HBC_PRINTF (core, "  Footer Hash (computed): %s\n", computed);
 			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
-			HBC_PRINTF (core, "  Status: %s\n", valid ? "VALID" : "INVALID");
+			HBC_PRINTF (core, "  Status: %s\n", valid? "VALID": "INVALID");
 			if (!valid) {
 				HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 			}

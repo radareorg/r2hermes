@@ -16,19 +16,19 @@ static Result add(TokenString *ts, Token *t) {
 /* Table-driven opcode handler types to reduce switch complexity and ASAN overhead */
 typedef enum {
 	OP_PATTERN_NONE = 0,
-	OP_PATTERN_LITERAL,      /* rD = "literal" */
-	OP_PATTERN_BINARY,       /* rD = rA op rB */
-	OP_PATTERN_UNARY,        /* rD = op rA */
-	OP_PATTERN_FUNC1,        /* rD = func(rA) */
-	OP_PATTERN_LOAD_OFFSET,  /* rD = func(rA, imm) */
-	OP_PATTERN_STORE3,       /* func(rA, imm, rB) */
-	OP_PATTERN_SIMPLE_STMT,  /* statement() - no args or assignment */
+	OP_PATTERN_LITERAL, /* rD = "literal" */
+	OP_PATTERN_BINARY, /* rD = rA op rB */
+	OP_PATTERN_UNARY, /* rD = op rA */
+	OP_PATTERN_FUNC1, /* rD = func (rA) */
+	OP_PATTERN_LOAD_OFFSET, /* rD = func (rA, imm) */
+	OP_PATTERN_STORE3, /* func (rA, imm, rB) */
+	OP_PATTERN_SIMPLE_STMT, /* statement () - no args or assignment */
 } OpPattern;
 
 typedef struct {
 	u8 opcode;
 	OpPattern pattern;
-	const char *str;  /* operator, literal, or function name */
+	const char *str; /* operator, literal, or function name */
 } OpTableEntry;
 
 /* Literal assignments: rD = "literal" */
@@ -92,7 +92,7 @@ static const OpTableEntry unary_table[] = {
 	{ 0, OP_PATTERN_NONE, NULL }
 };
 
-/* Function wrappers: rD = func(rA) */
+/* Function wrappers: rD = func (rA) */
 static const OpTableEntry func1_table[] = {
 	{ OP_ToNumber, OP_PATTERN_FUNC1, "Number" },
 	{ OP_ToNumeric, OP_PATTERN_FUNC1, "to_numeric" },
@@ -105,7 +105,7 @@ static const OpTableEntry func1_table[] = {
 	{ 0, OP_PATTERN_NONE, NULL }
 };
 
-/* Load with offset: rD = func(rA, imm) */
+/* Load with offset: rD = func (rA, imm) */
 static const OpTableEntry load_offset_table[] = {
 	{ OP_Loadi8, OP_PATTERN_LOAD_OFFSET, "load_i8" },
 	{ OP_Loadu8, OP_PATTERN_LOAD_OFFSET, "load_u8" },
@@ -116,7 +116,7 @@ static const OpTableEntry load_offset_table[] = {
 	{ 0, OP_PATTERN_NONE, NULL }
 };
 
-/* Store operations: func(rA, imm, rB) */
+/* Store operations: func (rA, imm, rB) */
 static const OpTableEntry store3_table[] = {
 	{ OP_Store8, OP_PATTERN_STORE3, "store_8" },
 	{ OP_Store16, OP_PATTERN_STORE3, "store_16" },
@@ -1302,7 +1302,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	default:
 		{
-			if (!insn->inst->name || strcmp (insn->inst->name, "Unknown") == 0) {
+		if (!insn->inst->name || strcmp (insn->inst->name, "Unknown") == 0) {
 				char buf[96];
 				u32 skipped = insn->arg1;
 				if (skipped) {

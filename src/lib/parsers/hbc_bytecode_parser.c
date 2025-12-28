@@ -9,14 +9,12 @@
  * stages can still emit placeholder statements instead of aborting. */
 static const Instruction k_unknown_instruction = {
 	"Unknown",
-	{
+	{ { OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
 		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
 		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
 		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
 		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
-		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
-		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }
-	},
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE } },
 	0
 };
 
@@ -164,7 +162,9 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 				break;
 			}
 			hbc_debug_printf ("Warning: Unknown opcode 0x%02x at offset 0x%08x (skipping %zu bytes)\n",
-				opcode, (u32)original_pos, remaining);
+				opcode,
+				(u32)original_pos,
+				remaining);
 
 			ParsedInstruction instruction;
 			memset (&instruction, 0, sizeof (ParsedInstruction));
@@ -172,7 +172,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			instruction.opcode = opcode;
 			instruction.arg1 = remaining > UINT32_MAX? UINT32_MAX: (u32)remaining; /* store skipped size */
 			instruction.original_pos = original_pos;
-			instruction.next_pos = original_pos + (u32)(remaining > UINT32_MAX? UINT32_MAX: remaining);
+			instruction.next_pos = original_pos + (u32) (remaining > UINT32_MAX? UINT32_MAX: remaining);
 			instruction.function_offset = function_header->offset;
 			instruction.hbc_reader = reader;
 			instruction.switch_jump_table = NULL;
