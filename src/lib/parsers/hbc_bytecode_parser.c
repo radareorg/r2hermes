@@ -5,6 +5,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Synthetic instruction used to represent unknown opcodes so that downstream
+ * stages can still emit placeholder statements instead of aborting. */
+static const Instruction k_unknown_instruction = {
+	"Unknown",
+	{
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE },
+		{ OPERAND_TYPE_NONE, OPERAND_MEANING_NONE }
+	},
+	0
+};
+
 /* Initialize parsed instruction list */
 Result _hbc_parsed_instruction_list_init(ParsedInstructionList *list, u32 initial_capacity) {
 	if (!list) {
@@ -144,9 +159,29 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			}
 		}
 		if (!inst) {
-			hbc_debug_printf ("Error: Unknown opcode 0x%02x at offset 0x%08x\n", opcode, (u32)original_pos);
-			_hbc_parsed_instruction_list_free (out_instructions);
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown opcode");
+			size_t remaining = bytecode_buffer.size > original_pos? (bytecode_buffer.size - original_pos): 0;
+			if (remaining == 0) {
+				break;
+			}
+			hbc_debug_printf ("Warning: Unknown opcode 0x%02x at offset 0x%08x (skipping %zu bytes)\n",
+				opcode, (u32)original_pos, remaining);
+
+			ParsedInstruction instruction;
+			memset (&instruction, 0, sizeof (ParsedInstruction));
+			instruction.inst = &k_unknown_instruction;
+			instruction.opcode = opcode;
+			instruction.arg1 = remaining > UINT32_MAX? UINT32_MAX: (u32)remaining; /* store skipped size */
+			instruction.original_pos = original_pos;
+			instruction.next_pos = original_pos + (u32)(remaining > UINT32_MAX? UINT32_MAX: remaining);
+			instruction.function_offset = function_header->offset;
+			instruction.hbc_reader = reader;
+			instruction.switch_jump_table = NULL;
+			instruction.switch_jump_table_size = 0;
+			RETURN_IF_ERROR (_hbc_parsed_instruction_list_add (out_instructions, &instruction));
+
+			/* Stop parsing this function and move on. */
+			bytecode_buffer.position = bytecode_buffer.size;
+			break;
 		}
 
 		/* Create parsed instruction */
