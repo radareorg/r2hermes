@@ -113,7 +113,7 @@ struct DecompiledFunctionBody {
 	u32 owned_environments_capacity;
 
 	/* Control flow structures */
-	BasicBlock *basic_blocks;
+	BasicBlock **basic_blocks;
 	u32 basic_blocks_count;
 	u32 basic_blocks_capacity;
 

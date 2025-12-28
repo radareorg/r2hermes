@@ -462,8 +462,9 @@ static BasicBlock *find_block_by_start(DecompiledFunctionBody *fb, u32 start) {
 		return NULL;
 	}
 	for (u32 i = 0; i < fb->basic_blocks_count; i++) {
-		if (fb->basic_blocks[i].start_address == start) {
-			return &fb->basic_blocks[i];
+		BasicBlock *bb = fb->basic_blocks[i];
+		if (bb && bb->start_address == start) {
+			return bb;
 		}
 	}
 	return NULL;
@@ -534,15 +535,19 @@ void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 	free (body->jump_targets);
 	if (body->basic_blocks) {
 		for (u32 i = 0; i < body->basic_blocks_count; i++) {
-			BasicBlock *bb = &body->basic_blocks[i];
+			BasicBlock *bb = body->basic_blocks[i];
+			if (!bb) {
+				continue;
+			}
 			free (bb->jump_targets_for_anchor);
 			free (bb->child_nodes);
 			free (bb->parent_nodes);
 			free (bb->error_handling_child_nodes);
 			free (bb->error_handling_parent_nodes);
+			free (bb);
 		}
+		free (body->basic_blocks);
 	}
-	free (body->basic_blocks);
 	free (body->nested_frames);
 	if (body->owned_environments) {
 		for (u32 i = 0; i < body->owned_environments_count; i++) {
@@ -599,18 +604,21 @@ Result _hbc_create_basic_block(DecompiledFunctionBody *body, u32 start_address, 
 	}
 	if (body->basic_blocks_count >= body->basic_blocks_capacity) {
 		u32 nc = body->basic_blocks_capacity? body->basic_blocks_capacity * 2: 16;
-		BasicBlock *na = (BasicBlock *)realloc (body->basic_blocks, nc * sizeof (BasicBlock));
+		BasicBlock **na = (BasicBlock **)realloc (body->basic_blocks, nc * sizeof (BasicBlock *));
 		if (!na) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom create_bb");
 		}
 		body->basic_blocks = na;
 		body->basic_blocks_capacity = nc;
 	}
-	BasicBlock *bb = &body->basic_blocks[body->basic_blocks_count++];
-	memset (bb, 0, sizeof (*bb));
+	BasicBlock *bb = (BasicBlock *)calloc (1, sizeof (*bb));
+	if (!bb) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom create_bb");
+	}
 	bb->start_address = start_address;
 	bb->end_address = end_address;
 	bb->stay_visible = true;
+	body->basic_blocks[body->basic_blocks_count++] = bb;
 	return SUCCESS_RESULT ();
 }
 
@@ -668,7 +676,7 @@ Result _hbc_build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedI
 	}
 	/* Anchor and wire edges */
 	for (u32 i = 0; i < out_body->basic_blocks_count; i++) {
-		BasicBlock *bb = &out_body->basic_blocks[i];
+		BasicBlock *bb = out_body->basic_blocks[i];
 		/* find last instruction in this block */
 		ParsedInstruction *last = NULL;
 		ParsedInstruction *first = NULL;
@@ -2271,7 +2279,7 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 			continue;
 		}
 		RETURN_IF_ERROR (_hbc_create_basic_block (function_body, start, end));
-		BasicBlock *bb = &function_body->basic_blocks[function_body->basic_blocks_count - 1];
+		BasicBlock *bb = function_body->basic_blocks[function_body->basic_blocks_count - 1];
 
 		if (may_have_fallen_through && prev) {
 			RETURN_IF_ERROR (bbvec_push (&bb->parent_nodes, &bb->parent_nodes_count, &bb->parent_nodes_capacity, prev));
@@ -2342,7 +2350,7 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 
 	/* Link explicit jump/switch edges */
 	for (u32 i = 0; i < function_body->basic_blocks_count; i++) {
-		BasicBlock *bb = &function_body->basic_blocks[i];
+		BasicBlock *bb = function_body->basic_blocks[i];
 		for (u32 j = 0; j < bb->jump_targets_count; j++) {
 			u32 tgt = bb->jump_targets_for_anchor[j];
 			BasicBlock *child = find_block_by_start (function_body, tgt);
@@ -2789,8 +2797,16 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom bb lists");
 	}
 	for (u32 i = 0; i < bbcount; i++) {
-		bb_starts[i] = function_body->basic_blocks[i].start_address;
-		bb_ends[i] = function_body->basic_blocks[i].end_address;
+		BasicBlock *bb = function_body->basic_blocks[i];
+		if (!bb) {
+			free (frame_starts);
+			free (frame_ends);
+			free (bb_starts);
+			free (bb_ends);
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block entry");
+		}
+		bb_starts[i] = bb->start_address;
+		bb_ends[i] = bb->end_address;
 	}
 	qsort (bb_starts, bbcount, sizeof (u32), cmp_u32);
 	qsort (bb_ends, bbcount, sizeof (u32), cmp_u32);
@@ -2872,7 +2888,11 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 					}
 					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 					/* track current basic block */
-					while (cur_bb_index < bbcount && function_body->basic_blocks[cur_bb_index].start_address != pos) {
+					while (cur_bb_index < bbcount) {
+						BasicBlock *cur_bb = function_body->basic_blocks[cur_bb_index];
+						if (cur_bb && cur_bb->start_address == pos) {
+							break;
+						}
 						cur_bb_index++;
 					}
 				}
@@ -3003,7 +3023,15 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		/* Insert fallthrough ip update at end of basic block */
 		if (use_dispatch && asm_ref && cur_bb_index < bbcount) {
-			BasicBlock *bb = &function_body->basic_blocks[cur_bb_index];
+			BasicBlock *bb = function_body->basic_blocks[cur_bb_index];
+			if (!bb) {
+				free (frame_starts);
+				free (frame_ends);
+				free (bb_starts);
+				free (bb_ends);
+				free (dce);
+				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block during dispatch");
+			}
 			bool is_last_in_block = (asm_ref->next_pos == bb->end_address);
 			if (is_last_in_block && !emitted_continue && !bb->is_unconditional_jump_anchor && !bb->is_unconditional_return_end && !bb->is_unconditional_throw_anchor) {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
