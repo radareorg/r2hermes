@@ -2,6 +2,7 @@
 #include <hbc/opcodes.h>
 #include <hbc/parser.h>
 #include <ctype.h>
+#include <string.h>
 #include <hbc/decompilation/literals.h>
 
 static Result add(TokenString *ts, Token *t) {
@@ -1648,6 +1649,22 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	default:
 		{
+			if (!insn->inst->name || strcmp (insn->inst->name, "Unknown") == 0) {
+				char buf[96];
+				u32 skipped = insn->arg1;
+				if (skipped) {
+					snprintf (buf, sizeof (buf), "/* unknown opcode 0x%02x (%u bytes skipped) */", op, skipped);
+				} else {
+					snprintf (buf, sizeof (buf), "/* unknown opcode 0x%02x */", op);
+				}
+				Token *t = create_raw_token (buf);
+				if (!t) {
+					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+				}
+				RETURN_IF_ERROR (add (out, t));
+				break;
+			}
+
 			/* Generic compare-jump fallback (covers variants not explicitly handled above). */
 			const char *cmp = jump_cmp_operator (op);
 		if (cmp && is_operand_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {

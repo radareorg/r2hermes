@@ -763,6 +763,7 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->calldirect_function_ids_count = 0;
 	decompiler->calldirect_function_ids_capacity = 0;
 	decompiler->decompiled_functions = NULL;
+	decompiler->function_in_progress = NULL;
 	decompiler->indent_level = 0;
 	decompiler->inlining_function = false;
 	decompiler->hbc = NULL; /* Will be set if using provider-based API */
@@ -807,6 +808,10 @@ Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler) {
 	if (decompiler->decompiled_functions) {
 		free (decompiler->decompiled_functions);
 		decompiler->decompiled_functions = NULL;
+	}
+	if (decompiler->function_in_progress) {
+		free (decompiler->function_in_progress);
+		decompiler->function_in_progress = NULL;
 	}
 
 	// Free data provider if owned by decompiler
@@ -2968,6 +2973,17 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 								}
 							}
 						}
+						if (should_inline) {
+							if (!state->hbc_reader || fti->function_id >= state->hbc_reader->header.functionCount) {
+								should_inline = false;
+							}
+						}
+						if (should_inline && state->function_in_progress && state->hbc_reader) {
+							if (fti->function_id < state->hbc_reader->header.functionCount &&
+								state->function_in_progress[fti->function_id]) {
+								should_inline = false;
+							}
+						}
 
 						if (should_inline) {
 							/* Inline the closure */
@@ -3081,6 +3097,30 @@ Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environ
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function bad id");
 	}
 
+	Result r = SUCCESS_RESULT ();
+	bool list_initialized = false;
+	bool fb_initialized = false;
+	bool function_marked = false;
+	ParsedInstructionList list;
+	memset (&list, 0, sizeof (list));
+	DecompiledFunctionBody fb;
+
+	/* Lazily allocate recursion tracker */
+	if (!state->function_in_progress && reader->header.functionCount > 0) {
+		state->function_in_progress = (bool *)calloc (reader->header.functionCount, sizeof (bool));
+		if (!state->function_in_progress) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate active function tracker");
+		}
+	}
+
+	if (state->function_in_progress) {
+		if (state->function_in_progress[function_id]) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Recursive inlining detected");
+		}
+		state->function_in_progress[function_id] = true;
+		function_marked = true;
+	}
+
 	/* Mark function as decompiled to prevent duplicate processing */
 	if (state->decompiled_functions) {
 		state->decompiled_functions[function_id] = true;
@@ -3088,20 +3128,29 @@ Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environ
 
 	/* Load bytecode either from provider or from file buffer */
 	if (state->hbc) {
-		RETURN_IF_ERROR (ensure_function_bytecode_loaded_from_provider (state->hbc, &reader->function_headers[function_id], function_id));
+		r = ensure_function_bytecode_loaded_from_provider (state->hbc, &reader->function_headers[function_id], function_id);
 	} else {
-		RETURN_IF_ERROR (ensure_function_bytecode_loaded (reader, function_id));
+		r = ensure_function_bytecode_loaded (reader, function_id);
+	}
+	if (r.code != RESULT_SUCCESS) {
+		goto cleanup;
 	}
 
 	/* Update function_base for current function (used for offset display) */
 	state->options.function_base = reader->function_headers[function_id].offset;
 	HBCISA isa = hbc_isa_getv (reader->header.version);
 
-	ParsedInstructionList list;
-	RETURN_IF_ERROR (_hbc_parse_function_bytecode (reader, function_id, &list, isa));
+	r = _hbc_parse_function_bytecode (reader, function_id, &list, isa);
+	if (r.code != RESULT_SUCCESS) {
+		goto cleanup;
+	}
+	list_initialized = true;
 
-	DecompiledFunctionBody fb;
-	RETURN_IF_ERROR (_hbc_function_body_init (&fb, function_id, &reader->function_headers[function_id], function_id == reader->header.globalCodeIndex));
+	r = _hbc_function_body_init (&fb, function_id, &reader->function_headers[function_id], function_id == reader->header.globalCodeIndex);
+	if (r.code != RESULT_SUCCESS) {
+		goto cleanup;
+	}
+	fb_initialized = true;
 	fb.parent_environment = parent_environment;
 	fb.environment_id = environment_id;
 	fb.is_closure = is_closure;
@@ -3111,9 +3160,9 @@ Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environ
 	/* Transfer parsed instructions into the function body */
 	fb.instructions = list;
 	memset (&list, 0, sizeof (list));
+	list_initialized = false;
 
 	/* Execute transformation passes (configurable via decompile options) */
-	Result r = SUCCESS_RESULT ();
 	if (!state->options.skip_pass1_metadata) {
 		r = _hbc_pass1_set_metadata (state, &fb);
 	}
@@ -3130,7 +3179,16 @@ Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environ
 		r = _hbc_output_code (state, &fb);
 	}
 
-	_hbc_function_body_cleanup (&fb);
+cleanup:
+	if (fb_initialized) {
+		_hbc_function_body_cleanup (&fb);
+	}
+	if (list_initialized) {
+		_hbc_parsed_instruction_list_free (&list);
+	}
+	if (function_marked && state->function_in_progress) {
+		state->function_in_progress[function_id] = false;
+	}
 	return r;
 }
 
