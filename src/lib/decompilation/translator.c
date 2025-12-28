@@ -1,6 +1,7 @@
 #include <hbc/decompilation/translator.h>
 #include <hbc/opcodes.h>
 #include <hbc/parser.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <string.h>
 #include <hbc/decompilation/literals.h>
@@ -154,6 +155,7 @@ static const char *lookup_op_table(const OpTableEntry *table, u8 opcode) {
 static Token *reg_l_safe(const ParsedInstruction *insn, int idx);
 static Token *reg_r_safe(const ParsedInstruction *insn, int idx);
 static Token *num_token_u32(u32 v);
+static u32 compute_target_address(const ParsedInstruction *insn, int op_index);
 
 static Result emit_literal_assign(TokenString *out, const ParsedInstruction *insn, const char *literal) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
@@ -212,6 +214,42 @@ static Result emit_incdec(TokenString *out, const ParsedInstruction *insn, const
 	RETURN_IF_ERROR (add (out, create_assignment_token ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
 	return add (out, create_raw_token (suffix));
+}
+
+static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, int argc) {
+	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
+	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 0)));
+	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	for (int i = 1; i <= argc; i++) {
+		if (i > 1) {
+			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+		}
+		RETURN_IF_ERROR (add (out, reg_r_safe (insn, i)));
+	}
+	return add (out, create_right_parenthesis_token ());
+}
+
+static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn) {
+	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
+	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 0)));
+	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
+	char buf2[32];
+	snprintf (buf2, sizeof (buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
+	RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
+	return add (out, create_right_parenthesis_token ());
+}
+
+static Result emit_simple_jump(TokenString *out, const ParsedInstruction *insn, bool positive) {
+	u32 target = compute_target_address (insn, 0);
+	if (positive) {
+		RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+		return add (out, create_raw_token ("true"));
+	}
+	RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+	return add (out, create_raw_token ("false"));
 }
 
 /* Validate register bounds against function register count */
@@ -870,83 +908,18 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			break;
 		}
 	case OP_Call1:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			break;
-		}
+		return emit_call_fixed (out, insn_c, 2);
 	case OP_Call2:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			break;
-		}
+		return emit_call_fixed (out, insn_c, 3);
 	case OP_Call3:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 4)));
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			break;
-		}
+		return emit_call_fixed (out, insn_c, 4);
 	case OP_Call4:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 4)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 5)));
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			break;
-		}
+		return emit_call_fixed (out, insn_c, 5);
 	case OP_Call:
 	case OP_CallLong:
 	case OP_Construct:
 	case OP_ConstructLong:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			if (true) {
-				char buf2[32];
-				snprintf (buf2, sizeof (buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
-				RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
-			}
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			break;
-		}
+		return emit_call_with_argc (out, insn_c);
 	/* Delete operations */
 	case OP_DelById:
 	case OP_DelByIdLong:
@@ -1001,18 +974,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	/* Jump instructions */
 	case OP_Jmp:
 	case OP_JmpLong:
-		{
-			i32 rel = (i32)get_operand_value (insn_c, 0);
-			u32 target = compute_target_address (insn, 0);
-			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("false")));
-			} else {
-				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("true")));
-			}
-			break;
-		}
+		return emit_simple_jump (out, insn_c, get_operand_value (insn_c, 0) <= 0);
 	case OP_JmpTrue:
 	case OP_JmpTrueLong:
 		{
