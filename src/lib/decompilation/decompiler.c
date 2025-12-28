@@ -178,7 +178,7 @@ static Result u32set_add(U32Set *s, u32 v) {
 	return SUCCESS_RESULT ();
 }
 
-typedef Result (*TargetCallback)(u32 target, void *ctx);
+typedef Result(*TargetCallback)(u32 target, void *ctx);
 
 static Result add_target_to_set(u32 target, void *ctx) {
 	return u32set_add ((U32Set *)ctx, target);
@@ -366,6 +366,21 @@ static const char *environment_slot_get(Environment *env, int slot_index) {
 		return NULL;
 	}
 	return env->slot_index_to_varname? env->slot_index_to_varname[slot_index]: NULL;
+}
+
+/* Output code helper struct and cleanup */
+typedef struct {
+	u32 *frame_starts;
+	u32 *frame_ends;
+	u32 *bb_starts;
+	u32 *bb_ends;
+} OutputBuffers;
+
+static inline void output_buffers_fini(OutputBuffers *ob) {
+	free (ob->frame_starts);
+	free (ob->frame_ends);
+	free (ob->bb_starts);
+	free (ob->bb_ends);
 }
 
 /* ============= CFG construction ============= */
@@ -1768,51 +1783,44 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	}
 	state->indent_level++;
 
-	/* Collect frame start/end lists */
+	/* Collect frame start/end and basic block lists */
+	OutputBuffers ob = { 0 };
 	u32 nf = function_body->nested_frames_count;
-	u32 *frame_starts = (nf? (u32 *)malloc (nf * sizeof (u32)): NULL);
-	u32 *frame_ends = (nf? (u32 *)malloc (nf * sizeof (u32)): NULL);
-	if ((nf && (!frame_starts || !frame_ends))) {
-		free (frame_starts);
-		free (frame_ends);
+	ob.frame_starts = (nf? (u32 *)malloc (nf * sizeof (u32)): NULL);
+	ob.frame_ends = (nf? (u32 *)malloc (nf * sizeof (u32)): NULL);
+	if ((nf && (!ob.frame_starts || !ob.frame_ends))) {
+		output_buffers_fini (&ob);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom nested frame lists");
 	}
 	for (u32 i = 0; i < nf; i++) {
-		frame_starts[i] = function_body->nested_frames[i].start_address;
-		frame_ends[i] = function_body->nested_frames[i].end_address;
+		ob.frame_starts[i] = function_body->nested_frames[i].start_address;
+		ob.frame_ends[i] = function_body->nested_frames[i].end_address;
 	}
-	qsort (frame_starts, nf, sizeof (u32), cmp_u32);
-	qsort (frame_ends, nf, sizeof (u32), cmp_u32);
+	qsort (ob.frame_starts, nf, sizeof (u32), cmp_u32);
+	qsort (ob.frame_ends, nf, sizeof (u32), cmp_u32);
 	u32 frame_starts_count = nf;
 	u32 frame_ends_count = nf;
 	u32 frame_start_idx = 0;
 	u32 frame_end_idx = 0;
 
-	/* Collect basic block starts/ends */
 	u32 bbcount = function_body->basic_blocks_count;
-	u32 *bb_starts = (bbcount? (u32 *)malloc (bbcount * sizeof (u32)): NULL);
-	u32 *bb_ends = (bbcount? (u32 *)malloc (bbcount * sizeof (u32)): NULL);
-	if ((bbcount && (!bb_starts || !bb_ends))) {
-		free (frame_starts);
-		free (frame_ends);
-		free (bb_starts);
-		free (bb_ends);
+	ob.bb_starts = (bbcount? (u32 *)malloc (bbcount * sizeof (u32)): NULL);
+	ob.bb_ends = (bbcount? (u32 *)malloc (bbcount * sizeof (u32)): NULL);
+	if ((bbcount && (!ob.bb_starts || !ob.bb_ends))) {
+		output_buffers_fini (&ob);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom bb lists");
 	}
 	for (u32 i = 0; i < bbcount; i++) {
 		BasicBlock *bb = function_body->basic_blocks[i];
 		if (!bb) {
-			free (frame_starts);
-			free (frame_ends);
-			free (bb_starts);
-			free (bb_ends);
+			output_buffers_fini (&ob);
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block entry");
 		}
-		bb_starts[i] = bb->start_address;
-		bb_ends[i] = bb->end_address;
+		ob.bb_starts[i] = bb->start_address;
+		ob.bb_ends[i] = bb->end_address;
 	}
-	qsort (bb_starts, bbcount, sizeof (u32), cmp_u32);
-	qsort (bb_ends, bbcount, sizeof (u32), cmp_u32);
+	qsort (ob.bb_starts, bbcount, sizeof (u32), cmp_u32);
+	qsort (ob.bb_ends, bbcount, sizeof (u32), cmp_u32);
 
 	/* Dispatch loops are disabled - always output linear code */
 	bool use_dispatch = false;
@@ -1821,10 +1829,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	bool *dce = NULL;
 	Result dce_result = identify_dead_assignments (function_body, &dce);
 	if (dce_result.code != RESULT_SUCCESS) {
-		free (frame_starts);
-		free (frame_ends);
-		free (bb_starts);
-		free (bb_ends);
+		output_buffers_fini (&ob);
+		free (dce);
 		return dce_result;
 	}
 
@@ -1846,7 +1852,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		if (asm_ref) {
 			u32 pos = asm_ref->original_pos;
 			/* Close frames */
-			while (frame_end_idx < frame_ends_count && frame_ends[frame_end_idx] == pos) {
+			while (frame_end_idx < frame_ends_count && ob.frame_ends[frame_end_idx] == pos) {
 				frame_end_idx++;
 				state->indent_level--;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
@@ -1855,7 +1861,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 			/* Basic block case label */
 			if (use_dispatch) {
-				bool is_bb_start = (bsearch (&pos, bb_starts, bbcount, sizeof (u32), cmp_u32) != NULL);
+				bool is_bb_start = (bsearch (&pos, ob.bb_starts, bbcount, sizeof (u32), cmp_u32) != NULL);
 				if (is_bb_start) {
 					RETURN_IF_ERROR (append_indent (out, state->indent_level));
 					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "case "));
@@ -1900,7 +1906,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			}
 
 			/* Open frames */
-			while (frame_start_idx < frame_starts_count && frame_starts[frame_start_idx] == pos) {
+			while (frame_start_idx < frame_starts_count && ob.frame_starts[frame_start_idx] == pos) {
 				frame_start_idx++;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "{\n"));
@@ -2036,10 +2042,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		if (use_dispatch && asm_ref && cur_bb_index < bbcount) {
 			BasicBlock *bb = function_body->basic_blocks[cur_bb_index];
 			if (!bb) {
-				free (frame_starts);
-				free (frame_ends);
-				free (bb_starts);
-				free (bb_ends);
+				output_buffers_fini (&ob);
 				free (dce);
 				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block during dispatch");
 			}
@@ -2075,10 +2078,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	}
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 
-	free (frame_starts);
-	free (frame_ends);
-	free (bb_starts);
-	free (bb_ends);
+	output_buffers_fini (&ob);
 	free (dce);
 	return SUCCESS_RESULT ();
 }
