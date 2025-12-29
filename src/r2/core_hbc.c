@@ -5,7 +5,6 @@
 #include <r_util.h>
 #include <r_lib.h>
 #include <hbc/hbc.h>
-#include <hbc/decompilation/decompiler.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -33,25 +32,21 @@ static const char *safe_name(const char *s) {
 /* Comment callback for retrieving r2 comments (CC command) at an address */
 static char *r2_comment_callback(void *context, u64 address) {
 	RCore *core = (RCore *)context;
-	if (!core) {
-		return NULL;
+	if (core) {
+		const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
+		return comment? strdup (comment): NULL;
 	}
-	const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
-	if (comment) {
-		hbc_debug_printf ("[r2_comment_callback] Found comment at 0x%llx: %s\n", (unsigned long long)address, comment);
-	}
-	return comment? strdup (comment): NULL;
+	return NULL;
 }
 
 /* Flag callback for retrieving r2 flag/symbol names at an address */
 static char *r2_flag_callback(void *context, u64 address) {
 	RCore *core = (RCore *)context;
-	if (!core || !core->flags) {
-		return NULL;
-	}
-	RFlagItem *fi = r_flag_get_at (core->flags, address, true);
-	if (fi && fi->name) {
-		return strdup (fi->name);
+	if (core && core->flags) {
+		RFlagItem *fi = r_flag_get_at (core->flags, address, true);
+		if (fi && fi->name) {
+			return strdup (fi->name);
+		}
 	}
 	return NULL;
 }
@@ -61,17 +56,19 @@ static char *r2_flag_callback(void *context, u64 address) {
 #define HBC_PRINT(core, s) r_cons_print(HBC_CONS(core),(s))
 
 static const char *current_file_path(RCore *core) {
-	if (!core || !core->bin) {
-		return NULL;
+	if (core && core->bin) {
+		RBinInfo *bi = r_bin_get_info (core->bin);
+		if (bi) {
+			return bi->file;
+		}
 	}
-	RBinInfo *bi = r_bin_get_info (core->bin);
-	return bi? bi->file: NULL;
+	return NULL;
 }
 
 /* Helper to load the current binary as HBC using provider API */
 static Result hbc_load_current_binary(RCore *core) {
 	const char *file_path = current_file_path (core);
-	if (!file_path || !*file_path) {
+	if (R_STR_ISEMPTY (file_path)) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary loaded in r2");
 	}
 
@@ -172,29 +169,27 @@ static void cmd_decompile_current_ex(RCore *core, bool show_offsets) {
 		Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 		HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
-		StringBuffer output = { 0 };
-		_hbc_string_buffer_init (&output, 4096);
-		result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
-		if (result.code == RESULT_SUCCESS && output.data) {
-			r_str_trim (output.data);
-			HBC_PRINTF (core, "%s\n", output.data);
+		char *output = NULL;
+		result = hbc_decomp_fn (hbc_ctx.hbc, function_id, opts, &output);
+		if (result.code == RESULT_SUCCESS && output) {
+			r_str_trim (output);
+			HBC_PRINTF (core, "%s\n", output);
 		} else {
 			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 		}
-		_hbc_string_buffer_free (&output);
+		free (output);
 	} else {
 		/* Not in a function, decompile all - use 0 as base since multiple functions */
 		HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
-		StringBuffer output = { 0 };
-		_hbc_string_buffer_init (&output, 4096);
-		result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
-		if (result.code == RESULT_SUCCESS && output.data) {
-			r_str_trim (output.data);
-			HBC_PRINTF (core, "%s\n", output.data);
+		char *output = NULL;
+		result = hbc_decomp_all (hbc_ctx.hbc, opts, &output);
+		if (result.code == RESULT_SUCCESS && output) {
+			r_str_trim (output);
+			HBC_PRINTF (core, "%s\n", output);
 		} else {
 			HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 		}
-		_hbc_string_buffer_free (&output);
+		free (output);
 	}
 }
 
@@ -211,16 +206,15 @@ static void cmd_decompile_all_ex(RCore *core, bool show_offsets) {
 	}
 
 	HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
-	StringBuffer output = { 0 };
-	_hbc_string_buffer_init (&output, 8192);
-	result = _hbc_decompile_all_with_provider (hbc_ctx.hbc, opts, &output);
-	if (result.code == RESULT_SUCCESS && output.data) {
-		r_str_trim (output.data);
-		HBC_PRINTF (core, "%s\n", output.data);
+	char *output = NULL;
+	result = hbc_decomp_all (hbc_ctx.hbc, opts, &output);
+	if (result.code == RESULT_SUCCESS && output) {
+		r_str_trim (output);
+		HBC_PRINTF (core, "%s\n", output);
 	} else {
 		HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (result.error_message));
 	}
-	_hbc_string_buffer_free (&output);
+	free (output);
 }
 
 static void cmd_decompile_all(RCore *core) {
@@ -261,16 +255,15 @@ static void cmd_decompile_function_ex(RCore *core, const char *addr_str, bool sh
 	Result fres = hbc_func_info (hbc_ctx.hbc, function_id, &fi);
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 	HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
-	StringBuffer output = { 0 };
-	_hbc_string_buffer_init (&output, 4096);
-	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
-	if (result.code == RESULT_SUCCESS && output.data) {
-		r_str_trim (output.data);
-		HBC_PRINTF (core, "%s\n", output.data);
+	char *output = NULL;
+	result = hbc_decomp_fn (hbc_ctx.hbc, function_id, opts, &output);
+	if (result.code == RESULT_SUCCESS && output) {
+		r_str_trim (output);
+		HBC_PRINTF (core, "%s\n", output);
 	} else {
 		HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (result.error_message));
 	}
-	_hbc_string_buffer_free (&output);
+	free (output);
 }
 
 static void cmd_decompile_function(RCore *core, const char *addr_str) {
@@ -397,20 +390,19 @@ static void cmd_json(RCore *core, const char *addr_str) {
 		HBC_PRINTF (core, "{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
 		return;
 	}
-	StringBuffer output = { 0 };
-	_hbc_string_buffer_init (&output, 4096);
-	result = _hbc_decompile_function_with_provider (hbc_ctx.hbc, function_id, opts, &output);
+	char *output = NULL;
+	result = hbc_decomp_fn (hbc_ctx.hbc, function_id, opts, &output);
 
 	RStrBuf *sb = r_strbuf_newf ("{\"function_id\":%u,\"decompilation\":", function_id);
 	if (!sb) {
-		_hbc_string_buffer_free (&output);
+		free (output);
 		HBC_PRINT (core, "{\"error\":\"out of memory\"}\n");
 		return;
 	}
 
-	if (result.code == RESULT_SUCCESS && output.data) {
+	if (result.code == RESULT_SUCCESS && output) {
 		r_strbuf_append (sb, "\"");
-		for (const char *p = output.data; *p; p++) {
+		for (const char *p = output; *p; p++) {
 			const unsigned char ch = (unsigned char)*p;
 			switch (ch) {
 			case '"':
@@ -444,7 +436,7 @@ static void cmd_json(RCore *core, const char *addr_str) {
 	r_strbuf_append (sb, "}\n");
 	HBC_PRINT (core, r_strbuf_get (sb));
 	r_strbuf_free (sb);
-	_hbc_string_buffer_free (&output);
+	free (output);
 }
 
 /* Show help */
