@@ -1,29 +1,25 @@
 # Project Description
 
-This repo contains a zero-dependency C11 implementation of a Hermes HBC (Hermes Bytecode) disassembler/decompiler, a thin public library API, a CLI, and optional radare2 integration. It also embeds the original Python reference for parity checks.
+This repo contains a zero-dependency C11 implementation of a Hermes HBC (Hermes Bytecode) disassembler/decompiler, a thin public library API, a CLI, and optional radare2 integration.
 
 Use this guide to navigate the code, extend features, and avoid common pitfalls when changing the codebase.
 
 **Repo Layout**
-- `src/` C sources
+- `src/lib` C sources for the library
+- `src/r2/` radare2 plugin sources (optional)
+- `src/tool/` source code of the libhbctool program
 - `include/` public and internal headers
-- `bin/` CLI output
+- `bin/` where the libhbctool CLI program is compiled
 - `build/` static library and objects
-- `r2/` radare2 plugin sources (optional)
-- `hbctool/` Python reference implementation (external)
-- `tests/` placeholder for tests
+- `tests/` testsuite based on `r2r` tool
 
 **Build & Run**
-- Build library + CLI: `make` (no debug messages)
-- Debug build: `make debug` (includes `-DHBC_DEBUG_LOGGING=1` for verbose output)
+- Build library + libhbctool cli tool: `make` (no debug messages)
+- Build with address sanitizer checks: `make asan`
+- Build library + radare2 plugins + user-install: `make r2`
+- Format the source with `make fmt` (requires `clang-format-radare2`)
 - Clean: `make clean`
 - Run CLI: `./bin/libhbctool <command> <input> [output]`
-
-**Debug Logging**
-- Uses inline `hbc_debug_printf()` macro defined in `include/hbc/common.h`
-- Controlled by `HBC_DEBUG_LOGGING` compile-time flag (default: 0)
-- When disabled, all debug calls compile to nothing (zero overhead)
-- Enable with: `make CFLAGS="-D HBC_DEBUG_LOGGING=1" clean all` or use `make debug`
 
 **Public API**
 - Primary header: `include/hbc/hbc.h`
@@ -32,18 +28,18 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
   - Query: `hbc_hdr()`, `hbc_func_info()`, `hbc_str()`, `hbc_bytecode()`, etc.
   - Decompilation: `hbc_decomp_fn()`, `hbc_decomp_all()`
   - Type aliases: `HBCFunc`, `HBCDisOptions`, `HBCDecompOptions`, `HBCInsns`, `HBCStrs`, etc.
-- See `API_CHANGES.md` for full list of names.
 
 **Coding Conventions**
 - C11, compiled with `-Wall -Wextra -Werror -std=c11 -pedantic`.
+- Use `clang-format-radare2` tool to indent the source
 - Error handling uses `Result` helpers.
+- Constant size allocations does not require null checks.
 - Prefer explicit sizes and check allocations/reads.
 - Keep memory ownership clear.
 - Avoid unused code/params.
-- Naming: snake_case for functions, PascalCase for structs/enums.
+- Naming functions in `snake_case` and struct/enum in `CamelCase`.
 
 **Testing**
 - Use `make test` for basic tests.
-- Compare with Python reference for validation.
 
 This file applies to the entire repo. When editing, stay focused and minimal: prefer surgical changes and preserve the current structure.
