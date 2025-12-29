@@ -1,9 +1,6 @@
 /* radare2 - LGPL - Copyright 2025 - pancake */
 
 #include <r_asm.h>
-#include <r_util.h>
-#include <r_lib.h>
-#include <string.h>
 
 /* Pseudo transformation rules for Hermes bytecode instructions */
 static const char *pseudo_rules[] = {

@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_DECOMPILER_H
-#define HERMES_DEC_DECOMPILER_H
+#ifndef LIBHBC_DECOMPILER_H
+#define LIBHBC_DECOMPILER_H
 
 #include <hbc/common.h>
 #include <hbc/parser.h>
@@ -177,4 +177,4 @@ Result _hbc_create_basic_block(DecompiledFunctionBody *body, u32 start_address, 
 /* Internal: build CFG and anchors for a function */
 Result _hbc_build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedInstructionList *list, DecompiledFunctionBody *out_body);
 
-#endif /* HERMES_DEC_DECOMPILER_H */
+#endif /* LIBHBC_DECOMPILER_H */

@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_COMMON_H
-#define HERMES_DEC_COMMON_H
+#ifndef LIBHBC_COMMON_H
+#define LIBHBC_COMMON_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -120,4 +120,4 @@ void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size);
 
 #define ERROR_RESULT(code, message) ((Result){ code, message })
 
-#endif /* HERMES_DEC_COMMON_H */
+#endif /* LIBHBC_COMMON_H */

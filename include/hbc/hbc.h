@@ -1,5 +1,5 @@
-#ifndef HBC_API_H
-#define HBC_API_H
+#ifndef LIBHBC_API_H
+#define LIBHBC_API_H
 
 #include <hbc/common.h>
 
@@ -434,4 +434,4 @@ Result hbc_decompile_file(const char *input_file, const char *output_file);
  */
 Result hbc_generate_r2_script(const char *input_file, const char *output_file);
 
-#endif /* HERMESDEC_API_H */
+#endif /* LIBHBC_API_H */

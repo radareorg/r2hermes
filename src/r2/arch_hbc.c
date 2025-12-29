@@ -1,11 +1,6 @@
 /* radare2 - LGPL - Copyright 2025 - pancake */
 
 #include <r_anal.h>
-#include <r_lib.h>
-#include <r_util.h>
-#include <string.h>
-
-// Include hermesdec headers
 #include <hbc/hbc.h>
 #include <hbc/opcodes.h>
 #include <hbc/bytecode.h>
@@ -102,14 +97,6 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	return true;
 }
 
-static const Instruction *get_instruction_set_by_version(ut32 version, ut32 *out_count) {
-	HBCISA isa = hbc_isa_getv (version);
-	if (out_count) {
-		*out_count = isa.count;
-	}
-	return isa.instructions;
-}
-
 static bool opcode_is_conditional(u8 opcode) {
 	switch (opcode) {
 	case OP_JmpTrue:
@@ -130,16 +117,13 @@ static bool opcode_is_conditional(u8 opcode) {
 }
 
 static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
-	ut32 count;
-	const Instruction *inst_set = get_instruction_set_by_version (hs->bytecode_version, &count);
-	if (!inst_set || opcode >= count) {
+	HBCISA isa = hbc_isa_getv (hs->bytecode_version);
+	const Instruction *inst_set = isa.instructions;
+	if (!inst_set || opcode >= isa.count) {
 		return;
 	}
 
 	const Instruction *inst = &inst_set[opcode];
-	if (!inst) {
-		return;
-	}
 
 	// Parse operands
 	ut32 operand_values[6] = { 0 };

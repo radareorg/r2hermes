@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_HBC_DISASSEMBLER_H
-#define HERMES_DEC_HBC_DISASSEMBLER_H
+#ifndef LIBHBC_DISASSEMBLER_H
+#define LIBHBC_DISASSEMBLER_H
 
 #include <hbc/common.h>
 #include <hbc/parser.h>
@@ -34,4 +34,4 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file);
 Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *function_header, u32 function_id);
 Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *instruction);
 
-#endif /* HERMES_DEC_HBC_DISASSEMBLER_H */
+#endif /* LIBHBC_DISASSEMBLER_H */

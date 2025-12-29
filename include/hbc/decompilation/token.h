@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_TOKEN_H
-#define HERMES_DEC_TOKEN_H
+#ifndef LIBHBC_TOKEN_H
+#define LIBHBC_TOKEN_H
 
 #include <hbc/common.h>
 #include <hbc/bytecode.h>
@@ -249,4 +249,4 @@ void _hbc_token_free(Token *token);
 Result _hbc_token_to_string(Token *token, StringBuffer *buffer);
 Result _hbc_token_string_to_string(TokenString *token_string, StringBuffer *buffer);
 
-#endif /* HERMES_DEC_TOKEN_H */
+#endif /* LIBHBC_TOKEN_H */

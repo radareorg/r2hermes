@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_HBC_BYTECODE_H
-#define HERMES_DEC_HBC_BYTECODE_H
+#ifndef LIBHBC_BYTECODE_H
+#define LIBHBC_BYTECODE_H
 
 #include <hbc/common.h>
 #include <hbc/opcodes.h>
@@ -53,4 +53,4 @@ typedef Result(*OpcodeHandler)(HBCReader *reader, BufferReader *bytecode, Parsed
 bool _hbc_is_jump_instruction(u8 opcode);
 bool _hbc_is_call_instruction(u8 opcode);
 
-#endif /* HERMES_DEC_HBC_BYTECODE_H */
+#endif /* LIBHBC_BYTECODE_H */

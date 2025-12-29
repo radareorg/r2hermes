@@ -2,12 +2,7 @@
 /* r2 core plugin for Hermes bytecode decompilation */
 
 #include <r_core.h>
-#include <r_util.h>
-#include <r_lib.h>
 #include <hbc/hbc.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
 
 typedef struct {
 	HBC *hbc; /* Cached HBC data provider per file */

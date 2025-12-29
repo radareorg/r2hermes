@@ -1,5 +1,5 @@
-#ifndef HBC_ENCODER_H
-#define HBC_ENCODER_H
+#ifndef LIBHBC_ENCODER_H
+#define LIBHBC_ENCODER_H
 
 #include <hbc/common.h>
 #include <hbc/bytecode.h>
@@ -33,4 +33,4 @@ Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstr
 /* Encode multiple instructions from asm text */
 Result hbc_encoder_encode_instructions(HBCEncoder *encoder, const char *asm_text, u8 *out_buffer, size_t buffer_size, size_t *out_bytes_written);
 
-#endif /* HBC_ENCODER_H */
+#endif /* LIBHBC_ENCODER_H */

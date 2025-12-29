@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_HBC_FILE_PARSER_H
-#define HERMES_DEC_HBC_FILE_PARSER_H
+#ifndef LIBHBC_FILE_PARSER_H
+#define LIBHBC_FILE_PARSER_H
 
 #include <hbc/common.h>
 
@@ -289,4 +289,4 @@ Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename);
 const char *_hbc_string_kind_to_string(StringKind kind);
 BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);
 
-#endif /* HERMES_DEC_HBC_FILE_PARSER_H */
+#endif /* LIBHBC_FILE_PARSER_H */

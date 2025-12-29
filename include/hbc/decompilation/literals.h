@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_LITERALS_H
-#define HERMES_DEC_LITERALS_H
+#ifndef LIBHBC_LITERALS_H
+#define LIBHBC_LITERALS_H
 
 #include <hbc/common.h>
 #include <hbc/parser.h>
@@ -34,4 +34,4 @@ Result _hbc_format_property_from_string_id(HBCReader *r, u32 string_id, StringBu
  * Attempts best-effort representation and falls back to including argc as a comment. */
 Result _hbc_format_variadic_call(const ParsedInstruction *insn, StringBuffer *out);
 
-#endif /* HERMES_DEC_LITERALS_H */
+#endif /* LIBHBC_LITERALS_H */

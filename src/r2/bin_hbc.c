@@ -10,7 +10,7 @@ typedef struct {
 	HBC *hbc;
 } HBCBinObj;
 
-static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
+static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 	if (r_buf_size (b) >= 8) {
 		ut64 magic = 0;
 		r_buf_read_at (b, 0, (ut8 *)&magic, sizeof (magic));
@@ -19,44 +19,31 @@ static bool check(RBinFile *bf R_UNUSED, RBuffer *b) {
 	return false;
 }
 
-static bool load(RBinFile *bf, RBuffer *buf, ut64 loadaddr R_UNUSED) {
-	if (!check (bf, buf)) {
-		return false;
-	}
-
-	HBCBinObj *bo = R_NEW0 (HBCBinObj);
-	if (!bo) {
-		return false;
-	}
-
-	if (bf->file) {
-		bo->hbc = hbc_new_file (bf->file);
-		if (!bo->hbc) {
-			free (bo);
-			return false;
+static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
+	if (check (bf, buf) && bf->file) {
+		HBC *hbc = hbc_new_file (bf->file);
+		if (hbc) {
+			HBCBinObj *bo = R_NEW0 (HBCBinObj);
+			bo->hbc = hbc;
+			bf->bo->bin_obj = bo;
+			bf->buf = buf;
+			return true;
 		}
 	}
-
-	bf->bo->bin_obj = bo;
-	bf->buf = buf;
-	return true;
+	return false;
 }
 
 static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
-		if (bo->hbc) {
-			hbc_free (bo->hbc);
-		}
+		hbc_free (bo->hbc);
 		free (bo);
 	}
 }
 
 static HBC *get_provider(RBinFile *bf) {
-	if (!bf || !bf->bo || !bf->bo->bin_obj) {
-		return NULL;
-	}
-	return ((HBCBinObj *)bf->bo->bin_obj)->hbc;
+	HBCBinObj *hbo = R_UNWRAP3 (bf, bo, bin_obj);
+	return hbo? hbo->hbc: NULL;
 }
 
 /* Check if entrypoint offset is valid: in bounds and not all zeros */
@@ -81,17 +68,18 @@ static bool is_valid_entrypoint(RBuffer *buf, ut64 offset) {
 
 /* Unified entrypoint resolution with fallback chain */
 static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
+	if (!provider) {
+		return 0;
+	}
 	/* Try 1: Find MainAppContent symbol */
-	if (provider) {
-		u32 func_count;
-		if (hbc_func_count (provider, &func_count).code == RESULT_SUCCESS) {
-			for (u32 i = 0; i < func_count; i++) {
-				HBCFunc fi;
-				if (hbc_func_info (provider, i, &fi).code == RESULT_SUCCESS) {
-					if (fi.name && strcmp (fi.name, "MainAppContent") == 0) {
-						if (is_valid_entrypoint (bf->buf, fi.offset)) {
-							return fi.offset;
-						}
+	u32 func_count;
+	if (hbc_func_count (provider, &func_count).code == RESULT_SUCCESS) {
+		for (u32 i = 0; i < func_count; i++) {
+			HBCFunc fi;
+			if (hbc_func_info (provider, i, &fi).code == RESULT_SUCCESS) {
+				if (fi.name && strcmp (fi.name, "MainAppContent") == 0) {
+					if (is_valid_entrypoint (bf->buf, fi.offset)) {
+						return fi.offset;
 					}
 				}
 			}
@@ -99,24 +87,19 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
 	}
 
 	/* Try 2: Use header globalCodeIndex */
-	if (provider) {
-		HBCHeader hh;
-		if (hbc_hdr (provider, &hh).code == RESULT_SUCCESS) {
-			if (is_valid_entrypoint (bf->buf, hh.globalCodeIndex)) {
-				return hh.globalCodeIndex;
-			}
+	HBCHeader hh;
+	if (hbc_hdr (provider, &hh).code == RESULT_SUCCESS) {
+		if (is_valid_entrypoint (bf->buf, hh.globalCodeIndex)) {
+			return hh.globalCodeIndex;
 		}
 	}
 
 	/* Try 3: Use first function's offset */
-	if (provider) {
-		u32 func_count;
-		if (hbc_func_count (provider, &func_count).code == RESULT_SUCCESS && func_count > 0) {
-			HBCFunc fi;
-			if (hbc_func_info (provider, 0, &fi).code == RESULT_SUCCESS) {
-				if (is_valid_entrypoint (bf->buf, fi.offset)) {
-					return fi.offset;
-				}
+	if (func_count > 0) {
+		HBCFunc fi;
+		if (hbc_func_info (provider, 0, &fi).code == RESULT_SUCCESS) {
+			if (is_valid_entrypoint (bf->buf, fi.offset)) {
+				return fi.offset;
 			}
 		}
 	}
@@ -214,10 +197,6 @@ static ut64 baddr(RBinFile *bf R_UNUSED) {
 
 static RList *symbols(RBinFile *bf) {
 	RList *symbols = r_list_newf ((RListFree)free);
-	if (!symbols) {
-		return NULL;
-	}
-
 	HBC *provider = get_provider (bf);
 	if (!provider) {
 		return symbols;
@@ -277,10 +256,6 @@ static RList *symbols(RBinFile *bf) {
 
 static RList *strings(RBinFile *bf) {
 	RList *ret = r_list_newf ((RListFree)free);
-	if (!ret) {
-		return NULL;
-	}
-
 	HBC *provider = get_provider (bf);
 	if (!provider) {
 		return ret;

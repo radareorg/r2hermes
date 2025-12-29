@@ -1,5 +1,5 @@
-#ifndef HERMES_DEC_HERMES_OPCODES_H
-#define HERMES_DEC_HERMES_OPCODES_H
+#ifndef LIBHBC_HERMES_OPCODES_H
+#define LIBHBC_HERMES_OPCODES_H
 
 #include <hbc/common.h>
 
@@ -262,4 +262,4 @@ typedef struct {
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version);
 
-#endif /* HERMES_DEC_HERMES_OPCODES_H */
+#endif /* LIBHBC_HERMES_OPCODES_H */
