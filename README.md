@@ -6,7 +6,7 @@
 
 Hermes bytecode disassembler, decompiler, and radare2 plugins.
 
-Supports Hermes bytecode **v76 - v96** (React Native / Meta).
+Supports Hermes bytecode **v51 - v96** (React Native / Meta).
 
 ## Features
 
@@ -121,21 +121,6 @@ r2 file.hbc -qc 'pd:hi'
 # Fix/add footer hash (works with or without existing footer)
 r2 -wqc '.(fix-hbc)' file.hbc
 ```
-
-## Supported Versions
-
-| Version | Status | Notes |
-|---------|--------|-------|
-| v76 | ✅ Supported | Older React Native |
-| v84 | ✅ Supported | Function source info |
-| v87 | ✅ Supported | BigInt support |
-| v89 | ✅ Supported | |
-| v90 | ✅ Supported | |
-| v91 | ✅ Supported | Textified callees |
-| v93 | ✅ Supported | |
-| v94 | ✅ Supported | |
-| v95 | ✅ Supported | |
-| v96 | ✅ Supported | Latest |
 
 ## Configuration (radare2)
 
