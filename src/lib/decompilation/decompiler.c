@@ -1835,9 +1835,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	}
 
 	u32 cur_bb_index = 0;
-	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, comment_callback=%p, stmt_count=%u\n",
+	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, stmt_count=%u\n",
 		(unsigned long long)state->options.function_base,
-		(void *)state->options.comment_callback,
 		function_body->statements_count);
 	for (u32 si = 0; si < function_body->statements_count; si++) {
 		/* Skip dead code */
