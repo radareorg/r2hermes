@@ -16,6 +16,26 @@ add_project_arguments([
   '-fPIC',
 ], language: 'c')
 
+# Version extraction
+version_parts = meson.project_version().split('.')
+version_major = version_parts[0]
+version_minor = version_parts.length() > 1 ? version_parts[1] : '0'
+version_patch = version_parts.length() > 2 ? version_parts[2] : '0'
+
+# Generate version.h
+configure_file(
+  input: 'include/hbc/version.h.in',
+  output: 'version.h',
+  configuration: {
+    'VERSION': meson.project_version(),
+    'VERSION_MAJOR': version_major,
+    'VERSION_MINOR': version_minor,
+    'VERSION_PATCH': version_patch,
+  },
+  install_dir: 'include/hbc',
+  install: true,
+)
+
 # Include directories
 include_dirs = include_directories('include')
 
