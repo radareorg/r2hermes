@@ -3,6 +3,9 @@ name: CI
 env:
   R2V: 6.0.7
 
+permissions:
+  contents: write
+
 on:
   push:
   workflow_dispatch: {}
@@ -68,17 +71,9 @@ jobs:
           git archive --format=tar.gz --prefix=libhbc-$TAG/ $TAG -o libhbc-$TAG.tgz
 
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.build.outputs.tag }}
+          files: ./libhbc-${{ needs.build.outputs.tag }}.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./libhbc-${{ needs.build.outputs.tag }}.tgz
-          asset_name: libhbc-${{ needs.build.outputs.tag }}.tgz
-          asset_content_type: application/gzip

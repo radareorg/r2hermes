@@ -12,7 +12,9 @@
 #include "version.h"
 
 #ifndef R2_VERSION
-#define R_RETURN_VAL_IF_FAIL(x, y) if (! (x)) return y
+#define R_RETURN_VAL_IF_FAIL(x, y) \
+	if (! (x)) \
+	return y
 #define R_LOG_WARN(x, ...) // (x)
 #define R_LOG_DEBUG(x, ...) // (x)
 #endif
