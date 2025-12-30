@@ -7,3 +7,4 @@ third_party/
 *.so
 test/bins
 *.swp
+include/hbc/version.h
