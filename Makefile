@@ -53,7 +53,7 @@ format indent fmt:
 $(STATIC_LIB): $(LIB_OBJ)
 	ar rcs $@ $^
 
-$(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ)
+$(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ) | $(shell mkdir -p $(BIN_DIR))
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhbc
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(VH)
