@@ -330,9 +330,13 @@ static void cmd_file_info(RCore *core) {
 	HBC_PRINTF (core, "  Source Hash (header): %s\n", hex);
 
 	ut64 file_size = r_io_size (core->io);
-	bool has_footer = (file_size == (ut64)header.fileLength + 20);
+	ut64 expected_size = (ut64)header.fileLength + 20;
 
-	if (has_footer) {
+	HBC_PRINTF (core, "  File size: %"PFMT64u" bytes\n", file_size);
+	HBC_PRINTF (core, "  Header fileLength: %u bytes\n", header.fileLength);
+
+	if (file_size >= expected_size) {
+		/* Footer exists or file has extra bytes - read and verify */
 		ut8 footer[20] = { 0 };
 		r_io_read_at (core->io, header.fileLength, footer, 20);
 		r_hex_bin2str (footer, 20, hex);
@@ -344,13 +348,44 @@ static void cmd_file_info(RCore *core) {
 			HBC_PRINTF (core, "  Footer Hash (computed): %s\n", computed);
 			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
 			HBC_PRINTF (core, "  Status: %s\n", valid? "VALID": "INVALID");
-			if (!valid) {
+			if (!valid || file_size != expected_size) {
 				HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+			}
+			if (file_size > expected_size) {
+				HBC_PRINTF (core, "  Warning: File has %"PFMT64u" extra bytes after footer\n",
+					file_size - expected_size);
 			}
 			free (computed);
 		}
+	} else if (file_size == (ut64)header.fileLength && file_size >= 20) {
+		/* fileLength == file_size: Check if last 20 bytes are a valid footer
+		 * (some versions include footer in fileLength) */
+		ut64 content_size = file_size - 20;
+		ut8 footer[20] = { 0 };
+		r_io_read_at (core->io, content_size, footer, 20);
+		r_hex_bin2str (footer, 20, hex);
+
+		char *computed = r_core_cmd_strf (core, "ph sha1 %"PFMT64u" @0", content_size);
+		if (computed) {
+			r_str_trim (computed);
+			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
+			if (valid) {
+				HBC_PRINTF (core, "  Footer Hash (stored): %s\n", hex);
+				HBC_PRINTF (core, "  Footer Hash (computed): %s\n", computed);
+				HBC_PRINTF (core, "  Status: VALID (footer included in fileLength)\n");
+			} else {
+				HBC_PRINTF (core, "  Footer: NOT PRESENT (file ends at fileLength)\n");
+				HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+			}
+			free (computed);
+		} else {
+			HBC_PRINTF (core, "  Footer: NOT PRESENT (file ends at fileLength)\n");
+			HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+		}
 	} else {
-		HBC_PRINTF (core, "  Footer: NOT PRESENT\n");
+		HBC_PRINTF (core, "  Footer: UNKNOWN (file size mismatch)\n");
+		HBC_PRINTF (core, "  Expected: %"PFMT64u" or %u bytes, got %"PFMT64u"\n",
+			expected_size, header.fileLength, file_size);
 		HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 	}
 }
@@ -534,10 +569,9 @@ static bool plugin_init(struct r_core_plugin_session_t *s) {
 	RConfig *cfg = core->config;
 
 	/* Define fix-hbc macro using r2's generic ph and wx commands
-	 * 1. Resize file to fileLength+20 (reads fileLength from header at offset 32)
-	 * 2. Write SHA1 hash of bytes 0 to ($s-20) at offset ($s-20)
-	 * If footer already exists, resize is no-op */
-	r_core_cmd0 (core, "'(fix-hbc; ?e Fixing HBC footer hash...; r `pv4 @32`+20; wx `ph sha1 $s-20 @0` @ $s-20)");
+	 * 1. Resize file to fileLength+20 (using $() for nested eval)
+	 * 2. Write SHA1 hash of bytes 0 to ($s-20) at offset ($s-20) */
+	r_core_cmd0 (core, "'(fix-hbc; ?e Fixing HBC footer hash...; r `?vi $(pv4 @32)+20`; wx `ph sha1 $s-20 @0` @ $s-20)");
 
 	r_config_lock (cfg, false);
 
