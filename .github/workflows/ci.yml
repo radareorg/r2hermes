@@ -71,7 +71,7 @@ jobs:
           git archive --format=tar.gz --prefix=libhbc-$TAG/ $TAG -o libhbc-$TAG.tgz
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           files: ./libhbc-${{ needs.build.outputs.tag }}.tgz
