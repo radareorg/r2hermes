@@ -300,7 +300,7 @@ static RList *strings(RBinFile *bf) {
 	return ret;
 }
 
-RBinPlugin r_bin_plugin_hermes = {
+RBinPlugin r_bin_plugin_r2hermes = {
 	.meta = {
 		.name = "hbc.bin",
 		.author = "pancake",
@@ -321,7 +321,7 @@ RBinPlugin r_bin_plugin_hermes = {
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_BIN,
-	.data = &r_bin_plugin_hermes,
+	.data = &r_bin_plugin_r2hermes,
 	.version = R2_VERSION,
 	.abiversion = R2_ABIVERSION
 };
