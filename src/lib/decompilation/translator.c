@@ -216,14 +216,14 @@ static Result emit_incdec(TokenString *out, const ParsedInstruction *insn, const
 	return add (out, create_raw_token (suffix));
 }
 
-static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, int argc) {
-	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
+static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, int operand_count) {
+	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));  /* dest */
 	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 0)));
+	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));  /* callee */
 	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-	for (int i = 1; i <= argc; i++) {
-		if (i > 1) {
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+	for (int i = 2; i < operand_count; i++) {  /* args start at operand 2 */
+		if (i > 2) {
+			RETURN_IF_ERROR (add (out, create_raw_token (",")));
 		}
 		RETURN_IF_ERROR (add (out, reg_r_safe (insn, i)));
 	}
@@ -536,9 +536,8 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			/* a<idx> */
 			char buf[32];
-			snprintf (buf, sizeof (buf), "a%u", insn->arg2);
+			snprintf (buf, sizeof (buf), "args[%u]", insn->arg2 > 0 ? insn->arg2 - 1 : 0);
 			RETURN_IF_ERROR (add (out, create_raw_token (buf)));
 			break;
 		}
@@ -908,13 +907,13 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			break;
 		}
 	case OP_Call1:
-		return emit_call_fixed (out, insn_c, 2);
+		return emit_call_fixed (out, insn_c, 3);  /* dest, callee, arg1 */
 	case OP_Call2:
-		return emit_call_fixed (out, insn_c, 3);
+		return emit_call_fixed (out, insn_c, 4);  /* dest, callee, arg1, arg2 */
 	case OP_Call3:
-		return emit_call_fixed (out, insn_c, 4);
+		return emit_call_fixed (out, insn_c, 5);  /* dest, callee, arg1, arg2, arg3 */
 	case OP_Call4:
-		return emit_call_fixed (out, insn_c, 5);
+		return emit_call_fixed (out, insn_c, 6);  /* dest, callee, arg1, arg2, arg3, arg4 */
 	case OP_Call:
 	case OP_CallLong:
 	case OP_Construct:

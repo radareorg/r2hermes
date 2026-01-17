@@ -374,6 +374,9 @@ typedef struct {
 	u32 *frame_ends;
 	u32 *bb_starts;
 	u32 *bb_ends;
+	u32 *if_block_stack;
+	u32 if_block_stack_count;
+	u32 if_block_stack_cap;
 } OutputBuffers;
 
 static inline void output_buffers_fini(OutputBuffers *ob) {
@@ -381,6 +384,21 @@ static inline void output_buffers_fini(OutputBuffers *ob) {
 	free (ob->frame_ends);
 	free (ob->bb_starts);
 	free (ob->bb_ends);
+	free (ob->if_block_stack);
+}
+
+static inline Result if_block_stack_push(OutputBuffers *ob, u32 target_addr) {
+	if (ob->if_block_stack_count >= ob->if_block_stack_cap) {
+		u32 new_cap = ob->if_block_stack_cap ? ob->if_block_stack_cap * 2 : 16;
+		u32 *new_stack = (u32 *)realloc(ob->if_block_stack, new_cap * sizeof(u32));
+		if (!new_stack) {
+			return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom if_block_stack");
+		}
+		ob->if_block_stack = new_stack;
+		ob->if_block_stack_cap = new_cap;
+	}
+	ob->if_block_stack[ob->if_block_stack_count++] = target_addr;
+	return SUCCESS_RESULT();
 }
 
 /* ============= CFG construction ============= */
@@ -1141,9 +1159,11 @@ static bool bbvec_contains(BasicBlock **arr, u32 count, BasicBlock *bb) {
 }
 
 static bool token_needs_space(TokenType prev, TokenType cur) {
-	/* Space before '(' for readability */
 	if (cur == TOKEN_TYPE_LEFT_PARENTHESIS) {
-		return true;
+		if (prev == TOKEN_TYPE_RIGHT_HAND_REG || prev == TOKEN_TYPE_LEFT_HAND_REG) {
+			return false;  /* r1(args) not r1 (args) */
+		}
+		return true;  
 	}
 	/* No space before other punctuation */
 	if (cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR) {
@@ -1659,13 +1679,31 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 		bool is_assignment = (st->head->type == TOKEN_TYPE_LEFT_HAND_REG);
 		int written_reg_num = -1;
 
+		bool has_call = false;
+		bool has_jump = false;
+		for (Token *tok = st->head; tok; tok = tok->next) {
+			if (tok->type == TOKEN_TYPE_LEFT_PARENTHESIS) {
+				has_call = true;
+			}
+			if (tok->type == TOKEN_TYPE_JUMP_CONDITION || tok->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
+				has_jump = true;
+			}
+		}
+
+		if (has_jump) {
+			for (int r = 0; r < 256; r++) {
+				register_read_after[r] = true;
+			}
+		}
+
 		if (is_assignment) {
 			LeftHandRegToken *lhr = (LeftHandRegToken *)st->head;
 			written_reg_num = lhr->reg_num;
 
 			/* Mark as dead if it writes a register never read after this point */
+			/* BUT never eliminate function calls - they may have side effects */
 			if (written_reg_num >= 0 && written_reg_num < 256) {
-				if (!register_read_after[written_reg_num]) {
+				if (!register_read_after[written_reg_num] && !has_call) {
 					dce[si] = true;
 				}
 				/* Now mark this register as written (no longer readable after) */
@@ -1858,6 +1896,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 			}
 
+			while (ob.if_block_stack_count > 0 && ob.if_block_stack[ob.if_block_stack_count - 1] == pos) {
+				ob.if_block_stack_count--;
+				state->indent_level--;
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+			}
+
 			/* Basic block case label */
 			if (use_dispatch) {
 				bool is_bb_start = (bsearch (&pos, ob.bb_starts, bbcount, sizeof (u32), cmp_u32) != NULL);
@@ -1945,8 +1990,54 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		bool emitted_continue = false;
 		Token *head = st->head;
-		/* Skip jump statements entirely - dispatch is disabled */
 		if (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION || head->type == TOKEN_TYPE_JUMP_CONDITION) {
+			u32 target_addr = 0;
+			if (head->type == TOKEN_TYPE_JUMP_CONDITION) {
+				target_addr = ((JumpConditionToken *)head)->target_address;
+			} else {
+				target_addr = ((JumpNotConditionToken *)head)->target_address;
+			}
+			u32 current_pos = asm_ref ? asm_ref->original_pos : 0;
+
+			bool is_unconditional = false;
+			if (head->next && head->next->type == TOKEN_TYPE_RAW && !head->next->next) {
+				RawToken *rt = (RawToken *)head->next;
+				if (rt->text && (strcmp(rt->text, "true") == 0 || strcmp(rt->text, "false") == 0)) {
+					is_unconditional = true;
+				}
+			}
+
+			if (is_unconditional) {
+				if (target_addr > current_pos) {
+					if (!state->options.suppress_comments) {
+						char goto_buf[64];
+						snprintf (goto_buf, sizeof (goto_buf), "/* goto 0x%08x */\n", target_addr);
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, goto_buf));
+					}
+				} else {
+					if (!state->options.suppress_comments) {
+						char goto_buf[64];
+						snprintf (goto_buf, sizeof (goto_buf), "/* loop to 0x%08x */\n", target_addr);
+						RETURN_IF_ERROR (_hbc_string_buffer_append (out, goto_buf));
+					}
+				}
+				continue;
+			}
+
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "if ("));
+			for (Token *t = head->next; t; t = t->next) {
+				RETURN_IF_ERROR (_hbc_token_to_string (t, out));
+			}
+
+			if (target_addr > current_pos) {
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
+				RETURN_IF_ERROR (if_block_stack_push (&ob, target_addr));
+				state->indent_level++;
+			} else {
+				char goto_buf[64];
+				snprintf (goto_buf, sizeof (goto_buf), ") { /* loop to 0x%08x */ }\n", target_addr);
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, goto_buf));
+			}
 			continue;
 		} else {
 			/* Emit all tokens, handling nested function expressions */
@@ -2010,7 +2101,17 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 						continue;
 					}
 				}
-				if (!first_tok && token_needs_space (prev_type, t->type)) {
+				bool needs_space = false;
+				if (!first_tok) {
+					needs_space = token_needs_space (prev_type, t->type);
+					if (needs_space && t->type == TOKEN_TYPE_RAW) {
+						RawToken *rt = (RawToken *)t;
+						if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')')) {
+							needs_space = false;
+						}
+					}
+				}
+				if (needs_space) {
 					RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
 				}
 				RETURN_IF_ERROR (_hbc_token_to_string (t, out));
@@ -2057,6 +2158,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 			}
 		}
+	}
+
+	while (ob.if_block_stack_count > 0) {
+		ob.if_block_stack_count--;
+		state->indent_level--;
+		RETURN_IF_ERROR (append_indent (out, state->indent_level));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 	}
 
 	/* Close switch loop */
