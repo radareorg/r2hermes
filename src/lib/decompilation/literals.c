@@ -43,7 +43,8 @@ Result _hbc_format_property_from_string_id(HBCReader *r, u32 string_id, StringBu
 		s = r->strings[string_id];
 	}
 	if (_hbc_is_js_identifier (s)) {
-		return _hbc_string_buffer_append (out, s? (const char *)".": ".");
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "."));
+		return _hbc_string_buffer_append (out, s);
 	}
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "["));
 	if (s) {
