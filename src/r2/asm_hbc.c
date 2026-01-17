@@ -214,7 +214,7 @@ static char *parse(RAsmPluginSession *aps, const char *data) {
 	return r_str_pseudo_transform (pseudo_rules, data);
 }
 
-RAsmPlugin r_asm_plugin_hbc = {
+RAsmPlugin r_asm_plugin_r2hermes = {
 	.meta = {
 		.name = "hbc.pseudo",
 		.desc = "Hermes bytecode pseudo syntax",
@@ -227,7 +227,7 @@ RAsmPlugin r_asm_plugin_hbc = {
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ASM,
-	.data = &r_asm_plugin_hbc,
+	.data = &r_asm_plugin_r2hermes,
 	.version = R2_VERSION,
 	.abiversion = R2_ABIVERSION
 };

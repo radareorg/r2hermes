@@ -632,7 +632,7 @@ static char *regs(RArchSession *s) {
 	return r_strbuf_drain (sb);
 }
 
-const RArchPlugin r_arch_plugin_hermes = {
+const RArchPlugin r_arch_plugin_r2hermes = {
 	.meta = {
 		.name = "hbc.arch",
 		.author = "pancake",
@@ -654,7 +654,7 @@ const RArchPlugin r_arch_plugin_hermes = {
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ARCH,
-	.data = (void *)&r_arch_plugin_hermes,
+	.data = (void *)&r_arch_plugin_r2hermes,
 	.version = R2_VERSION,
 	.abiversion = R2_ABIVERSION
 };
