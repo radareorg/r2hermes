@@ -15,6 +15,9 @@ typedef struct {
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
+	ut8 *tmp_buffer; /* temporary buffer for string operations */
+	size_t tmp_buffer_size; /* size of tmp_buffer */
+	ut64 tmp_buffer_offset; /* current offset in tmp_buffer */
 } HermesArchSession;
 
 static ut32 detect_version_from_bin(RArchSession *s) {
@@ -167,17 +170,33 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 			break;
 		}
 
+		HBCStringMeta meta; // Declare meta variable for string metadata
 		// Check if this operand is a string ID
 		if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
 			ut32 string_id = operand_values[i];
-			if (string_id < hs->string_count && hs->hbc) {
-				HBCStringMeta meta;
-				Result meta_result = hbc_str_meta (hs->hbc, string_id, &meta);
-				if (meta_result.code == RESULT_SUCCESS) {
-					/* Set op->ptr to the virtual address of the string.
-					 * The binary is loaded at 0x10000000, so add the string offset to that. */
-					op->ptr = (st64) (0x10000000 + hs->string_storage_offset + meta.offset);
+			// Use my updated string resolution function that handles offset-based lookup
+			const char *string_value;
+			Result str_result = hbc_str (hs->hbc, string_id, &string_value);
+			if (str_result.code == RESULT_SUCCESS) {
+				// Store string in tmp buffer
+				ut64 string_len = strlen (string_value);
+				if (string_len + 1 > hs->tmp_buffer_size) {
+					ut8 *new_buf = (ut8 *)realloc (hs->tmp_buffer, string_len + 1);
+					if (new_buf) {
+						hs->tmp_buffer = new_buf;
+						hs->tmp_buffer_size = string_len + 1;
+						hs->tmp_buffer_offset = 0;
+					}
 				}
+				// Copy the string to tmp buffer
+				if (hs->tmp_buffer) {
+					memcpy (hs->tmp_buffer, string_value, string_len);
+					hs->tmp_buffer_offset = (ut64)string_len + 1;
+				}
+				// Set op->ptr to the virtual address
+				op->ptr = (st64) (0x10000000 + string_id);
+				// Update string storage offset temporarily for this context
+				hbc_str_meta (hs->hbc, string_id, &meta); // Keep for consistency
 			}
 		}
 		// Check if this operand is a function ID
@@ -542,6 +561,13 @@ static bool encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 		return false;
 	}
 
+	// Initialize tmp_buffer if not already done
+	if (!hs->tmp_buffer) {
+		hs->tmp_buffer = (ut8 *)malloc (MAX_OP_SIZE + 1);
+		hs->tmp_buffer_size = MAX_OP_SIZE + 1;
+		hs->tmp_buffer_offset = 0;
+	}
+
 	if (!hs->bytecode_version) {
 		hs->bytecode_version = detect_version_from_bin (s);
 		if (!hs->bytecode_version) {
@@ -596,7 +622,12 @@ static bool fini(RArchSession *s) {
 			hs->hbc = NULL;
 		}
 		free (hs);
-		s->data = NULL;
+			s->data = NULL;
+		if (hs->tmp_buffer) {
+			free (hs->tmp_buffer);
+			hs->tmp_buffer = NULL;
+			hs->tmp_buffer_size = 0;
+		}
 	}
 	return true;
 }

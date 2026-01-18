@@ -74,8 +74,8 @@ $(ARCH_PLUGIN): $(ARCH_OBJ) $(HERMES_LIB)
 	$(CC) $(LDFLAGS) -o $@ $(ARCH_OBJ) $(HERMES_LIB)
 
 # Binary format plugin
-$(BIN_PLUGIN): $(BIN_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) -o $@ $(BIN_OBJ) $(HERMES_LIB)
+$(BIN_PLUGIN): $(BIN_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(BIN_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
 
 # Assembler/pseudo plugin
 $(ASM_PLUGIN): $(ASM_OBJ)

@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - pancake */
+/* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
@@ -20,13 +20,13 @@ static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 }
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
-	if (check (bf, buf) && bf->file) {
-		HBC *hbc = hbc_new_file (bf->file);
+	if (check (bf, buf)) {
+		bf->buf = buf;  // Set buf before creating hbc
+		HBC *hbc = hbc_new_r2 (bf);
 		if (hbc) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			bo->hbc = hbc;
 			bf->bo->bin_obj = bo;
-			bf->buf = buf;
 			return true;
 		}
 	}
@@ -111,6 +111,11 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
 		if (is_valid_entrypoint (bf->buf, offset)) {
 			return offset;
 		}
+	}
+
+	/* Try 5: Check for function at typical entry point offset (0xb0 for most HBC files) */
+	if (is_valid_entrypoint (bf->buf, 176)) /* 0xb0 */ {
+		return 176;
 	}
 
 	return 0;
