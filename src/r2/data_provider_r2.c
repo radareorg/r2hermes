@@ -297,32 +297,44 @@ Result hbc_str(HBC *hbc, u32 string_id, const char **out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
-	// Try direct r2 strings first
-	if (hbc->bf && hbc->bf->bo) {
-		RBinObject *bo = (RBinObject *)hbc->bf->bo;
-		if (bo->strings) {
-			RListIter *iter;
-			RBinString *str;
-			r_list_foreach (bo->strings, iter, str) {
-				if (str && str->ordinal == string_id) {
-					*out_str = str->string;
-					return SUCCESS_RESULT ();
-				}
-			}
+	// The HBC string ID is actually an offset into the string storage area!
+	ut64 str_offset = string_id;
+	ut64 buf_size = r_buf_size (hbc->buf);
+
+	if (str_offset >= buf_size) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "String offset out of bounds");
+	}
+
+	// Find null terminator to determine string length
+	ut64 max_len = buf_size - str_offset;
+	ut64 str_len = 0;
+	while (str_len < max_len) {
+		ut8 byte;
+		if (r_buf_read_at (hbc->buf, str_offset + str_len, &byte, 1) != 1) {
+			break;
 		}
+		if (byte == 0) {
+			break;
+		}
+		str_len++;
 	}
 
-	// Fallback: return hardcoded strings for test file
-	if (string_id == 0) {
-		*out_str = "global";
-		return SUCCESS_RESULT ();
-	}
-	if (string_id == 162) { // 0xa2
-		*out_str = "print(123);";
-		return SUCCESS_RESULT ();
+	// Use tmp_read_buffer for strings
+	if (!hbc->tmp_read_buffer || hbc->tmp_buffer_size < str_len + 1) {
+		ut8 *new_buf = (ut8 *)realloc (hbc->tmp_read_buffer, str_len + 1);
+		if (!new_buf) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+		}
+		hbc->tmp_read_buffer = new_buf;
+		hbc->tmp_buffer_size = str_len + 1;
 	}
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
+	if (r_buf_read_at (hbc->buf, str_offset, hbc->tmp_read_buffer, str_len) != (st64)str_len) {
+		return ERROR_RESULT (RESULT_ERROR_READ, "Failed to read string");
+	}
+	hbc->tmp_read_buffer[str_len] = '\0';
+	*out_str = (const char *)hbc->tmp_read_buffer;
+	return SUCCESS_RESULT ();
 }
 
 Result hbc_str_meta(HBC *hbc, u32 string_id, HBCStringMeta *out) {
