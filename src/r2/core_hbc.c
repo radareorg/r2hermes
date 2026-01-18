@@ -5,6 +5,12 @@
 #include <r_core.h>
 #include <hbc/hbc.h>
 
+/* Plugin registration - need these when HBC_CORE_REGISTER_PLUGINS is enabled */
+#ifdef HBC_CORE_REGISTER_PLUGINS
+extern RArchPlugin r_arch_plugin_r2hermes;
+extern RBinPlugin r_bin_plugin_r2hermes;
+#endif
+
 typedef struct {
 	HBC *hbc;
 	RCore *core;
@@ -505,6 +511,16 @@ static bool plugin_init(RCorePluginSession *s) {
 	HbcContext *ctx = R_NEW0 (HbcContext);
 	ctx->core = core;
 	s->data = ctx;
+
+#ifdef HBC_CORE_REGISTER_PLUGINS
+	/* Register arch and bin plugins when enabled */
+	if (core->anal && core->anal->arch) {
+		r_arch_plugin_add (core->anal->arch, &r_arch_plugin_r2hermes);
+	}
+	if (core->bin) {
+		r_bin_plugin_add (core->bin, &r_bin_plugin_r2hermes);
+	}
+#endif
 
 	/* Define fix-hbc macro using r2's generic ph and wx commands
 	 * 1. Resize file to fileLength+20 (using $() for nested eval)
