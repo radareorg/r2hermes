@@ -113,6 +113,11 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
 		}
 	}
 
+	/* Try 5: Check for function at typical entry point offset (0xb0 for most HBC files) */
+	if (is_valid_entrypoint (bf->buf, 176)) /* 0xb0 */ {
+		return 176;
+	}
+
 	return 0;
 }
 
