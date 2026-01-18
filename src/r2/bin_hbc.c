@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - pancake */
+/* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
@@ -20,8 +20,8 @@ static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 }
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
-	if (check (bf, buf) && bf->file) {
-		HBC *hbc = hbc_new_file (bf->file);
+	if (check (bf, buf)) {
+		HBC *hbc = hbc_new_r2 (bf);
 		if (hbc) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			bo->hbc = hbc;
