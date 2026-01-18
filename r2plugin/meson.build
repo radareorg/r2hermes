@@ -25,6 +25,7 @@ configure_file(
 # Include directories
 include_dirs = include_directories(join_paths('..', 'include'))
 r_core_additional_inc += include_dirs
+r_core_additional_inc += ['../xps/p/r2hermes/include']
 
 # Library source files
 lib_utils_src = files(
@@ -55,8 +56,8 @@ lib_opcodes_src = files(
 lib_core_src = files(
   '../src/lib/hbc.c',
   '../src/lib/r2.c',
-  '../src/lib/data_provider_file.c',
-  '../src/lib/data_provider_buffer.c',
+  '../src/r2/core_hbc.c',
+  '../src/r2/data_provider_r2.c',
 )
 
 lib_src = lib_utils_src + lib_parsers_src + lib_disasm_src + lib_decompile_src + lib_opcodes_src + lib_core_src

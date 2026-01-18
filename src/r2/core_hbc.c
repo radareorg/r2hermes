@@ -6,7 +6,7 @@
 #include <hbc/hbc.h>
 
 typedef struct {
-	HBC *hbc; /* Cached HBC data provider per file */
+	HBC *hbc;
 	RCore *core;
 	char *file_path;
 } HbcContext;
@@ -587,7 +587,7 @@ static bool plugin_fini(RCorePluginSession *s) {
 }
 
 /* Plugin initialization */
-static RCorePlugin r_core_plugin_r2hermes = {
+const RCorePlugin r_core_plugin_r2hermes = {
 	.meta = {
 		.name = "core_hbc",
 		.desc = "Hermes bytecode decompiler plugin",
