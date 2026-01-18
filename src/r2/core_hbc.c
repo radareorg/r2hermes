@@ -48,9 +48,6 @@ static char *r2_flag_callback(void *context, u64 address) {
 	return NULL;
 }
 
-#define HBC_PRINTF(core, fmt, ...) r_cons_printf(core->cons,(fmt), ## __VA_ARGS__)
-#define HBC_PRINT(core, s) r_cons_print(core->cons,(s))
-
 static const char *current_file_path(RCore *core) {
 	if (core && core->bin) {
 		RBinInfo *bi = r_bin_get_info (core->bin);
@@ -151,7 +148,7 @@ static HBCDecompOptions make_decompile_options(RCore *core, bool show_offsets, u
 static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_offsets) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
 
@@ -169,9 +166,9 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 		res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
 		if (res.code == RESULT_SUCCESS && output) {
 			r_str_trim (output);
-			HBC_PRINTF (core, "%s\n", output);
+			r_cons_println (core->cons, output);
 		} else {
-			HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (res.error_message));
+			R_LOG_ERROR ("Decompiling function %u: %s", function_id, safe_errmsg (res.error_message));
 		}
 		free (output);
 	} else {
@@ -181,9 +178,9 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 		res = hbc_decomp_all (ctx->hbc, opts, &output);
 		if (res.code == RESULT_SUCCESS && output) {
 			r_str_trim (output);
-			HBC_PRINTF (core, "%s\n", output);
+			r_cons_println (core->cons, output);
 		} else {
-			HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (res.error_message));
+			R_LOG_ERROR ("Error decompiling: %s", safe_errmsg (res.error_message));
 		}
 		free (output);
 	}
@@ -193,7 +190,7 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 static void cmd_decompile_all_ex(HbcContext *ctx, RCore *core, bool show_offsets) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
 
@@ -202,9 +199,9 @@ static void cmd_decompile_all_ex(HbcContext *ctx, RCore *core, bool show_offsets
 	res = hbc_decomp_all (ctx->hbc, opts, &output);
 	if (res.code == RESULT_SUCCESS && output) {
 		r_str_trim (output);
-		HBC_PRINTF (core, "%s\n", output);
+		r_cons_println (core->cons, output);
 	} else {
-		HBC_PRINTF (core, "Error decompiling: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("Error decompiling: %s", safe_errmsg (res.error_message));
 	}
 	free (output);
 }
@@ -213,18 +210,18 @@ static void cmd_decompile_all_ex(HbcContext *ctx, RCore *core, bool show_offsets
 static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *addr_str, bool show_offsets) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
 	u32 function_id = parse_function_id (addr_str);
 	u32 count;
 	res = hbc_func_count (ctx->hbc, &count);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: cannot get function count\n");
+		R_LOG_ERROR ("cannot get function count");
 		return;
 	}
 	if (function_id >= count) {
-		HBC_PRINTF (core, "Error: function id %u out of range (count=%u)\n", function_id, count);
+		R_LOG_ERROR ("function id %u out of range (count=%u)", function_id, count);
 		return;
 	}
 	/* Get function base address for offset calculation */
@@ -236,9 +233,9 @@ static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *
 	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
 	if (res.code == RESULT_SUCCESS && output) {
 		r_str_trim (output);
-		HBC_PRINTF (core, "%s\n", output);
+		r_cons_println (core->cons, output);
 	} else {
-		HBC_PRINTF (core, "Error decompiling function %u: %s\n", function_id, safe_errmsg (res.error_message));
+		R_LOG_ERROR ("Decompiling function %u: %s", function_id, safe_errmsg (res.error_message));
 	}
 	free (output);
 }
@@ -247,23 +244,23 @@ static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *
 static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
 
 	u32 count;
 	res = hbc_func_count (ctx->hbc, &count);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: cannot get function count\n");
+		R_LOG_ERROR ("cannot get function count");
 		return;
 	}
-	HBC_PRINTF (core, "Functions (%u):\n", count);
+	r_cons_printf(core->cons,"Functions (%u):\n", count);
 
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc info;
 		Result res = hbc_func_info (ctx->hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
-			HBC_PRINTF (core, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i,
+			r_cons_printf(core->cons,"  [%3u] %s at 0x%08x size=0x%x params=%u\n", i,
 					r_str_get_fail (info.name, "unknown"),
 					info.offset, info.size, info.param_count);
 		}
@@ -274,14 +271,14 @@ static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 static void cmd_file_info(HbcContext *ctx, RCore *core) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
 
 	HBCHeader header;
        	res = hbc_hdr (ctx->hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "Error reading header: %s\n", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("reading header: %s", safe_errmsg (res.error_message));
 		return;
 	}
 	RCons *cons = core->cons;
@@ -321,19 +318,19 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 		ut8 footer[20] = { 0 };
 		r_io_read_at (core->io, header.fileLength, footer, 20);
 		r_hex_bin2str (footer, 20, hex);
-		HBC_PRINTF (core, "  Footer Hash (stored): %s\n", hex);
+		r_cons_printf(core->cons,"  Footer Hash (stored): %s\n", hex);
 
 		char *computed = r_core_cmd_strf (core, "ph sha1 %u @0", header.fileLength);
 		if (computed) {
 			r_str_trim (computed);
-			HBC_PRINTF (core, "  Footer Hash (computed): %s\n", computed);
+			r_cons_printf(core->cons,"  Footer Hash (computed): %s\n", computed);
 			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
-			HBC_PRINTF (core, "  Status: %s\n", valid? "VALID": "INVALID");
+			r_cons_printf(core->cons,"  Status: %s\n", valid? "VALID": "INVALID");
 			if (!valid || file_size != expected_size) {
-				HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+				r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 			}
 			if (file_size > expected_size) {
-				HBC_PRINTF (core, "  Warning: File has %"PFMT64u" extra bytes after footer\n",
+				r_cons_printf(core->cons,"  Warning: File has %"PFMT64u" extra bytes after footer\n",
 					file_size - expected_size);
 			}
 			free (computed);
@@ -351,23 +348,23 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 			r_str_trim (computed);
 			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
 			if (valid) {
-				HBC_PRINTF (core, "  Footer Hash (stored): %s\n", hex);
-				HBC_PRINTF (core, "  Footer Hash (computed): %s\n", computed);
-				HBC_PRINTF (core, "  Status: VALID (footer included in fileLength)\n");
+				r_cons_printf(core->cons,"  Footer Hash (stored): %s\n", hex);
+				r_cons_printf(core->cons,"  Footer Hash (computed): %s\n", computed);
+				r_cons_printf(core->cons,"  Status: VALID (footer included in fileLength)\n");
 			} else {
-				HBC_PRINTF (core, "  Footer: NOT PRESENT (file ends at fileLength)\n");
-				HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+				r_cons_printf(core->cons,"  Footer: NOT PRESENT (file ends at fileLength)\n");
+				r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 			}
 			free (computed);
 		} else {
-			HBC_PRINTF (core, "  Footer: NOT PRESENT (file ends at fileLength)\n");
-			HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+			r_cons_printf(core->cons,"  Footer: NOT PRESENT (file ends at fileLength)\n");
+			r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 		}
 	} else {
-		HBC_PRINTF (core, "  Footer: UNKNOWN (file size mismatch)\n");
-		HBC_PRINTF (core, "  Expected: %"PFMT64u" or %u bytes, got %"PFMT64u"\n",
+		r_cons_printf(core->cons,"  Footer: UNKNOWN (file size mismatch)\n");
+		r_cons_printf(core->cons,"  Expected: %"PFMT64u" or %u bytes, got %"PFMT64u"\n",
 			expected_size, header.fileLength, file_size);
-		HBC_PRINTF (core, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+		r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 	}
 }
 
@@ -375,7 +372,7 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "{\"error\":\"%s\"}\n", safe_errmsg (res.error_message));
+		r_cons_printf(core->cons,"{\"error\":\"%s\"}\n", safe_errmsg (res.error_message));
 		return;
 	}
 
@@ -384,11 +381,11 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	u32 count;
 	res = hbc_func_count (ctx->hbc, &count);
 	if (res.code != RESULT_SUCCESS) {
-		HBC_PRINTF (core, "{\"error\":\"cannot get function count\"}\n");
+		r_cons_printf(core->cons,"{\"error\":\"cannot get function count\"}\n");
 		return;
 	}
 	if (function_id >= count) {
-		HBC_PRINTF (core, "{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
+		r_cons_printf(core->cons,"{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
 		return;
 	}
 	char *output = NULL;
@@ -412,7 +409,7 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 
 /* Show help */
 static void cmd_help(RCore *core) {
-	HBC_PRINT (core,
+	r_cons_print (core->cons,
 		"Usage: pd:h[subcommand]\n"
 		"Hermes bytecode decompiler via libhbc\n\n"
 		"Subcommands:\n"
@@ -449,7 +446,7 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 	case '\0': /* pd:h */
 	case ' ': /* pd:h (with spaces) */
 		if (*arg == ' ' && arg[1] != '\0' && !isspace ((unsigned char)arg[1])) {
-			HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
+			R_LOG_ERROR ("Unknown subcommand. Use pd:h? for help");
 			break;
 		}
 		cmd_decompile_current_ex (ctx, core, false);
@@ -494,7 +491,7 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 		cmd_help (core);
 		break;
 	default:
-		HBC_PRINT (core, "Unknown subcommand. Use pd:h? for help.\n");
+		R_LOG_ERROR ("Unknown subcommand. Use pd:h? for help");
 		break;
 	}
 
@@ -516,8 +513,7 @@ static bool plugin_init(RCorePluginSession *s) {
 
 	r_config_lock (cfg, false);
 
-	RConfigNode *node;
-	node = r_config_set (cfg, "hbc.pretty_literals", "true");
+	RConfigNode *node = r_config_set (cfg, "hbc.pretty_literals", "true");
 	if (node) {
 		r_config_node_desc (node, "Format literals nicely (objects, arrays, etc)");
 	}
