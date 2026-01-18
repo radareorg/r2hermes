@@ -166,7 +166,7 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 		res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
 		if (res.code == RESULT_SUCCESS && output) {
 			r_str_trim (output);
-			r_cons_println (core, output);
+			r_cons_println (core->cons, output);
 		} else {
 			R_LOG_ERROR ("Decompiling function %u: %s", function_id, safe_errmsg (res.error_message));
 		}
@@ -178,7 +178,7 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 		res = hbc_decomp_all (ctx->hbc, opts, &output);
 		if (res.code == RESULT_SUCCESS && output) {
 			r_str_trim (output);
-			r_cons_println (core, output);
+			r_cons_println (core->cons, output);
 		} else {
 			R_LOG_ERROR ("Error decompiling: %s", safe_errmsg (res.error_message));
 		}
@@ -199,7 +199,7 @@ static void cmd_decompile_all_ex(HbcContext *ctx, RCore *core, bool show_offsets
 	res = hbc_decomp_all (ctx->hbc, opts, &output);
 	if (res.code == RESULT_SUCCESS && output) {
 		r_str_trim (output);
-		r_cons_println (core, output);
+		r_cons_println (core->cons, output);
 	} else {
 		R_LOG_ERROR ("Error decompiling: %s", safe_errmsg (res.error_message));
 	}
@@ -233,7 +233,7 @@ static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *
 	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
 	if (res.code == RESULT_SUCCESS && output) {
 		r_str_trim (output);
-		r_cons_println (core, output);
+		r_cons_println (core->cons, output);
 	} else {
 		R_LOG_ERROR ("Decompiling function %u: %s", function_id, safe_errmsg (res.error_message));
 	}
