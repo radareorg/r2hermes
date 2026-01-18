@@ -21,12 +21,12 @@ static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 	if (check (bf, buf)) {
+		bf->buf = buf;  // Set buf before creating hbc
 		HBC *hbc = hbc_new_r2 (bf);
 		if (hbc) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			bo->hbc = hbc;
 			bf->bo->bin_obj = bo;
-			bf->buf = buf;
 			return true;
 		}
 	}
