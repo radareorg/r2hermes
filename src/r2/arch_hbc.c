@@ -59,11 +59,7 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	}
 
 	/* Try to open the file with hermesdec file provider (properly parses all tables) */
-	if (hs->hbc) {
-		hbc_free (hs->hbc);
-		hs->hbc = NULL;
-	}
-
+	hbc_free (hs->hbc);
 	hs->hbc = hbc_new_file (bi->file);
 	if (!hs->hbc) {
 		return false;
@@ -107,11 +103,11 @@ static bool opcode_is_conditional(u8 opcode) {
 	case OP_JmpUndefinedLong:
 		return true;
 	default:
+		/* Relational and equality conditional jumps occupy 152..191 */
+		if (opcode >= OP_JLess && opcode <= OP_JStrictNotEqualLong) {
+			return true;
+		}
 		break;
-	}
-	/* Relational and equality conditional jumps occupy 152..191 */
-	if (opcode >= OP_JLess && opcode <= OP_JStrictNotEqualLong) {
-		return true;
 	}
 	return false;
 }
@@ -533,6 +529,7 @@ static char *mnemonics(RArchSession *s, int id, bool json) {
 	(void)s;
 	(void)id;
 	(void)json;
+	// TODO: not implemented
 	return NULL;
 }
 
