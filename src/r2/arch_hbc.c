@@ -15,6 +15,9 @@ typedef struct {
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
+	ut8 *tmp_buffer; /* temporary buffer for string operations */
+	size_t tmp_buffer_size; /* size of tmp_buffer */
+	ut64 tmp_buffer_offset; /* current offset in tmp_buffer */
 } HermesArchSession;
 
 static ut32 detect_version_from_bin(RArchSession *s) {
@@ -167,6 +170,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 			break;
 		}
 
+		HBCStringMeta meta; // Declare meta variable for string metadata
 		// Check if this operand is a string ID
 		if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
 			ut32 string_id = operand_values[i];
