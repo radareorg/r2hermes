@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - pancake */
+/* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
 #include <r_asm.h>
 
@@ -214,7 +214,7 @@ static char *parse(RAsmPluginSession *aps, const char *data) {
 	return r_str_pseudo_transform (pseudo_rules, data);
 }
 
-RAsmPlugin r_asm_plugin_r2hermes = {
+const RAsmPlugin r_asm_plugin_r2hermes = {
 	.meta = {
 		.name = "hbc.pseudo",
 		.desc = "Hermes bytecode pseudo syntax",
@@ -227,7 +227,7 @@ RAsmPlugin r_asm_plugin_r2hermes = {
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_ASM,
-	.data = &r_asm_plugin_r2hermes,
+	.data = (void *)&r_asm_plugin_r2hermes,
 	.version = R2_VERSION,
 	.abiversion = R2_ABIVERSION
 };

@@ -598,7 +598,7 @@ const RCorePlugin r_core_plugin_r2hermes = {
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_CORE,
-	.data = &r_core_plugin_r2hermes,
+	.data = (void *)&r_core_plugin_r2hermes,
 	.version = R2_VERSION,
 	.abiversion = R2_ABIVERSION
 };
