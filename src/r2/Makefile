@@ -32,6 +32,7 @@ ARCH_SRC = arch_hbc.c
 BIN_SRC = bin_hbc.c
 ASM_SRC = asm_hbc.c
 CORE_SRC = core_hbc.c
+CORE_ONE_SRC = core_hbc_one.c
 R2_PROVIDER_SRC = data_provider_r2.c
 
 # Object files
@@ -39,6 +40,7 @@ ARCH_OBJ = arch_hbc.o
 BIN_OBJ = bin_hbc.o
 ASM_OBJ = asm_hbc.o
 CORE_OBJ = core_hbc.o
+CORE_ONE_OBJ = core_hbc_one.o
 R2_PROVIDER_OBJ = data_provider_r2.o
 
 # Target plugins
@@ -46,6 +48,7 @@ ARCH_PLUGIN = arch_hbc.$(EXT_SO)
 BIN_PLUGIN = bin_hbc.$(EXT_SO)
 ASM_PLUGIN = asm_hbc.$(EXT_SO)
 CORE_PLUGIN = core_hbc.$(EXT_SO)
+CORE_ONE_PLUGIN = core_hbc_one.$(EXT_SO)
 
 # Library paths
 HERMES_LIB_DIR = ../../build
@@ -53,7 +56,7 @@ HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
 HERMES_LIB_NO_FILE_PROVIDER = $(HERMES_LIB_DIR)/libhbc_nofile.a
 
 # All targets
-ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN)
+ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN) $(CORE_ONE_PLUGIN)
 
 .PHONY: all clean install help check-r2 r2one
 
@@ -105,6 +108,10 @@ $(ASM_PLUGIN): $(ASM_OBJ)
 $(CORE_PLUGIN): $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
 	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
 
+# Core decompiler plugin with plugin registration enabled (r2one)
+$(CORE_ONE_PLUGIN): $(CORE_ONE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_ONE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
+
 # Compile object files
 $(ARCH_OBJ): $(ARCH_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -118,12 +125,15 @@ $(ASM_OBJ): $(ASM_SRC)
 $(CORE_OBJ): $(CORE_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(CORE_ONE_OBJ): $(CORE_ONE_SRC)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(R2_PROVIDER_OBJ): $(R2_PROVIDER_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Clean build artifacts
 clean:
-	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(ALL_TARGETS)
+	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(CORE_ONE_OBJ) $(R2_PROVIDER_OBJ) $(ALL_TARGETS)
 
 # Install plugins (optional - requires radare2 installation)
 install: $(ALL_TARGETS)
@@ -137,12 +147,14 @@ user-install:
 	cp -f $(BIN_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(ASM_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(CORE_PLUGIN) $(R2_PLUGDIR)
+	cp -f $(CORE_ONE_PLUGIN) $(R2_PLUGDIR)
 
 user-uninstall:
 	rm -f $(R2_PLUGDIR)/$(ARCH_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(BIN_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(ASM_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(CORE_PLUGIN)
+	rm -f $(R2_PLUGDIR)/$(CORE_ONE_PLUGIN)
 
 # Uninstall plugins
 uninstall:
