@@ -78,6 +78,9 @@ r2 test:
 	$(MAKE) -C src/r2 && $(MAKE) -C src/r2 user-install
 	r2r -i test/db/extras
 
+r2one:
+	$(MAKE) -C src/r2 r2one
+
 user-install user-uninstall:
 	$(MAKE) -C src/r2
 	$(MAKE) -C src/r2 $@

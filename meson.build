@@ -155,6 +155,18 @@ if r2_core.found()
     install_dir: r2_plugdir,
   )
 
+  # core_hbc plugin with plugin registration enabled (r2one)
+  shared_library(
+    'core_hbc_one',
+    'src/r2/core_hbc_one.c',
+    link_with: libhbc,
+    include_directories: include_dirs,
+    dependencies: r2_core,
+    override_options: ['werror=false'],
+    install: true,
+    install_dir: r2_plugdir,
+  )
+
   message('radare2 plugins enabled')
   message('Plugin directory: ' + r2_plugdir)
 else

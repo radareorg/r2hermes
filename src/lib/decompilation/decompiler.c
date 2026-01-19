@@ -389,16 +389,16 @@ static inline void output_buffers_fini(OutputBuffers *ob) {
 
 static inline Result if_block_stack_push(OutputBuffers *ob, u32 target_addr) {
 	if (ob->if_block_stack_count >= ob->if_block_stack_cap) {
-		u32 new_cap = ob->if_block_stack_cap ? ob->if_block_stack_cap * 2 : 16;
-		u32 *new_stack = (u32 *)realloc(ob->if_block_stack, new_cap * sizeof(u32));
+		u32 new_cap = ob->if_block_stack_cap? ob->if_block_stack_cap * 2: 16;
+		u32 *new_stack = (u32 *)realloc (ob->if_block_stack, new_cap * sizeof (u32));
 		if (!new_stack) {
-			return ERROR_RESULT(RESULT_ERROR_MEMORY_ALLOCATION, "oom if_block_stack");
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom if_block_stack");
 		}
 		ob->if_block_stack = new_stack;
 		ob->if_block_stack_cap = new_cap;
 	}
 	ob->if_block_stack[ob->if_block_stack_count++] = target_addr;
-	return SUCCESS_RESULT();
+	return SUCCESS_RESULT ();
 }
 
 /* ============= CFG construction ============= */
@@ -1161,9 +1161,9 @@ static bool bbvec_contains(BasicBlock **arr, u32 count, BasicBlock *bb) {
 static bool token_needs_space(TokenType prev, TokenType cur) {
 	if (cur == TOKEN_TYPE_LEFT_PARENTHESIS) {
 		if (prev == TOKEN_TYPE_RIGHT_HAND_REG || prev == TOKEN_TYPE_LEFT_HAND_REG) {
-			return false;  /* r1(args) not r1 (args) */
+			return false; /* r1 (args) not r1 (args) */
 		}
-		return true;  
+		return true;
 	}
 	/* No space before other punctuation */
 	if (cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR) {
@@ -1997,12 +1997,12 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			} else {
 				target_addr = ((JumpNotConditionToken *)head)->target_address;
 			}
-			u32 current_pos = asm_ref ? asm_ref->original_pos : 0;
+			u32 current_pos = asm_ref? asm_ref->original_pos: 0;
 
 			bool is_unconditional = false;
 			if (head->next && head->next->type == TOKEN_TYPE_RAW && !head->next->next) {
 				RawToken *rt = (RawToken *)head->next;
-				if (rt->text && (strcmp(rt->text, "true") == 0 || strcmp(rt->text, "false") == 0)) {
+				if (rt->text && (strcmp (rt->text, "true") == 0 || strcmp (rt->text, "false") == 0)) {
 					is_unconditional = true;
 				}
 			}

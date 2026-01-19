@@ -5,6 +5,12 @@
 #include <r_core.h>
 #include <hbc/hbc.h>
 
+/* Plugin registration - need these when HBC_CORE_REGISTER_PLUGINS is enabled */
+#ifdef HBC_CORE_REGISTER_PLUGINS
+extern RArchPlugin r_arch_plugin_r2hermes;
+extern RBinPlugin r_bin_plugin_r2hermes;
+#endif
+
 typedef struct {
 	HBC *hbc;
 	RCore *core;
@@ -254,15 +260,13 @@ static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 		R_LOG_ERROR ("cannot get function count");
 		return;
 	}
-	r_cons_printf(core->cons,"Functions (%u):\n", count);
+	r_cons_printf (core->cons, "Functions (%u):\n", count);
 
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc info;
 		Result res = hbc_func_info (ctx->hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
-			r_cons_printf(core->cons,"  [%3u] %s at 0x%08x size=0x%x params=%u\n", i,
-					r_str_get_fail (info.name, "unknown"),
-					info.offset, info.size, info.param_count);
+			r_cons_printf (core->cons, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, r_str_get_fail (info.name, "unknown"), info.offset, info.size, info.param_count);
 		}
 	}
 }
@@ -276,7 +280,7 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 	}
 
 	HBCHeader header;
-       	res = hbc_hdr (ctx->hbc, &header);
+	res = hbc_hdr (ctx->hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("reading header: %s", safe_errmsg (res.error_message));
 		return;
@@ -305,12 +309,13 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 	char hex[41] = { 0 };
 	r_hex_bin2str (header.sourceHash, 20, hex);
 	r_cons_printf (cons,
-			"\nHash Information (for binary patching):\n"
-			"  Source Hash (header): %s\n", hex);
+		"\nHash Information (for binary patching):\n"
+		"  Source Hash (header): %s\n",
+		hex);
 	const ut64 file_size = r_io_size (core->io);
 	const ut64 expected_size = (ut64)header.fileLength + 20;
 
-	r_cons_printf (cons, "  File size: %"PFMT64u" bytes\n", file_size);
+	r_cons_printf (cons, "  File size: %" PFMT64u " bytes\n", file_size);
 	r_cons_printf (cons, "  Header fileLength: %u bytes\n", header.fileLength);
 
 	if (file_size >= expected_size) {
@@ -318,53 +323,51 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 		ut8 footer[20] = { 0 };
 		r_io_read_at (core->io, header.fileLength, footer, 20);
 		r_hex_bin2str (footer, 20, hex);
-		r_cons_printf(core->cons,"  Footer Hash (stored): %s\n", hex);
+		r_cons_printf (core->cons, "  Footer Hash (stored): %s\n", hex);
 
 		char *computed = r_core_cmd_strf (core, "ph sha1 %u @0", header.fileLength);
 		if (computed) {
 			r_str_trim (computed);
-			r_cons_printf(core->cons,"  Footer Hash (computed): %s\n", computed);
+			r_cons_printf (core->cons, "  Footer Hash (computed): %s\n", computed);
 			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
-			r_cons_printf(core->cons,"  Status: %s\n", valid? "VALID": "INVALID");
+			r_cons_printf (core->cons, "  Status: %s\n", valid? "VALID": "INVALID");
 			if (!valid || file_size != expected_size) {
-				r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+				r_cons_printf (core->cons, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 			}
 			if (file_size > expected_size) {
-				r_cons_printf(core->cons,"  Warning: File has %"PFMT64u" extra bytes after footer\n",
-					file_size - expected_size);
+				r_cons_printf (core->cons, "  Warning: File has %" PFMT64u " extra bytes after footer\n", file_size - expected_size);
 			}
 			free (computed);
 		}
 	} else if (file_size == (ut64)header.fileLength && file_size >= 20) {
 		/* fileLength == file_size: Check if last 20 bytes are a valid footer
-		 * (some versions include footer in fileLength) */
+		 *(some versions include footer in fileLength) */
 		ut64 content_size = file_size - 20;
 		ut8 footer[20] = { 0 };
 		r_io_read_at (core->io, content_size, footer, 20);
 		r_hex_bin2str (footer, 20, hex);
 
-		char *computed = r_core_cmd_strf (core, "ph sha1 %"PFMT64u" @0", content_size);
+		char *computed = r_core_cmd_strf (core, "ph sha1 %" PFMT64u " @0", content_size);
 		if (computed) {
 			r_str_trim (computed);
 			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
 			if (valid) {
-				r_cons_printf(core->cons,"  Footer Hash (stored): %s\n", hex);
-				r_cons_printf(core->cons,"  Footer Hash (computed): %s\n", computed);
-				r_cons_printf(core->cons,"  Status: VALID (footer included in fileLength)\n");
+				r_cons_printf (core->cons, "  Footer Hash (stored): %s\n", hex);
+				r_cons_printf (core->cons, "  Footer Hash (computed): %s\n", computed);
+				r_cons_printf (core->cons, "  Status: VALID (footer included in fileLength)\n");
 			} else {
-				r_cons_printf(core->cons,"  Footer: NOT PRESENT (file ends at fileLength)\n");
-				r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+				r_cons_printf (core->cons, "  Footer: NOT PRESENT (file ends at fileLength)\n");
+				r_cons_printf (core->cons, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 			}
 			free (computed);
 		} else {
-			r_cons_printf(core->cons,"  Footer: NOT PRESENT (file ends at fileLength)\n");
-			r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+			r_cons_printf (core->cons, "  Footer: NOT PRESENT (file ends at fileLength)\n");
+			r_cons_printf (core->cons, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 		}
 	} else {
-		r_cons_printf(core->cons,"  Footer: UNKNOWN (file size mismatch)\n");
-		r_cons_printf(core->cons,"  Expected: %"PFMT64u" or %u bytes, got %"PFMT64u"\n",
-			expected_size, header.fileLength, file_size);
-		r_cons_printf(core->cons,"  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
+		r_cons_printf (core->cons, "  Footer: UNKNOWN (file size mismatch)\n");
+		r_cons_printf (core->cons, "  Expected: %" PFMT64u " or %u bytes, got %" PFMT64u "\n", expected_size, header.fileLength, file_size);
+		r_cons_printf (core->cons, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 	}
 }
 
@@ -372,7 +375,7 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		r_cons_printf(core->cons,"{\"error\":\"%s\"}\n", safe_errmsg (res.error_message));
+		r_cons_printf (core->cons, "{\"error\":\"%s\"}\n", safe_errmsg (res.error_message));
 		return;
 	}
 
@@ -381,11 +384,11 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	u32 count;
 	res = hbc_func_count (ctx->hbc, &count);
 	if (res.code != RESULT_SUCCESS) {
-		r_cons_printf(core->cons,"{\"error\":\"cannot get function count\"}\n");
+		r_cons_printf (core->cons, "{\"error\":\"cannot get function count\"}\n");
 		return;
 	}
 	if (function_id >= count) {
-		r_cons_printf(core->cons,"{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
+		r_cons_printf (core->cons, "{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
 		return;
 	}
 	char *output = NULL;
@@ -506,8 +509,18 @@ static bool plugin_init(RCorePluginSession *s) {
 	ctx->core = core;
 	s->data = ctx;
 
+#ifdef HBC_CORE_REGISTER_PLUGINS
+	/* Register arch and bin plugins when enabled */
+	if (core->anal && core->anal->arch) {
+		r_arch_plugin_add (core->anal->arch, &r_arch_plugin_r2hermes);
+	}
+	if (core->bin) {
+		r_bin_plugin_add (core->bin, &r_bin_plugin_r2hermes);
+	}
+#endif
+
 	/* Define fix-hbc macro using r2's generic ph and wx commands
-	 * 1. Resize file to fileLength+20 (using $() for nested eval)
+	 * 1. Resize file to fileLength+20 (using $ () for nested eval)
 	 * 2. Write SHA1 hash of bytes 0 to ($s-20) at offset ($s-20) */
 	r_core_cmd0 (core, "'(fix-hbc; ?e Fixing HBC footer hash...; r `?vi $(pv4 @32)+20`; wx `ph sha1 $s-20 @0` @ $s-20)");
 
