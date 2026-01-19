@@ -120,44 +120,12 @@ if r2_core.found()
     r2_prefix = get_option('r2_prefix')
   endif
 
-  # arch_hbc plugin
-  shared_library(
-    'arch_hbc',
-    'src/r2/arch_hbc.c',
-    link_with: libhbc,
-    include_directories: include_dirs,
-    dependencies: r2_core,
-    override_options: ['werror=false'],
-    install: true,
-    install_dir: r2_plugdir,
-  )
-
-  # bin_hbc plugin
-  shared_library(
-    'bin_hbc',
-    'src/r2/bin_hbc.c',
-    link_with: libhbc,
-    include_directories: include_dirs,
-    dependencies: r2_core,
-    override_options: ['werror=false'],
-    install: true,
-    install_dir: r2_plugdir,
-  )
-
-  # asm_hbc plugin (pseudo decompiler)
-  shared_library(
-    'asm_hbc',
-    'src/r2/asm_hbc.c',
-    include_directories: include_dirs,
-    dependencies: r2_core,
-    override_options: ['werror=false'],
-    install: true,
-    install_dir: r2_plugdir,
-  )
+  # NOTE: arch_hbc, bin_hbc, and asm_hbc plugins are now built into
+  # core_hbc_one to avoid duplicate symbols and simplify the build process
 
   # core_hbc plugin with plugin registration enabled (r2one)
   shared_library(
-    'core_hbc_one',
+    'core_hbc',
     'src/r2/core_hbc_one.c',
     link_with: libhbc,
     include_directories: include_dirs,
@@ -183,7 +151,7 @@ message('r2hermes build summary:')
 message('  Library: libhbc')
 message('  CLI: libhbctool')
 if r2_core.found()
-  message('  radare2 plugins: arch_hbc, bin_hbc, asm_hbc')
+  message('  radare2 plugins: core_hbc (includes arch, bin, asm)')
   message('  Plugin install path: ' + r2_plugdir)
 else
   message('  radare2 plugins: disabled (radare2 not found)')
