@@ -153,13 +153,14 @@ HBC *hbc_new_buf(const u8 *data, size_t size);
  * Returns NULL if bf is NULL or invalid.
  */
 typedef struct r_bin_file_t RBinFile;
-HBC *hbc_new_r2(RBinFile *bf);
+HBC *r2_hbc_new_r2(RBinFile *bf);
 
 /**
  * Free a provider and all associated resources.
  * After this call, all pointers returned by provider queries are invalid.
  */
 void hbc_free(HBC *provider);
+void r2_hbc_free(HBC *provider);
 
 /* ============================================================================
  * Query Methods - Access parsed binary data
@@ -168,16 +169,14 @@ void hbc_free(HBC *provider);
 /**
  * Get the HBC file header.
  */
-Result hbc_hdr(
-	HBC *provider,
-	HBCHeader *out);
+Result hbc_hdr(HBC *provider, HBCHeader *out);
+Result r2_hbc_hdr(HBC *provider, HBCHeader *out);
 
 /**
  * Get the total number of functions in the binary.
  */
-Result hbc_func_count(
-	HBC *provider,
-	u32 *out_count);
+Result hbc_func_count(HBC *provider, u32 *out_count);
+Result r2_hbc_func_count(HBC *provider, u32 *out_count);
 
 /**
  * Function metadata structure
@@ -192,42 +191,32 @@ typedef struct {
 /**
  * Get metadata for a specific function.
  */
-Result hbc_func_info(
-	HBC *provider,
-	u32 function_id,
-	HBCFunc *out);
+Result hbc_func_info(HBC *provider, u32 function_id, HBCFunc *out);
+Result r2_hbc_func_info(HBC *provider, u32 function_id, HBCFunc *out);
 
 /**
  * Get the total number of strings in the binary.
  */
-Result hbc_str_count(
-	HBC *provider,
-	u32 *out_count);
+Result hbc_str_count(HBC *provider, u32 *out_count);
+Result r2_hbc_str_count(HBC *provider, u32 *out_count);
 
 /**
  * Get a string by index.
  */
-Result hbc_str(
-	HBC *provider,
-	u32 string_id,
-	const char **out_str);
+Result hbc_str(HBC *provider, u32 string_id, const char **out_str);
+Result r2_hbc_str(HBC *provider, u32 string_id, const char **out_str);
 
 /**
  * Get metadata for a string (offset, length, kind).
  */
-Result hbc_str_meta(
-	HBC *provider,
-	u32 string_id,
-	HBCStringMeta *out);
+Result hbc_str_meta(HBC *provider, u32 string_id, HBCStringMeta *out);
+Result r2_hbc_str_meta(HBC *provider, u32 string_id, HBCStringMeta *out);
 
 /**
  * Get the raw bytecode bytes for a function.
  */
-Result hbc_bytecode(
-	HBC *provider,
-	u32 function_id,
-	const u8 **out_ptr,
-	u32 *out_size);
+Result hbc_bytecode(HBC *provider, u32 function_id, const u8 **out_ptr, u32 *out_size);
+Result r2_hbc_bytecode(HBC *provider, u32 function_id, const u8 **out_ptr, u32 *out_size);
 
 /**
  * String table data.
@@ -239,10 +228,7 @@ typedef struct {
 	u64 string_storage_offset;
 } HBCStrs;
 
-Result hbc_str_tbl(
-	HBC *provider,
-	HBCStrs *out);
-
+Result hbc_str_tbl(HBC *provider, HBCStrs *out);
 /**
  * Get source/module name associated with a function.
  */

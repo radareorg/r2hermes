@@ -56,7 +56,8 @@ HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
 HERMES_LIB_NO_FILE_PROVIDER = $(HERMES_LIB_DIR)/libhbc_nofile.a
 
 # All targets
-ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN) $(CORE_ONE_PLUGIN)
+ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN)
+# $(CORE_ONE_PLUGIN)
 
 .PHONY: all clean install help check-r2 r2one
 
@@ -147,7 +148,7 @@ user-install:
 	cp -f $(BIN_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(ASM_PLUGIN) $(R2_PLUGDIR)
 	cp -f $(CORE_PLUGIN) $(R2_PLUGDIR)
-	cp -f $(CORE_ONE_PLUGIN) $(R2_PLUGDIR)
+#	cp -f $(CORE_ONE_PLUGIN) $(R2_PLUGDIR)
 
 user-uninstall:
 	rm -f $(R2_PLUGDIR)/$(ARCH_PLUGIN)

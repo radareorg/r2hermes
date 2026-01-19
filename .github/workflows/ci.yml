@@ -55,7 +55,7 @@ jobs:
   release:
     name: Create release and upload tarball
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build]
     if: needs.build.outputs.tag != ''
 
     steps:

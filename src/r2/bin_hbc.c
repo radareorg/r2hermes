@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - pancake */
+/* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
@@ -128,7 +128,7 @@ static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut
 	ret->cpu = has_version? r_str_newf ("%u", version): strdup ("unknown");
 }
 
-static RBinInfo *info(RBinFile *bf) {
+static RBinInfo *bininfo(RBinFile *bf) {
 	RBinInfo *ret = R_NEW0 (RBinInfo);
 	bool has_version = false;
 	ut32 version = 0;
@@ -300,14 +300,14 @@ static RList *strings(RBinFile *bf) {
 	return ret;
 }
 
-RBinPlugin r_bin_plugin_r2hermes = {
+const RBinPlugin r_bin_plugin_r2hermes = {
 	.meta = {
 		.name = "hbc.bin",
 		.author = "pancake",
 		.desc = "Hermes bytecode format",
 		.license = "BSD",
 	},
-	.info = &info,
+	.info = &bininfo,
 	.load = &load,
 	.destroy = &destroy,
 	.check = &check,
@@ -321,7 +321,7 @@ RBinPlugin r_bin_plugin_r2hermes = {
 #ifndef R2_PLUGIN_INCORE
 R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_BIN,
-	.data = &r_bin_plugin_r2hermes,
+	.data = (void*)&r_bin_plugin_r2hermes,
 	.version = R2_VERSION,
 	.abiversion = R2_ABIVERSION
 };

@@ -508,7 +508,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	return true;
 }
 
-static int info(RArchSession *s, ut32 q) {
+static int archinfo(RArchSession *s, ut32 q) {
 	(void)s;
 	switch (q) {
 	case R_ARCH_INFO_CODE_ALIGN:
@@ -642,7 +642,7 @@ const RArchPlugin r_arch_plugin_r2hermes = {
 	.decode = &decode,
 	.encode = &encode,
 	.regs = regs,
-	.info = info,
+	.info = archinfo,
 	.mnemonics = mnemonics,
 	.init = init,
 	.fini = fini,
