@@ -1,0 +1,49 @@
+name: CI
+
+env:
+  R2V: 6.0.8
+
+permissions:
+  contents: write
+
+on:
+  push:
+  workflow_dispatch: {}
+
+jobs:
+  tcc-r2git:
+    name: Test unified r2plugin with TinyCC
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Checkout TinyCC repository
+        run: |
+          git clone https://github.com/TinyCC/tinycc
+          cd tinycc
+          git checkout mob
+          git reset --hard 4fccaf61241a5eb72b0777b3a44bd7abbea48604
+          sh ./configure --prefix=/usr
+          make -j
+          sudo make install
+
+      - name: Build radare2 from git with TCC
+        run: |
+          git clone --depth=1 https://github.com/radareorg/radare2.git
+          cd radare2
+          echo core.r2hermes > libr/xps/static.cfg
+          export CC=tcc
+          cp -f ../r2plugin/config.mk libr/xps/config.mk
+          git clone .. libr/xps/p/r2hermes
+          make -C libr/xps/p/r2hermes include/hbc/version.h
+          make -C libr/xps/p/r2hermes
+          make -C libr/xps
+          ./configure --prefix=/usr --with-compiler=tcc
+          make -j
+          sudo make install
+
+      - name: Test if r2plugin is available
+        run: |
+          r2 -q -c La~hbc -c Lb~hbc -c Lc~hbc -- | grep -E "(core|arch|bin).*hbc"

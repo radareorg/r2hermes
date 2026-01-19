@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - pancake */
+/* radare2 - LGPL - Copyright 2025-2026 - pancake */
 /* R2 HBC Provider: Read HBC data from r2 RBinFile without separate file I/O */
 
 #include <r_bin.h>
@@ -179,29 +179,18 @@ static Result parse_string_tables(HBC *hbc) {
  * Public API Implementation
  * ============================================================================ */
 
-HBC *hbc_new_r2(RBinFile *bf) {
+HBC *r2_hbc_new_r2(RBinFile *bf) {
 	if (!bf || !bf->buf) {
 		return NULL;
 	}
-
-	HBC *hbc = (HBC *)malloc (sizeof (HBC));
-	if (!hbc) {
-		return NULL;
-	}
-
-	memset (hbc, 0, sizeof (HBC));
+	HBC *hbc = R_NEW0 (HBC);
 	hbc->bf = bf;
 	hbc->bin = bf->rbin;
 	hbc->buf = bf->buf;
-	hbc->header_loaded = false;
-	hbc->string_tables_loaded = false;
-	hbc->tmp_read_buffer = NULL;
-	hbc->tmp_buffer_size = 0;
-
 	return hbc;
 }
 
-Result hbc_hdr(HBC *hbc, HBCHeader *out) {
+Result r2_hbc_hdr(HBC *hbc, HBCHeader *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -221,13 +210,13 @@ Result hbc_hdr(HBC *hbc, HBCHeader *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_func_count(HBC *hbc, u32 *out_count) {
+Result r2_hbc_func_count(HBC *hbc, u32 *out_count) {
 	if (!hbc || !out_count) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	HBCHeader header;
-	Result res = hbc_hdr (hbc, &header);
+	Result res = r2_hbc_hdr (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -236,7 +225,7 @@ Result hbc_func_count(HBC *hbc, u32 *out_count) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_func_info(HBC *hbc, u32 function_id, HBCFunc *out) {
+Result r2_hbc_func_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -265,13 +254,13 @@ Result hbc_func_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "Function not found");
 }
 
-Result hbc_str_count(HBC *hbc, u32 *out_count) {
+Result r2_hbc_str_count(HBC *hbc, u32 *out_count) {
 	if (!hbc || !out_count) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	HBCHeader header;
-	Result res = hbc_hdr (hbc, &header);
+	Result res = r2_hbc_hdr (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -280,7 +269,7 @@ Result hbc_str_count(HBC *hbc, u32 *out_count) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_str(HBC *hbc, u32 string_id, const char **out_str) {
+Result r2_hbc_str(HBC *hbc, u32 string_id, const char **out_str) {
 	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -306,7 +295,7 @@ Result hbc_str(HBC *hbc, u32 string_id, const char **out_str) {
 	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
 }
 
-Result hbc_str_meta(HBC *hbc, u32 string_id, HBCStringMeta *out) {
+Result r2_hbc_str_meta(HBC *hbc, u32 string_id, HBCStringMeta *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -335,13 +324,13 @@ Result hbc_str_meta(HBC *hbc, u32 string_id, HBCStringMeta *out) {
 	return ERROR_RESULT (RESULT_ERROR_NOT_FOUND, "String not found");
 }
 
-Result hbc_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size) {
+Result r2_hbc_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size) {
 	if (!hbc || !out_ptr || !out_size) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
 
 	HBCFunc info;
-	Result res = hbc_func_info (hbc, function_id, &info);
+	Result res = r2_hbc_func_info (hbc, function_id, &info);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -365,7 +354,7 @@ Result hbc_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_str_tbl(HBC *hbc, HBCStrs *out) {
+Result r2_hbc_str_tbl(HBC *hbc, HBCStrs *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -381,7 +370,7 @@ Result hbc_str_tbl(HBC *hbc, HBCStrs *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_src(HBC *hbc, u32 function_id, const char **out_src) {
+Result r2_hbc_src(HBC *hbc, u32 function_id, const char **out_src) {
 	if (!hbc || !out_src) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -390,7 +379,7 @@ Result hbc_src(HBC *hbc, u32 function_id, const char **out_src) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_read(HBC *hbc, u64 offset, u32 size, const u8 **out_ptr) {
+Result r2_hbc_read(HBC *hbc, u64 offset, u32 size, const u8 **out_ptr) {
 	if (!hbc || !out_ptr) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "NULL pointer");
 	}
@@ -413,19 +402,13 @@ Result hbc_read(HBC *hbc, u64 offset, u32 size, const u8 **out_ptr) {
 	return SUCCESS_RESULT ();
 }
 
-void hbc_free(HBC *hbc) {
-	if (!hbc) {
-		return;
-	}
-
-	if (hbc->string_tables_loaded) {
-		free ((void *)hbc->cached_string_tables.small_string_table);
-		free ((void *)hbc->cached_string_tables.overflow_string_table);
-	}
-
-	if (hbc->tmp_read_buffer) {
+void r2_hbc_free(HBC *hbc) {
+	if (R_LIKELY (hbc)) {
+		if (hbc->string_tables_loaded) {
+			free ((void *)hbc->cached_string_tables.small_string_table);
+			free ((void *)hbc->cached_string_tables.overflow_string_table);
+		}
 		free (hbc->tmp_read_buffer);
+		free (hbc);
 	}
-
-	free (hbc);
 }

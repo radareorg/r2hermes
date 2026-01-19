@@ -7,8 +7,8 @@
 
 /* Plugin registration - need these when HBC_CORE_REGISTER_PLUGINS is enabled */
 #ifdef HBC_CORE_REGISTER_PLUGINS
-extern RArchPlugin r_arch_plugin_r2hermes;
-extern RBinPlugin r_bin_plugin_r2hermes;
+extern const RArchPlugin r_arch_plugin_r2hermes;
+extern const RBinPlugin r_bin_plugin_r2hermes;
 #endif
 
 typedef struct {
@@ -91,7 +91,8 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 
 	/* Create provider from r2 RBinFile (NO file I/O) */
-	ctx->hbc = hbc_new_r2 (bf);
+	// XXX r2 provider is flawed ctx->hbc = r2_hbc_new_r2 (bf);
+	ctx->hbc = hbc_new_file (file_path);
 	if (!ctx->hbc) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to create provider");
 	}
@@ -530,10 +531,10 @@ static bool plugin_init(RCorePluginSession *s) {
 #ifdef HBC_CORE_REGISTER_PLUGINS
 	/* Register arch and bin plugins when enabled */
 	if (core->anal && core->anal->arch) {
-		r_arch_plugin_add (core->anal->arch, &r_arch_plugin_r2hermes);
+		r_arch_plugin_add (core->anal->arch, (RArchPlugin*)&r_arch_plugin_r2hermes);
 	}
 	if (core->bin) {
-		r_bin_plugin_add (core->bin, &r_bin_plugin_r2hermes);
+		r_bin_plugin_add (core->bin, (RBinPlugin*)&r_bin_plugin_r2hermes);
 	}
 #endif
 
@@ -614,7 +615,7 @@ static bool plugin_fini(RCorePluginSession *s) {
 }
 
 /* Plugin initialization */
-const RCorePlugin r_core_plugin_r2hermes = {
+RCorePlugin r_core_plugin_r2hermes = {
 	.meta = {
 		.name = "core_hbc",
 		.desc = "Hermes bytecode decompiler plugin",
