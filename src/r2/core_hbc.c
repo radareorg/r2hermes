@@ -375,7 +375,13 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
-		r_cons_printf (core->cons, "{\"error\":\"%s\"}\n", safe_errmsg (res.error_message));
+		PJ *pj = r_core_pj_new (core);
+		pj_o (pj);
+		pj_ks (pj, "error", safe_errmsg (res.error_message));
+		pj_end (pj);
+		char *s = pj_drain (pj);
+		r_cons_println (core->cons, s);
+		free (s);
 		return;
 	}
 
@@ -384,20 +390,32 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	u32 count;
 	res = hbc_func_count (ctx->hbc, &count);
 	if (res.code != RESULT_SUCCESS) {
-		r_cons_printf (core->cons, "{\"error\":\"cannot get function count\"}\n");
+		PJ *pj = r_core_pj_new (core);
+		pj_o (pj);
+		pj_ks (pj, "error", "cannot get function count");
+		pj_end (pj);
+		char *s = pj_drain (pj);
+		r_cons_println (core->cons, s);
+		free (s);
 		return;
 	}
+	PJ *pj = r_core_pj_new (core);
+	pj_o (pj);
+	pj_kn (pj, "function_id", function_id);
+	pj_k (pj, "decompilation");
 	if (function_id >= count) {
-		r_cons_printf (core->cons, "{\"function_id\":%u,\"decompilation\":null,\"error\":\"function id out of range\",\"count\":%u}\n", function_id, count);
+		pj_null (pj);
+		pj_ks (pj, "error", "function id out of range");
+		pj_kn (pj, "count", count);
+		pj_end (pj);
+		char *s = pj_drain (pj);
+		r_cons_println (core->cons, s);
+		free (s);
 		return;
 	}
 	char *output = NULL;
 	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
 
-	PJ *pj = r_core_pj_new (core);
-	pj_o (pj);
-	pj_kn (pj, "function_id", function_id);
-	pj_k (pj, "decompilation");
 	if (res.code == RESULT_SUCCESS && output) {
 		pj_s (pj, output);
 	} else {
