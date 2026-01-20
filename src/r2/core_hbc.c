@@ -531,10 +531,10 @@ static bool plugin_init(RCorePluginSession *s) {
 #ifdef HBC_CORE_REGISTER_PLUGINS
 	/* Register arch and bin plugins when enabled */
 	if (core->anal && core->anal->arch) {
-		r_arch_plugin_add (core->anal->arch, (RArchPlugin*)&r_arch_plugin_r2hermes);
+		r_arch_plugin_add (core->anal->arch, (RArchPlugin *)&r_arch_plugin_r2hermes);
 	}
 	if (core->bin) {
-		r_bin_plugin_add (core->bin, (RBinPlugin*)&r_bin_plugin_r2hermes);
+		r_bin_plugin_add (core->bin, (RBinPlugin *)&r_bin_plugin_r2hermes);
 	}
 #endif
 
