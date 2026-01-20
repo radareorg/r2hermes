@@ -120,20 +120,44 @@ if r2_core.found()
     r2_prefix = get_option('r2_prefix')
   endif
 
-  # NOTE: arch_hbc, bin_hbc, and asm_hbc plugins are now built into
-  # core_hbc_one to avoid duplicate symbols and simplify the build process
+  # Check if only core_hbc_one should be built
+  r2_oneplug = get_option('r2_oneplug')
 
-  # core_hbc plugin with plugin registration enabled (r2one)
-  shared_library(
-    'core_hbc',
-    'src/r2/core_hbc_one.c',
-    link_with: libhbc,
-    include_directories: include_dirs,
-    dependencies: r2_core,
-    override_options: ['werror=false'],
-    install: true,
-    install_dir: r2_plugdir,
-  )
+  if r2_oneplug
+    # NOTE: arch_hbc, bin_hbc, and asm_hbc plugins are built into
+    # core_hbc_one to avoid duplicate symbols and simplify the build process
+
+    # core_hbc plugin with plugin registration enabled (r2one)
+    shared_library(
+      'core_hbc',
+      'src/r2/core_hbc_one.c',
+      link_with: libhbc,
+      include_directories: include_dirs,
+      dependencies: r2_core,
+      override_options: ['werror=false'],
+      install: true,
+      install_dir: r2_plugdir,
+    )
+
+    message('Building only core_hbc_one plugin (r2_oneplug enabled)')
+  else
+    # NOTE: arch_hbc, bin_hbc, and asm_hbc plugins are now built into
+    # core_hbc_one to avoid duplicate symbols and simplify the build process
+
+    # core_hbc plugin with plugin registration enabled (r2one)
+    shared_library(
+      'core_hbc',
+      'src/r2/core_hbc_one.c',
+      link_with: libhbc,
+      include_directories: include_dirs,
+      dependencies: r2_core,
+      override_options: ['werror=false'],
+      install: true,
+      install_dir: r2_plugdir,
+    )
+
+    message('Building core_hbc_one plugin (individual plugins disabled)')
+  endif
 
   message('radare2 plugins enabled')
   message('Plugin directory: ' + r2_plugdir)
