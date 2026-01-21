@@ -56,25 +56,36 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Checkout TinyCC repository
+        run: |
+          git clone https://github.com/TinyCC/tinycc
+          cd tinycc
+          git checkout mob
+          git reset --hard 4fccaf61241a5eb72b0777b3a44bd7abbea48604
+          sh ./configure --prefix=/usr
+          make -j
+          sudo make install
 
       - name: Install build dependencies
         run: sudo apt-get update -y && sudo apt-get install -y build-essential meson ninja-build pkg-config
 
       - name: Build radare2 from git with Meson
         run: |
+          export CC=tcc
           git clone --depth=1 https://github.com/radareorg/radare2.git
           cd radare2
           echo core.r2hermes > libr/xps/static.cfg
 
           # Clone r2hermes into the plugins directory
           git clone .. libr/xps/p/r2hermes
-          cd libr/xps/p/r2hermes
+          make -C libr/xps/p/r2hermes include/hbc/version.h
+          make -C libr/xps/p/r2hermes
+          make -C libr/xps
 
           # Build radare2 with meson
-          cd ../../../..
-          meson setup build --prefix=/usr
-          meson compile -C build
-          sudo meson install -C build
+          meson setup b --prefix=/usr
+          meson compile -C b
+          sudo meson install -C b
 
       - name: Test if r2plugin is available
         run: |
