@@ -72,7 +72,7 @@ jobs:
 
           # Build radare2 with meson
           cd ../../../..
-          meson setup build
+          meson setup build --prefix=/usr
           meson compile -C build
           sudo meson install -C build
 
