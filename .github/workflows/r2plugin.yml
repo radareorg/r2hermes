@@ -47,3 +47,35 @@ jobs:
       - name: Test if r2plugin is available
         run: |
           r2 -q -c La~hbc -c Lb~hbc -c Lc~hbc -- | grep -E "(core|arch|bin).*hbc"
+
+  meson-r2git:
+    name: Test unified r2plugin with Meson
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y build-essential meson ninja-build pkg-config
+
+      - name: Build radare2 from git with Meson
+        run: |
+          git clone --depth=1 https://github.com/radareorg/radare2.git
+          cd radare2
+          echo core.r2hermes > libr/xps/static.cfg
+
+          # Clone r2hermes into the plugins directory
+          git clone .. libr/xps/p/r2hermes
+          cd libr/xps/p/r2hermes
+
+          # Build radare2 with meson
+          cd ../../../..
+          meson setup build
+          meson compile -C build
+          sudo meson install -C build
+
+      - name: Test if r2plugin is available
+        run: |
+          r2 -q -c La~hbc -c Lb~hbc -c Lc~hbc -- | grep -E "(core|arch|bin).*hbc"
