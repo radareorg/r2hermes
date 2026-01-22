@@ -18,7 +18,7 @@ DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(filter-out $(SRC_DIR)/opcodes/%.inc.c,$(wildcard $(SRC_DIR)/opcodes/*.c))
 # TODO: data provider must be refactored into struct with callbacks, right now we just move it away from libhbc to solve build problems
-DATA_PROVIDER_SRC = $(SRC_DIR)/data_provider_file.c $(SRC_DIR)/data_provider_buffer.c
+DATA_PROVIDER_SRC = $(SRC_DIR)/data_provider_file.c
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) $(DATA_PROVIDER_SRC) \
           $(SRC_DIR)/hbc.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
 MAIN_SRC = src/tool/libhbctool.c

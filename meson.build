@@ -68,8 +68,7 @@ lib_opcodes_src = files(
 lib_core_src = files(
   'src/lib/hbc.c',
   'src/lib/r2.c',
-  'src/lib/data_provider_file.c',
-  'src/lib/data_provider_buffer.c',
+  'src/lib/data_provider_file.c'
 )
 
 lib_src = lib_core_src + lib_utils_src + lib_parsers_src + lib_disasm_src + lib_decompile_src + lib_opcodes_src
