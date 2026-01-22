@@ -6,7 +6,6 @@
 #include <hbc/parser.h>
 #include <hbc/bytecode.h>
 #include "hbc_internal.h"
-#include "hbc_internal_legacy.h"
 #include <hbc/opcodes.h>
 #include <string.h>
 #include <stdlib.h>
