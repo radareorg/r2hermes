@@ -1,7 +1,6 @@
 shared_library(
   'core_hbc',
   '../src/r2/core_hbc_one.c',
-  '../src/r2/data_provider_r2.c',
   link_with: libhbc,
   include_directories: ['../include', include_dirs],
   dependencies: r2_core,
