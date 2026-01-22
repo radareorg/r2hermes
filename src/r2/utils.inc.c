@@ -1,5 +1,8 @@
 /* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
+#ifndef R2HERMES_UTILS_INC_C
+#define R2HERMES_UTILS_INC_C
+
 #include <r_util.h>
 
 static inline bool r_buf_read_alloc(RBuffer *buf, ut8 **data, ut64 *out_size) {
@@ -63,8 +66,9 @@ static inline void hbc_safe_close(HBC **hbc) {
 
 static inline void hbc_free_data_and_close(HBC **hbc, ut8 **data) {
 	if (data && *data) {
-		free (*data);
-		*data = NULL;
+		R_FREE (*data);
 	}
 	hbc_safe_close (hbc);
 }
+
+#endif
