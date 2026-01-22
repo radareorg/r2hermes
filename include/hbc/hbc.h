@@ -52,6 +52,22 @@ typedef struct HBCStringMeta {
 	HBCStringKind kind;
 } HBCStringMeta;
 
+/* Function metadata structure */
+typedef struct {
+	const char *name; // Valid while provider is alive; caller must not free
+	u32 offset; // Bytecode offset in file
+	u32 size; // Size in bytes
+	u32 param_count; // Number of parameters
+} HBCFunc;
+
+/* String table data */
+typedef struct {
+	u32 string_count;
+	const void *small_string_table;
+	const void *overflow_string_table;
+	u64 string_storage_offset;
+} HBCStrs;
+
 /* Disassembly options */
 typedef struct {
 	bool verbose; /* Show detailed metadata */
@@ -128,123 +144,79 @@ typedef struct {
  * ============================================================================ */
 
 /* Opaque data provider handle */
+/* ============================================================================
+ * HBC - Direct File Access API
+ *
+ * Low-level API for direct file access without abstraction layer.
+ * These functions work directly with HBC files and provide the most
+ * efficient access to the underlying data structures.
+ * ============================================================================ */
+
+/* Opaque state handle for direct file access */
 typedef struct HBC HBC;
 
-/* ============================================================================
- * HBC Factories - Create a provider from different sources
- * ============================================================================ */
+/**
+ * Open an HBC file from disk.
+ * Creates an HBC for direct access to file data.
+ */
+Result hbc_open(const char *path, HBC **out);
 
 /**
- * Create a provider from a file on disk.
- * Internally opens and manages the file. Returns NULL on failure.
+ * Open an HBC file from memory buffer.
+ * Creates an HBC for direct access to in-memory data.
  */
-HBC *hbc_new_file(const char *path);
+Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out);
 
 /**
- * Create a provider from a memory buffer.
- * Data must remain valid for the lifetime of the provider.
- * Returns NULL on failure.
+ * Close an HBC and free all resources.
+ * After this call, all pointers returned from the state are invalid.
  */
-HBC *hbc_new_buf(const u8 *data, size_t size);
+void hbc_close(HBC *hbc);
 
 /**
- * Create a provider from an r2 RBinFile.
- * Reads data via r2's RBuffer API (no separate file opens).
- * Returns NULL if bf is NULL or invalid.
+ * Get the total number of functions in the HBC file.
  */
-typedef struct r_bin_file_t RBinFile;
-HBC *r2_hbc_new_r2(RBinFile *bf);
+u32 hbc_function_count(HBC *hbc);
 
 /**
- * Free a provider and all associated resources.
- * After this call, all pointers returned by provider queries are invalid.
+ * Get the total number of strings in the HBC file.
  */
-void hbc_free(HBC *provider);
-void r2_hbc_free(HBC *provider);
-
-/* ============================================================================
- * Query Methods - Access parsed binary data
- * ============================================================================ */
+u32 hbc_string_count(HBC *hbc);
 
 /**
- * Get the HBC file header.
+ * Get the HBC file header information.
  */
-Result hbc_hdr(HBC *provider, HBCHeader *out);
-Result r2_hbc_hdr(HBC *provider, HBCHeader *out);
-
-/**
- * Get the total number of functions in the binary.
- */
-Result hbc_func_count(HBC *provider, u32 *out_count);
-Result r2_hbc_func_count(HBC *provider, u32 *out_count);
-
-/**
- * Function metadata structure
- */
-typedef struct {
-	const char *name; // Valid while provider is alive; caller must not free
-	u32 offset; // Bytecode offset in file
-	u32 size; // Size in bytes
-	u32 param_count; // Number of parameters
-} HBCFunc;
+Result hbc_get_header(HBC *hbc, HBCHeader *out);
 
 /**
  * Get metadata for a specific function.
  */
-Result hbc_func_info(HBC *provider, u32 function_id, HBCFunc *out);
-Result r2_hbc_func_info(HBC *provider, u32 function_id, HBCFunc *out);
-
-/**
- * Get the total number of strings in the binary.
- */
-Result hbc_str_count(HBC *provider, u32 *out_count);
-Result r2_hbc_str_count(HBC *provider, u32 *out_count);
+Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out);
 
 /**
  * Get a string by index.
  */
-Result hbc_str(HBC *provider, u32 string_id, const char **out_str);
-Result r2_hbc_str(HBC *provider, u32 string_id, const char **out_str);
+Result hbc_get_string(HBC *hbc, u32 index, const char **out_str);
 
 /**
  * Get metadata for a string (offset, length, kind).
  */
-Result hbc_str_meta(HBC *provider, u32 string_id, HBCStringMeta *out);
-Result r2_hbc_str_meta(HBC *provider, u32 string_id, HBCStringMeta *out);
+Result hbc_get_string_meta(HBC *hbc, u32 index, HBCStringMeta *out);
+
+/**
+ * Get string table data for decoding purposes.
+ */
+Result hbc_get_string_tables(HBC *hbc, HBCStrs *out);
+
+/**
+ * Get source/module name associated with a function.
+ */
+Result hbc_get_function_source(HBC *hbc, u32 function_id, const char **out_src);
 
 /**
  * Get the raw bytecode bytes for a function.
  */
-Result hbc_bytecode(HBC *provider, u32 function_id, const u8 **out_ptr, u32 *out_size);
-Result r2_hbc_bytecode(HBC *provider, u32 function_id, const u8 **out_ptr, u32 *out_size);
-
-/**
- * String table data.
- */
-typedef struct {
-	u32 string_count;
-	const void *small_string_table;
-	const void *overflow_string_table;
-	u64 string_storage_offset;
-} HBCStrs;
-
-Result hbc_str_tbl(HBC *provider, HBCStrs *out);
-/**
- * Get source/module name associated with a function.
- */
-Result hbc_src(
-	HBC *provider,
-	u32 function_id,
-	const char **out_src);
-
-/**
- * Read raw bytes from the binary at a specific offset.
- */
-Result hbc_read(
-	HBC *provider,
-	u64 offset,
-	u32 size,
-	const u8 **out_ptr);
+Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size);
 
 /* ============================================================================
  * Decompilation API
@@ -254,7 +226,7 @@ Result hbc_read(
  * Decompile a specific function.
  */
 Result hbc_decomp_fn(
-	HBC *provider,
+	HBC *hbc,
 	u32 function_id,
 	HBCDecompOptions options,
 	char **out_str);
@@ -263,7 +235,7 @@ Result hbc_decomp_fn(
  * Decompile all functions.
  */
 Result hbc_decomp_all(
-	HBC *provider,
+	HBC *hbc,
 	HBCDecompOptions options,
 	char **out_str);
 
@@ -271,7 +243,7 @@ Result hbc_decomp_all(
  * Disassemble a specific function.
  */
 Result hbc_disasm_fn(
-	HBC *provider,
+	HBC *hbc,
 	u32 function_id,
 	HBCDisOptions options,
 	char **out_str);
@@ -280,7 +252,7 @@ Result hbc_disasm_fn(
  * Disassemble all functions.
  */
 Result hbc_disasm_all(
-	HBC *provider,
+	HBC *hbc,
 	HBCDisOptions options,
 	char **out_str);
 
@@ -308,7 +280,7 @@ typedef struct {
  * Get all functions at once.
  */
 Result hbc_all_funcs(
-	HBC *provider,
+	HBC *hbc,
 	HBCFuncArray *out);
 
 /**
@@ -328,7 +300,7 @@ typedef struct {
  * Decode a function into an array of instructions.
  */
 Result hbc_decode_fn(
-	HBC *provider,
+	HBC *hbc,
 	u32 function_id,
 	HBCInsns *out);
 
@@ -403,21 +375,5 @@ Result hbc_enc_multi(
 	const char *asm_text,
 	u32 bytecode_version,
 	HBCEncBuf *out);
-
-/* ============================================================================
- * CLI Convenience Functions
- * ============================================================================ */
-
-/**
- * Decompile a file and write output to another file.
- * Convenience wrapper for CLI usage.
- */
-Result hbc_decompile_file(const char *input_file, const char *output_file);
-
-/**
- * Generate an r2 script from a bytecode file.
- * Convenience wrapper for CLI usage.
- */
-Result hbc_generate_r2_script(const char *input_file, const char *output_file);
 
 #endif /* LIBHBC_API_H */

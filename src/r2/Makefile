@@ -33,7 +33,6 @@ BIN_SRC = bin_hbc.c
 ASM_SRC = asm_hbc.c
 CORE_SRC = core_hbc.c
 CORE_ONE_SRC = core_hbc_one.c
-R2_PROVIDER_SRC = data_provider_r2.c
 
 # Object files
 ARCH_OBJ = arch_hbc.o
@@ -41,7 +40,6 @@ BIN_OBJ = bin_hbc.o
 ASM_OBJ = asm_hbc.o
 CORE_OBJ = core_hbc.o
 CORE_ONE_OBJ = core_hbc_one.o
-R2_PROVIDER_OBJ = data_provider_r2.o
 
 # Target plugins
 ARCH_PLUGIN = arch_hbc.$(EXT_SO)
@@ -53,7 +51,7 @@ CORE_ONE_PLUGIN = core_hbc_one.$(EXT_SO)
 # Library paths
 HERMES_LIB_DIR = ../../build
 HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
-HERMES_LIB_NO_FILE_PROVIDER = $(HERMES_LIB_DIR)/libhbc_nofile.a
+
 
 # All targets
 ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN)
@@ -64,19 +62,14 @@ ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN)
 all: check-deps $(ALL_TARGETS)
 
 # Build core plugin with plugin registration enabled (r2one)
-r2one: check-deps $(R2_PROVIDER_OBJ)
-	# Create a custom libhbc without data_provider_file.o to avoid symbol conflicts
-	@echo "Creating libhbc.a without data_provider_file.o for r2one..."
-	@cp $(HERMES_LIB) $(HERMES_LIB_NO_FILE_PROVIDER)
-	@ar d $(HERMES_LIB_NO_FILE_PROVIDER) data_provider_file.o 2>/dev/null || true
+r2one: check-deps
 	# Compile core plugin with registration enabled
 	$(CC) $(CFLAGS) -DHBC_CORE_REGISTER_PLUGINS -c $(CORE_SRC) -o $(CORE_OBJ)
 	# Compile other plugins without radare_plugin (they'll be registered by core)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(ARCH_SRC) -o $(ARCH_OBJ)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(ASM_SRC) -o $(ASM_OBJ)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(BIN_SRC) -o $(BIN_OBJ)
-	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(R2_PROVIDER_SRC) -o $(R2_PROVIDER_OBJ)
-	$(CC) $(LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB_NO_FILE_PROVIDER)
+	$(CC) $(LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(HERMES_LIB)
 	@echo "Plugin file: $(CORE_PLUGIN)"
 	rm -f ~/.local/share/radare2/plugins/*hbc*
 	cp -f core_hbc.dylib ~/.local/share/radare2/plugins
@@ -106,12 +99,12 @@ $(ASM_PLUGIN): $(ASM_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $(ASM_OBJ)
 
 # Core decompiler plugin
-$(CORE_PLUGIN): $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
+$(CORE_PLUGIN): $(CORE_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(HERMES_LIB)
 
 # Core decompiler plugin with plugin registration enabled (r2one)
-$(CORE_ONE_PLUGIN): $(CORE_ONE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) -o $@ $(CORE_ONE_OBJ) $(R2_PROVIDER_OBJ) $(HERMES_LIB)
+$(CORE_ONE_PLUGIN): $(CORE_ONE_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_ONE_OBJ) $(HERMES_LIB)
 
 # Compile object files
 $(ARCH_OBJ): $(ARCH_SRC)
@@ -129,12 +122,10 @@ $(CORE_OBJ): $(CORE_SRC)
 $(CORE_ONE_OBJ): $(CORE_ONE_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(R2_PROVIDER_OBJ): $(R2_PROVIDER_SRC)
-	$(CC) $(CFLAGS) -c $< -o $@
 
 # Clean build artifacts
 clean:
-	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(CORE_ONE_OBJ) $(R2_PROVIDER_OBJ) $(ALL_TARGETS)
+	rm -f $(ARCH_OBJ) $(BIN_OBJ) $(ASM_OBJ) $(CORE_OBJ) $(CORE_ONE_OBJ) $(ALL_TARGETS)
 
 # Install plugins (optional - requires radare2 installation)
 install: $(ALL_TARGETS)
@@ -155,12 +146,13 @@ user-uninstall:
 	rm -f $(R2_PLUGDIR)/$(BIN_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(ASM_PLUGIN)
 	rm -f $(R2_PLUGDIR)/$(CORE_PLUGIN)
-	rm -f $(R2_PLUGDIR)/$(CORE_ONE_PLUGIN)
 
 # Uninstall plugins
 uninstall:
 	rm -f $(R2_PREFIX)/lib/radare2/last/$(ARCH_PLUGIN)
 	rm -f $(R2_PREFIX)/lib/radare2/last/$(BIN_PLUGIN)
+	rm -f $(R2_PREFIX)/lib/radare2/last/$(ASM_PLUGIN)
+	rm -f $(R2_PREFIX)/lib/radare2/last/$(CORE_PLUGIN)
 
 # Check radare2 installation
 check-r2:

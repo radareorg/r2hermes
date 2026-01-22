@@ -6,150 +6,149 @@
 #include <hbc/parser.h>
 #include <hbc/bytecode.h>
 #include "hbc_internal.h"
-#include "hbc_internal_legacy.h"
 #include <hbc/opcodes.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 /* ============================================================================
- * INTERNAL LEGACY API - HBCState Implementation (For Data Providers Only)
+ * HBC - Direct File Access API Implementation
  * ============================================================================ */
 
-Result hbc_open(const char *path, HBCState **out) {
+Result hbc_open(const char *path, HBC **out) {
 	if (!path || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open");
 	}
 
-	HBCState *hd = (HBCState *)calloc (1, sizeof (HBCState));
-	if (!hd) {
+	HBC *hbc = (HBC *)calloc (1, sizeof (HBC));
+	if (!hbc) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
 	}
 
-	Result res = _hbc_reader_init (&hd->reader);
+	Result res = _hbc_reader_init (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		free (hd);
+		free (hbc);
 		return res;
 	}
 
-	res = _hbc_reader_read_whole_file (&hd->reader, path);
+	res = _hbc_reader_read_whole_file (&hbc->reader, path);
 	if (res.code != RESULT_SUCCESS) {
-		_hbc_reader_cleanup (&hd->reader);
-		free (hd);
+		_hbc_reader_cleanup (&hbc->reader);
+		free (hbc);
 		return res;
 	}
 
-	*out = hd;
+	*out = hbc;
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_open_from_memory(const u8 *data, size_t size, HBCState **out) {
+Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 	if (!data || size == 0 || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open_from_memory");
 	}
 
-	HBCState *hd = (HBCState *)calloc (1, sizeof (HBCState));
-	if (!hd) {
+	HBC *hbc = (HBC *)calloc (1, sizeof (HBC));
+	if (!hbc) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
 	}
 
-	Result res = _hbc_reader_init (&hd->reader);
+	Result res = _hbc_reader_init (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		free (hd);
+		free (hbc);
 		return res;
 	}
 
-	res = _hbc_buffer_reader_init_from_memory (&hd->reader.file_buffer, data, size);
+	res = _hbc_buffer_reader_init_from_memory (&hbc->reader.file_buffer, data, size);
 	if (res.code != RESULT_SUCCESS) {
-		_hbc_reader_cleanup (&hd->reader);
-		free (hd);
+		_hbc_reader_cleanup (&hbc->reader);
+		free (hbc);
 		return res;
 	}
 
 	/* Parse header and all sections */
-	res = _hbc_reader_read_header (&hd->reader);
+	res = _hbc_reader_read_header (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_functions_robust (&hd->reader);
+	res = _hbc_reader_read_functions_robust (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_string_kinds (&hd->reader);
+	res = _hbc_reader_read_string_kinds (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_identifier_hashes (&hd->reader);
+	res = _hbc_reader_read_identifier_hashes (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_string_tables (&hd->reader);
+	res = _hbc_reader_read_string_tables (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_arrays (&hd->reader);
+	res = _hbc_reader_read_arrays (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_bigints (&hd->reader);
+	res = _hbc_reader_read_bigints (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_regexp (&hd->reader);
+	res = _hbc_reader_read_regexp (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_cjs_modules (&hd->reader);
+	res = _hbc_reader_read_cjs_modules (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_function_sources (&hd->reader);
+	res = _hbc_reader_read_function_sources (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hd);
+		hbc_close (hbc);
 		return res;
 	}
 	(void)_hbc_reader_read_debug_info;
 
-	*out = hd;
+	*out = hbc;
 	return SUCCESS_RESULT ();
 }
 
-void hbc_close(HBCState *hd) {
-	if (!hd) {
+void hbc_close(HBC *hbc) {
+	if (!hbc) {
 		return;
 	}
-	_hbc_reader_cleanup (&hd->reader);
-	free (hd);
+	_hbc_reader_cleanup (&hbc->reader);
+	free (hbc);
 }
 
-u32 hbc_function_count(HBCState *hd) {
-	if (!hd) {
+u32 hbc_function_count(HBC *hbc) {
+	if (!hbc) {
 		return 0;
 	}
-	return hd->reader.header.functionCount;
+	return hbc->reader.header.functionCount;
 }
 
-u32 hbc_string_count(HBCState *hd) {
-	if (!hd) {
+u32 hbc_string_count(HBC *hbc) {
+	if (!hbc) {
 		return 0;
 	}
-	return hd->reader.header.stringCount;
+	return hbc->reader.header.stringCount;
 }
 
-Result hbc_get_header(HBCState *hd, HBCHeader *out) {
-	if (!hd || !out) {
+Result hbc_get_header(HBC *hbc, HBCHeader *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_header");
 	}
-	HBCHeader *h = &hd->reader.header;
+	HBCHeader *h = &hbc->reader.header;
 	out->magic = h->magic;
 	out->version = h->version;
 	memcpy (out->sourceHash, h->sourceHash, sizeof (out->sourceHash));
@@ -178,18 +177,18 @@ Result hbc_get_header(HBCState *hd, HBCHeader *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunc *out) {
-	if (!hd || !out) {
+Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	if (function_id >= hd->reader.header.functionCount) {
+	if (function_id >= hbc->reader.header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
-	const FunctionHeader *fh = &hd->reader.function_headers[function_id];
+	const FunctionHeader *fh = &hbc->reader.function_headers[function_id];
 	/* Get function name from string table */
 	const char *name = NULL;
-	if (fh->functionName < hd->reader.header.stringCount) {
-		name = hd->reader.strings[fh->functionName];
+	if (fh->functionName < hbc->reader.header.stringCount) {
+		name = hbc->reader.strings[fh->functionName];
 	}
 	out->name = name;
 	out->offset = fh->offset;
@@ -198,22 +197,22 @@ Result hbc_get_function_info(HBCState *hd, u32 function_id, HBCFunc *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_string(HBCState *hd, u32 index, const char **out_str) {
-	if (!hd || !out_str) {
+Result hbc_get_string(HBC *hbc, u32 index, const char **out_str) {
+	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	if (index >= hd->reader.header.stringCount) {
+	if (index >= hbc->reader.header.stringCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "String ID out of range");
 	}
-	*out_str = hd->reader.strings[index];
+	*out_str = hbc->reader.strings[index];
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out) {
-	if (!hd || !out) {
+Result hbc_get_string_meta(HBC *hbc, u32 index, HBCStringMeta *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	HBCReader *r = &hd->reader;
+	HBCReader *r = &hbc->reader;
 	if (index >= r->header.stringCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "String ID out of range");
 	}
@@ -235,53 +234,45 @@ Result hbc_get_string_meta(HBCState *hd, u32 index, HBCStringMeta *out) {
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_string_tables(HBCState *hd, HBCStrs *out) {
-	if (!hd || !out) {
+Result hbc_get_string_tables(HBC *hbc, HBCStrs *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	out->string_count = hd->reader.header.stringCount;
-	out->small_string_table = hd->reader.small_string_table;
-	out->overflow_string_table = hd->reader.overflow_string_table;
-	out->string_storage_offset = hd->reader.string_storage_file_offset;
+	out->string_count = hbc->reader.header.stringCount;
+	out->small_string_table = hbc->reader.small_string_table;
+	out->overflow_string_table = hbc->reader.overflow_string_table;
+	out->string_storage_offset = hbc->reader.string_storage_file_offset;
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_function_source(HBCState *hd, u32 function_id, const char **out_src) {
-	if (!hd || !out_src) {
+Result hbc_get_function_source(HBC *hbc, u32 function_id, const char **out_src) {
+	if (!hbc || !out_src) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	if (function_id >= hd->reader.header.functionCount) {
+	if (function_id >= hbc->reader.header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
 	*out_src = NULL;
-	if (hd->reader.function_sources && function_id < hd->reader.header.functionSourceCount) {
-		u32 string_id = hd->reader.function_sources[function_id].string_id;
-		if (string_id < hd->reader.header.stringCount) {
-			*out_src = hd->reader.strings[string_id];
+	if (hbc->reader.function_sources && function_id < hbc->reader.header.functionSourceCount) {
+		u32 string_id = hbc->reader.function_sources[function_id].string_id;
+		if (string_id < hbc->reader.header.stringCount) {
+			*out_src = hbc->reader.strings[string_id];
 		}
 	}
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_get_function_bytecode(HBCState *hd, u32 function_id, const u8 **out_ptr, u32 *out_size) {
-	if (!hd || !out_ptr || !out_size) {
+Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size) {
+	if (!hbc || !out_ptr || !out_size) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
-	if (function_id >= hd->reader.header.functionCount) {
+	if (function_id >= hbc->reader.header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
-	const FunctionHeader *fh = &hd->reader.function_headers[function_id];
-	*out_ptr = hd->reader.file_buffer.data + fh->offset;
+	const FunctionHeader *fh = &hbc->reader.function_headers[function_id];
+	*out_ptr = hbc->reader.file_buffer.data + fh->offset;
 	*out_size = fh->bytecodeSizeInBytes;
 	return SUCCESS_RESULT ();
-}
-
-/* ============================================================================
- * CLI Convenience Functions
- * ============================================================================ */
-
-Result hbc_decompile_file(const char *input_file, const char *output_file) {
-	return _hbc_decompile_file (input_file, output_file);
 }
 
 /* ============================================================================
@@ -289,11 +280,11 @@ Result hbc_decompile_file(const char *input_file, const char *output_file) {
  * ============================================================================ */
 
 Result hbc_decomp_fn(
-	HBC *provider,
+	HBC *hbc,
 	u32 function_id,
 	HBCDecompOptions options,
 	char **out_str) {
-	if (!provider || !out_str) {
+	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -303,21 +294,21 @@ Result hbc_decomp_fn(
 		return res;
 	}
 
-	res = _hbc_decompile_function_with_provider (provider, function_id, options, &sb);
+	res = _hbc_decompile_function_with_state (hbc, function_id, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_string_buffer_free (&sb);
 		return res;
 	}
 
-	 *out_str = sb.data; /* Transfer ownership to caller */
+	*out_str = sb.data;
 	return SUCCESS_RESULT ();
 }
 
 Result hbc_decomp_all(
-	HBC *provider,
+	HBC *hbc,
 	HBCDecompOptions options,
 	char **out_str) {
-	if (!provider || !out_str) {
+	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -327,57 +318,52 @@ Result hbc_decomp_all(
 		return res;
 	}
 
-	res = _hbc_decompile_all_with_provider (provider, options, &sb);
+	res = _hbc_decompile_all_with_state (hbc, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_string_buffer_free (&sb);
 		return res;
 	}
 
-	 *out_str = sb.data; /* Transfer ownership to caller */
+	*out_str = sb.data;
 	return SUCCESS_RESULT ();
 }
 
 Result hbc_disasm_fn(
-	HBC *provider,
+	HBC *hbc,
 	u32 function_id,
 	HBCDisOptions options,
 	char **out_str) {
 	(void)function_id;
 	(void)options;
 
-	if (!provider || !out_str) {
+	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via provider not yet implemented");
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via state not yet implemented");
 }
 
 Result hbc_disasm_all(
-	HBC *provider,
+	HBC *hbc,
 	HBCDisOptions options,
 	char **out_str) {
 	(void)options;
 
-	if (!provider || !out_str) {
+	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via provider not yet implemented");
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via state not yet implemented");
 }
 
 Result hbc_all_funcs(
-	HBC *provider,
+	HBC *hbc,
 	HBCFuncArray *out) {
-	if (!provider || !out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	u32 count = 0;
-	Result res = hbc_func_count (provider, &count);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
+	u32 count = hbc_function_count (hbc);
 	if (count == 0) {
 		out->functions = NULL;
 		out->count = 0;
@@ -390,7 +376,7 @@ Result hbc_all_funcs(
 	}
 
 	for (u32 i = 0; i < count; i++) {
-		res = hbc_func_info (provider, i, &out->functions[i]);
+		Result res = hbc_get_function_info (hbc, i, &out->functions[i]);
 		if (res.code != RESULT_SUCCESS) {
 			free (out->functions);
 			out->functions = NULL;
@@ -412,29 +398,29 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 }
 
 Result hbc_decode_fn(
-	HBC *provider,
+	HBC *hbc,
 	u32 function_id,
 	HBCInsns *out) {
-	if (!provider || !out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
 	const u8 *bytecode = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_bytecode (provider, function_id, &bytecode, &bytecode_size);
+	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	HBCStrs string_tables = { 0 };
-	res = hbc_str_tbl (provider, &string_tables);
+	res = hbc_get_string_tables (hbc, &string_tables);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	out->instructions = NULL;
 	out->count = 0;
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Instruction decoding via provider not yet implemented");
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Instruction decoding via state not yet implemented");
 }
 
 /* Single-instruction decode functions */

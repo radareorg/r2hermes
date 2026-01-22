@@ -78,7 +78,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 
 	/* Clean up old provider */
 	if (ctx->hbc) {
-		hbc_free (ctx->hbc);
+		hbc_close (ctx->hbc);
 		ctx->hbc = NULL;
 	}
 	free (ctx->file_path);
@@ -90,17 +90,16 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
 
-	/* Create provider from r2 RBinFile (NO file I/O) */
-	// XXX r2 provider is flawed ctx->hbc = r2_hbc_new_r2 (bf);
-	ctx->hbc = hbc_new_file (file_path);
-	if (!ctx->hbc) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to create provider");
+	/* Create HBC from file path */
+	Result res = hbc_open (file_path, &ctx->hbc);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
 	}
 
 	ctx->core = core;
 	ctx->file_path = strdup (file_path);
 	if (!ctx->file_path) {
-		hbc_free (ctx->hbc);
+		hbc_close (ctx->hbc);
 		ctx->hbc = NULL;
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
 	}
@@ -112,17 +111,14 @@ static int find_function_at_offset(HbcContext *ctx, u32 offset, u32 *out_id) {
 	if (!out_id || !ctx->hbc) {
 		return -1;
 	}
-	u32 count;
-	Result res = hbc_func_count (ctx->hbc, &count);
-	if (res.code == RESULT_SUCCESS) {
-		for (u32 i = 0; i < count; i++) {
-			HBCFunc fi;
-			res = hbc_func_info (ctx->hbc, i, &fi);
-			if (res.code == RESULT_SUCCESS) {
-				if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
-					*out_id = i;
-					return 0;
-				}
+	u32 count = hbc_function_count (ctx->hbc);
+	for (u32 i = 0; i < count; i++) {
+		HBCFunc fi;
+		Result res = hbc_get_function_info (ctx->hbc, i, &fi);
+		if (res.code == RESULT_SUCCESS) {
+			if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
+				*out_id = i;
+				return 0;
 			}
 		}
 	}
@@ -166,7 +162,7 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 	if (found == 0) {
 		/* Found function at current offset - get its base address */
 		HBCFunc fi;
-		Result fres = hbc_func_info (ctx->hbc, function_id, &fi);
+		Result fres = hbc_get_function_info (ctx->hbc, function_id, &fi);
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 		HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 		char *output = NULL;
@@ -221,19 +217,14 @@ static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *
 		return;
 	}
 	u32 function_id = parse_function_id (addr_str);
-	u32 count;
-	res = hbc_func_count (ctx->hbc, &count);
-	if (res.code != RESULT_SUCCESS) {
-		R_LOG_ERROR ("cannot get function count");
-		return;
-	}
+	u32 count = hbc_function_count (ctx->hbc);
 	if (function_id >= count) {
 		R_LOG_ERROR ("function id %u out of range (count=%u)", function_id, count);
 		return;
 	}
 	/* Get function base address for offset calculation */
 	HBCFunc fi;
-	Result fres = hbc_func_info (ctx->hbc, function_id, &fi);
+	Result fres = hbc_get_function_info (ctx->hbc, function_id, &fi);
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 	HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 	char *output = NULL;
@@ -255,17 +246,12 @@ static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 		return;
 	}
 
-	u32 count;
-	res = hbc_func_count (ctx->hbc, &count);
-	if (res.code != RESULT_SUCCESS) {
-		R_LOG_ERROR ("cannot get function count");
-		return;
-	}
+	u32 count = hbc_function_count (ctx->hbc);
 	r_cons_printf (core->cons, "Functions (%u):\n", count);
 
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc info;
-		Result res = hbc_func_info (ctx->hbc, i, &info);
+		Result res = hbc_get_function_info (ctx->hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
 			r_cons_printf (core->cons, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, r_str_get_fail (info.name, "unknown"), info.offset, info.size, info.param_count);
 		}
@@ -281,7 +267,7 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 	}
 
 	HBCHeader header;
-	res = hbc_hdr (ctx->hbc, &header);
+	res = hbc_get_header (ctx->hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("reading header: %s", safe_errmsg (res.error_message));
 		return;
@@ -388,8 +374,7 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 
 	u32 function_id = parse_function_id (addr_str);
 	HBCDecompOptions opts = { .pretty_literals = true, .suppress_comments = false };
-	u32 count;
-	res = hbc_func_count (ctx->hbc, &count);
+	u32 count = hbc_function_count (ctx->hbc);
 	if (res.code != RESULT_SUCCESS) {
 		PJ *pj = r_core_pj_new (core);
 		pj_o (pj);
@@ -604,7 +589,7 @@ static bool plugin_init(RCorePluginSession *s) {
 static bool plugin_fini(RCorePluginSession *s) {
 	HbcContext *ctx = s->data;
 	if (ctx) {
-		hbc_free (ctx->hbc);
+		hbc_close (ctx->hbc);
 		ctx->hbc = NULL;
 		ctx->core = NULL;
 		R_FREE (ctx->file_path);

@@ -21,8 +21,9 @@ static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 	if (check (bf, buf) && bf->file) {
-		HBC *hbc = hbc_new_file (bf->file);
-		if (hbc) {
+		HBC *hbc = NULL;
+		Result res = hbc_open (bf->file, &hbc);
+		if (res.code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			bo->hbc = hbc;
 			bf->bo->bin_obj = bo;
@@ -36,12 +37,12 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
-		hbc_free (bo->hbc);
+		hbc_close (bo->hbc);
 		free (bo);
 	}
 }
 
-static HBC *get_provider(RBinFile *bf) {
+static HBC *get_hbc(RBinFile *bf) {
 	HBCBinObj *hbo = R_UNWRAP3 (bf, bo, bin_obj);
 	return hbo? hbo->hbc: NULL;
 }
@@ -67,20 +68,18 @@ static bool is_valid_entrypoint(RBuffer *buf, ut64 offset) {
 }
 
 /* Unified entrypoint resolution with fallback chain */
-static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
-	if (!provider) {
+static ut64 resolve_entrypoint(RBinFile *bf, HBC *hbc) {
+	if (!hbc) {
 		return 0;
 	}
 	/* Try 1: Find MainAppContent symbol */
-	u32 func_count;
-	if (hbc_func_count (provider, &func_count).code == RESULT_SUCCESS) {
-		for (u32 i = 0; i < func_count; i++) {
-			HBCFunc fi;
-			if (hbc_func_info (provider, i, &fi).code == RESULT_SUCCESS) {
-				if (fi.name && strcmp (fi.name, "MainAppContent") == 0) {
-					if (is_valid_entrypoint (bf->buf, fi.offset)) {
-						return fi.offset;
-					}
+	u32 func_count = hbc_function_count (hbc);
+	for (u32 i = 0; i < func_count; i++) {
+		HBCFunc fi;
+		if (hbc_get_function_info (hbc, i, &fi).code == RESULT_SUCCESS) {
+			if (fi.name && strcmp (fi.name, "MainAppContent") == 0) {
+				if (is_valid_entrypoint (bf->buf, fi.offset)) {
+					return fi.offset;
 				}
 			}
 		}
@@ -88,7 +87,7 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
 
 	/* Try 2: Use header globalCodeIndex */
 	HBCHeader hh;
-	if (hbc_hdr (provider, &hh).code == RESULT_SUCCESS) {
+	if (hbc_get_header (hbc, &hh).code == RESULT_SUCCESS) {
 		if (is_valid_entrypoint (bf->buf, hh.globalCodeIndex)) {
 			return hh.globalCodeIndex;
 		}
@@ -97,7 +96,7 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBC *provider) {
 	/* Try 3: Use first function's offset */
 	if (func_count > 0) {
 		HBCFunc fi;
-		if (hbc_func_info (provider, 0, &fi).code == RESULT_SUCCESS) {
+		if (hbc_get_function_info (hbc, 0, &fi).code == RESULT_SUCCESS) {
 			if (is_valid_entrypoint (bf->buf, fi.offset)) {
 				return fi.offset;
 			}
@@ -133,10 +132,10 @@ static RBinInfo *bininfo(RBinFile *bf) {
 	bool has_version = false;
 	ut32 version = 0;
 
-	HBC *provider = get_provider (bf);
-	if (provider) {
+	HBC *hbc = get_hbc (bf);
+	if (hbc) {
 		HBCHeader hh;
-		if (hbc_hdr (provider, &hh).code == RESULT_SUCCESS) {
+		if (hbc_get_header (hbc, &hh).code == RESULT_SUCCESS) {
 			has_version = true;
 			version = hh.version;
 		}
@@ -181,8 +180,8 @@ static RList *entries(RBinFile *bf) {
 	}
 
 	RBinAddr *addr = R_NEW0 (RBinAddr);
-	HBC *provider = get_provider (bf);
-	ut64 entrypoint = resolve_entrypoint (bf, provider);
+	HBC *hbc = get_hbc (bf);
+	ut64 entrypoint = resolve_entrypoint (bf, hbc);
 
 	addr->paddr = entrypoint;
 	addr->vaddr = HBC_VADDR_BASE + entrypoint;
@@ -197,19 +196,15 @@ static ut64 baddr(RBinFile *bf R_UNUSED) {
 
 static RList *symbols(RBinFile *bf) {
 	RList *symbols = r_list_newf ((RListFree)free);
-	HBC *provider = get_provider (bf);
-	if (!provider) {
+	HBC *hbc = get_hbc (bf);
+	if (!hbc) {
 		return symbols;
 	}
 
-	u32 func_count;
-	if (hbc_func_count (provider, &func_count).code != RESULT_SUCCESS) {
-		return symbols;
-	}
-
+	u32 func_count = hbc_function_count (hbc);
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunc fi;
-		if (hbc_func_info (provider, i, &fi).code != RESULT_SUCCESS) {
+		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
 			continue;
 		}
 
@@ -225,7 +220,7 @@ static RList *symbols(RBinFile *bf) {
 
 		/* Add container prefix if available */
 		const char *src = NULL;
-		if (hbc_src (provider, i, &src).code == RESULT_SUCCESS && src && *src) {
+		if (hbc_get_function_source (hbc, i, &src).code == RESULT_SUCCESS && src && *src) {
 			char *sp = r_name_filter_dup (src);
 			if (sp && *sp) {
 				char *withpref = r_str_newf ("%s__%s", sp, san);
@@ -256,24 +251,20 @@ static RList *symbols(RBinFile *bf) {
 
 static RList *strings(RBinFile *bf) {
 	RList *ret = r_list_newf ((RListFree)free);
-	HBC *provider = get_provider (bf);
-	if (!provider) {
+	HBC *hbc = get_hbc (bf);
+	if (!hbc) {
 		return ret;
 	}
 
-	u32 string_count;
-	if (hbc_str_count (provider, &string_count).code != RESULT_SUCCESS) {
-		return ret;
-	}
-
+	u32 string_count = hbc_string_count (hbc);
 	for (u32 i = 0; i < string_count; i++) {
 		const char *str = NULL;
-		if (hbc_str (provider, i, &str).code != RESULT_SUCCESS || !str) {
+		if (hbc_get_string (hbc, i, &str).code != RESULT_SUCCESS || !str) {
 			continue;
 		}
 
 		HBCStringMeta meta;
-		if (hbc_str_meta (provider, i, &meta).code != RESULT_SUCCESS) {
+		if (hbc_get_string_meta (hbc, i, &meta).code != RESULT_SUCCESS) {
 			continue;
 		}
 
