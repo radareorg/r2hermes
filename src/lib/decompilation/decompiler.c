@@ -14,8 +14,8 @@
 /**
  * Load bytecode for a function using the state.
  */
-static Result ensure_function_bytecode_loaded_from_state(HBCState *hd, FunctionHeader *function_header, u32 function_id) {
-	if (!hd || !function_header) {
+static Result ensure_function_bytecode_loaded_from_state(HBC *hbc, FunctionHeader *function_header, u32 function_id) {
+	if (!hbc || !function_header) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "ensure: state or header NULL");
 	}
 	if (function_header->bytecode) {
@@ -25,7 +25,7 @@ static Result ensure_function_bytecode_loaded_from_state(HBCState *hd, FunctionH
 	/* Get bytecode from state */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_get_function_bytecode (hd, function_id, &bytecode_ptr, &bytecode_size);
+	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -719,8 +719,8 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBCState *hd) {
-	if (!decompiler || !hd) {
+Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBC *hbc) {
+	if (!decompiler || !hbc) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler or state pointer");
 	}
 
@@ -731,7 +731,7 @@ Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBCState *h
 	}
 
 	/* Store state reference */
-	decompiler->hbc = hd;
+	decompiler->hbc = hbc;
 
 	return SUCCESS_RESULT ();
 }
@@ -904,8 +904,8 @@ Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options,
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
-	if (!hd || !out) {
+Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_with_state args");
 	}
 
@@ -915,7 +915,7 @@ Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDeco
 
 	/* Try to use existing _hbc_decompile_function_to_buffer if we can extract HBCReader */
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hd));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hbc));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -927,7 +927,7 @@ Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDeco
 
 	/* Get header from state and populate stub */
 	HBCHeader header;
-	Result hres = hbc_get_header (hd, &header);
+	Result hres = hbc_get_header (hbc, &header);
 	if (hres.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return hres;
@@ -949,7 +949,7 @@ Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDeco
 
 	for (u32 i = 0; i < header.functionCount; i++) {
 		HBCFunc fi;
-		Result fres = hbc_get_function_info (hd, i, &fi);
+		Result fres = hbc_get_function_info (hbc, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -970,7 +970,7 @@ Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDeco
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_get_string (hd, i, &str);
+			Result sres = hbc_get_string (hbc, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* State owns the string, we just reference it */
 			}
@@ -991,12 +991,12 @@ Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDeco
 	return r;
 }
 
-Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, StringBuffer *out) {
-	if (!hd || !out) {
+Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringBuffer *out) {
+	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_with_state");
 	}
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hd));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hbc));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -1007,7 +1007,7 @@ Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, Str
 
 	/* Get header from state and populate stub */
 	HBCHeader header;
-	Result res = hbc_get_header (hd, &header);
+	Result res = hbc_get_header (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return res;
@@ -1040,7 +1040,7 @@ Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, Str
 	/* Populate function_headers from state */
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunc fi;
-		Result fres = hbc_get_function_info (hd, i, &fi);
+		Result fres = hbc_get_function_info (hbc, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -1062,7 +1062,7 @@ Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, Str
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_get_string (hd, i, &str);
+			Result sres = hbc_get_string (hbc, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
 				stub_reader.strings[i] = (char *)str; /* State owns the string, we just reference it */
 			}
@@ -1072,7 +1072,7 @@ Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, Str
 	/* File preamble */
 	if (!options.suppress_comments) {
 		HBCHeader header;
-		res = hbc_get_header (hd, &header);
+		res = hbc_get_header (hbc, &header);
 		if (res.code != RESULT_SUCCESS) {
 			_hbc_decompiler_cleanup (&dec);
 			return res;

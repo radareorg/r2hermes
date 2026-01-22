@@ -1,6 +1,8 @@
 #include <hbc/common.h>
 #include <hbc/hbc.h>
 #include <hbc/decompilation/literals.h>
+#include <hbc/decompilation/decompiler.h>
+#include <hbc/disasm.h>
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -175,7 +177,7 @@ static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 	}
 	const char *input = argv[0];
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return ERROR_RESULT (RESULT_ERROR_READ, "Failed to open file: %s");
@@ -209,8 +211,8 @@ static Result cmd_c(const CliContext *ctx, int argc, char **argv) {
 	}
 	const char *input = argv[0];
 
-	// Use the convenience API that handles file I/O internally
-	Result res = hbc_decompile_file (input, NULL);
+	// Use the internal API that handles file I/O
+	Result res = _hbc_decompile_file (input, NULL);
 	return res;
 }
 
@@ -313,7 +315,7 @@ static Result cmd_r(const CliContext *ctx, int argc, char **argv) {
 	if (argc > 2) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
-	return hbc_generate_r2_script (input, output);
+	return _hbc_generate_r2_script (input, output);
 }
 
 static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
@@ -327,7 +329,7 @@ static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result r = hbc_open (input, &hbc);
 	if (r.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -383,7 +385,7 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result r = hbc_open (input, &hbc);
 	if (r.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -461,7 +463,7 @@ static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -496,7 +498,7 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -581,7 +583,7 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	const char *python_dis_file = argv[1];
 	u32 function_id = (u32)strtoul (argv[2], NULL, 0);
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -658,7 +660,7 @@ static Result cmd_s(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -686,7 +688,7 @@ static Result cmd_fs(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
@@ -717,7 +719,7 @@ static Result cmd_sm(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
 	}
 
-	HBCState *hbc = NULL;
+	HBC *hbc = NULL;
 	Result res = hbc_open (input, &hbc);
 	if (res.code != RESULT_SUCCESS || !hbc) {
 		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);

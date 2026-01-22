@@ -12,7 +12,7 @@ extern const RBinPlugin r_bin_plugin_r2hermes;
 #endif
 
 typedef struct {
-	HBCState *hbc;
+	HBC *hbc;
 	RCore *core;
 	char *file_path;
 } HbcContext;
@@ -90,7 +90,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
 
-	/* Create HBCState from file path */
+	/* Create HBC from file path */
 	Result res = hbc_open (file_path, &ctx->hbc);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
