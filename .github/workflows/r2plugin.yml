@@ -64,6 +64,7 @@ jobs:
           git clone --depth=1 https://github.com/radareorg/radare2.git
           cd radare2
           echo core.r2hermes > libr/xps/static.cfg
+          cp -f ../r2plugin/config.mk libr/xps/config.mk
 
           # Clone r2hermes into the plugins directory
           git clone .. libr/xps/p/r2hermes
