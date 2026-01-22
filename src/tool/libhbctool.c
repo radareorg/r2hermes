@@ -193,7 +193,7 @@ static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 		HBCFunc fi;
 		res = hbc_get_function_info (hbc, i, &fi);
 		if (res.code == RESULT_SUCCESS) {
-			printf ("Function %u: %s\n", i, fi.name ? fi.name : "unnamed");
+			printf ("Function %u: %s\n", i, fi.name? fi.name: "unnamed");
 			printf ("  Offset: 0x%08x\n", fi.offset);
 			printf ("  Size: %u bytes\n", fi.size);
 			printf ("  Params: %u\n\n", fi.param_count);
