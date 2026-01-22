@@ -13,7 +13,7 @@
 #include <stdio.h>
 
 /* ============================================================================
- * INTERNAL LEGACY API - HBCState Implementation (For Data Providers Only)
+ * HBCSTATE - Direct File Access API Implementation
  * ============================================================================ */
 
 Result hbc_open(const char *path, HBCState **out) {

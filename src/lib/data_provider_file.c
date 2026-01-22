@@ -1,11 +1,9 @@
 #include <hbc/hbc.h>
-#include "hbc_internal_legacy.h"
 #include <stdlib.h>
 #include <string.h>
 
 /**
- * FileDataProvider wraps HBCState and HBCReader (current implementation).
- * This maintains backward compatibility while enabling other providers.
+ * Simple provider wrapper that uses HBCState internally
  */
 struct FileDataProvider {
 	HBCState *hbc;
