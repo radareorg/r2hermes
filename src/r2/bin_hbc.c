@@ -23,18 +23,13 @@ static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 	if (check (bf, buf)) {
-		ut8 *data = NULL;
-		if (!r_buf_read_alloc (buf, &data, NULL)) {
-			return false;
-		}
-
 		HBC *hbc = NULL;
-		Result res = hbc_open_from_memory (data, r_buf_size (buf), &hbc);
+		ut8 *data = NULL;
+		Result res = hbc_open_from_buffer (buf, &hbc, &data);
 		if (res.code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			if (!bo) {
-				hbc_close (hbc);
-				free (data);
+				hbc_free_data_and_close (&hbc, &data);
 				return false;
 			}
 			bo->hbc = hbc;
@@ -43,7 +38,6 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 			bf->buf = buf;
 			return true;
 		}
-		free (data);
 	}
 	return false;
 }
@@ -51,8 +45,7 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
-		hbc_close (bo->hbc);
-		free (bo->data);
+		hbc_free_data_and_close (&bo->hbc, &bo->data);
 		free (bo);
 	}
 }

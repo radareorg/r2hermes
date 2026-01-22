@@ -79,14 +79,8 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 
 	/* Clean up old provider */
-	if (ctx->hbc) {
-		hbc_close (ctx->hbc);
-		ctx->hbc = NULL;
-	}
-	free (ctx->file_path);
-	ctx->file_path = NULL;
-	free (ctx->data);
-	ctx->data = NULL;
+	hbc_free_data_and_close (&ctx->hbc, &ctx->data);
+	R_FREE (ctx->file_path);
 
 	/* Get RBinFile from r2 (already parsed by r2) */
 	RBinFile *bf = core->bin->cur;
@@ -94,32 +88,16 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
 
-	/* Get buffer size */
-	ut64 size = r_buf_size (bf->buf);
-	if (size == 0 || size > SIZE_MAX) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer size");
-	}
-
-	/* Read buffer into memory */
-	ut8 *data = NULL;
-	if (!r_buf_read_alloc (bf->buf, &data, NULL)) {
-		return ERROR_RESULT (RESULT_ERROR_READ, "Failed to read buffer");
-	}
-
-	/* Create HBC from memory */
-	Result res = hbc_open_from_memory (data, size, &ctx->hbc);
+	/* Open HBC from buffer */
+	Result res = hbc_open_from_buffer (bf->buf, &ctx->hbc, &ctx->data);
 	if (res.code != RESULT_SUCCESS) {
-		free (data);
 		return res;
 	}
 
 	ctx->core = core;
 	ctx->file_path = strdup (file_path);
-	ctx->data = data;
 	if (!ctx->file_path) {
-		hbc_close (ctx->hbc);
-		ctx->hbc = NULL;
-		free (data);
+		hbc_free_data_and_close (&ctx->hbc, &ctx->data);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
 	}
 	return SUCCESS_RESULT ();
@@ -608,11 +586,8 @@ static bool plugin_init(RCorePluginSession *s) {
 static bool plugin_fini(RCorePluginSession *s) {
 	HbcContext *ctx = s->data;
 	if (ctx) {
-		hbc_close (ctx->hbc);
-		ctx->hbc = NULL;
-		ctx->core = NULL;
+		hbc_free_data_and_close (&ctx->hbc, &ctx->data);
 		R_FREE (ctx->file_path);
-		free (ctx->data);
 		free (ctx);
 		s->data = NULL;
 	}
