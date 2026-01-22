@@ -17,9 +17,8 @@ PARSERS_SRC = $(wildcard $(SRC_DIR)/parsers/*.c)
 DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
 DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(filter-out $(SRC_DIR)/opcodes/%.inc.c,$(wildcard $(SRC_DIR)/opcodes/*.c))
-DATA_PROVIDER_SRC = $(SRC_DIR)/data_provider_file.c
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
-          $(DATA_PROVIDER_SRC) $(SRC_DIR)/hbc.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
+          $(SRC_DIR)/hbc.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
 MAIN_SRC = src/tool/libhbctool.c
 
 ## Object files

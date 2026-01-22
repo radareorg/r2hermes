@@ -51,7 +51,7 @@ CORE_ONE_PLUGIN = core_hbc_one.$(EXT_SO)
 # Library paths
 HERMES_LIB_DIR = ../../build
 HERMES_LIB = $(HERMES_LIB_DIR)/libhbc.a
-HERMES_LIB_NO_FILE_PROVIDER = $(HERMES_LIB_DIR)/libhbc_nofile.a
+
 
 # All targets
 ALL_TARGETS = $(ARCH_PLUGIN) $(BIN_PLUGIN) $(ASM_PLUGIN) $(CORE_PLUGIN)
@@ -63,17 +63,13 @@ all: check-deps $(ALL_TARGETS)
 
 # Build core plugin with plugin registration enabled (r2one)
 r2one: check-deps
-	# Create a custom libhbc without data_provider_file.o to avoid symbol conflicts
-	@echo "Creating libhbc.a without data_provider_file.o for r2one..."
-	@cp $(HERMES_LIB) $(HERMES_LIB_NO_FILE_PROVIDER)
-	@ar d $(HERMES_LIB_NO_FILE_PROVIDER) data_provider_file.o 2>/dev/null || true
 	# Compile core plugin with registration enabled
 	$(CC) $(CFLAGS) -DHBC_CORE_REGISTER_PLUGINS -c $(CORE_SRC) -o $(CORE_OBJ)
 	# Compile other plugins without radare_plugin (they'll be registered by core)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(ARCH_SRC) -o $(ARCH_OBJ)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(ASM_SRC) -o $(ASM_OBJ)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(BIN_SRC) -o $(BIN_OBJ)
-	$(CC) $(LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(HERMES_LIB_NO_FILE_PROVIDER)
+	$(CC) $(LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(HERMES_LIB)
 	@echo "Plugin file: $(CORE_PLUGIN)"
 	rm -f ~/.local/share/radare2/plugins/*hbc*
 	cp -f core_hbc.dylib ~/.local/share/radare2/plugins

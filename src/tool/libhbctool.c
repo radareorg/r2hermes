@@ -659,18 +659,10 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id %u", function_id);
 	}
 
-	// Need to use the old HBC provider for disasm since it's not implemented in HBCState yet
-	HBC *hbc_provider = hbc_new_file (input);
-	if (!hbc_provider) {
-		hbc_close (hbc);
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
-
 	HBCDisOptions opt = (HBCDisOptions){ 0 };
 	char *disasm_str = NULL;
-	res = hbc_disasm_fn (hbc_provider, function_id, opt, &disasm_str);
+	res = hbc_disasm_fn (hbc, function_id, opt, &disasm_str);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_free (hbc_provider);
 		hbc_close (hbc);
 		return res;
 	}
@@ -678,7 +670,6 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	FILE *py = fopen (python_dis_file, "r");
 	if (!py) {
 		free (disasm_str);
-		hbc_free (hbc_provider);
 		hbc_close (hbc);
 		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", python_dis_file);
 	}
@@ -716,7 +707,6 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	}
 	fclose (py);
 	free (disasm_str);
-	hbc_free (hbc_provider);
 	hbc_close (hbc);
 	return SUCCESS_RESULT ();
 }

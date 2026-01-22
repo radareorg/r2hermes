@@ -11,7 +11,6 @@
 typedef struct {
 	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
 	HBCState *hbc_state; /* Hermes state for direct access */
-	HBC *hbc; /* Hermes provider (temporary shim for decompilation) */
 	u32 string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
@@ -62,12 +61,6 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	/* Open with HBCState directly for better performance */
 	Result res = hbc_open (bi->file, &hs->hbc_state);
 	if (res.code != RESULT_SUCCESS) {
-		return false;
-	}
-	hs->hbc = hbc_new_file (bi->file); /* Temporary shim for decompilation APIs */
-	if (!hs->hbc) {
-		hbc_close (hs->hbc_state);
-		hs->hbc_state = NULL;
 		return false;
 	}
 
@@ -221,7 +214,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	}
 
 	/* Load string tables if not already loaded */
-	if (!hs->hbc) {
+	if (!hs->hbc_state) {
 		load_string_tables (hs, s);
 	}
 
@@ -594,10 +587,6 @@ static bool fini(RArchSession *s) {
 	}
 	HermesArchSession *hs = (HermesArchSession *)s->data;
 	if (hs) {
-		if (hs->hbc) {
-			hbc_free (hs->hbc);
-			hs->hbc = NULL;
-		}
 		if (hs->hbc_state) {
 			hbc_close (hs->hbc_state);
 			hs->hbc_state = NULL;

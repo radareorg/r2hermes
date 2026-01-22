@@ -289,11 +289,11 @@ Result hbc_decompile_file(const char *input_file, const char *output_file) {
  * ============================================================================ */
 
 Result hbc_decomp_fn(
-	HBC *provider,
+	HBCState *hd,
 	u32 function_id,
 	HBCDecompOptions options,
 	char **out_str) {
-	if (!provider || !out_str) {
+	if (!hd || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -303,21 +303,21 @@ Result hbc_decomp_fn(
 		return res;
 	}
 
-	res = _hbc_decompile_function_with_provider (provider, function_id, options, &sb);
+	res = _hbc_decompile_function_with_state (hd, function_id, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_string_buffer_free (&sb);
 		return res;
 	}
 
-	 *out_str = sb.data; /* Transfer ownership to caller */
+	*out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
 Result hbc_decomp_all(
-	HBC *provider,
+	HBCState *hd,
 	HBCDecompOptions options,
 	char **out_str) {
-	if (!provider || !out_str) {
+	if (!hd || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -327,57 +327,52 @@ Result hbc_decomp_all(
 		return res;
 	}
 
-	res = _hbc_decompile_all_with_provider (provider, options, &sb);
+	res = _hbc_decompile_all_with_state (hd, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_string_buffer_free (&sb);
 		return res;
 	}
 
-	 *out_str = sb.data; /* Transfer ownership to caller */
+	*out_str = sb.data; /* Transfer ownership to caller */
 	return SUCCESS_RESULT ();
 }
 
 Result hbc_disasm_fn(
-	HBC *provider,
+	HBCState *hd,
 	u32 function_id,
 	HBCDisOptions options,
 	char **out_str) {
 	(void)function_id;
 	(void)options;
 
-	if (!provider || !out_str) {
+	if (!hd || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via provider not yet implemented");
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via state not yet implemented");
 }
 
 Result hbc_disasm_all(
-	HBC *provider,
+	HBCState *hd,
 	HBCDisOptions options,
 	char **out_str) {
 	(void)options;
 
-	if (!provider || !out_str) {
+	if (!hd || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via provider not yet implemented");
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via state not yet implemented");
 }
 
 Result hbc_all_funcs(
-	HBC *provider,
+	HBCState *hd,
 	HBCFuncArray *out) {
-	if (!provider || !out) {
+	if (!hd || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	u32 count = 0;
-	Result res = hbc_func_count (provider, &count);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
+	u32 count = hbc_function_count (hd);
 	if (count == 0) {
 		out->functions = NULL;
 		out->count = 0;
@@ -390,7 +385,7 @@ Result hbc_all_funcs(
 	}
 
 	for (u32 i = 0; i < count; i++) {
-		res = hbc_func_info (provider, i, &out->functions[i]);
+		Result res = hbc_get_function_info (hd, i, &out->functions[i]);
 		if (res.code != RESULT_SUCCESS) {
 			free (out->functions);
 			out->functions = NULL;
@@ -412,29 +407,29 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 }
 
 Result hbc_decode_fn(
-	HBC *provider,
+	HBCState *hd,
 	u32 function_id,
 	HBCInsns *out) {
-	if (!provider || !out) {
+	if (!hd || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
 	const u8 *bytecode = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_bytecode (provider, function_id, &bytecode, &bytecode_size);
+	Result res = hbc_get_function_bytecode (hd, function_id, &bytecode, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	HBCStrs string_tables = { 0 };
-	res = hbc_str_tbl (provider, &string_tables);
+	res = hbc_get_string_tables (hd, &string_tables);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	out->instructions = NULL;
 	out->count = 0;
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Instruction decoding via provider not yet implemented");
+	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Instruction decoding via state not yet implemented");
 }
 
 /* Single-instruction decode functions */

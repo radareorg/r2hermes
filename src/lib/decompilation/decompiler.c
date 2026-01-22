@@ -12,21 +12,20 @@
 
 /* Ensure that the function's bytecode buffer is loaded into memory. */
 /**
- * Load bytecode for a function using the data provider.
- * Used when decompiling with provider-based API.
+ * Load bytecode for a function using the state.
  */
-static Result ensure_function_bytecode_loaded_from_provider(HBC *hbc, FunctionHeader *function_header, u32 function_id) {
-	if (!hbc || !function_header) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "ensure: provider or header NULL");
+static Result ensure_function_bytecode_loaded_from_state(HBCState *hd, FunctionHeader *function_header, u32 function_id) {
+	if (!hd || !function_header) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "ensure: state or header NULL");
 	}
 	if (function_header->bytecode) {
 		return SUCCESS_RESULT ();
 	}
 
-	/* Get bytecode from provider */
+	/* Get bytecode from state */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size);
+	Result res = hbc_get_function_bytecode (hd, function_id, &bytecode_ptr, &bytecode_size);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -710,7 +709,7 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->function_in_progress = NULL;
 	decompiler->indent_level = 0;
 	decompiler->inlining_function = false;
-	decompiler->hbc = NULL; /* Will be set if using provider-based API */
+	decompiler->hbc = NULL; /* Will be set if using state-based API */
 	decompiler->options.pretty_literals = true;
 	decompiler->options.suppress_comments = false;
 
@@ -720,9 +719,9 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBC *hbc) {
-	if (!decompiler || !hbc) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler or provider pointer");
+Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBCState *hd) {
+	if (!decompiler || !hd) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler or state pointer");
 	}
 
 	/* Initialize common fields */
@@ -731,8 +730,8 @@ Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBC *hbc
 		return res;
 	}
 
-	/* Store provider reference */
-	decompiler->hbc = hbc;
+	/* Store state reference */
+	decompiler->hbc = hd;
 
 	return SUCCESS_RESULT ();
 }
@@ -758,9 +757,9 @@ Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler) {
 		decompiler->function_in_progress = NULL;
 	}
 
-	// Free data provider if owned by decompiler
-	/* Note: We don't free the provider here because it may be owned by caller.
-	 * The provider lifecycle is managed externally, not by decompiler. */
+	// Free data state if owned by decompiler
+	/* Note: We don't free the state here because it may be owned by caller.
+	 * The state lifecycle is managed externally, not by decompiler. */
 	decompiler->hbc = NULL;
 
 	// Cleanup string buffer
@@ -905,30 +904,30 @@ Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options,
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
-	if (!hbc || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_with_provider args");
+Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
+	if (!hd || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_with_state args");
 	}
 
 	/* For now, leverage existing _hbc_decompile_function_to_buffer by extracting reader.
-	 * In Phase 2, we delegate to the provider API. This is a bridge.
-	 * TODO: Refactor _hbc_decompile_function to work directly with provider data */
+	 * In Phase 2, we delegate to the state API. This is a bridge.
+	 * TODO: Refactor _hbc_decompile_function to work directly with state data */
 
 	/* Try to use existing _hbc_decompile_function_to_buffer if we can extract HBCReader */
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, hbc));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hd));
 	dec.options = options;
 	dec.indent_level = 0;
 
 	/* Create a stub HBCReader for internal use.
-	 * The provider is responsible for all actual data access. */
+	 * The state is responsible for all actual data access. */
 	HBCReader stub_reader;
 	memset (&stub_reader, 0, sizeof (stub_reader));
 	dec.hbc_reader = &stub_reader;
 
-	/* Get header from provider and populate stub */
+	/* Get header from state and populate stub */
 	HBCHeader header;
-	Result hres = hbc_hdr (hbc, &header);
+	Result hres = hbc_get_header (hd, &header);
 	if (hres.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return hres;
@@ -950,7 +949,7 @@ Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecom
 
 	for (u32 i = 0; i < header.functionCount; i++) {
 		HBCFunc fi;
-		Result fres = hbc_func_info (hbc, i, &fi);
+		Result fres = hbc_get_function_info (hd, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -961,7 +960,7 @@ Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecom
 		stub_reader.function_headers[i].bytecode = NULL;
 	}
 
-	/* Populate strings array from provider */
+	/* Populate strings array from state */
 	if (header.stringCount > 0) {
 		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
 		if (!stub_reader.strings) {
@@ -971,9 +970,9 @@ Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecom
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_str (hbc, i, &str);
+			Result sres = hbc_get_string (hd, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
-				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
+				stub_reader.strings[i] = (char *)str; /* State owns the string, we just reference it */
 			}
 		}
 	}
@@ -984,7 +983,7 @@ Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecom
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
 	}
 
-	/* Free allocated arrays (strings are owned by provider, don't free individual strings) */
+	/* Free allocated arrays (strings are owned by state, don't free individual strings) */
 	free (stub_reader.strings);
 	free (stub_reader.function_headers);
 
@@ -992,12 +991,12 @@ Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecom
 	return r;
 }
 
-Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, StringBuffer *out) {
-	if (!hbc || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_with_provider");
+Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, StringBuffer *out) {
+	if (!hd || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_decompile_all_with_state");
 	}
 	HermesDecompiler dec;
-	RETURN_IF_ERROR (_hbc_decompiler_init_with_provider (&dec, hbc));
+	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hd));
 	dec.options = options;
 	dec.indent_level = 0;
 
@@ -1006,16 +1005,16 @@ Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, Stri
 	memset (&stub_reader, 0, sizeof (stub_reader));
 	dec.hbc_reader = &stub_reader;
 
-	/* Get header from provider and populate stub */
+	/* Get header from state and populate stub */
 	HBCHeader header;
-	Result res = hbc_hdr (hbc, &header);
+	Result res = hbc_get_header (hd, &header);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return res;
 	}
 	stub_reader.header = header;
 
-	/* Get function count from provider */
+	/* Get function count from state */
 	u32 func_count = header.functionCount;
 	if (func_count == 0) {
 		/* No functions to decompile */
@@ -1038,10 +1037,10 @@ Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, Stri
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function_headers");
 	}
 
-	/* Populate function_headers from provider */
+	/* Populate function_headers from state */
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunc fi;
-		Result fres = hbc_func_info (hbc, i, &fi);
+		Result fres = hbc_get_function_info (hd, i, &fi);
 		if (fres.code != RESULT_SUCCESS) {
 			free (stub_reader.function_headers);
 			_hbc_decompiler_cleanup (&dec);
@@ -1050,10 +1049,10 @@ Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, Stri
 		stub_reader.function_headers[i].offset = fi.offset;
 		stub_reader.function_headers[i].bytecodeSizeInBytes = fi.size;
 		stub_reader.function_headers[i].bytecode = NULL; /* Will be loaded on demand */
-		/* Other fields are not needed for provider-based decompilation */
+		/* Other fields are not needed for state-based decompilation */
 	}
 
-	/* Populate strings array from provider */
+	/* Populate strings array from state */
 	if (header.stringCount > 0) {
 		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
 		if (!stub_reader.strings) {
@@ -1063,9 +1062,9 @@ Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, Stri
 		}
 		for (u32 i = 0; i < header.stringCount; i++) {
 			const char *str = NULL;
-			Result sres = hbc_str (hbc, i, &str);
+			Result sres = hbc_get_string (hd, i, &str);
 			if (sres.code == RESULT_SUCCESS && str) {
-				stub_reader.strings[i] = (char *)str; /* Provider owns the string, we just reference it */
+				stub_reader.strings[i] = (char *)str; /* State owns the string, we just reference it */
 			}
 		}
 	}
@@ -1073,7 +1072,7 @@ Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, Stri
 	/* File preamble */
 	if (!options.suppress_comments) {
 		HBCHeader header;
-		res = hbc_hdr (hbc, &header);
+		res = hbc_get_header (hd, &header);
 		if (res.code != RESULT_SUCCESS) {
 			_hbc_decompiler_cleanup (&dec);
 			return res;
@@ -1101,7 +1100,7 @@ Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, Stri
 
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
 
-	/* Free allocated arrays (strings are owned by provider, don't free individual strings) */
+	/* Free allocated arrays (strings are owned by state, don't free individual strings) */
 	free (stub_reader.strings);
 	free (stub_reader.function_headers);
 
@@ -2228,9 +2227,9 @@ Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environ
 		state->decompiled_functions[function_id] = true;
 	}
 
-	/* Load bytecode either from provider or from file buffer */
+	/* Load bytecode either from state or from file buffer */
 	if (state->hbc) {
-		r = ensure_function_bytecode_loaded_from_provider (state->hbc, &reader->function_headers[function_id], function_id);
+		r = ensure_function_bytecode_loaded_from_state (state->hbc, &reader->function_headers[function_id], function_id);
 	} else {
 		r = ensure_function_bytecode_loaded (reader, function_id);
 	}

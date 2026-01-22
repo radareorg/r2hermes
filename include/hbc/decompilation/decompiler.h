@@ -136,7 +136,7 @@ typedef struct HermesDecompiler {
 	char *input_file;
 	char *output_file;
 	HBCReader *hbc_reader;
-	HBC *hbc; /* Use HBC provider instead of direct file I/O */
+	HBCState *hbc; /* Use HBCState for direct file I/O */
 	u32 *calldirect_function_ids;
 	u32 calldirect_function_ids_count;
 	u32 calldirect_function_ids_capacity;
@@ -150,15 +150,15 @@ typedef struct HermesDecompiler {
 
 /* Function declarations */
 Result _hbc_decompiler_init(HermesDecompiler *decompiler);
-Result _hbc_decompiler_init_with_provider(HermesDecompiler *decompiler, HBC *hbc);
+Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBCState *hd);
 Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler);
 /* High-level entry points */
 Result _hbc_decompile_file(const char *input_file, const char *output_file);
 /* Buffer-based APIs used by hermesdec library */
 Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options, StringBuffer *out);
-Result _hbc_decompile_all_with_provider(HBC *hbc, HBCDecompOptions options, StringBuffer *out);
+Result _hbc_decompile_all_with_state(HBCState *hd, HBCDecompOptions options, StringBuffer *out);
 Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompOptions options, StringBuffer *out);
-Result _hbc_decompile_function_with_provider(HBC *hbc, u32 function_id, HBCDecompOptions options, StringBuffer *out);
+Result _hbc_decompile_function_with_state(HBCState *hd, u32 function_id, HBCDecompOptions options, StringBuffer *out);
 Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async);
 
 /* Transformation passes */
