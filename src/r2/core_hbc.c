@@ -166,7 +166,14 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 		u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 		HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 		char *output = NULL;
-		res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
+		/* Create HBC provider for decompilation functions */
+		HBC *provider = hbc_new_file (ctx->file_path);
+		if (provider) {
+			res = hbc_decomp_fn (provider, function_id, opts, &output);
+			hbc_free (provider);
+		} else {
+			res = ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Failed to create HBC provider");
+		}
 		if (res.code == RESULT_SUCCESS && output) {
 			r_str_trim (output);
 			r_cons_println (core->cons, output);
@@ -178,7 +185,14 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 		/* Not in a function, decompile all - use 0 as base since multiple functions */
 		HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
 		char *output = NULL;
-		res = hbc_decomp_all (ctx->hbc, opts, &output);
+		/* Create HBC provider for decompilation functions */
+		HBC *provider = hbc_new_file (ctx->file_path);
+		if (provider) {
+			res = hbc_decomp_all (provider, opts, &output);
+			hbc_free (provider);
+		} else {
+			res = ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Failed to create HBC provider");
+		}
 		if (res.code == RESULT_SUCCESS && output) {
 			r_str_trim (output);
 			r_cons_println (core->cons, output);
@@ -199,7 +213,14 @@ static void cmd_decompile_all_ex(HbcContext *ctx, RCore *core, bool show_offsets
 
 	HBCDecompOptions opts = make_decompile_options (core, show_offsets, 0);
 	char *output = NULL;
-	res = hbc_decomp_all (ctx->hbc, opts, &output);
+	/* Create HBC provider for decompilation functions */
+	HBC *provider = hbc_new_file (ctx->file_path);
+	if (provider) {
+		res = hbc_decomp_all (provider, opts, &output);
+		hbc_free (provider);
+	} else {
+		res = ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Failed to create HBC provider");
+	}
 	if (res.code == RESULT_SUCCESS && output) {
 		r_str_trim (output);
 		r_cons_println (core->cons, output);
@@ -228,7 +249,14 @@ static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *
 	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
 	HBCDecompOptions opts = make_decompile_options (core, show_offsets, func_base);
 	char *output = NULL;
-	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
+	/* Create HBC provider for decompilation functions */
+	HBC *provider = hbc_new_file (ctx->file_path);
+	if (provider) {
+		res = hbc_decomp_fn (provider, function_id, opts, &output);
+		hbc_free (provider);
+	} else {
+		res = ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Failed to create HBC provider");
+	}
 	if (res.code == RESULT_SUCCESS && output) {
 		r_str_trim (output);
 		r_cons_println (core->cons, output);
@@ -400,7 +428,14 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 		return;
 	}
 	char *output = NULL;
-	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
+	/* Create HBC provider for decompilation functions */
+	HBC *provider = hbc_new_file (ctx->file_path);
+	if (provider) {
+		res = hbc_decomp_fn (provider, function_id, opts, &output);
+		hbc_free (provider);
+	} else {
+		res = ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Failed to create HBC provider");
+	}
 
 	if (res.code == RESULT_SUCCESS && output) {
 		pj_s (pj, output);
