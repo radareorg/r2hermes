@@ -67,10 +67,10 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	/* If we can, get the file header to determine exact bytecode version */
 	HBCHeader hh;
 	res = hbc_get_header (hs->hbc, &hh);
-	if (res.code == RESULT_SUCCESS) {
-		/* Cache version for instruction set selection */
-		hs->bytecode_version = hh.version;
+	if (res.code != RESULT_SUCCESS) {
+		return false;
 	}
+	hs->bytecode_version = hh.version;
 
 	/* Get string count */
 	hs->string_count = hbc_string_count (hs->hbc);

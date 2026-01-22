@@ -2,12 +2,14 @@
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
+#include "utils.inc.c"
 
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL
 #define HBC_VADDR_BASE 0x10000000
 
 typedef struct {
 	HBC *hbc;
+	ut8 *data;
 } HBCBinObj;
 
 static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
@@ -20,16 +22,28 @@ static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
 }
 
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
-	if (check (bf, buf) && bf->file) {
+	if (check (bf, buf)) {
+		ut8 *data = NULL;
+		if (!r_buf_read_alloc (buf, &data, NULL)) {
+			return false;
+		}
+
 		HBC *hbc = NULL;
-		Result res = hbc_open (bf->file, &hbc);
+		Result res = hbc_open_from_memory (data, r_buf_size (buf), &hbc);
 		if (res.code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
+			if (!bo) {
+				hbc_close (hbc);
+				free (data);
+				return false;
+			}
 			bo->hbc = hbc;
+			bo->data = data;
 			bf->bo->bin_obj = bo;
 			bf->buf = buf;
 			return true;
 		}
+		free (data);
 	}
 	return false;
 }
@@ -38,6 +52,7 @@ static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
 		hbc_close (bo->hbc);
+		free (bo->data);
 		free (bo);
 	}
 }

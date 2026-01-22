@@ -4,6 +4,7 @@
 
 #include <r_core.h>
 #include <hbc/hbc.h>
+#include "utils.inc.c"
 
 /* Plugin registration - need these when HBC_CORE_REGISTER_PLUGINS is enabled */
 #ifdef HBC_CORE_REGISTER_PLUGINS
@@ -15,6 +16,7 @@ typedef struct {
 	HBC *hbc;
 	RCore *core;
 	char *file_path;
+	ut8 *data;
 } HbcContext;
 
 static const char *safe_errmsg(const char *s) {
@@ -83,6 +85,8 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 	free (ctx->file_path);
 	ctx->file_path = NULL;
+	free (ctx->data);
+	ctx->data = NULL;
 
 	/* Get RBinFile from r2 (already parsed by r2) */
 	RBinFile *bf = core->bin->cur;
@@ -90,17 +94,32 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No binary file loaded or r2 version incompatible");
 	}
 
-	/* Create HBC from file path */
-	Result res = hbc_open (file_path, &ctx->hbc);
+	/* Get buffer size */
+	ut64 size = r_buf_size (bf->buf);
+	if (size == 0 || size > SIZE_MAX) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer size");
+	}
+
+	/* Read buffer into memory */
+	ut8 *data = NULL;
+	if (!r_buf_read_alloc (bf->buf, &data, NULL)) {
+		return ERROR_RESULT (RESULT_ERROR_READ, "Failed to read buffer");
+	}
+
+	/* Create HBC from memory */
+	Result res = hbc_open_from_memory (data, size, &ctx->hbc);
 	if (res.code != RESULT_SUCCESS) {
+		free (data);
 		return res;
 	}
 
 	ctx->core = core;
 	ctx->file_path = strdup (file_path);
+	ctx->data = data;
 	if (!ctx->file_path) {
 		hbc_close (ctx->hbc);
 		ctx->hbc = NULL;
+		free (data);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
 	}
 	return SUCCESS_RESULT ();
@@ -593,6 +612,7 @@ static bool plugin_fini(RCorePluginSession *s) {
 		ctx->hbc = NULL;
 		ctx->core = NULL;
 		R_FREE (ctx->file_path);
+		free (ctx->data);
 		free (ctx);
 		s->data = NULL;
 	}
