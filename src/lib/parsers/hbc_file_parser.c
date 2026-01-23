@@ -756,6 +756,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 
 		/* Parse the entry based on version */
 		if (reader->header.version >= 56) {
+			// up to v96 at least
 			reader->small_string_table[i].isUTF16 = entry & 0x1;
 			reader->small_string_table[i].offset = (entry >> 1) & 0x7FFFFF; /* 23 bits */
 			reader->small_string_table[i].length = (entry >> 24) & 0xFF; /* 8 bits */
@@ -793,12 +794,24 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 	reader->string_storage_file_offset = (u32)reader->file_buffer.position;
 
 	/* Read the string storage */
-	u8 *string_storage = (u8 *)malloc (reader->header.stringStorageSize);
+	size_t string_storage_size = reader->header.stringStorageSize;
+	size_t remaining = reader->file_buffer.size - reader->file_buffer.position;
+	if (remaining < string_storage_size) {
+		string_storage_size = remaining;
+	} else if (remaining > string_storage_size) {
+		/* If more remaining, perhaps the header size is wrong, use remaining if debug info offset is 0 */
+		if (reader->header.debugInfoOffset == 0) {
+			string_storage_size = remaining;
+		}
+	}
+	u8 *string_storage = (u8 *)malloc (string_storage_size);
 	if (!string_storage) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string storage");
 	}
 
-	RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, string_storage, reader->header.stringStorageSize));
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, string_storage, string_storage_size));
+	reader->string_table_storage = string_storage;
+	reader->string_table_storage_size = string_storage_size;
 
 	/* Allocate string array */
 	reader->strings = (char **)calloc (reader->header.stringCount, sizeof (char *));
@@ -816,6 +829,15 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		if (reader->small_string_table[i].length == 0xFF) {
 			/* This is an overflow string */
 			u32 overflow_index = reader->small_string_table[i].offset;
+			if (overflow_index >= reader->header.overflowStringCount) {
+				/* Invalid overflow index */
+				reader->strings[i] = strdup("");
+				if (!reader->strings[i]) {
+					free (string_storage);
+					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
+				}
+				continue;
+			}
 			offset = reader->overflow_string_table[overflow_index].offset;
 			length = reader->overflow_string_table[overflow_index].length;
 			is_utf16 = reader->small_string_table[i].isUTF16;
@@ -827,9 +849,14 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		}
 
 		/* Check bounds */
-		if (offset + (is_utf16? length * 2: length) > reader->header.stringStorageSize) {
-			free (string_storage);
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "String offset/length out of bounds");
+		if (offset + (is_utf16? length * 2: length) > string_storage_size) {
+			fprintf (stderr, "Warning: String %u offset/length out of bounds, treating as empty string\n", i);
+			reader->strings[i] = strdup("");
+			if (!reader->strings[i]) {
+				free (string_storage);
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
+			}
+			continue;
 		}
 
 		/* Allocate string buffer - for UTF-16, length is in characters, so allocate 2 bytes per character */
