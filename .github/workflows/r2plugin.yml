@@ -63,15 +63,12 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/radareorg/radare2.git
           cd radare2
-          echo core.r2hermes > libr/xps/static.cfg
-          cp -f ../r2plugin/config.mk libr/xps/config.mk
-
           # Clone r2hermes into the plugins directory
           git clone .. libr/xps/p/r2hermes
+          echo core.r2hermes > libr/xps/static.cfg
+          cp -fff libr/xps/p/r2hermes/r2plugin/config.mk libr/xps/config.mk
           make -C libr/xps/p/r2hermes include/hbc/version.h
-          make -C libr/xps/p/r2hermes
           make -C libr/xps
-
           # Build radare2 with meson
           meson setup b --prefix=/usr
           meson compile -C b
