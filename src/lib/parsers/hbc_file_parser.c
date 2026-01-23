@@ -755,7 +755,8 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &entry));
 
 		/* Parse the entry based on version */
-		if (reader->header.version >= 56 && reader->header.version < 96) {
+		if (reader->header.version >= 56) {
+			// up to v96 at least
 			reader->small_string_table[i].isUTF16 = entry & 0x1;
 			reader->small_string_table[i].offset = (entry >> 1) & 0x7FFFFF; /* 23 bits */
 			reader->small_string_table[i].length = (entry >> 24) & 0xFF; /* 8 bits */
