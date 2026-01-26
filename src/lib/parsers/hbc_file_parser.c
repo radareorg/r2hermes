@@ -1539,16 +1539,7 @@ Result _hbc_reader_read_functions_robust(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	/* Set reasonable limits */
-	const u32 MAX_SAFE_FUNCTIONS = 50000;
 	u32 max_functions_to_read = reader->header.functionCount;
-
-	if (max_functions_to_read > MAX_SAFE_FUNCTIONS) {
-		hbc_debug_printf ("Warning: Very large function count (%u). Limiting to %u for safety.\n",
-			reader->header.functionCount,
-			MAX_SAFE_FUNCTIONS);
-		max_functions_to_read = MAX_SAFE_FUNCTIONS;
-	}
 
 	/* Log position info */
 	hbc_debug_printf ("Reading functions at position %zu of %zu bytes.\n",
