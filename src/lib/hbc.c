@@ -223,6 +223,14 @@ Result hbc_get_string_meta(HBC *hbc, u32 index, HBCStringMeta *out) {
 
 	if (length == 0xFF) {
 		u32 oi = off;
+		/* Bounds check: ensure oi is within overflow_string_table bounds */
+		if (oi >= r->header.overflowStringCount) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Overflow string index out of bounds");
+		}
+		/* Additional safety check: ensure overflow_string_table exists */
+		if (!r->overflow_string_table) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Overflow string table not allocated");
+		}
 		off = r->overflow_string_table[oi].offset;
 		length = r->overflow_string_table[oi].length;
 	}

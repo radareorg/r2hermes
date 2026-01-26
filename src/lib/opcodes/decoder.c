@@ -187,7 +187,13 @@ static Result format_operand_asm(Disassembler *d, ParsedInstruction *ins, int id
 		if (v < r->header.stringCount && r->small_string_table) {
 			if (r->small_string_table[v].length == 0xFF && r->overflow_string_table) {
 				u32 oi = r->small_string_table[v].offset;
-				off = r->overflow_string_table[oi].offset;
+				/* Bounds check: ensure oi is within overflow_string_table bounds */
+				if (oi < r->header.overflowStringCount) {
+					off = r->overflow_string_table[oi].offset;
+				} else {
+					/* Fallback: use original offset if overflow index is invalid */
+					off = r->small_string_table[v].offset;
+				}
 			} else {
 				off = r->small_string_table[v].offset;
 			}
