@@ -241,7 +241,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		return false;
 	}
 
-	op->mnemonic = sinfo.text? strdup (sinfo.text): strdup ("unk");
+	op->mnemonic = sinfo.text? sinfo.text: strdup ("unk");
 	op->size = sinfo.size? sinfo.size: 1;
 	op->type = R_ANAL_OP_TYPE_UNK;
 	op->family = R_ANAL_OP_FAMILY_CPU;
