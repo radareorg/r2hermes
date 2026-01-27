@@ -232,7 +232,8 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.bytecode_version = hs->bytecode_version,
 		.asm_syntax = true,
 		.resolve_string_ids = true,
-		.string_tables = &string_tables
+		.string_tables = &string_tables,
+		.hbc = hs->hbc
 	};
 
 	HBCInsnInfo sinfo;
