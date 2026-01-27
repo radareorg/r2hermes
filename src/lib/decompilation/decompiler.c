@@ -9,6 +9,7 @@
 #include <hbc/decompilation/translator.h>
 #include <hbc/opcodes.h>
 #include <hbc/decompilation/literals.h>
+#include "../hbc_internal.h"
 
 /* Ensure that the function's bytecode buffer is loaded into memory. */
 /**
@@ -790,16 +791,7 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 	decompiler.output_file = (char *)output_file;
 	decompiler.hbc_reader = &reader;
 
-	// Read and parse the file
-	result = _hbc_reader_read_file (&reader, input_file);
-	if (result.code != RESULT_SUCCESS) {
-		_hbc_reader_cleanup (&reader);
-		_hbc_decompiler_cleanup (&decompiler);
-		return result;
-	}
-
-	// Read header
-	result = _hbc_reader_read_header (&reader);
+	result = _hbc_reader_read_whole_file (&reader, input_file);
 	if (result.code != RESULT_SUCCESS) {
 		_hbc_reader_cleanup (&reader);
 		_hbc_decompiler_cleanup (&decompiler);
@@ -977,6 +969,10 @@ Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOp
 		}
 	}
 
+	stub_reader.object_keys = hbc->reader.object_keys;
+	stub_reader.object_values = hbc->reader.object_values;
+	stub_reader.arrays = hbc->reader.arrays;
+
 	Result r = _hbc_decompile_function (&dec, function_id, NULL, -1, false, false, false);
 	if (r.code == RESULT_SUCCESS) {
 		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
@@ -1068,6 +1064,10 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 			}
 		}
 	}
+
+	stub_reader.object_keys = hbc->reader.object_keys;
+	stub_reader.object_values = hbc->reader.object_values;
+	stub_reader.arrays = hbc->reader.arrays;
 
 	/* File preamble */
 	if (!options.suppress_comments) {

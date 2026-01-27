@@ -649,8 +649,8 @@ Result hbc_dec_insn(
 				fmt_res = _hbc_format_object_literal (reader, key_count, value_count, keys_id, values_id,
 				                                      &sb, LITERALS_PRETTY_NEVER, true);
 			} else {
-				u32 value_count = operand_values[1];
-				u32 array_id = operand_values[2];
+				u32 value_count = operand_values[2];
+				u32 array_id = operand_values[3];
 				fmt_res = _hbc_format_array_literal (reader, value_count, array_id,
 				                                     &sb, LITERALS_PRETTY_NEVER, true);
 			}
