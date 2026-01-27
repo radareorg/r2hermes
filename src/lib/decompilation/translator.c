@@ -705,7 +705,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutNewOwnByIdLong:
 		{
 			/* obj.name = value (prefer dot accessor) */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = (op == OP_PutNewOwnByIdShort)? insn->arg3: (op == OP_PutNewOwnById)? insn->arg3
 												: insn->arg4;
 		const char *s = (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount)? insn->hbc_reader->strings[sid]: NULL;
@@ -725,7 +725,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutOwnByIndexL:
 		{
 			/* obj[idx] = value */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
@@ -736,7 +736,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutByVal:
 		{
 			/* rObj[rKey] = rVal */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0))); /* use LHS token for consistency */
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0))); /* object is read, not written */
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
@@ -748,7 +748,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutByIdLong:
 		{
 			/* rObj["name"] = rVal */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			u32 sid = (op == OP_PutById)? insn->arg4: insn->arg4;
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
@@ -1159,7 +1159,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_TryPutById:
 	case OP_TryPutByIdLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = insn->arg3;
 			const char *s = NULL;
 		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
@@ -1180,7 +1180,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutNewOwnNEById:
 	case OP_PutNewOwnNEByIdLong:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = (op == OP_PutNewOwnNEById)? insn->arg3: insn->arg4;
 			const char *s = NULL;
 		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
@@ -1200,7 +1200,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_PutOwnByVal:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
@@ -1210,7 +1210,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_PutOwnGetterSetterByVal:
 		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
