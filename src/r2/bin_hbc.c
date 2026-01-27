@@ -203,7 +203,7 @@ static ut64 baddr(RBinFile *bf R_UNUSED) {
 }
 
 static RList *symbols(RBinFile *bf) {
-	RList *symbols = r_list_newf ((RListFree)free);
+	RList *symbols = r_list_newf ((RListFree)r_bin_symbol_free);
 	HBC *hbc = get_hbc (bf);
 	if (!hbc) {
 		return symbols;
@@ -258,7 +258,7 @@ static RList *symbols(RBinFile *bf) {
 }
 
 static RList *strings(RBinFile *bf) {
-	RList *ret = r_list_newf ((RListFree)free);
+	RList *ret = r_list_newf ((RListFree)r_bin_string_free);
 	HBC *hbc = get_hbc (bf);
 	if (!hbc) {
 		return ret;
