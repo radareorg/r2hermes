@@ -2,6 +2,7 @@
 #include <hbc/common.h>
 #include <hbc/disasm.h>
 #include <hbc/decompilation/decompiler.h>
+#include <hbc/decompilation/literals.h>
 #include <hbc/hermes_encoder.h>
 #include <hbc/parser.h>
 #include <hbc/bytecode.h>
@@ -452,6 +453,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		ctx->asm_syntax,
 		ctx->resolve_string_ids,
 		ctx->string_tables,
+		ctx->hbc,
 		out);
 }
 
@@ -463,6 +465,7 @@ Result hbc_dec_insn(
 	bool asm_syntax,
 	bool resolve_string_ids,
 	const HBCStrs *string_ctx,
+	HBC *hbc,
 	HBCInsnInfo *out) {
 
 	if (!bytes || !out || len == 0) {
@@ -631,7 +634,41 @@ Result hbc_dec_insn(
 		}
 	}
 
-	out->text = strdup (buf);
+	char *final_text = NULL;
+	if (hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
+	            opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong)) {
+		HBCReader *reader = &hbc->reader;
+		StringBuffer sb;
+		if (_hbc_string_buffer_init (&sb, 256).code == RESULT_SUCCESS) {
+			Result fmt_res = { .code = RESULT_ERROR_PARSING_FAILED };
+			if (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong) {
+				u32 key_count = operand_values[1];
+				u32 value_count = operand_values[2];
+				u32 keys_id = operand_values[3];
+				u32 values_id = operand_values[4];
+				fmt_res = _hbc_format_object_literal (reader, key_count, value_count, keys_id, values_id,
+				                                      &sb, LITERALS_PRETTY_NEVER, true);
+			} else {
+				u32 value_count = operand_values[2];
+				u32 array_id = operand_values[3];
+				fmt_res = _hbc_format_array_literal (reader, value_count, array_id,
+				                                     &sb, LITERALS_PRETTY_NEVER, true);
+			}
+			if (fmt_res.code == RESULT_SUCCESS && sb.data && sb.data[0]) {
+				size_t buf_len = strlen (buf);
+				size_t sb_len = strlen (sb.data);
+				final_text = (char *)malloc (buf_len + 4 + sb_len + 1);
+				if (final_text) {
+					memcpy (final_text, buf, buf_len);
+					memcpy (final_text + buf_len, "  ; ", 4);
+					memcpy (final_text + buf_len + 4, sb.data, sb_len + 1);
+				}
+			}
+			_hbc_string_buffer_free (&sb);
+		}
+	}
+
+	out->text = final_text ? final_text : strdup (buf);
 	out->size = (u32)pos;
 	out->opcode = opcode;
 
