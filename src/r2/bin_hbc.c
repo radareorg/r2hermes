@@ -289,7 +289,7 @@ static RList *strings(RBinFile *bf) {
 		}
 
 		ptr->paddr = meta.offset;
-		ptr->vaddr = HBC_VADDR_BASE + meta.offset;
+		ptr->vaddr = meta.offset;
 		ptr->size = str_len;
 		ptr->length = str_len;
 		ptr->ordinal = i;

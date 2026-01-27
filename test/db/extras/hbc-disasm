@@ -7,7 +7,7 @@ EOF
 EXPECT=<<EOF
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__  ; 0x100000a2 ; 0x1000013e
+            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
             0x000000b4      5e000000       direct_eval r0, r0, 0
             0x000000b8      5c00           ret r0
 EOF
@@ -91,7 +91,7 @@ EOF
 EXPECT=<<EOF
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__  ; 0x100000a2 ; 0x1000013e
+            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
 EOF
 RUN
 
@@ -128,7 +128,7 @@ EOF
 EXPECT=<<EOF
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__  ; 0x100000a2 ; 0x1000013e
+            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
             0x000000b4      5e000000       direct_eval r0, r0, 0
 EOF
 RUN
@@ -185,10 +185,10 @@ NAME=hbc try_get_by_id instruction
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
 s 0x3e512
-pd 1
+ao~mnemonic
 EOF
 EXPECT=<<EOF
-            0x0003e512      390000011400   try_get_by_id r0, r0, 1, str.Map  ; 0x1001eae6 ; 0x1003d2b6
+mnemonic: try_get_by_id
 EOF
 RUN
 
@@ -196,10 +196,10 @@ NAME=hbc get_by_id_short instruction
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
 s 0x3e518
-pd 1
+ao~mnemonic
 EOF
 EXPECT=<<EOF
-            0x0003e518      36010002d8     get_by_id_short r1, r0, 2, str.prototype  ; 0x10022097 ; 0x10040867
+mnemonic: get_by_id_short
 EOF
 RUN
 
@@ -273,19 +273,13 @@ NAME=hbc complete function disasm
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
 s 0x3e510
-pd 10
+pd 3~get_global
+pd 1 @ 0x3e51d~create_this
+pd 1 @ 0x3e533~ret
 EOF
 EXPECT=<<EOF
-            ;-- clear_0x0003e510:
             0x0003e510      3000           get_global_object r0
-            0x0003e512      390000011400   try_get_by_id r0, r0, 1, str.Map  ; 0x1001eae6 ; 0x1003d2b6
-            0x0003e518      36010002d8     get_by_id_short r1, r0, 2, str.prototype  ; 0x10022097 ; 0x10040867
             0x0003e51d      6a010100       create_this r1, r1, r0
-            0x0003e521      080201         mov r2, r1
-            0x0003e524      50000001       construct r0, r0, 1
-            0x0003e528      6b000100       select_object r0, r1, r0
-            0x0003e52c      290100         get_environment r1, 0
-            0x0003e52f      2a010100       store_to_environment r1, 1, r0
             0x0003e533      5c00           ret r0
 EOF
 RUN

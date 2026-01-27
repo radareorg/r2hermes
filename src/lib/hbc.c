@@ -610,9 +610,6 @@ Result hbc_dec_insn(
 						/* Output the file-absolute string offset in hex - r2 will replace this with the string flag */
 						u32 file_offset = string_ctx->string_storage_offset + str_offset;
 						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", file_offset);
-						/* Append full virtual address as comment */
-						u32 str_addr = 0x10000000 + file_offset;
-						offset += snprintf (buf + offset, sizeof (buf) - offset, "  ; 0x%x", str_addr);
 					} else {
 						/* Fallback: just show the ID */
 						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", val);
