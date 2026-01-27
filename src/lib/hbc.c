@@ -434,6 +434,17 @@ Result hbc_decode_fn(
 
 /* Single-instruction decode functions */
 
+static Result hbc_dec_insn_internal(
+	const u8 *bytes,
+	size_t len,
+	const HBCISA *isa,
+	u64 pc,
+	bool asm_syntax,
+	bool resolve_string_ids,
+	const HBCStrs *string_ctx,
+	HBC *hbc,
+	HBCInsnInfo *out);
+
 Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	if (!ctx || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid context");
@@ -445,10 +456,17 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		hbc_debug_printf ("Warning: bytecode version not specified, defaulting to %u\n", bytecode_version);
 	}
 
-	return hbc_dec_insn (
+	const HBCISA *isa_ptr = (const HBCISA *)ctx->isa;
+	HBCISA isa_local;
+	if (!isa_ptr) {
+		isa_local = hbc_isa_getv (bytecode_version);
+		isa_ptr = &isa_local;
+	}
+
+	return hbc_dec_insn_internal (
 		ctx->bytes,
 		ctx->len,
-		bytecode_version,
+		isa_ptr,
 		ctx->pc,
 		ctx->asm_syntax,
 		ctx->resolve_string_ids,
@@ -472,23 +490,30 @@ Result hbc_dec_insn(
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	/* Get the ISA for this bytecode version */
 	HBCISA isa = hbc_isa_getv (bytecode_version);
-	if (!isa.instructions || isa.count == 0) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid bytecode version");
+	return hbc_dec_insn_internal (bytes, len, &isa, pc, asm_syntax, resolve_string_ids, string_ctx, hbc, out);
+}
+
+static Result hbc_dec_insn_internal(
+	const u8 *bytes,
+	size_t len,
+	const HBCISA *isa,
+	u64 pc,
+	bool asm_syntax,
+	bool resolve_string_ids,
+	const HBCStrs *string_ctx,
+	HBC *hbc,
+	HBCInsnInfo *out) {
+
+	if (!isa || !isa->instructions || isa->count == 0) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid ISA");
 	}
 
 	/* Read opcode */
 	u8 opcode = bytes[0];
 
-	/* Find instruction definition */
-	const Instruction *inst = NULL;
-	for (u32 i = 0; i < isa.count; i++) {
-		if (i == opcode) {
-			inst = &isa.instructions[i];
-			break;
-		}
-	}
+	/* Direct O(1) instruction lookup */
+	const Instruction *inst = (opcode < isa->count) ? &isa->instructions[opcode] : NULL;
 
 	if (!inst || !inst->name) {
 		out->text = strdup ("unk");

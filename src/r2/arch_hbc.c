@@ -15,6 +15,7 @@ typedef struct {
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
+	HBCISA isa; /* cached ISA for fast instruction lookup */
 } HermesArchSession;
 
 static ut32 detect_version_from_bin(RArchSession *s) {
@@ -86,6 +87,9 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	hs->overflow_string_table = tables.overflow_string_table;
 	hs->string_storage_offset = tables.string_storage_offset;
 
+	/* Cache ISA for fast instruction lookup */
+	hs->isa = hbc_isa_getv (hs->bytecode_version);
+
 	return true;
 }
 
@@ -109,9 +113,8 @@ static bool opcode_is_conditional(u8 opcode) {
 }
 
 static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
-	HBCISA isa = hbc_isa_getv (hs->bytecode_version);
-	const Instruction *inst_set = isa.instructions;
-	if (!inst_set || opcode >= isa.count) {
+	const Instruction *inst_set = hs->isa.instructions;
+	if (!inst_set || opcode >= hs->isa.count) {
 		return;
 	}
 
@@ -211,6 +214,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 
 	if (!hs->bytecode_version) {
 		hs->bytecode_version = detect_version_from_bin (s);
+		hs->isa = hbc_isa_getv (hs->bytecode_version);
 	}
 
 	/* Load string tables if not already loaded */
@@ -233,7 +237,8 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.asm_syntax = true,
 		.resolve_string_ids = true,
 		.string_tables = &string_tables,
-		.hbc = hs->hbc
+		.hbc = hs->hbc,
+		.isa = &hs->isa
 	};
 
 	HBCInsnInfo sinfo;
