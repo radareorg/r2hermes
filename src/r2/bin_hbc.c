@@ -276,8 +276,7 @@ static RList *strings(RBinFile *bf) {
 			continue;
 		}
 
-		size_t str_len = strlen (str);
-		if (str_len == 0 || str_len >= R_BIN_SIZEOF_STRINGS) {
+		if (meta.length == 0 || meta.length >= R_BIN_SIZEOF_STRINGS) {
 			continue;
 		}
 
@@ -290,8 +289,8 @@ static RList *strings(RBinFile *bf) {
 
 		ptr->paddr = meta.offset;
 		ptr->vaddr = meta.offset;
-		ptr->size = str_len;
-		ptr->length = str_len;
+		ptr->size = meta.length;
+		ptr->length = meta.length;
 		ptr->ordinal = i;
 		r_list_append (ret, ptr);
 	}
