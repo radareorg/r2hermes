@@ -276,12 +276,22 @@ static RList *strings(RBinFile *bf) {
 			continue;
 		}
 
-		if (meta.length == 0 || meta.length >= R_BIN_SIZEOF_STRINGS) {
+		if (meta.length == 0) {
 			continue;
 		}
 
 		RBinString *ptr = R_NEW0 (RBinString);
-		ptr->string = strdup (str);
+		size_t str_len = strlen (str);
+		if (str_len >= R_BIN_SIZEOF_STRINGS) {
+			ptr->string = r_str_ndup (str, R_BIN_SIZEOF_STRINGS - 4);
+			if (ptr->string) {
+				char *tmp = r_str_newf ("%s...", ptr->string);
+				free (ptr->string);
+				ptr->string = tmp;
+			}
+		} else {
+			ptr->string = strdup (str);
+		}
 		if (!ptr->string) {
 			free (ptr);
 			break;
