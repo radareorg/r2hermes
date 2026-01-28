@@ -12,7 +12,8 @@ typedef struct {
 	ut8 *data;
 } HBCBinObj;
 
-static bool check(RBinFile *R_UNUSED bf, RBuffer *b) {
+static bool check(RBinFile *bf, RBuffer *b) {
+	(void)bf;
 	if (r_buf_size (b) >= 8) {
 		ut64 magic = 0;
 		r_buf_read_at (b, 0, (ut8 *)&magic, sizeof (magic));
