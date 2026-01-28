@@ -674,6 +674,9 @@ Result hbc_dec_insn(
 	out->is_call = (strncmp (mnemonic, "call", 4) == 0) || (strcmp (mnemonic, "construct") == 0);
 	out->jump_target = 0;
 
+	if (!out->is_jump && !strncmp (mnemonic, "save_generator", strlen ("save_generator"))) {
+		out->is_jump = true;
+	}
 	if (out->is_jump && operand_values[0] != 0) {
 		/* Calculate jump target (relative offset) */
 		out->jump_target = pc + (i32)operand_values[0];
