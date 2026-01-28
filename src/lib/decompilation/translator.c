@@ -1133,7 +1133,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_DeclareGlobalVar:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("declare extern var ")));
+			RETURN_IF_ERROR (add (out, create_raw_token ("declare extern var")));
 			u32 sid = insn->arg1;
 			RETURN_IF_ERROR (add (out, unquoted_string (insn->hbc_reader, sid)));
 			break;
