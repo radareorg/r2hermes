@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025 - pancake */
+/* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
 #include <r_anal.h>
 #include <hbc/hbc.h>
@@ -97,6 +97,9 @@ static bool opcode_is_conditional(u8 opcode) {
 	case OP_JmpFalseLong:
 	case OP_JmpUndefined:
 	case OP_JmpUndefinedLong:
+		return true;
+	case OP_SaveGenerator:
+	case OP_SaveGeneratorLong:
 		return true;
 	default:
 		/* Relational and equality conditional jumps occupy 152..191 */
@@ -271,6 +274,14 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	}
 
 	if (opcode_is_conditional (sinfo.opcode)) {
+		op->type = R_ANAL_OP_TYPE_CJMP;
+		op->jump = sinfo.jump_target;
+		op->fail = op->addr + op->size;
+		return true;
+	}
+
+	/* SaveGenerator instructions are conditional branches, not calls */
+	if (sinfo.opcode == OP_SaveGenerator || sinfo.opcode == OP_SaveGeneratorLong) {
 		op->type = R_ANAL_OP_TYPE_CJMP;
 		op->jump = sinfo.jump_target;
 		op->fail = op->addr + op->size;
@@ -494,8 +505,6 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	case OP_StartGenerator:
 	case OP_ResumeGenerator:
 	case OP_CompleteGenerator:
-	case OP_SaveGenerator:
-	case OP_SaveGeneratorLong:
 	case OP_DirectEval:
 		op->type = R_ANAL_OP_TYPE_CALL;
 		break;
