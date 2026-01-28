@@ -73,7 +73,8 @@ TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_BIN = $(BIN_DIR)/run_tests
 
 
-r2 test:
+r2:
+	$(MAKE) clean
 	$(MAKE) -C src/r2 && $(MAKE) -C src/r2 user-install
 	r2r -i test/db/extras
 
