@@ -252,20 +252,8 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	/* Parse operands and set ptr for string/function references */
 	parse_operands_and_set_ptr (op, op->bytes, op->size, sinfo.opcode, hs);
 
-	if (sinfo.text) {
-		char mnemonic_raw[64];
-		const char *end = sinfo.text;
-		while (*end && *end != ' ' && *end != '\t') {
-			end++;
-		}
-		size_t len = end - sinfo.text;
-		if (len > 0 && len < sizeof (mnemonic_raw)) {
-			memcpy (mnemonic_raw, sinfo.text, len);
-			mnemonic_raw[len] = '\0';
-			char mnemonic[64];
-			hbc_snake_to_camel (mnemonic_raw, mnemonic, sizeof (mnemonic));
-			set_esil (op, mnemonic, op->bytes, op->addr);
-		}
+	if (mask & R_ARCH_OP_MASK_ESIL && sinfo.text) {
+		set_esil (op, op->bytes, op->addr);
 	}
 
 	if (sinfo.opcode == OP_Ret) {
