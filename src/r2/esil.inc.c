@@ -1,5 +1,4 @@
-static void set_esil(RAnalOp *op, const char *mnemonic, const u8 *bytes, ut64 addr) {
-	(void)mnemonic; /* Opcode comes directly from op now */
+static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	int opcode = op->type != R_ANAL_OP_TYPE_UNK? -1: -1;
 	/* Note: esil is set by opcode from decode output, not by looking up mnemonic again */
 	/* For now, use opcode directly in the switch - caller should set op->val to the opcode */
