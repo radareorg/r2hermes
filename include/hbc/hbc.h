@@ -347,22 +347,6 @@ typedef struct {
  */
 Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out);
 
-/**
- * Decode a single instruction from raw bytes.
- * @param hbc Optional HBC context for object/array buffer resolution (can be NULL)
- */
-Result hbc_dec_insn(
-	const u8 *bytes,
-	size_t len,
-	u32 bytecode_version,
-	u64 pc,
-	bool asm_syntax,
-	bool resolve_string_ids,
-	const HBCStrs *string_ctx,
-	HBC *hbc,
-	HBCInsnInfo *out,
-	bool build_objects);
-
 /* ============================================================================
  * Instruction Encoding
  * ============================================================================ */

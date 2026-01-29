@@ -235,7 +235,20 @@ static Result cmd_dis(const CliContext *ctx, int argc, char **argv) {
 
 	HBCInsnInfo sinfo;
 	memset (&sinfo, 0, sizeof (sinfo));
-	Result r = hbc_dec_insn (bytes, bcount, 96, 0, asm_syntax, false, NULL, NULL, &sinfo, true);
+
+	HBCDecodeCtx dec_ctx = {
+		.bytes = bytes,
+		.len = bcount,
+		.bytecode_version = 96,
+		.pc = 0,
+		.asm_syntax = asm_syntax,
+		.resolve_string_ids = false,
+		.string_tables = NULL,
+		.hbc = NULL,
+		.build_objects = true
+	};
+
+	Result r = hbc_dec (&dec_ctx, &sinfo);
 	if (r.code != RESULT_SUCCESS) {
 		return r;
 	}
