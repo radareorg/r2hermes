@@ -339,6 +339,7 @@ typedef struct {
 
 	/* HBC context (optional, for object/array buffer resolution) */
 	HBC *hbc;
+	bool build_objects;
 } HBCDecodeCtx;
 
 /**
@@ -359,7 +360,8 @@ Result hbc_dec_insn(
 	bool resolve_string_ids,
 	const HBCStrs *string_ctx,
 	HBC *hbc,
-	HBCInsnInfo *out);
+	HBCInsnInfo *out,
+	bool build_objects);
 
 /* ============================================================================
  * Instruction Encoding

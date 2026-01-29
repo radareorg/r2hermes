@@ -454,7 +454,8 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		ctx->resolve_string_ids,
 		ctx->string_tables,
 		ctx->hbc,
-		out);
+		out,
+		ctx->build_objects);
 }
 
 Result hbc_dec_insn(
@@ -466,7 +467,8 @@ Result hbc_dec_insn(
 	bool resolve_string_ids,
 	const HBCStrs *string_ctx,
 	HBC *hbc,
-	HBCInsnInfo *out) {
+	HBCInsnInfo *out,
+	bool build_objects) {
 
 	if (!bytes || !out || len == 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -632,7 +634,7 @@ Result hbc_dec_insn(
 	}
 
 	char *final_text = NULL;
-	if (hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
+	if (build_objects && hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
 	            opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong)) {
 		HBCReader *reader = &hbc->reader;
 		StringBuffer sb;
