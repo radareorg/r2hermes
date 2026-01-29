@@ -7,7 +7,7 @@
 Meta's React Native Hermes bytecode assembler, disassembler, decompiler, and compation radare2 plugins.
 
 <center>
-![logo](r2hermes500.png)
+<img width="250px" height="500px" src="r2hermes500.png" />
 </center>
 
 ## Features
