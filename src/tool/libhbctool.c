@@ -235,7 +235,7 @@ static Result cmd_dis(const CliContext *ctx, int argc, char **argv) {
 
 	HBCInsnInfo sinfo;
 	memset (&sinfo, 0, sizeof (sinfo));
-	Result r = hbc_dec_insn (bytes, bcount, 96, 0, asm_syntax, false, NULL, NULL, &sinfo);
+	Result r = hbc_dec_insn (bytes, bcount, 96, 0, asm_syntax, false, NULL, NULL, &sinfo, true);
 	if (r.code != RESULT_SUCCESS) {
 		return r;
 	}
