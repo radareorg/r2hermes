@@ -445,32 +445,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		hbc_debug_printf ("Warning: bytecode version not specified, defaulting to %u\n", bytecode_version);
 	}
 
-	return hbc_dec_insn (
-		ctx->bytes,
-		ctx->len,
-		bytecode_version,
-		ctx->pc,
-		ctx->asm_syntax,
-		ctx->resolve_string_ids,
-		ctx->string_tables,
-		ctx->hbc,
-		out,
-		ctx->build_objects);
-}
-
-Result hbc_dec_insn(
-	const u8 *bytes,
-	size_t len,
-	u32 bytecode_version,
-	u64 pc,
-	bool asm_syntax,
-	bool resolve_string_ids,
-	const HBCStrs *string_ctx,
-	HBC *hbc,
-	HBCInsnInfo *out,
-	bool build_objects) {
-
-	if (!bytes || !out || len == 0) {
+	if (!ctx->bytes || !out || ctx->len == 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
@@ -481,7 +456,7 @@ Result hbc_dec_insn(
 	}
 
 	/* Read opcode */
-	u8 opcode = bytes[0];
+	u8 opcode = ctx->bytes[0];
 
 	/* Find instruction definition */
 	const Instruction *inst = NULL;
@@ -524,7 +499,7 @@ Result hbc_dec_insn(
 		default: need = 0; break;
 		}
 
-		if (pos + need > len) {
+		if (pos + need > ctx->len) {
 			break;
 		}
 
@@ -533,19 +508,19 @@ Result hbc_dec_insn(
 		case OPERAND_TYPE_REG8:
 		case OPERAND_TYPE_UINT8:
 		case OPERAND_TYPE_ADDR8:
-			operand_values[i] = bytes[pos];
+			operand_values[i] = ctx->bytes[pos];
 			pos += 1;
 			break;
 		case OPERAND_TYPE_UINT16:
-			operand_values[i] = bytes[pos] | (bytes[pos + 1] << 8);
+			operand_values[i] = ctx->bytes[pos] | (ctx->bytes[pos + 1] << 8);
 			pos += 2;
 			break;
 		case OPERAND_TYPE_REG32:
 		case OPERAND_TYPE_UINT32:
 		case OPERAND_TYPE_IMM32:
 		case OPERAND_TYPE_ADDR32:
-			operand_values[i] = bytes[pos] | (bytes[pos + 1] << 8) |
-				(bytes[pos + 2] << 16) | (bytes[pos + 3] << 24);
+			operand_values[i] = ctx->bytes[pos] | (ctx->bytes[pos + 1] << 8) |
+				(ctx->bytes[pos + 2] << 16) | (ctx->bytes[pos + 3] << 24);
 			pos += 4;
 			break;
 		case OPERAND_TYPE_DOUBLE:
@@ -565,7 +540,7 @@ Result hbc_dec_insn(
 	/* Convert instruction name to snake_case */
 	hbc_camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
 
-	if (asm_syntax) {
+	if (ctx->asm_syntax) {
 		/* ASM syntax: mnemonic operand1, operand2, ... */
 		offset = snprintf (buf, sizeof (buf), "%s", mnemonic);
 
@@ -587,16 +562,16 @@ Result hbc_dec_insn(
 			} else if (operand_meaning == OPERAND_MEANING_STRING_ID) {
 				/* For string IDs, output the string storage offset (not the ID)
 				 * so r2 can replace it with flags */
-				if (resolve_string_ids && string_ctx && string_ctx->string_storage_offset != 0) {
+				if (ctx->resolve_string_ids && ctx->string_tables && ctx->string_tables->string_storage_offset != 0) {
 					u32 str_offset = 0;
 					bool found = false;
 
 					/* Cast to proper types for access */
-					const StringTableEntry *small_table = (const StringTableEntry *)string_ctx->small_string_table;
-					const OffsetLengthPair *overflow_table = (const OffsetLengthPair *)string_ctx->overflow_string_table;
+					const StringTableEntry *small_table = (const StringTableEntry *)ctx->string_tables->small_string_table;
+					const OffsetLengthPair *overflow_table = (const OffsetLengthPair *)ctx->string_tables->overflow_string_table;
 
 					/* Look up string storage offset from string tables */
-					if (val < string_ctx->string_count && small_table) {
+					if (val < ctx->string_tables->string_count && small_table) {
 						if (small_table[val].length == 0xFF && overflow_table) {
 							/* Overflow string */
 							u32 overflow_idx = small_table[val].offset;
@@ -610,7 +585,7 @@ Result hbc_dec_insn(
 
 					if (found) {
 						/* Output the file-absolute string offset in hex - r2 will replace this with the string flag */
-						u32 file_offset = string_ctx->string_storage_offset + str_offset;
+						u32 file_offset = ctx->string_tables->string_storage_offset + str_offset;
 						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", file_offset);
 					} else {
 						/* Fallback: just show the ID */
@@ -634,9 +609,9 @@ Result hbc_dec_insn(
 	}
 
 	char *final_text = NULL;
-	if (build_objects && hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
+	if (ctx->build_objects && ctx->hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
 	            opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong)) {
-		HBCReader *reader = &hbc->reader;
+		HBCReader *reader = &ctx->hbc->reader;
 		StringBuffer sb;
 		if (_hbc_string_buffer_init (&sb, 256).code == RESULT_SUCCESS) {
 			Result fmt_res = { .code = RESULT_ERROR_PARSING_FAILED };
@@ -681,11 +656,12 @@ Result hbc_dec_insn(
 	}
 	if (out->is_jump && operand_values[0] != 0) {
 		/* Calculate jump target (relative offset) */
-		out->jump_target = pc + (i32)operand_values[0];
+		out->jump_target = ctx->pc + (i32)operand_values[0];
 	}
 
 	return SUCCESS_RESULT ();
 }
+
 
 /* Encoding functions */
 
