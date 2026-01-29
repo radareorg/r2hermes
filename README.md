@@ -4,13 +4,13 @@
 ![Meson](https://github.com/radareorg/r2hermes/actions/workflows/meson.yml/badge.svg)
 ![Windows](https://github.com/radareorg/r2hermes/actions/workflows/windows.yml/badge.svg)
 
-Hermes bytecode disassembler, decompiler, and radare2 plugins.
+Meta's React Native Hermes bytecode assembler, disassembler, decompiler, and compation radare2 plugins.
 
-Supports Hermes bytecode **v51 - v96** (React Native / Meta).
+![logo](r2hermes500.png)
 
 ## Features
 
-- Disassemble Hermes bytecode
+- Disassemble Hermes bytecode (v51 .. v96)
 - Decompile to JavaScript pseudocode
 - Assemble instructions
 - Parse binary headers
