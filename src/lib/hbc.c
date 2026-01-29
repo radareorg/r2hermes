@@ -380,6 +380,38 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 
 /* Single-instruction decode functions */
 
+static char *build_literal_comment(HBCReader *reader, u8 opcode, const u32 *ovs, const char *base_text) {
+	const bool is_obj = (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong);
+	StringBuffer sb;
+	if (_hbc_string_buffer_init (&sb, 256).code != RESULT_SUCCESS) {
+		return NULL;
+	}
+	Result fmt_res;
+	if (is_obj) {
+		const u32 key_count = ovs[1];
+		const u32 value_count = ovs[2];
+		const u32 keys_id = ovs[3];
+		const u32 values_id = ovs[4];
+		fmt_res = _hbc_format_object_literal (reader, key_count, value_count, keys_id, values_id, &sb, LITERALS_PRETTY_NEVER, true);
+	} else {
+		const u32 value_count = ovs[2];
+		const u32 array_id = ovs[3];
+		fmt_res = _hbc_format_array_literal (reader, value_count, array_id, &sb, LITERALS_PRETTY_NEVER, true);
+	}
+	char *result = NULL;
+	if (fmt_res.code == RESULT_SUCCESS && sb.length > 0) {
+		size_t base_len = strlen (base_text);
+		result = (char *)malloc (base_len + 4 + sb.length + 1);
+		if (result) {
+			memcpy (result, base_text, base_len);
+			memcpy (result + base_len, "  ; ", 4);
+			memcpy (result + base_len + 4, sb.data, sb.length + 1);
+		}
+	}
+	_hbc_string_buffer_free (&sb);
+	return result;
+}
+
 Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	if (!ctx || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid context");
@@ -554,38 +586,18 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		}
 	}
 
-	char *final_text = NULL;
-	if (ctx->build_objects && ctx->hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong || opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong)) {
-		HBCReader *reader = &ctx->hbc->reader;
-		StringBuffer sb;
-		if (_hbc_string_buffer_init (&sb, 256).code == RESULT_SUCCESS) {
-			Result fmt_res = { .code = RESULT_ERROR_PARSING_FAILED };
-			if (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong) {
-				u32 key_count = operand_values[1];
-				u32 value_count = operand_values[2];
-				u32 keys_id = operand_values[3];
-				u32 values_id = operand_values[4];
-				fmt_res = _hbc_format_object_literal (reader, key_count, value_count, keys_id, values_id, &sb, LITERALS_PRETTY_NEVER, true);
-			} else {
-				u32 value_count = operand_values[2];
-				u32 array_id = operand_values[3];
-				fmt_res = _hbc_format_array_literal (reader, value_count, array_id, &sb, LITERALS_PRETTY_NEVER, true);
-			}
-			if (fmt_res.code == RESULT_SUCCESS && sb.data && sb.data[0]) {
-				size_t buf_len = strlen (buf);
-				size_t sb_len = strlen (sb.data);
-				final_text = (char *)malloc (buf_len + 4 + sb_len + 1);
-				if (final_text) {
-					memcpy (final_text, buf, buf_len);
-					memcpy (final_text + buf_len, "  ; ", 4);
-					memcpy (final_text + buf_len + 4, sb.data, sb_len + 1);
-				}
-			}
-			_hbc_string_buffer_free (&sb);
+	if (ctx->build_objects && ctx->hbc) {
+		const bool is_literal_op = (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
+			opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong);
+		if (is_literal_op) {
+			char *with_comment = build_literal_comment (&ctx->hbc->reader, opcode, operand_values, buf);
+			out->text = with_comment ? with_comment : strdup (buf);
+		} else {
+			out->text = strdup (buf);
 		}
+	} else {
+		out->text = strdup (buf);
 	}
-
-	out->text = final_text? final_text: strdup (buf);
 	out->size = (u32)pos;
 	out->opcode = opcode;
 
