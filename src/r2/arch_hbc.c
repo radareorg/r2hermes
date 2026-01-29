@@ -38,13 +38,6 @@ static ut32 detect_version_from_bin(RArchSession *s) {
 	return 96;
 }
 
-#define READ_REG8(b, pos) ((u8) (b)[(pos)])
-#define READ_UINT8(b, pos) ((u8) (b)[(pos)])
-#define READ_UINT16(b, pos) ((u16) ((b)[(pos)] | ((b)[(pos) + 1] << 8)))
-#define READ_UINT32(b, pos) ((u32) ((b)[(pos)] | ((b)[(pos) + 1] << 8) | ((b)[(pos) + 2] << 16) | ((b)[(pos) + 3] << 24)))
-#define READ_INT8(b, pos) ((i8) (b)[(pos)])
-#define READ_INT32(b, pos) ((i32)READ_UINT32 (b, pos))
-
 #include "esil.inc.c"
 
 static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
