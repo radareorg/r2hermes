@@ -831,7 +831,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			u32 overflow_index = reader->small_string_table[i].offset;
 			if (overflow_index >= reader->header.overflowStringCount) {
 				/* Invalid overflow index */
-				reader->strings[i] = strdup("");
+				reader->strings[i] = strdup ("");
 				if (!reader->strings[i]) {
 					free (string_storage);
 					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
@@ -851,7 +851,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		/* Check bounds */
 		if (offset + (is_utf16? length * 2: length) > string_storage_size) {
 			fprintf (stderr, "Warning: String %u offset/length out of bounds, treating as empty string\n", i);
-			reader->strings[i] = strdup("");
+			reader->strings[i] = strdup ("");
 			if (!reader->strings[i]) {
 				free (string_storage);
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");

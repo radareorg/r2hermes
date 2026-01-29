@@ -337,34 +337,6 @@ Result hbc_decomp_all(
 	return SUCCESS_RESULT ();
 }
 
-Result hbc_disasm_fn(
-	HBC *hbc,
-	u32 function_id,
-	HBCDisOptions options,
-	char **out_str) {
-	(void)function_id;
-	(void)options;
-
-	if (!hbc || !out_str) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
-	}
-
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via state not yet implemented");
-}
-
-Result hbc_disasm_all(
-	HBC *hbc,
-	HBCDisOptions options,
-	char **out_str) {
-	(void)options;
-
-	if (!hbc || !out_str) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
-	}
-
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Disassembly via state not yet implemented");
-}
-
 Result hbc_all_funcs(
 	HBC *hbc,
 	HBCFuncArray *out) {
@@ -404,32 +376,6 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 		arr->functions = NULL;
 		arr->count = 0;
 	}
-}
-
-Result hbc_decode_fn(
-	HBC *hbc,
-	u32 function_id,
-	HBCInsns *out) {
-	if (!hbc || !out) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
-	}
-
-	const u8 *bytecode = NULL;
-	u32 bytecode_size = 0;
-	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode, &bytecode_size);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
-	HBCStrs string_tables = { 0 };
-	res = hbc_get_string_tables (hbc, &string_tables);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
-	out->instructions = NULL;
-	out->count = 0;
-	return ERROR_RESULT (RESULT_ERROR_NOT_IMPLEMENTED, "Instruction decoding via state not yet implemented");
 }
 
 /* Single-instruction decode functions */
@@ -609,8 +555,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	}
 
 	char *final_text = NULL;
-	if (ctx->build_objects && ctx->hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
-	            opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong)) {
+	if (ctx->build_objects && ctx->hbc && (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong || opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong)) {
 		HBCReader *reader = &ctx->hbc->reader;
 		StringBuffer sb;
 		if (_hbc_string_buffer_init (&sb, 256).code == RESULT_SUCCESS) {
@@ -620,13 +565,11 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 				u32 value_count = operand_values[2];
 				u32 keys_id = operand_values[3];
 				u32 values_id = operand_values[4];
-				fmt_res = _hbc_format_object_literal (reader, key_count, value_count, keys_id, values_id,
-				                                      &sb, LITERALS_PRETTY_NEVER, true);
+				fmt_res = _hbc_format_object_literal (reader, key_count, value_count, keys_id, values_id, &sb, LITERALS_PRETTY_NEVER, true);
 			} else {
 				u32 value_count = operand_values[2];
 				u32 array_id = operand_values[3];
-				fmt_res = _hbc_format_array_literal (reader, value_count, array_id,
-				                                     &sb, LITERALS_PRETTY_NEVER, true);
+				fmt_res = _hbc_format_array_literal (reader, value_count, array_id, &sb, LITERALS_PRETTY_NEVER, true);
 			}
 			if (fmt_res.code == RESULT_SUCCESS && sb.data && sb.data[0]) {
 				size_t buf_len = strlen (buf);
@@ -642,7 +585,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		}
 	}
 
-	out->text = final_text ? final_text : strdup (buf);
+	out->text = final_text? final_text: strdup (buf);
 	out->size = (u32)pos;
 	out->opcode = opcode;
 
@@ -661,7 +604,6 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 
 	return SUCCESS_RESULT ();
 }
-
 
 /* Encoding functions */
 

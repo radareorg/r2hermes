@@ -168,7 +168,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 				if (meta_result.code == RESULT_SUCCESS) {
 					/* Set op->ptr to the file offset of the string.
 					 * meta.offset already includes string_storage_file_offset */
-					op->ptr = (st64) meta.offset;
+					op->ptr = (st64)meta.offset;
 				}
 			}
 		}

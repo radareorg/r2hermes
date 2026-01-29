@@ -240,23 +240,6 @@ Result hbc_decomp_all(
 	char **out_str);
 
 /**
- * Disassemble a specific function.
- */
-Result hbc_disasm_fn(
-	HBC *hbc,
-	u32 function_id,
-	HBCDisOptions options,
-	char **out_str);
-
-/**
- * Disassemble all functions.
- */
-Result hbc_disasm_all(
-	HBC *hbc,
-	HBCDisOptions options,
-	char **out_str);
-
-/**
  * Single instruction decode output
  */
 typedef struct {
@@ -295,14 +278,6 @@ typedef struct {
 	HBCInsn *instructions;
 	u32 count;
 } HBCInsns;
-
-/**
- * Decode a function into an array of instructions.
- */
-Result hbc_decode_fn(
-	HBC *hbc,
-	u32 function_id,
-	HBCInsns *out);
 
 /**
  * Free instruction array.

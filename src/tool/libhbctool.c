@@ -588,6 +588,77 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 	return SUCCESS_RESULT ();
 }
 
+static Result disasm_function(HBC *hbc, u32 function_id, char **out) {
+	const u8 *bytecode = NULL;
+	u32 bytecode_size = 0;
+	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode, &bytecode_size);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	HBCHeader hdr;
+	res = hbc_get_header (hbc, &hdr);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	HBCFunc fi;
+	res = hbc_get_function_info (hbc, function_id, &fi);
+	if (res.code != RESULT_SUCCESS) {
+		return res;
+	}
+
+	size_t cap = 4096;
+	size_t len = 0;
+	char *buf = malloc (cap);
+	if (!buf) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	buf[0] = '\0';
+
+	u32 offset = 0;
+	while (offset < bytecode_size) {
+		HBCInsnInfo insn_info;
+		memset (&insn_info, 0, sizeof (insn_info));
+		HBCDecodeCtx dec_ctx = {
+			.bytes = bytecode + offset,
+			.len = bytecode_size - offset,
+			.pc = fi.offset + offset,
+			.bytecode_version = hdr.version,
+			.asm_syntax = false,
+			.resolve_string_ids = false,
+			.string_tables = NULL,
+			.hbc = hbc,
+			.build_objects = false
+		};
+		res = hbc_dec (&dec_ctx, &insn_info);
+		if (res.code != RESULT_SUCCESS || insn_info.size == 0) {
+			free (insn_info.text);
+			break;
+		}
+		const char *text = insn_info.text? insn_info.text: "";
+		size_t text_len = strlen (text);
+		if (len + text_len + 2 > cap) {
+			cap *= 2;
+			char *tmp = realloc (buf, cap);
+			if (!tmp) {
+				free (insn_info.text);
+				free (buf);
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+			}
+			buf = tmp;
+		}
+		memcpy (buf + len, text, text_len);
+		len += text_len;
+		buf[len++] = '\n';
+		buf[len] = '\0';
+		free (insn_info.text);
+		offset += insn_info.size;
+	}
+	*out = buf;
+	return SUCCESS_RESULT ();
+}
+
 static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	if (argc < 3) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s cf <input_file> <python_dis_file> <function_id>", ctx->program_name);
@@ -607,9 +678,8 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id %u", function_id);
 	}
 
-	HBCDisOptions opt = (HBCDisOptions){ 0 };
 	char *disasm_str = NULL;
-	res = hbc_disasm_fn (hbc, function_id, opt, &disasm_str);
+	res = disasm_function (hbc, function_id, &disasm_str);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return res;

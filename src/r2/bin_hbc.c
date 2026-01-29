@@ -300,7 +300,7 @@ static RList *strings(RBinFile *bf) {
 
 		ptr->paddr = meta.offset;
 		ptr->vaddr = meta.offset;
-		ptr->size = meta.isUTF16 ? (meta.length * 2) : meta.length;
+		ptr->size = meta.isUTF16? (meta.length * 2): meta.length;
 		ptr->length = meta.length;
 		ptr->ordinal = i;
 		r_list_append (ret, ptr);

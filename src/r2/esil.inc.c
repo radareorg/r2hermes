@@ -19,8 +19,8 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_MovLong:
 		{
-			const u32 dst = r_read_le32(bytes + 1);
-			const u32 src = r_read_le32(bytes + 5);
+			const u32 dst = r_read_le32 (bytes + 1);
+			const u32 src = r_read_le32 (bytes + 5);
 			r_strbuf_setf (&op->esil, "r%u,r%u,=", src, dst);
 			break;
 		}
@@ -297,7 +297,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_LoadConstInt:
 		{
 			const u8 dst = bytes[1];
-			const i32 val = (i32)r_read_le32(bytes + 2);
+			const i32 val = (i32)r_read_le32 (bytes + 2);
 			r_strbuf_setf (&op->esil, "%d,r%u,=", val, dst);
 			break;
 		}
@@ -305,7 +305,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_LoadConstBigInt:
 		{
 			const u8 dst = bytes[1];
-			const u16 idx = r_read_le16(bytes + 2);
+			const u16 idx = r_read_le16 (bytes + 2);
 			r_strbuf_setf (&op->esil, "%u,r%u,=", idx, dst);
 			break;
 		}
@@ -313,7 +313,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_LoadConstBigIntLongIndex:
 		{
 			const u8 dst = bytes[1];
-			const u32 idx = r_read_le32(bytes + 2);
+			const u32 idx = r_read_le32 (bytes + 2);
 			r_strbuf_setf (&op->esil, "%u,r%u,=", idx, dst);
 			break;
 		}
@@ -348,7 +348,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JmpLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			r_strbuf_setf (&op->esil, "0x%" PFMT64x ",pc,=", addr + off);
 			break;
 		}
@@ -361,7 +361,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JmpTrueLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 cond = bytes[5];
 			r_strbuf_setf (&op->esil, "r%u,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
 			break;
@@ -375,7 +375,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JmpFalseLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 cond = bytes[5];
 			r_strbuf_setf (&op->esil, "r%u,!,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
 			break;
@@ -392,7 +392,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JLessLong:
 	case OP_JLessNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,<,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -408,7 +408,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JEqualLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,==,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -424,7 +424,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JNotEqualLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -440,7 +440,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JStrictEqualLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,==,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -456,7 +456,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JStrictNotEqualLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,==,!,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -474,7 +474,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JNotLessLong:
 	case OP_JNotLessNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,>=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -492,7 +492,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JLessEqualLong:
 	case OP_JLessEqualNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,<=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -510,7 +510,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JGreaterLong:
 	case OP_JGreaterNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,>,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -528,7 +528,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JGreaterEqualLong:
 	case OP_JGreaterEqualNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,>=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -546,7 +546,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JNotLessEqualLong:
 	case OP_JNotLessEqualNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,>,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -564,7 +564,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JNotGreaterLong:
 	case OP_JNotGreaterNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,<=,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -582,7 +582,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JNotGreaterEqualLong:
 	case OP_JNotGreaterEqualNLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 s1 = bytes[5];
 			const u8 s2 = bytes[6];
 			r_strbuf_setf (&op->esil, "r%u,r%u,<,?{,0x%" PFMT64x ",pc,=,}", s2, s1, addr + off);
@@ -597,7 +597,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		}
 	case OP_JmpUndefinedLong:
 		{
-			const i32 off = (i32)r_read_le32(bytes + 1);
+			const i32 off = (i32)r_read_le32 (bytes + 1);
 			const u8 cond = bytes[5];
 			r_strbuf_setf (&op->esil, "r%u,!,?{,0x%" PFMT64x ",pc,=,}", cond, addr + off);
 			break;
@@ -704,7 +704,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_LoadParamLong:
 		{
 			const u8 dst = bytes[1];
-			const u32 idx = r_read_le32(bytes + 2);
+			const u32 idx = r_read_le32 (bytes + 2);
 			r_strbuf_setf (&op->esil, "arg%u,r%u,=", idx, dst);
 			break;
 		}
@@ -738,7 +738,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_NewArray:
 		{
 			const u8 dst = bytes[1];
-			const u16 size = r_read_le16(bytes + 2);
+			const u16 size = r_read_le16 (bytes + 2);
 			r_strbuf_setf (&op->esil, "%u,NEWARR,r%u,=", size, dst);
 			break;
 		}
