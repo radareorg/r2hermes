@@ -22,6 +22,9 @@ configure_file(
   install: true,
 )
 
+# Register plugins in the static plugin lists
+core_plugins += ['r2hermes']
+
 # Include directories (relative to this meson.build file location)
 include_dirs = include_directories(join_paths('..', 'include'))
 r_core_additional_inc += include_dirs

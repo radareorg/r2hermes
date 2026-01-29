@@ -1,3 +1,6 @@
+#ifdef R2_CORE_H
+#include "core/deps.h"
+#endif
 #ifdef R2_ARCH_H
 #include "arch/deps.h"
 #endif
