@@ -768,8 +768,8 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		}
 	}
 
-	/* Align buffer for overflow string table */
-	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
+	/* Note: Hermes format does NOT have alignment padding between small string table
+	 * and overflow string table - they are packed together. Do NOT align here. */
 
 	/* Allocate overflow string table if needed */
 	if (reader->header.overflowStringCount > 0) {
@@ -787,10 +787,9 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		}
 	}
 
-	/* Align buffer for string storage */
-	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
-
-	/* Record absolute file offset for the string storage area (for address printing) */
+	/* Record absolute file offset for the string storage area.
+	 * Note: Hermes format does NOT have alignment padding between overflow string table
+	 * and string storage - they are packed together. Do NOT align here. */
 	reader->string_storage_file_offset = (u32)reader->file_buffer.position;
 
 	/* Read the string storage */
@@ -890,7 +889,10 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		reader->strings[i] = str;
 	}
 
-	/* Free the temporary string storage */
+	/* Clear the string_table_storage since we've decoded all strings into reader->strings
+	 * and no longer need the raw storage. The debug info path may set this separately. */
+	reader->string_table_storage = NULL;
+	reader->string_table_storage_size = 0;
 	free (string_storage);
 
 	return SUCCESS_RESULT ();
