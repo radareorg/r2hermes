@@ -64,11 +64,4 @@ static inline void hbc_safe_close(HBC **hbc) {
 	}
 }
 
-static inline void hbc_free_data_and_close(HBC **hbc, ut8 **data) {
-	if (data && *data) {
-		R_FREE (*data);
-	}
-	hbc_safe_close (hbc);
-}
-
 #endif

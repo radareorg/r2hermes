@@ -16,7 +16,6 @@ typedef struct {
 	HBC *hbc;
 	RCore *core;
 	char *file_path;
-	ut8 *data;
 } HbcContext;
 
 static const char *safe_errmsg(const char *s) {
@@ -79,7 +78,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 
 	/* Clean up old provider */
-	hbc_free_data_and_close (&ctx->hbc, &ctx->data);
+	hbc_safe_close (&ctx->hbc);
 	R_FREE (ctx->file_path);
 
 	/* Get RBinFile from r2 (already parsed by r2) */
@@ -89,7 +88,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 
 	/* Open HBC from buffer */
-	Result res = hbc_open_from_buffer (bf->buf, &ctx->hbc, &ctx->data);
+	Result res = hbc_open_from_buffer (bf->buf, &ctx->hbc, NULL);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
@@ -97,7 +96,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	ctx->core = core;
 	ctx->file_path = strdup (file_path);
 	if (!ctx->file_path) {
-		hbc_free_data_and_close (&ctx->hbc, &ctx->data);
+		hbc_safe_close (&ctx->hbc);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Out of memory");
 	}
 	return SUCCESS_RESULT ();
@@ -586,7 +585,7 @@ static bool plugin_init(RCorePluginSession *s) {
 static bool plugin_fini(RCorePluginSession *s) {
 	HbcContext *ctx = s->data;
 	if (ctx) {
-		hbc_free_data_and_close (&ctx->hbc, &ctx->data);
+		hbc_safe_close (&ctx->hbc);
 		R_FREE (ctx->file_path);
 		free (ctx);
 		s->data = NULL;

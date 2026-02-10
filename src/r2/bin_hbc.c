@@ -9,7 +9,6 @@
 
 typedef struct {
 	HBC *hbc;
-	ut8 *data;
 } HBCBinObj;
 
 static bool check(RBinFile *bf, RBuffer *b) {
@@ -25,16 +24,14 @@ static bool check(RBinFile *bf, RBuffer *b) {
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 	if (check (bf, buf)) {
 		HBC *hbc = NULL;
-		ut8 *data = NULL;
-		Result res = hbc_open_from_buffer (buf, &hbc, &data);
+		Result res = hbc_open_from_buffer (buf, &hbc, NULL);
 		if (res.code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			if (!bo) {
-				hbc_free_data_and_close (&hbc, &data);
+				hbc_safe_close (&hbc);
 				return false;
 			}
 			bo->hbc = hbc;
-			bo->data = data;
 			bf->bo->bin_obj = bo;
 			bf->buf = buf;
 			return true;
@@ -46,7 +43,7 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
-		hbc_free_data_and_close (&bo->hbc, &bo->data);
+		hbc_safe_close (&bo->hbc);
 		free (bo);
 	}
 }
