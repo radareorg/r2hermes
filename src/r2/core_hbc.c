@@ -10,6 +10,7 @@
 #ifdef HBC_CORE_REGISTER_PLUGINS
 extern const RArchPlugin r_arch_plugin_r2hermes;
 extern const RBinPlugin r_bin_plugin_r2hermes;
+extern const RAsmPlugin r_asm_plugin_r2hermes;
 #endif
 
 typedef struct {
@@ -510,12 +511,15 @@ static bool plugin_init(RCorePluginSession *s) {
 	s->data = ctx;
 
 #ifdef HBC_CORE_REGISTER_PLUGINS
-	/* Register arch and bin plugins when enabled */
+	/* Register arch, bin and asm plugins when enabled */
 	if (core->anal && core->anal->arch) {
 		r_arch_plugin_add (core->anal->arch, (RArchPlugin *)&r_arch_plugin_r2hermes);
 	}
 	if (core->bin) {
 		r_bin_plugin_add (core->bin, (RBinPlugin *)&r_bin_plugin_r2hermes);
+	}
+	if (core->rasm) {
+		r_asm_plugin_add (core->rasm, (RAsmPlugin *)&r_asm_plugin_r2hermes);
 	}
 #endif
 
