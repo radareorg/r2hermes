@@ -72,7 +72,7 @@ r2one: check-deps
 	$(CC) $(LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(HERMES_LIB)
 	@echo "Plugin file: $(CORE_PLUGIN)"
 	rm -f ~/.local/share/radare2/plugins/*hbc*
-	cp -f core_hbc.dylib ~/.local/share/radare2/plugins
+	cp -f $(CORE_PLUGIN) ~/.local/share/radare2/plugins
 	r2 -q -c 'Lc~hbc' -c 'La~hbc' -c 'Lb~hbc' --
 
 # Check if radare2 development headers are available
