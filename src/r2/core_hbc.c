@@ -88,7 +88,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 
 	/* Open HBC from buffer */
-	Result res = hbc_open_from_buffer (bf->buf, &ctx->hbc, NULL);
+	Result res = hbc_open_from_buffer (bf->buf, &ctx->hbc);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}

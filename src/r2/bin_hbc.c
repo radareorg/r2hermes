@@ -24,17 +24,15 @@ static bool check(RBinFile *bf, RBuffer *b) {
 static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 	if (check (bf, buf)) {
 		HBC *hbc = NULL;
-		Result res = hbc_open_from_buffer (buf, &hbc, NULL);
-		if (res.code == RESULT_SUCCESS) {
+		if (hbc_open_from_buffer (buf, &hbc).code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
-			if (!bo) {
-				hbc_safe_close (&hbc);
-				return false;
+			if (bo) {
+				bo->hbc = hbc;
+				bf->bo->bin_obj = bo;
+				bf->buf = buf;
+				return true;
 			}
-			bo->hbc = hbc;
-			bf->bo->bin_obj = bo;
-			bf->buf = buf;
-			return true;
+			hbc_safe_close (&hbc);
 		}
 	}
 	return false;
