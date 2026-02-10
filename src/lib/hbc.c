@@ -149,32 +149,7 @@ Result hbc_get_header(HBC *hbc, HBCHeader *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_get_header");
 	}
-	HBCHeader *h = &hbc->reader.header;
-	out->magic = h->magic;
-	out->version = h->version;
-	memcpy (out->sourceHash, h->sourceHash, sizeof (out->sourceHash));
-	out->fileLength = h->fileLength;
-	out->globalCodeIndex = h->globalCodeIndex;
-	out->functionCount = h->functionCount;
-	out->stringKindCount = h->stringKindCount;
-	out->identifierCount = h->identifierCount;
-	out->stringCount = h->stringCount;
-	out->overflowStringCount = h->overflowStringCount;
-	out->stringStorageSize = h->stringStorageSize;
-	out->bigIntCount = h->bigIntCount;
-	out->bigIntStorageSize = h->bigIntStorageSize;
-	out->regExpCount = h->regExpCount;
-	out->regExpStorageSize = h->regExpStorageSize;
-	out->arrayBufferSize = h->arrayBufferSize;
-	out->objKeyBufferSize = h->objKeyBufferSize;
-	out->objValueBufferSize = h->objValueBufferSize;
-	out->segmentID = h->segmentID;
-	out->cjsModuleCount = h->cjsModuleCount;
-	out->functionSourceCount = h->functionSourceCount;
-	out->debugInfoOffset = h->debugInfoOffset;
-	out->staticBuiltins = h->staticBuiltins;
-	out->cjsModulesStaticallyResolved = h->cjsModulesStaticallyResolved;
-	out->hasAsync = h->hasAsync;
+	*out = hbc->reader.header;
 	return SUCCESS_RESULT ();
 }
 
@@ -436,15 +411,8 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	/* Read opcode */
 	u8 opcode = ctx->bytes[0];
 
-	/* Find instruction definition */
-	const Instruction *inst = NULL;
-	for (u32 i = 0; i < isa.count; i++) {
-		if (i == opcode) {
-			inst = &isa.instructions[i];
-			break;
-		}
-	}
-
+	/* Get instruction definition */
+	const Instruction *inst = (opcode < isa.count) ? &isa.instructions[opcode] : NULL;
 	if (!inst || !inst->name) {
 		out->text = strdup ("unk");
 		out->size = 1;
