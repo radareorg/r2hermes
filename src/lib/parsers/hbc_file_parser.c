@@ -817,6 +817,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 	reader->strings = (char **)calloc (reader->header.stringCount, sizeof (char *));
 	if (!reader->strings) {
 		free (string_storage);
+		reader->string_table_storage = NULL;
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string array");
 	}
 
@@ -834,6 +835,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 				reader->strings[i] = strdup ("");
 				if (!reader->strings[i]) {
 					free (string_storage);
+					reader->string_table_storage = NULL;
 					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
 				}
 				continue;
@@ -854,6 +856,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			reader->strings[i] = strdup ("");
 			if (!reader->strings[i]) {
 				free (string_storage);
+				reader->string_table_storage = NULL;
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
 			}
 			continue;
@@ -864,6 +867,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		char *str = (char *)malloc (buffer_size);
 		if (!str) {
 			free (string_storage);
+			reader->string_table_storage = NULL;
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string");
 		}
 
@@ -890,8 +894,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		reader->strings[i] = str;
 	}
 
-	/* Free the temporary string storage */
-	free (string_storage);
+	/* Note: string_storage is owned by reader->string_table_storage and will be freed by _hbc_reader_cleanup */
 
 	return SUCCESS_RESULT ();
 }
