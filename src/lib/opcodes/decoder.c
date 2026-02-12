@@ -131,24 +131,6 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 
 /* Print a single instruction */
 /* Helpers for asm-syntax formatting */
-static void to_snake_lower(const char *in, char *out, size_t outsz) {
-	size_t j = 0;
-	for (size_t i = 0; in && in[i] && j + 1 < outsz; i++) {
-		char c = in[i];
-		if (c >= 'A' && c <= 'Z') {
-			if (i != 0 && out[j - 1] != '_') {
-				if (j + 1 < outsz) {
-					out[j++] = '_';
-				}
-			}
-			c = (char) (c - 'A' + 'a');
-		}
-		out[j++] = c;
-	}
-	if (outsz > 0) {
-		out[j < outsz? j: outsz - 1] = '\0';
-	}
-}
 
 static Result format_operand_asm(Disassembler *d, ParsedInstruction *ins, int idx, StringBuffer *out) {
 	OperandType t = ins->inst->operands[idx].operand_type;
@@ -232,7 +214,7 @@ static Result print_instruction_asm(Disassembler *disassembler, ParsedInstructio
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, abuf));
 	/* mnemonic */
 	char mnem[64];
-	to_snake_lower (instruction->inst->name, mnem, sizeof (mnem));
+	hbc_camel_to_snake (instruction->inst->name, mnem, sizeof (mnem));
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, mnem));
 
 	bool first = true;

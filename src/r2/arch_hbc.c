@@ -8,6 +8,10 @@
 
 #define MAX_OP_SIZE 16
 
+#ifndef R_ARCH_SYNTAX_CAMEL
+#define R_ARCH_SYNTAX_CAMEL 6
+#endif
+
 typedef struct {
 	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
 	HBC *hbc; /* Hermes state for direct access */
@@ -221,6 +225,8 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.overflow_string_table = hs->overflow_string_table,
 		.string_storage_offset = hs->string_storage_offset
 	};
+	/* asm.syntax=camel → CamelCase, default → snake_case */
+	bool camel = s->config && s->config->syntax == R_ARCH_SYNTAX_CAMEL;
 	HBCDecodeCtx ctx = {
 		.bytes = op->bytes,
 		.len = MAX_OP_SIZE,
@@ -229,7 +235,8 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.asm_syntax = true,
 		.resolve_string_ids = true,
 		.string_tables = &string_tables,
-		.hbc = hs->hbc
+		.hbc = hs->hbc,
+		.camel_case = camel
 	};
 	if (mask & R_ARCH_OP_MASK_ESIL && mask & R_ARCH_OP_MASK_DISASM) {
 		ctx.build_objects = true;
@@ -516,11 +523,38 @@ static int archinfo(RArchSession *s, ut32 q) {
 }
 
 static char *mnemonics(RArchSession *s, int id, bool json) {
-	(void)s;
-	(void)id;
-	(void)json;
-	// TODO: not implemented
-	return NULL;
+	HermesArchSession *hs = s? (HermesArchSession *)s->data: NULL;
+	ut32 version = (hs && hs->bytecode_version)? hs->bytecode_version: 96;
+	HBCISA isa = hbc_isa_getv (version);
+	if (!isa.instructions || isa.count == 0) {
+		return NULL;
+	}
+	if (id >= 0) {
+		if ((u32)id >= isa.count || !isa.instructions[id].name) {
+			return NULL;
+		}
+		char snake[128];
+		hbc_camel_to_snake (isa.instructions[id].name, snake, sizeof (snake));
+		return strdup (snake);
+	}
+	/* id == -1: return all mnemonics */
+	RStrBuf *sb = r_strbuf_new ("");
+	for (u32 i = 0; i < isa.count; i++) {
+		if (!isa.instructions[i].name) {
+			continue;
+		}
+		char snake[128];
+		hbc_camel_to_snake (isa.instructions[i].name, snake, sizeof (snake));
+		if (json) {
+			r_strbuf_appendf (sb, "%s\"%s\"", i? ",": "[", snake);
+		} else {
+			r_strbuf_appendf (sb, "%s\n", snake);
+		}
+	}
+	if (json) {
+		r_strbuf_append (sb, "]");
+	}
+	return r_strbuf_drain (sb);
 }
 
 static bool encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {

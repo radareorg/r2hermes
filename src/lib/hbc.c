@@ -483,8 +483,11 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	char mnemonic[128];
 	int offset = 0;
 
-	/* Convert instruction name to snake_case */
-	hbc_camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
+	if (ctx->camel_case) {
+		snprintf (mnemonic, sizeof (mnemonic), "%s", inst->name);
+	} else {
+		hbc_camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
+	}
 
 	if (ctx->asm_syntax) {
 		/* ASM syntax: mnemonic operand1, operand2, ... */
