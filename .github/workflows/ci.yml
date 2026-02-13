@@ -69,11 +69,13 @@ jobs:
           TAG="${{ needs.build.outputs.tag }}"
           echo "Creating archive for $TAG"
           git archive --format=tar.gz --prefix=libhbc-$TAG/ $TAG -o libhbc-$TAG.tgz
+          ls -l libhbc*
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.3.2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           files: ./libhbc-${{ needs.build.outputs.tag }}.tgz
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
