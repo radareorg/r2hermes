@@ -225,7 +225,6 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.overflow_string_table = hs->overflow_string_table,
 		.string_storage_offset = hs->string_storage_offset
 	};
-	/* asm.syntax=camel → CamelCase, default → snake_case */
 	bool camel = s->config && s->config->syntax == R_ARCH_SYNTAX_CAMEL;
 	HBCDecodeCtx ctx = {
 		.bytes = op->bytes,
@@ -236,7 +235,6 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.resolve_string_ids = true,
 		.string_tables = &string_tables,
 		.hbc = hs->hbc,
-		.camel_case = camel
 	};
 	if (mask & R_ARCH_OP_MASK_ESIL && mask & R_ARCH_OP_MASK_DISASM) {
 		ctx.build_objects = true;
@@ -247,6 +245,13 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		return false;
 	}
 
+	/* asm.syntax=camel → convert snake_case mnemonic to CamelCase */
+	if (camel && sinfo.text) {
+		char camel_buf[128];
+		hbc_snake_to_camel (sinfo.text, camel_buf, sizeof (camel_buf));
+		free (sinfo.text);
+		sinfo.text = strdup (camel_buf);
+	}
 	op->mnemonic = sinfo.text? sinfo.text: strdup ("unk");
 	op->size = sinfo.size? sinfo.size: 1;
 	op->type = R_ANAL_OP_TYPE_UNK;
