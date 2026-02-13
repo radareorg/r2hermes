@@ -131,24 +131,6 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 
 /* Print a single instruction */
 /* Helpers for asm-syntax formatting */
-static void to_snake_lower(const char *in, char *out, size_t outsz) {
-	size_t j = 0;
-	for (size_t i = 0; in && in[i] && j + 1 < outsz; i++) {
-		char c = in[i];
-		if (c >= 'A' && c <= 'Z') {
-			if (i != 0 && out[j - 1] != '_') {
-				if (j + 1 < outsz) {
-					out[j++] = '_';
-				}
-			}
-			c = (char) (c - 'A' + 'a');
-		}
-		out[j++] = c;
-	}
-	if (outsz > 0) {
-		out[j < outsz? j: outsz - 1] = '\0';
-	}
-}
 
 static Result format_operand_asm(Disassembler *d, ParsedInstruction *ins, int idx, StringBuffer *out) {
 	OperandType t = ins->inst->operands[idx].operand_type;
@@ -230,10 +212,8 @@ static Result print_instruction_asm(Disassembler *disassembler, ParsedInstructio
 	char abuf[32];
 	snprintf (abuf, sizeof (abuf), "0x%08x: ", fh->offset + instruction->original_pos);
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, abuf));
-	/* mnemonic */
-	char mnem[64];
-	to_snake_lower (instruction->inst->name, mnem, sizeof (mnem));
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, mnem));
+	/* mnemonic — tables are already snake_case */
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, instruction->inst->name));
 
 	bool first = true;
 	for (int i = 0; i < 6; i++) {

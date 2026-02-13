@@ -8,6 +8,10 @@
 
 #define MAX_OP_SIZE 16
 
+#ifndef R_ARCH_SYNTAX_CAMEL
+#define R_ARCH_SYNTAX_CAMEL 6
+#endif
+
 typedef struct {
 	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
 	HBC *hbc; /* Hermes state for direct access */
@@ -221,6 +225,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.overflow_string_table = hs->overflow_string_table,
 		.string_storage_offset = hs->string_storage_offset
 	};
+	bool camel = s->config && s->config->syntax == R_ARCH_SYNTAX_CAMEL;
 	HBCDecodeCtx ctx = {
 		.bytes = op->bytes,
 		.len = MAX_OP_SIZE,
@@ -229,7 +234,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.asm_syntax = true,
 		.resolve_string_ids = true,
 		.string_tables = &string_tables,
-		.hbc = hs->hbc
+		.hbc = hs->hbc,
 	};
 	if (mask & R_ARCH_OP_MASK_ESIL && mask & R_ARCH_OP_MASK_DISASM) {
 		ctx.build_objects = true;
@@ -240,6 +245,13 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		return false;
 	}
 
+	/* asm.syntax=camel → convert snake_case mnemonic to CamelCase */
+	if (camel && sinfo.text) {
+		char camel_buf[128];
+		hbc_snake_to_camel (sinfo.text, camel_buf, sizeof (camel_buf));
+		free (sinfo.text);
+		sinfo.text = strdup (camel_buf);
+	}
 	op->mnemonic = sinfo.text? sinfo.text: strdup ("unk");
 	op->size = sinfo.size? sinfo.size: 1;
 	op->type = R_ANAL_OP_TYPE_UNK;
@@ -516,11 +528,34 @@ static int archinfo(RArchSession *s, ut32 q) {
 }
 
 static char *mnemonics(RArchSession *s, int id, bool json) {
-	(void)s;
-	(void)id;
-	(void)json;
-	// TODO: not implemented
-	return NULL;
+	HermesArchSession *hs = s? (HermesArchSession *)s->data: NULL;
+	ut32 version = (hs && hs->bytecode_version)? hs->bytecode_version: 96;
+	HBCISA isa = hbc_isa_getv (version);
+	if (!isa.instructions || isa.count == 0) {
+		return NULL;
+	}
+	if (id >= 0) {
+		if ((u32)id >= isa.count || !isa.instructions[id].name) {
+			return NULL;
+		}
+		return strdup (isa.instructions[id].name);
+	}
+	/* id == -1: return all mnemonics */
+	RStrBuf *sb = r_strbuf_new ("");
+	for (u32 i = 0; i < isa.count; i++) {
+		if (!isa.instructions[i].name) {
+			continue;
+		}
+		if (json) {
+			r_strbuf_appendf (sb, "%s\"%s\"", i? ",": "[", isa.instructions[i].name);
+		} else {
+			r_strbuf_appendf (sb, "%s\n", isa.instructions[i].name);
+		}
+	}
+	if (json) {
+		r_strbuf_append (sb, "]");
+	}
+	return r_strbuf_drain (sb);
 }
 
 static bool encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
