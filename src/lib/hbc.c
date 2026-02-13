@@ -483,10 +483,11 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	char mnemonic[128];
 	int offset = 0;
 
+	/* Tables are already snake_case; only convert when CamelCase is requested */
 	if (ctx->camel_case) {
-		snprintf (mnemonic, sizeof (mnemonic), "%s", inst->name);
+		hbc_snake_to_camel (inst->name, mnemonic, sizeof (mnemonic));
 	} else {
-		hbc_camel_to_snake (inst->name, mnemonic, sizeof (mnemonic));
+		snprintf (mnemonic, sizeof (mnemonic), "%s", inst->name);
 	}
 
 	if (ctx->asm_syntax) {

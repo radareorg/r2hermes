@@ -212,10 +212,8 @@ static Result print_instruction_asm(Disassembler *disassembler, ParsedInstructio
 	char abuf[32];
 	snprintf (abuf, sizeof (abuf), "0x%08x: ", fh->offset + instruction->original_pos);
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, abuf));
-	/* mnemonic */
-	char mnem[64];
-	hbc_camel_to_snake (instruction->inst->name, mnem, sizeof (mnem));
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, mnem));
+	/* mnemonic — tables are already snake_case */
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, instruction->inst->name));
 
 	bool first = true;
 	for (int i = 0; i < 6; i++) {

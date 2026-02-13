@@ -59,6 +59,7 @@ static const Instruction *find_instruction_by_name(const char *mnemonic, const I
 		return NULL;
 	}
 
+	/* Try direct match first (table is snake_case) */
 	for (u32 i = 0; i < instruction_count; i++) {
 		if (!instruction_set[i].name) {
 			continue;
@@ -68,6 +69,23 @@ static const Instruction *find_instruction_by_name(const char *mnemonic, const I
 				*out_opcode = (u8)i;
 			}
 			return &instruction_set[i];
+		}
+	}
+
+	/* If input is CamelCase, convert to snake_case and retry */
+	char snake[128];
+	hbc_camel_to_snake (mnemonic, snake, sizeof (snake));
+	if (strcmp (snake, mnemonic) != 0) {
+		for (u32 i = 0; i < instruction_count; i++) {
+			if (!instruction_set[i].name) {
+				continue;
+			}
+			if (portable_strcasecmp (snake, instruction_set[i].name) == 0) {
+				if (out_opcode) {
+					*out_opcode = (u8)i;
+				}
+				return &instruction_set[i];
+			}
 		}
 	}
 

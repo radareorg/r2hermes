@@ -533,9 +533,7 @@ static char *mnemonics(RArchSession *s, int id, bool json) {
 		if ((u32)id >= isa.count || !isa.instructions[id].name) {
 			return NULL;
 		}
-		char snake[128];
-		hbc_camel_to_snake (isa.instructions[id].name, snake, sizeof (snake));
-		return strdup (snake);
+		return strdup (isa.instructions[id].name);
 	}
 	/* id == -1: return all mnemonics */
 	RStrBuf *sb = r_strbuf_new ("");
@@ -543,12 +541,10 @@ static char *mnemonics(RArchSession *s, int id, bool json) {
 		if (!isa.instructions[i].name) {
 			continue;
 		}
-		char snake[128];
-		hbc_camel_to_snake (isa.instructions[i].name, snake, sizeof (snake));
 		if (json) {
-			r_strbuf_appendf (sb, "%s\"%s\"", i? ",": "[", snake);
+			r_strbuf_appendf (sb, "%s\"%s\"", i? ",": "[", isa.instructions[i].name);
 		} else {
-			r_strbuf_appendf (sb, "%s\n", snake);
+			r_strbuf_appendf (sb, "%s\n", isa.instructions[i].name);
 		}
 	}
 	if (json) {
