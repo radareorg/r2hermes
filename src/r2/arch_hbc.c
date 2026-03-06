@@ -264,12 +264,14 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		set_esil (op, op->bytes, op->addr);
 	}
 
-	if (sinfo.opcode == OP_Ret) {
+	const u8 opc = sinfo.canonical_opcode;
+
+	if (opc == OP_Ret) {
 		op->type = R_ANAL_OP_TYPE_RET;
 		return true;
 	}
 
-	if (opcode_is_conditional (sinfo.opcode)) {
+	if (opcode_is_conditional (opc)) {
 		op->type = R_ANAL_OP_TYPE_CJMP;
 		op->jump = sinfo.jump_target;
 		op->fail = op->addr + op->size;
@@ -277,7 +279,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	}
 
 	/* SaveGenerator instructions are conditional branches, not calls */
-	if (sinfo.opcode == OP_SaveGenerator || sinfo.opcode == OP_SaveGeneratorLong) {
+	if (opc == OP_SaveGenerator || opc == OP_SaveGeneratorLong) {
 		op->type = R_ANAL_OP_TYPE_CJMP;
 		op->jump = sinfo.jump_target;
 		op->fail = op->addr + op->size;
@@ -288,7 +290,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		op->type = R_ANAL_OP_TYPE_JMP;
 	}
 
-	if (sinfo.opcode == OP_Jmp || sinfo.opcode == OP_JmpLong) {
+	if (opc == OP_Jmp || opc == OP_JmpLong) {
 		op->type = R_ANAL_OP_TYPE_JMP;
 		op->jump = sinfo.jump_target;
 		return true;
@@ -300,9 +302,6 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		op->fail = op->addr + op->size;
 		return true;
 	}
-
-	/* Classify opcode type */
-	u8 opc = sinfo.opcode;
 
 	switch (opc) {
 	/* Arithmetic operations */
@@ -663,7 +662,7 @@ const RArchPlugin r_arch_plugin_r2hermes = {
 	},
 	.arch = "hbc",
 	.bits = R_SYS_BITS_PACK1 (64),
-	.cpus = "v76,v90,v91,v92,v93,v94,v95,v96",
+	.cpus = "v76,v90,v91,v92,v93,v94,v95,v96,v97,v98,v99",
 	.decode = &decode,
 	.encode = &encode,
 	.regs = regs,

@@ -22,6 +22,7 @@ typedef struct HBCHeader {
 	u32 stringCount;
 	u32 overflowStringCount;
 	u32 stringStorageSize;
+	u32 literalValueBufferSize;
 	u32 bigIntCount;
 	u32 bigIntStorageSize;
 	u32 regExpCount;
@@ -29,6 +30,8 @@ typedef struct HBCHeader {
 	u32 arrayBufferSize;
 	u32 objKeyBufferSize;
 	u32 objValueBufferSize;
+	u32 objShapeTableCount;
+	u32 numStringSwitchImms;
 	u32 segmentID;
 	u32 cjsModuleCount;
 	u32 functionSourceCount;
@@ -246,6 +249,8 @@ typedef struct {
 	char *text; // Caller must free with free ()
 	u32 size;
 	u8 opcode;
+	u8 canonical_opcode;
+	const char *mnemonic;
 	bool is_jump;
 	bool is_call;
 	u64 jump_target;

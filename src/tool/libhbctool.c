@@ -440,9 +440,20 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	}
 	fprintf (out, "  RegExp Count: %u\n", hh.regExpCount);
 	fprintf (out, "  RegExp Storage Size: %u bytes\n", hh.regExpStorageSize);
-	fprintf (out, "  Array Buffer Size: %u bytes\n", hh.arrayBufferSize);
+	if (hh.version >= 97) {
+		fprintf (out, "  Literal Value Buffer Size: %u bytes\n", hh.literalValueBufferSize);
+	} else {
+		fprintf (out, "  Array Buffer Size: %u bytes\n", hh.arrayBufferSize);
+	}
 	fprintf (out, "  Object Key Buffer Size: %u bytes\n", hh.objKeyBufferSize);
-	fprintf (out, "  Object Value Buffer Size: %u bytes\n", hh.objValueBufferSize);
+	if (hh.version >= 97) {
+		fprintf (out, "  Object Shape Table Count: %u\n", hh.objShapeTableCount);
+	} else {
+		fprintf (out, "  Object Value Buffer Size: %u bytes\n", hh.objValueBufferSize);
+	}
+	if (hh.version >= 99) {
+		fprintf (out, "  String Switch Instruction Count: %u\n", hh.numStringSwitchImms);
+	}
 	fprintf (out, "  %s: %u\n  CJS Module Count: %u\n", (hh.version < 78)? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
 	if (hh.version >= 84) {
 		fprintf (out, "  Function Source Count: %u\n", hh.functionSourceCount);

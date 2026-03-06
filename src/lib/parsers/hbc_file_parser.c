@@ -51,9 +51,15 @@ Result _hbc_reader_cleanup(HBCReader *reader) {
 	}
 
 	/* Clean up array and object data */
-	free (reader->arrays);
+	free (reader->literal_values);
+	if (reader->arrays != reader->literal_values) {
+		free (reader->arrays);
+	}
 	free (reader->object_keys);
-	free (reader->object_values);
+	if (reader->object_values != reader->literal_values) {
+		free (reader->object_values);
+	}
+	free (reader->object_shapes);
 
 	/* Clean up BigInt data */
 	free (reader->bigint_values);
@@ -191,8 +197,8 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 			"Unsupported bytecode version (too old, minimum supported is 72)");
 	}
 
-	if (version > 96) {
-		fprintf (stderr, "Warning: Version %u is newer than the latest supported version (96). Some features may not work correctly.\n", version);
+	if (version > 99) {
+		fprintf (stderr, "Warning: Version %u is newer than the latest supported version (99). Some features may not work correctly.\n", version);
 	}
 
 	/* Read the source hash */
@@ -248,14 +254,25 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 	/* Read the RegExp storage size */
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.regExpStorageSize));
 
-	/* Read the array buffer size */
-	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.arrayBufferSize));
+	/* Read literal/array buffer size */
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.literalValueBufferSize));
 
 	/* Read the object key buffer size */
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objKeyBufferSize));
 
-	/* Read the object value buffer size */
-	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objValueBufferSize));
+	if (version >= 97) {
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objShapeTableCount));
+		reader->header.arrayBufferSize = reader->header.literalValueBufferSize;
+		reader->header.objValueBufferSize = reader->header.literalValueBufferSize;
+	} else {
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objValueBufferSize));
+		reader->header.arrayBufferSize = reader->header.literalValueBufferSize;
+		reader->header.objShapeTableCount = 0;
+	}
+	reader->header.numStringSwitchImms = 0;
+	if (version >= 99) {
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.numStringSwitchImms));
+	}
 
 	/* Read the segment ID (or CJS module offset for older versions) */
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.segmentID));
@@ -287,10 +304,127 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 	return SUCCESS_RESULT ();
 }
 
+static Result hbc_reader_read_functions_modern(HBCReader *reader) {
+	if (!reader) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
+	}
+
+	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
+
+	reader->function_headers = (FunctionHeader *)calloc (reader->header.functionCount, sizeof (FunctionHeader));
+	if (!reader->function_headers) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function headers");
+	}
+	reader->function_id_to_exc_handlers = (ExceptionHandlerList *)calloc (reader->header.functionCount, sizeof (ExceptionHandlerList));
+	if (!reader->function_id_to_exc_handlers) {
+		free (reader->function_headers);
+		reader->function_headers = NULL;
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate exception handler lists");
+	}
+	reader->function_id_to_debug_offsets = (DebugOffsets *)calloc (reader->header.functionCount, sizeof (DebugOffsets));
+	if (!reader->function_id_to_debug_offsets) {
+		free (reader->function_headers);
+		free (reader->function_id_to_exc_handlers);
+		reader->function_headers = NULL;
+		reader->function_id_to_exc_handlers = NULL;
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate debug offsets");
+	}
+
+	for (u32 i = 0; i < reader->header.functionCount; i++) {
+		size_t header_pos = reader->file_buffer.position;
+		u32 raw1 = 0, raw2 = 0, raw3 = 0;
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &raw1));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &raw2));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &raw3));
+
+		FunctionHeader *header = &reader->function_headers[i];
+		header->offset = raw1 & 0x1FFFFFFu;
+		header->paramCount = (reader->header.version >= 99)? ((raw1 >> 25) & 0x1Fu): ((raw1 >> 25) & 0x7Fu);
+		header->bytecodeSizeInBytes = (reader->header.version >= 99)? (raw2 & 0x3FFFu): (raw2 & 0x7FFFu);
+		header->functionName = (reader->header.version >= 99)? ((raw2 >> 14) & 0xFFu): ((raw2 >> 15) & 0x1FFFFu);
+		header->frameSize = raw3 & 0xFFu;
+		header->highestReadCacheIndex = (raw3 >> 8) & 0xFFu;
+		header->highestWriteCacheIndex = (reader->header.version >= 99)? ((raw3 >> 16) & 0x7Fu): ((raw3 >> 16) & 0xFFu);
+		header->environmentSize = (reader->header.version >= 99)? ((raw3 >> 23) & 0x1u): 0;
+		{
+			u8 flags = (raw3 >> 24) & 0xFFu;
+			header->prohibitInvoke = flags & 0x3u;
+			header->strictMode = (flags >> 2) & 0x1u;
+			header->hasExceptionHandler = (flags >> 3) & 0x1u;
+			header->hasDebugInfo = (flags >> 4) & 0x1u;
+			header->overflowed = (flags >> 5) & 0x1u;
+			header->unused = (flags >> 6) & 0x3u;
+		}
+		header->infoOffset = 0;
+
+		if (header->overflowed) {
+			u32 large_header_offset = (reader->header.version >= 99)? ((header->functionName << 24) | (header->offset & 0xFFFFFFu)): ((header->functionName << 16) | (header->offset & 0xFFFFu));
+			RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, large_header_offset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->offset));
+			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->paramCount));
+			if (reader->header.version >= 99) {
+				u32 ignored = 0;
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &ignored));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->bytecodeSizeInBytes));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->functionName));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &ignored));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &ignored));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->frameSize));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &header->highestReadCacheIndex));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &header->highestWriteCacheIndex));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &header->environmentSize));
+				{
+					u8 flags = 0;
+					RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags));
+					header->prohibitInvoke = flags & 0x3u;
+					header->strictMode = (flags >> 2) & 0x1u;
+					header->hasExceptionHandler = (flags >> 3) & 0x1u;
+					header->hasDebugInfo = (flags >> 4) & 0x1u;
+					header->overflowed = (flags >> 5) & 0x1u;
+					header->unused = (flags >> 6) & 0x3u;
+				}
+			} else {
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->bytecodeSizeInBytes));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->functionName));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &header->frameSize));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &header->highestReadCacheIndex));
+				RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &header->highestWriteCacheIndex));
+				{
+					u8 flags = 0;
+					RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags));
+					header->prohibitInvoke = flags & 0x3u;
+					header->strictMode = (flags >> 2) & 0x1u;
+					header->hasExceptionHandler = (flags >> 3) & 0x1u;
+					header->hasDebugInfo = (flags >> 4) & 0x1u;
+					header->overflowed = (flags >> 5) & 0x1u;
+					header->unused = (flags >> 6) & 0x3u;
+				}
+			}
+			RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header_pos + 12));
+		}
+
+		if (header->offset + header->bytecodeSizeInBytes > reader->file_buffer.size) {
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Function bytecode range is out of bounds");
+		}
+		header->bytecode = (u8 *)malloc (header->bytecodeSizeInBytes);
+		if (!header->bytecode) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
+		}
+		RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header->offset));
+		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, header->bytecode, header->bytecodeSizeInBytes));
+		RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header_pos + 12));
+	}
+
+	return SUCCESS_RESULT ();
+}
+
 /* Read function headers */
 Result _hbc_reader_read_functions(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
+	}
+	if (reader->header.version >= 97) {
+		return hbc_reader_read_functions_modern (reader);
 	}
 
 	/* Check if the function count is reasonable to prevent memory exhaustion */
@@ -906,6 +1040,10 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 	}
 
 	hbc_debug_printf ("Reading arrays at position %zu\n", reader->file_buffer.position);
+	if (reader->header.version >= 97) {
+		reader->header.arrayBufferSize = reader->header.literalValueBufferSize;
+		reader->header.objValueBufferSize = reader->header.literalValueBufferSize;
+	}
 
 	/* Sanity check on array buffer size */
 	if (reader->header.arrayBufferSize > 100 * 1024 * 1024) { /* 100MB limit */
@@ -986,6 +1124,33 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 				}
 			}
 		}
+	}
+
+	if (reader->header.version >= 97 && reader->header.objShapeTableCount > 0) {
+		Result shape_align_result = align_over_padding (&reader->file_buffer, 4);
+		if (shape_align_result.code != RESULT_SUCCESS) {
+			fprintf (stderr, "Error aligning buffer for object shapes: %s\n", shape_align_result.error_message);
+			reader->header.objShapeTableCount = 0;
+		} else {
+			size_t shape_table_size = (size_t)reader->header.objShapeTableCount * sizeof (ShapeTableEntry);
+			if (reader->file_buffer.position + shape_table_size > reader->file_buffer.size) {
+				fprintf (stderr, "Warning: Not enough data for object shape table (need %zu bytes)\n", shape_table_size);
+				reader->header.objShapeTableCount = 0;
+			} else {
+				reader->object_shapes = (ShapeTableEntry *)calloc (reader->header.objShapeTableCount, sizeof (ShapeTableEntry));
+				if (!reader->object_shapes) {
+					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate object shape table");
+				}
+				for (u32 i = 0; i < reader->header.objShapeTableCount; i++) {
+					RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->object_shapes[i].key_buffer_offset));
+					RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->object_shapes[i].prop_count));
+				}
+				reader->object_shape_count = reader->header.objShapeTableCount;
+			}
+		}
+		reader->literal_values = reader->arrays;
+		reader->object_values = reader->arrays;
+		return SUCCESS_RESULT ();
 	}
 
 	/* Handle object value buffer with safety checks */
@@ -1414,6 +1579,12 @@ Result _hbc_reader_read_function_sources(HBCReader *reader) {
 Result _hbc_reader_read_debug_info(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
+	}
+	if (reader->header.debugInfoOffset == 0) {
+		return SUCCESS_RESULT ();
+	}
+	if (reader->header.version >= 97) {
+		return SUCCESS_RESULT ();
 	}
 
 	/* Seek to debug info offset */

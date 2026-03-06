@@ -231,6 +231,22 @@ static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key,
 }
 
 Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
+	if (r && r->header.version >= 97 && r->object_shapes && r->object_shape_count > 0) {
+		u32 value_offset = value_count;
+		if (key_count >= r->object_shape_count || !r->object_keys || !r->object_values) {
+			if (suppress_comments) {
+				return _hbc_string_buffer_append (out, "}");
+			}
+			char tmp[96];
+			snprintf (tmp, sizeof (tmp), " /*shape:%u vals:%u*/ }", key_count, value_count);
+			return _hbc_string_buffer_append (out, tmp);
+		}
+		const ShapeTableEntry *shape = &r->object_shapes[key_count];
+		key_count = shape->prop_count;
+		value_count = shape->prop_count;
+		keys_id = shape->key_buffer_offset;
+		values_id = value_offset;
+	}
 	/* Apply policy */
 	bool pretty = (policy == LITERALS_PRETTY_ALWAYS) || (policy == LITERALS_PRETTY_AUTO && (key_count > 0));
 	bool multiline = pretty && (key_count > 0);
@@ -257,6 +273,9 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 
 	bool ok1 = slp_parse_values (r->object_keys, r->header.objKeyBufferSize, keys_id, n, key_vals);
 	bool ok2 = slp_parse_values (r->object_values, r->header.objValueBufferSize, values_id, n, val_vals);
+	if (!ok2 && r->header.version >= 97) {
+		ok2 = slp_parse_values (r->object_values, r->header.objValueBufferSize, value_count, n, val_vals);
+	}
 	if (!ok1 || !ok2) {
 		free (key_vals);
 		free (val_vals);
