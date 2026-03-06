@@ -169,7 +169,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			ParsedInstruction instruction;
 			memset (&instruction, 0, sizeof (ParsedInstruction));
 			instruction.inst = &k_unknown_instruction;
-			instruction.opcode = opcode;
+			instruction.opcode = HBC_CANONICAL_OPCODE_UNKNOWN;
 			instruction.arg1 = remaining > UINT32_MAX? UINT32_MAX: (u32)remaining; /* store skipped size */
 			instruction.original_pos = original_pos;
 			instruction.next_pos = original_pos + (u32) (remaining > UINT32_MAX? UINT32_MAX: remaining);
@@ -189,7 +189,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 		memset (&instruction, 0, sizeof (ParsedInstruction));
 
 		instruction.inst = inst;
-		instruction.opcode = opcode;
+		instruction.opcode = hbc_canonical_opcode_from_name (inst->name);
 		instruction.original_pos = original_pos;
 		instruction.function_offset = function_header->offset;
 		instruction.hbc_reader = reader;

@@ -259,7 +259,10 @@ typedef struct {
 	const Instruction *instructions;
 } HBCISA;
 
+#define HBC_CANONICAL_OPCODE_UNKNOWN 0xffu
+
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version);
+u8 hbc_canonical_opcode_from_name(const char *name);
 
 #endif /* LIBHBC_HERMES_OPCODES_H */

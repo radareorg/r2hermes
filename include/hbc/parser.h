@@ -41,6 +41,7 @@ typedef struct HBCHeader {
 	u32 stringCount;
 	u32 overflowStringCount;
 	u32 stringStorageSize;
+	u32 literalValueBufferSize; /* >=97 */
 	/* Optional fields based on version */
 	u32 bigIntCount; /* >=87 */
 	u32 bigIntStorageSize; /* >=87 */
@@ -49,6 +50,8 @@ typedef struct HBCHeader {
 	u32 arrayBufferSize;
 	u32 objKeyBufferSize;
 	u32 objValueBufferSize;
+	u32 objShapeTableCount; /* >=97 */
+	u32 numStringSwitchImms; /* >=99 */
 	u32 segmentID; /* cjsModuleOffset before v78 */
 	u32 cjsModuleCount;
 	u32 functionSourceCount; /* >=84 */
@@ -168,6 +171,11 @@ typedef struct {
 	u32 string_id;
 } FunctionSourceEntry;
 
+typedef struct {
+	u32 key_buffer_offset;
+	u32 prop_count;
+} ShapeTableEntry;
+
 /* Debug info header (version dependent) */
 typedef struct {
 	u32 filename_count;
@@ -224,9 +232,12 @@ struct HBCReader {
 	u32 string_storage_file_offset;
 
 	/* Array and object data */
+	u8 *literal_values;
 	u8 *arrays;
 	u8 *object_keys;
 	u8 *object_values;
+	ShapeTableEntry *object_shapes;
+	size_t object_shape_count;
 
 	/* BigInt data */
 	i64 *bigint_values;

@@ -355,8 +355,8 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 
 /* Single-instruction decode functions */
 
-static char *build_literal_comment(HBCReader *reader, u8 opcode, const u32 *ovs, const char *base_text) {
-	const bool is_obj = (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong);
+static char *build_literal_comment(HBCReader *reader, const char *mnemonic, const u32 *ovs, const char *base_text) {
+	const bool is_obj = mnemonic && !strncmp (mnemonic, "new_object_with_buffer", strlen ("new_object_with_buffer"));
 	StringBuffer sb;
 	if (_hbc_string_buffer_init (&sb, 256).code != RESULT_SUCCESS) {
 		return NULL;
@@ -417,6 +417,8 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		out->text = strdup ("unk");
 		out->size = 1;
 		out->opcode = opcode;
+		out->canonical_opcode = HBC_CANONICAL_OPCODE_UNKNOWN;
+		out->mnemonic = NULL;
 		out->is_jump = false;
 		out->is_call = false;
 		out->jump_target = 0;
@@ -555,10 +557,10 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	}
 
 	if (ctx->build_objects && ctx->hbc) {
-		const bool is_literal_op = (opcode == OP_NewObjectWithBuffer || opcode == OP_NewObjectWithBufferLong ||
-			opcode == OP_NewArrayWithBuffer || opcode == OP_NewArrayWithBufferLong);
+		const bool is_literal_op = !strncmp (mnemonic, "new_object_with_buffer", strlen ("new_object_with_buffer")) ||
+			!strncmp (mnemonic, "new_array_with_buffer", strlen ("new_array_with_buffer"));
 		if (is_literal_op) {
-			char *with_comment = build_literal_comment (&ctx->hbc->reader, opcode, operand_values, buf);
+			char *with_comment = build_literal_comment (&ctx->hbc->reader, mnemonic, operand_values, buf);
 			out->text = with_comment ? with_comment : strdup (buf);
 		} else {
 			out->text = strdup (buf);
@@ -568,6 +570,8 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	}
 	out->size = (u32)pos;
 	out->opcode = opcode;
+	out->canonical_opcode = hbc_canonical_opcode_from_name (mnemonic);
+	out->mnemonic = inst->name;
 
 	/* Detect jumps and calls (using snake_case mnemonic) */
 	out->is_jump = (strncmp (mnemonic, "jmp", 3) == 0) || (strncmp (mnemonic, "j", 1) == 0 && mnemonic[1] >= 'a' && mnemonic[1] <= 'z');
