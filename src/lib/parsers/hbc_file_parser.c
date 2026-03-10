@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define HBC_MAX_OBJECT_SHAPE_TABLE_COUNT 1000000U
+
 /* Initialize HBC reader */
 Result _hbc_reader_init(HBCReader *reader) {
 	R_RETURN_VAL_IF_FAIL (reader,
@@ -262,6 +264,10 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 
 	if (version >= 97) {
 		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.objShapeTableCount));
+		if (reader->header.objShapeTableCount > HBC_MAX_OBJECT_SHAPE_TABLE_COUNT) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT,
+				"Object shape table count unreasonably large, likely not a valid Hermes bytecode file");
+		}
 		reader->header.arrayBufferSize = reader->header.literalValueBufferSize;
 		reader->header.objValueBufferSize = reader->header.literalValueBufferSize;
 	} else {
