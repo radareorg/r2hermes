@@ -1,4 +1,5 @@
 #include <hbc/parser.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -984,8 +985,23 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			is_utf16 = reader->small_string_table[i].isUTF16;
 		}
 
+		size_t encoded_length = length;
+		if (is_utf16) {
+			if (length > UINT32_MAX / 2) {
+				fprintf (stderr, "Warning: String %u length overflow, treating as empty string\n", i);
+				reader->strings[i] = strdup ("");
+				if (!reader->strings[i]) {
+					free (string_storage);
+					reader->string_table_storage = NULL;
+					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
+				}
+				continue;
+			}
+			encoded_length = (size_t)length * 2;
+		}
+
 		/* Check bounds */
-		if (offset + (is_utf16? length * 2: length) > string_storage_size) {
+		if ((size_t)offset > string_storage_size || encoded_length > string_storage_size - (size_t)offset) {
 			fprintf (stderr, "Warning: String %u offset/length out of bounds, treating as empty string\n", i);
 			reader->strings[i] = strdup ("");
 			if (!reader->strings[i]) {
@@ -996,8 +1012,8 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			continue;
 		}
 
-		/* Allocate string buffer - for UTF-16, length is in characters, so allocate 2 bytes per character */
-		u32 buffer_size = is_utf16? (length * 2 + 1): (length + 1);
+		/* Allocate string buffer (+1 for null terminator) */
+		size_t buffer_size = (size_t)length + 1;
 		char *str = (char *)malloc (buffer_size);
 		if (!str) {
 			free (string_storage);
