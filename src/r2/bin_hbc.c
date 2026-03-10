@@ -277,8 +277,7 @@ static RList *strings(RBinFile *bf) {
 		}
 
 		RBinString *ptr = R_NEW0 (RBinString);
-		size_t str_len = strlen (str);
-		if (str_len >= R_BIN_SIZEOF_STRINGS) {
+		if (meta.length >= R_BIN_SIZEOF_STRINGS) {
 			ptr->string = r_str_ndup (str, R_BIN_SIZEOF_STRINGS - 4);
 			if (ptr->string) {
 				char *tmp = r_str_newf ("%s...", ptr->string);
@@ -286,7 +285,7 @@ static RList *strings(RBinFile *bf) {
 				ptr->string = tmp;
 			}
 		} else {
-			ptr->string = strdup (str);
+			ptr->string = r_str_ndup (str, meta.length);
 		}
 		if (!ptr->string) {
 			free (ptr);
