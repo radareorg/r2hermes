@@ -12,7 +12,7 @@ Meta's React Native Hermes bytecode assembler, disassembler, decompiler, and com
 
 ## Features
 
-- Disassemble Hermes bytecode (v51 .. v96)
+- Disassemble Hermes bytecode (v51 .. v99)
 - Decompile to JavaScript pseudocode
 - Assemble instructions
 - Parse binary headers
@@ -29,23 +29,13 @@ r2pm -ci r2hermes
 
 ### From source
 
-```bash
-git clone https://github.com/radareorg/r2hermes
-cd r2hermes
-make
-make user-install
-```
-
-## Building
-
-### Make (default)
+Build the `libhbctool` cli tool and install the `radare2` plugin:
 
 ```bash
-make              # Build library and CLI
-make user-install # Install r2 plugins to ~/.local/share/radare2/plugins
+make && make user-install
 ```
 
-### Meson
+The same oneliner can be done with meson (to please Windows and anti-make users)
 
 ```bash
 meson setup build
@@ -53,15 +43,13 @@ ninja -C build
 ninja -C build install
 ```
 
-### Debug build
+### Debugging
+
+You can do a build with symbols and address sanitizer to help you debugging crashes
 
 ```bash
 make debug
-```
-
-### AddressSanitizer build
-
-```bash
+# or
 make asan
 ```
 

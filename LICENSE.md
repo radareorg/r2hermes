@@ -1,4 +1,4 @@
-Copyright 2025 pancake <pancake@nopcode.org>
+Copyright 2025-2026 pancake <pancake@nopcode.org>
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
