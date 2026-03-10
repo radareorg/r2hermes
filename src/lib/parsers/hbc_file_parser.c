@@ -984,8 +984,12 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			is_utf16 = reader->small_string_table[i].isUTF16;
 		}
 
-		/* Check bounds */
-		if (offset + (is_utf16? length * 2: length) > string_storage_size) {
+		size_t decoded_length = (size_t)length;
+		size_t available = (size_t)offset > string_storage_size? 0: string_storage_size - (size_t)offset;
+		if ((size_t)offset > string_storage_size ||
+			decoded_length == SIZE_MAX ||
+			(is_utf16 && decoded_length > available / 2) ||
+			(!is_utf16 && decoded_length > available)) {
 			fprintf (stderr, "Warning: String %u offset/length out of bounds, treating as empty string\n", i);
 			reader->strings[i] = strdup ("");
 			if (!reader->strings[i]) {
@@ -996,8 +1000,8 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			continue;
 		}
 
-		/* Allocate string buffer - for UTF-16, length is in characters, so allocate 2 bytes per character */
-		u32 buffer_size = is_utf16? (length * 2 + 1): (length + 1);
+		/* Allocate string buffer (+1 for null terminator) */
+		size_t buffer_size = decoded_length + 1;
 		char *str = (char *)malloc (buffer_size);
 		if (!str) {
 			free (string_storage);
@@ -1336,7 +1340,9 @@ Result _hbc_reader_read_bigints(HBCReader *reader) {
 		u32 length = bigint_table[i].length;
 
 		/* Check bounds */
-		if (offset + length > reader->header.bigIntStorageSize) {
+		size_t bigint_available = (size_t)offset > reader->header.bigIntStorageSize? 0:
+			(size_t)reader->header.bigIntStorageSize - (size_t)offset;
+		if ((size_t)offset > reader->header.bigIntStorageSize || (size_t)length > bigint_available) {
 			fprintf (stderr, "Warning: BigInt %u has invalid offset/length (%u+%u exceeds %u)\n", i, offset, length, reader->header.bigIntStorageSize);
 			/* Use zero for this value */
 			reader->bigint_values[i] = 0;
