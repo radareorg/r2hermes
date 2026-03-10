@@ -973,7 +973,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	/* Jump instructions */
 	case OP_Jmp:
 	case OP_JmpLong:
-		return emit_simple_jump (out, insn_c, get_operand_value (insn_c, 0) <= 0);
+		return emit_simple_jump (out, insn_c, (i32)get_operand_value (insn_c, 0) <= 0);
 	case OP_JmpTrue:
 	case OP_JmpTrueLong:
 		{
