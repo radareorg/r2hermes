@@ -200,6 +200,8 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 		/* Parse operands from the buffer */
 		u32 operand_values[6] = { 0 };
 		bool parsing_failed = false;
+		bool has_double_arg2 = false;
+		double double_arg2_value = 0;
 
 		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
 			OperandType operand_type = inst->operands[i].operand_type;
@@ -295,7 +297,8 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 						parsing_failed = true;
 						break;
 					}
-					instruction.double_arg2 = value;
+					has_double_arg2 = true;
+					double_arg2_value = value;
 					break;
 				}
 
@@ -316,6 +319,9 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 		/* Store operand values */
 		instruction.arg1 = operand_values[0];
 		instruction.arg2 = operand_values[1];
+		if (has_double_arg2) {
+			instruction.double_arg2 = double_arg2_value;
+		}
 		instruction.arg3 = operand_values[2];
 		instruction.arg4 = operand_values[3];
 		instruction.arg5 = operand_values[4];
