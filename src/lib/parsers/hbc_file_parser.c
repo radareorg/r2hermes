@@ -1,5 +1,4 @@
 #include <hbc/parser.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -985,23 +984,12 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			is_utf16 = reader->small_string_table[i].isUTF16;
 		}
 
-		size_t encoded_length = length;
-		if (is_utf16) {
-			if (length > UINT32_MAX / 2) {
-				fprintf (stderr, "Warning: String %u length overflow, treating as empty string\n", i);
-				reader->strings[i] = strdup ("");
-				if (!reader->strings[i]) {
-					free (string_storage);
-					reader->string_table_storage = NULL;
-					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate empty string");
-				}
-				continue;
-			}
-			encoded_length = (size_t)length * 2;
-		}
-
-		/* Check bounds */
-		if ((size_t)offset > string_storage_size || encoded_length > string_storage_size - (size_t)offset) {
+		size_t decoded_length = (size_t)length;
+		size_t available = (size_t)offset > string_storage_size? 0: string_storage_size - (size_t)offset;
+		if ((size_t)offset > string_storage_size ||
+			decoded_length == SIZE_MAX ||
+			(is_utf16 && decoded_length > available / 2) ||
+			(!is_utf16 && decoded_length > available)) {
 			fprintf (stderr, "Warning: String %u offset/length out of bounds, treating as empty string\n", i);
 			reader->strings[i] = strdup ("");
 			if (!reader->strings[i]) {
@@ -1013,7 +1001,7 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		}
 
 		/* Allocate string buffer (+1 for null terminator) */
-		size_t buffer_size = (size_t)length + 1;
+		size_t buffer_size = decoded_length + 1;
 		char *str = (char *)malloc (buffer_size);
 		if (!str) {
 			free (string_storage);
@@ -1352,7 +1340,9 @@ Result _hbc_reader_read_bigints(HBCReader *reader) {
 		u32 length = bigint_table[i].length;
 
 		/* Check bounds */
-		if (offset + length > reader->header.bigIntStorageSize) {
+		size_t bigint_available = (size_t)offset > reader->header.bigIntStorageSize? 0:
+			(size_t)reader->header.bigIntStorageSize - (size_t)offset;
+		if ((size_t)offset > reader->header.bigIntStorageSize || (size_t)length > bigint_available) {
 			fprintf (stderr, "Warning: BigInt %u has invalid offset/length (%u+%u exceeds %u)\n", i, offset, length, reader->header.bigIntStorageSize);
 			/* Use zero for this value */
 			reader->bigint_values[i] = 0;
