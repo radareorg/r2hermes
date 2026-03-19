@@ -51,6 +51,18 @@ static HBC *get_hbc(RBinFile *bf) {
 	return hbo? hbo->hbc: NULL;
 }
 
+static int bin_limit(RBinFile *bf) {
+	return bf && bf->rbin? bf->rbin->options.limit: 0;
+}
+
+static u32 clamp_count_with_warning(const char *kind, u32 count, int limit) {
+	if (limit > 0 && count > (u32)limit) {
+		R_LOG_WARN ("hbc.bin: bin.limit reached for %s (%u > %d)", kind, count, limit);
+		return (u32)limit;
+	}
+	return count;
+}
+
 /* Check if entrypoint offset is valid: in bounds and not all zeros */
 static bool is_valid_entrypoint(RBuffer *buf, ut64 offset) {
 	ut64 file_size = r_buf_size (buf);
@@ -205,7 +217,8 @@ static RList *symbols(RBinFile *bf) {
 		return symbols;
 	}
 
-	u32 func_count = hbc_function_count (hbc);
+	int limit = bin_limit (bf);
+	u32 func_count = clamp_count_with_warning ("symbols", hbc_function_count (hbc), limit);
 	for (u32 i = 0; i < func_count; i++) {
 		HBCFunc fi;
 		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
@@ -260,7 +273,8 @@ static RList *strings(RBinFile *bf) {
 		return ret;
 	}
 
-	u32 string_count = hbc_string_count (hbc);
+	int limit = bin_limit (bf);
+	u32 string_count = clamp_count_with_warning ("strings", hbc_string_count (hbc), limit);
 	for (u32 i = 0; i < string_count; i++) {
 		const char *str = NULL;
 		if (hbc_get_string (hbc, i, &str).code != RESULT_SUCCESS || !str) {
