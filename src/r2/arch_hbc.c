@@ -7,7 +7,6 @@
 #include <hbc/parser.h>
 
 #define MAX_OP_SIZE 16
-
 #ifndef R_ARCH_SYNTAX_CAMEL
 #define R_ARCH_SYNTAX_CAMEL 6
 #endif
@@ -170,8 +169,6 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 				HBCStringMeta meta;
 				Result meta_result = hbc_get_string_meta (hs->hbc, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
-					/* Set op->ptr to the file offset of the string.
-					 * meta.offset already includes string_storage_file_offset */
 					op->ptr = (st64)meta.offset;
 				}
 			}
@@ -188,7 +185,6 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					offset = fi.offset;
 					(void)fi.size;
 					(void)fi.param_count;
-					// Set op->ptr to the function address as a file offset
 					op->ptr = (st64)offset;
 				}
 			}
@@ -299,6 +295,9 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	if (sinfo.is_call) {
 		op->type = R_ANAL_OP_TYPE_CALL;
 		op->jump = sinfo.jump_target;
+		if (!op->jump && op->ptr) {
+			op->jump = op->ptr;
+		}
 		op->fail = op->addr + op->size;
 		return true;
 	}
