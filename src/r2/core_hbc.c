@@ -298,6 +298,7 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 		hex);
 	const ut64 file_size = r_io_size (core->io);
 	const ut64 expected_size = (ut64)header.fileLength + 20;
+	const ut64 content_size = file_size >= 20? file_size - 20: 0;
 
 	r_cons_printf (cons, "  File size: %" PFMT64u " bytes\n", file_size);
 	r_cons_printf (cons, "  Header fileLength: %u bytes\n", header.fileLength);
@@ -309,12 +310,16 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 		r_hex_bin2str (footer, 20, hex);
 		r_cons_printf (core->cons, "  Footer Hash (stored): %s\n", hex);
 
-		char *computed = r_core_cmd_strf (core, "ph sha1 %u @0", header.fileLength);
+		char *computed = r_core_cmd_strf (core, "ph sha1 %" PFMT64u " @0", content_size);
 		if (computed) {
 			r_str_trim (computed);
 			r_cons_printf (core->cons, "  Footer Hash (computed): %s\n", computed);
-			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex));
+			bool valid = (strlen (computed) == 40 && !strcmp (computed, hex)
+				&& ((ut64)header.fileLength == content_size));
 			r_cons_printf (core->cons, "  Status: %s\n", valid? "VALID": "INVALID");
+			if ((ut64)header.fileLength != content_size) {
+				r_cons_printf (core->cons, "  Warning: Header fileLength mismatch (%u != %" PFMT64u ")\n", header.fileLength, content_size);
+			}
 			if (!valid || file_size != expected_size) {
 				r_cons_printf (core->cons, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 			}
@@ -523,10 +528,10 @@ static bool plugin_init(RCorePluginSession *s) {
 	}
 #endif
 
-	/* Define fix-hbc macro using r2's generic ph and wx commands
-	 * 1. Resize file to fileLength+20 (using $ () for nested eval)
+	/* Define fix-hbc macro using current file size only
+	 * 1. If file has no footer, append 20 bytes
 	 * 2. Write SHA1 hash of bytes 0 to ($s-20) at offset ($s-20) */
-	r_core_cmd0 (core, "'(fix-hbc; ?e Fixing HBC footer hash...; r `?vi $(pv4 @32)+20`; wx `ph sha1 $s-20 @0` @ $s-20)");
+	r_core_cmd0 (core, "'(fix-hbc; ?e Fixing HBC footer hash...; ?v $s<20?e File too small:$$?{,?v $s%20?{r $s+20};wx `ph sha1 $s-20 @0` @ $s-20)");
 
 	r_config_lock (cfg, false);
 
