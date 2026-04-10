@@ -290,8 +290,13 @@ static RList *strings(RBinFile *bf) {
 			continue;
 		}
 
+		size_t str_len = strlen (str);
+		if (str_len == 0) {
+			continue;
+		}
+
 		RBinString *ptr = R_NEW0 (RBinString);
-		if (meta.length >= R_BIN_SIZEOF_STRINGS) {
+		if (str_len >= R_BIN_SIZEOF_STRINGS) {
 			ptr->string = r_str_ndup (str, R_BIN_SIZEOF_STRINGS - 4);
 			if (ptr->string) {
 				char *tmp = r_str_newf ("%s...", ptr->string);
@@ -299,7 +304,7 @@ static RList *strings(RBinFile *bf) {
 				ptr->string = tmp;
 			}
 		} else {
-			ptr->string = r_str_ndup (str, meta.length);
+			ptr->string = r_str_ndup (str, str_len);
 		}
 		if (!ptr->string) {
 			free (ptr);
