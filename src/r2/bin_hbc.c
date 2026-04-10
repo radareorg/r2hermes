@@ -285,24 +285,16 @@ static RList *strings(RBinFile *bf) {
 		if (hbc_get_string_meta (hbc, i, &meta).code != RESULT_SUCCESS) {
 			continue;
 		}
-
-		if (meta.length == 0) {
-			continue;
-		}
-
-		size_t str_len = strlen (str);
+		const size_t str_len = strlen (str);
 		if (str_len == 0) {
 			continue;
 		}
 
 		RBinString *ptr = R_NEW0 (RBinString);
 		if (str_len >= R_BIN_SIZEOF_STRINGS) {
-			ptr->string = r_str_ndup (str, R_BIN_SIZEOF_STRINGS - 4);
-			if (ptr->string) {
-				char *tmp = r_str_newf ("%s...", ptr->string);
-				free (ptr->string);
-				ptr->string = tmp;
-			}
+			char *trunc = r_str_ndup (str, R_BIN_SIZEOF_STRINGS - 4);
+			ptr->string = r_str_newf ("%s...", trunc? trunc: "");
+			free (trunc);
 		} else {
 			ptr->string = r_str_ndup (str, str_len);
 		}

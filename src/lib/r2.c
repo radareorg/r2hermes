@@ -363,11 +363,9 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 			u32 length = string_infos[i].length;
 			bool isUTF16 = string_infos[i].isUTF16;
 
-			/* Skip strings with obviously invalid offsets/lengths */
-			size_t available = (size_t)offset > string_storage_size? 0: string_storage_size - (size_t)offset;
-			if ((size_t)offset > string_storage_size ||
-				(isUTF16 && (size_t)length > available / 2) ||
-				(!isUTF16 && (size_t)length > available)) {
+			/* Overflow-safe bounds check via subtraction */
+			const u32 bpc = isUTF16? 2: 1;
+			if (offset > string_storage_size || length > (string_storage_size - offset) / bpc) {
 				continue;
 			}
 
@@ -433,9 +431,8 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 			snprintf (unique_name, sizeof (unique_name), "%s_%u", sanitized_name[0]? sanitized_name: "str", i);
 
 			/* Write the string flag - offset is relative to string storage base */
-			size_t size = isUTF16? (size_t)length * 2: (size_t)length;
 			uint32_t addr = (unsigned long) (reader.file_buffer.position - string_storage_size + offset);
-			fprintf (out, "'f str.%s %zu 0x%08x\n", unique_name, size, addr);
+			fprintf (out, "'f str.%s %u 0x%08x\n", unique_name, length * bpc, addr);
 #if 0
 	/* Add flag for string length */
 	if (isUTF16) {
