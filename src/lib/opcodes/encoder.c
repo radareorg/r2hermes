@@ -131,7 +131,7 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, 
 	}
 
 	/* Parse operands separated by commas */
-	while (*line && operand_count < 6) {
+	while (*line) {
 		/* Skip whitespace */
 		while (*line && isspace (*line)) {
 			line++;
@@ -177,13 +177,16 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, 
 		}
 		*trim_end = '\0';
 
-		/* Parse operand based on expected type */
-		if (operand_count < 6 && inst->operands[operand_count].operand_type != OPERAND_TYPE_NONE) {
-			OperandType expected_type = inst->operands[operand_count].operand_type;
-			char *endptr;
-			bool parse_success = false;
+		if (operand_count >= 6 || inst->operands[operand_count].operand_type == OPERAND_TYPE_NONE) {
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Incorrect number of operands");
+		}
 
-			switch (expected_type) {
+		/* Parse operand based on expected type */
+		OperandType expected_type = inst->operands[operand_count].operand_type;
+		char *endptr;
+		bool parse_success = false;
+
+		switch (expected_type) {
 			case OPERAND_TYPE_REG8:
 			case OPERAND_TYPE_REG32:
 				/* Register: rN or RN */
@@ -268,12 +271,11 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, 
 				break;
 			}
 
-			if (!parse_success) {
-				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid operand format");
-			}
-
-			operand_count++;
+		if (!parse_success) {
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid operand format");
 		}
+
+		operand_count++;
 
 		/* Move to next operand */
 		line = operand_end;

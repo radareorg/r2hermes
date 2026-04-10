@@ -284,7 +284,7 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc assembler
+NAME=hbc pa ret
 FILE=--
 CMDS=<<EOF
 -a hbc
@@ -294,3 +294,290 @@ EXPECT=<<EOF
 5c00
 EOF
 RUN
+
+NAME=hbc pa get_global_object
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa get_global_object r0
+EOF
+EXPECT=<<EOF
+3000
+EOF
+RUN
+
+NAME=hbc pa mov two regs
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa mov r2, r1
+EOF
+EXPECT=<<EOF
+080201
+EOF
+RUN
+
+NAME=hbc pa construct three operands
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa construct r0, r0, 1
+EOF
+EXPECT=<<EOF
+50000001
+EOF
+RUN
+
+NAME=hbc pa select_object three regs
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa select_object r0, r1, r0
+EOF
+EXPECT=<<EOF
+6b000100
+EOF
+RUN
+
+NAME=hbc pa store_to_environment
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa store_to_environment r1, 1, r0
+EOF
+EXPECT=<<EOF
+2a010100
+EOF
+RUN
+
+NAME=hbc pa rejects extra operand
+FILE=--
+CMDS=<<EOF
+-a hbc
+"pa ret r0, r1"
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=hbc pa rejects multiple extra operands
+FILE=--
+CMDS=<<EOF
+-a hbc
+"pa ret r0, r1, r2"
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=hbc pa rejects extra operand on zero-arg instr
+FILE=--
+CMDS=<<EOF
+-a hbc
+"pa get_global_object r0, r1"
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=hbc pa rejects missing operand
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa ret
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=hbc pa rejects truncated mov
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa mov r2
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=hbc pa rejects unknown mnemonic
+FILE=--
+CMDS=<<EOF
+-a hbc
+pa bogus_op r0
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=hbc pad ret
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad 5c00
+EOF
+EXPECT=<<EOF
+ret r0
+EOF
+RUN
+
+NAME=hbc pad get_global_object
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad 3000
+EOF
+EXPECT=<<EOF
+get_global_object r0
+EOF
+RUN
+
+NAME=hbc pad mov
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad 080201
+EOF
+EXPECT=<<EOF
+mov r2, r1
+EOF
+RUN
+
+NAME=hbc pad construct
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad 50000001
+EOF
+EXPECT=<<EOF
+construct r0, r0, 1
+EOF
+RUN
+
+NAME=hbc pad select_object
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad 6b000100
+EOF
+EXPECT=<<EOF
+select_object r0, r1, r0
+EOF
+RUN
+
+NAME=hbc pad store_to_environment
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad 2a010100
+EOF
+EXPECT=<<EOF
+store_to_environment r1, 1, r0
+EOF
+RUN
+
+NAME=hbc pa+pad roundtrip ret
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad `pa ret r0`
+EOF
+EXPECT=<<EOF
+ret r0
+EOF
+RUN
+
+NAME=hbc pa+pad roundtrip mov
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad `pa mov r2, r1`
+EOF
+EXPECT=<<EOF
+mov r2, r1
+EOF
+RUN
+
+NAME=hbc pa+pad roundtrip construct
+FILE=--
+CMDS=<<EOF
+-a hbc
+pad `pa construct r0, r0, 1`
+EOF
+EXPECT=<<EOF
+construct r0, r0, 1
+EOF
+RUN
+
+NAME=hbc pi ret after wx
+FILE=malloc://16
+CMDS=<<EOF
+-a hbc
+wx 5c00
+pi 1
+EOF
+EXPECT=<<EOF
+ret r0
+EOF
+RUN
+
+NAME=hbc pi mov after wx
+FILE=malloc://16
+CMDS=<<EOF
+-a hbc
+wx 080201
+pi 1
+EOF
+EXPECT=<<EOF
+mov r2, r1
+EOF
+RUN
+
+NAME=hbc pi construct after wx
+FILE=malloc://16
+CMDS=<<EOF
+-a hbc
+wx 50000001
+pi 1
+EOF
+EXPECT=<<EOF
+construct r0, r0, 1
+EOF
+RUN
+
+NAME=hbc pa+wx+pi roundtrip ret
+FILE=malloc://16
+CMDS=<<EOF
+-a hbc
+wx `pa ret r0`
+pi 1
+EOF
+EXPECT=<<EOF
+ret r0
+EOF
+RUN
+
+NAME=hbc pa+wx+pi roundtrip mov
+FILE=malloc://16
+CMDS=<<EOF
+-a hbc
+wx `pa mov r2, r1`
+pi 1
+EOF
+EXPECT=<<EOF
+mov r2, r1
+EOF
+RUN
+
+NAME=hbc pa+wx+pi roundtrip store_to_environment
+FILE=malloc://16
+CMDS=<<EOF
+-a hbc
+wx `pa store_to_environment r1, 1, r0`
+pi 1
+EOF
+EXPECT=<<EOF
+store_to_environment r1, 1, r0
+EOF
+RUN
+
