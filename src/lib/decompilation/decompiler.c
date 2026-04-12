@@ -1187,6 +1187,9 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 	HBCReader *reader = state->hbc_reader;
 	FunctionHeader *fh = function_body->function_object;
 	u32 func_sz = fh->bytecodeSizeInBytes;
+	if (func_sz == UINT32_MAX) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "invalid bytecode size");
+	}
 
 	/* Function name - prefer flag name from r2 over embedded name */
 	const char *name = NULL;
