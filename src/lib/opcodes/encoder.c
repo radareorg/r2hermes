@@ -340,7 +340,7 @@ Result hbc_encoder_encode_instruction(HBCEncoder *encoder, const HBCEncodedInstr
 	/* Write operands based on their types */
 	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
 		OperandType type = inst->operands[i].operand_type;
-		u32 value = operand_values[i];
+		u64 value = operand_values[i];
 
 		switch (type) {
 		case OPERAND_TYPE_REG8:

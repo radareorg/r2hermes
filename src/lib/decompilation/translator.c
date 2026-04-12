@@ -684,12 +684,12 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			_hbc_string_buffer_init (&sb, 48);
+			RETURN_IF_ERROR (_hbc_string_buffer_init (&sb, 48));
 			_hbc_string_buffer_append (&sb, "try_get(");
 			char nb[16];
 			snprintf (nb, sizeof (nb), "r%u", (unsigned)insn->arg2);
 			_hbc_string_buffer_append (&sb, nb);
-			_hbc_format_property_from_string_id (insn->hbc_reader, (op == OP_TryGetById)? insn->arg4: insn->arg4, &sb);
+			_hbc_format_property_from_string_id (insn->hbc_reader, insn->arg4, &sb);
 			_hbc_string_buffer_append (&sb, ")");
 			Token *t = create_raw_token (sb.data? sb.data: "try_get(r0)");
 			_hbc_string_buffer_free (&sb);
@@ -749,7 +749,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			/* rObj["name"] = rVal */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			u32 sid = (op == OP_PutById)? insn->arg4: insn->arg4;
+			u32 sid = insn->arg4;
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
@@ -1097,10 +1097,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("fn_")));
-			RETURN_IF_ERROR (add (out, num_token_u32 ((op == OP_CallDirect)? insn->arg4: insn->arg4)));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("/*argc:")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
@@ -1339,7 +1339,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 
 			/* Fallback: emit a comment-like raw token with mnemonic */
 			StringBuffer sb;
-			_hbc_string_buffer_init (&sb, 64);
+			RETURN_IF_ERROR (_hbc_string_buffer_init (&sb, 64));
 			_hbc_string_buffer_append (&sb, "/* ");
 			_hbc_string_buffer_append (&sb, insn->inst->name);
 			_hbc_string_buffer_append (&sb, " */");
