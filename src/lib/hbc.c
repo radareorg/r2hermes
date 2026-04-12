@@ -455,8 +455,11 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		switch (operand_type) {
 		case OPERAND_TYPE_REG8:
 		case OPERAND_TYPE_UINT8:
-		case OPERAND_TYPE_ADDR8:
 			operand_values[i] = ctx->bytes[pos];
+			pos += 1;
+			break;
+		case OPERAND_TYPE_ADDR8:
+			operand_values[i] = (u32)(i32)(i8)ctx->bytes[pos];
 			pos += 1;
 			break;
 		case OPERAND_TYPE_UINT16:
