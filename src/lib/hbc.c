@@ -402,17 +402,22 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	/* Get the ISA for this bytecode version */
-	HBCISA isa = hbc_isa_getv (bytecode_version);
-	if (!isa.instructions || isa.count == 0) {
+	/* Use cached ISA if provided, otherwise look it up */
+	const HBCISA *isa_ptr = (const HBCISA *)ctx->isa;
+	HBCISA isa_local;
+	if (!isa_ptr) {
+		isa_local = hbc_isa_getv (bytecode_version);
+		isa_ptr = &isa_local;
+	}
+	if (!isa_ptr->instructions || isa_ptr->count == 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid bytecode version");
 	}
 
 	/* Read opcode */
 	u8 opcode = ctx->bytes[0];
 
-	/* Get instruction definition */
-	const Instruction *inst = (opcode < isa.count) ? &isa.instructions[opcode] : NULL;
+	/* Direct O(1) instruction lookup */
+	const Instruction *inst = (opcode < isa_ptr->count) ? &isa_ptr->instructions[opcode] : NULL;
 	if (!inst || !inst->name) {
 		out->text = strdup ("unk");
 		out->size = 1;

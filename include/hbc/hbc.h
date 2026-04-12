@@ -320,6 +320,9 @@ typedef struct {
 	/* HBC context (optional, for object/array buffer resolution) */
 	HBC *hbc;
 	bool build_objects;
+
+	/* Cached ISA (optional, for performance - avoids repeated lookups) */
+	const void *isa; // HBCISA* if available, NULL to lookup from bytecode_version
 } HBCDecodeCtx;
 
 /**
