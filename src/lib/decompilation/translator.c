@@ -233,11 +233,10 @@ static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, i
 static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
 	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
+	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 	char buf2[32];
-	snprintf (buf2, sizeof (buf2), ", /*argc:%u*/", (unsigned)insn->arg3);
+	snprintf (buf2, sizeof (buf2), "/*argc:%u*/", (unsigned)insn->arg3);
 	RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
 	return add (out, create_right_parenthesis_token ());
 }
@@ -724,13 +723,13 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutOwnByIndex:
 	case OP_PutOwnByIndexL:
 		{
-			/* obj[idx] = value */
+			/* obj[idx] = value; operands: obj reg, value reg, literal idx */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_PutByVal:
