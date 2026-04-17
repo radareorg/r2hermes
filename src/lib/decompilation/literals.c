@@ -91,7 +91,7 @@ static bool slp_read_u16(const u8 *base, size_t size, size_t *pos, u16 *out) {
 	if (*pos + 2 > size) {
 		return false;
 	}
-	*out = (u16) (base[*pos] | (base[*pos + 1] << 8));
+	*out = (u16) ((u16)base[*pos] | ((u16)base[*pos + 1] << 8));
 	(*pos) += 2;
 	return true;
 }
@@ -99,7 +99,7 @@ static bool slp_read_u32(const u8 *base, size_t size, size_t *pos, u32 *out) {
 	if (*pos + 4 > size) {
 		return false;
 	}
-	*out = (u32) (base[*pos] | (base[*pos + 1] << 8) | (base[*pos + 2] << 16) | (base[*pos + 3] << 24));
+	*out = (u32)base[*pos] | ((u32)base[*pos + 1] << 8) | ((u32)base[*pos + 2] << 16) | ((u32)base[*pos + 3] << 24);
 	(*pos) += 4;
 	return true;
 }

@@ -463,15 +463,15 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 			pos += 1;
 			break;
 		case OPERAND_TYPE_UINT16:
-			operand_values[i] = ctx->bytes[pos] | (ctx->bytes[pos + 1] << 8);
+			operand_values[i] = (u32)ctx->bytes[pos] | ((u32)ctx->bytes[pos + 1] << 8);
 			pos += 2;
 			break;
 		case OPERAND_TYPE_REG32:
 		case OPERAND_TYPE_UINT32:
 		case OPERAND_TYPE_IMM32:
 		case OPERAND_TYPE_ADDR32:
-			operand_values[i] = ctx->bytes[pos] | (ctx->bytes[pos + 1] << 8) |
-				(ctx->bytes[pos + 2] << 16) | (ctx->bytes[pos + 3] << 24);
+			operand_values[i] = (u32)ctx->bytes[pos] | ((u32)ctx->bytes[pos + 1] << 8) |
+				((u32)ctx->bytes[pos + 2] << 16) | ((u32)ctx->bytes[pos + 3] << 24);
 			pos += 4;
 			break;
 		case OPERAND_TYPE_DOUBLE:

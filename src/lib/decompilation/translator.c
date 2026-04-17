@@ -220,8 +220,10 @@ static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, i
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0))); /* dest */
 	RETURN_IF_ERROR (add (out, create_assignment_token ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1))); /* callee */
+	/* Call1..Call4 encode an explicit `this` register before the user arguments. */
+	RETURN_IF_ERROR (add (out, create_raw_token (".call")));
 	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-	for (int i = 2; i < operand_count; i++) { /* args start at operand 2 */
+	for (int i = 2; i < operand_count; i++) {
 		if (i > 2) {
 			RETURN_IF_ERROR (add (out, create_raw_token (",")));
 		}
@@ -1096,11 +1098,14 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("fn_")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
+			Token *t = create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
+			if (!t) {
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
+			}
+			RETURN_IF_ERROR (add (out, t));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("/*argc:")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, num_token_u32 (get_operand_value (insn_c, 1))));
 			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;

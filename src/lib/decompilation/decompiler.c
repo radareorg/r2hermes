@@ -1497,14 +1497,16 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 		if (!filni || function_body->statements[other].head->type != TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER) {
 			continue;
 		}
+		int next_value_register = filni->next_value_register;
+		int obj_register = fili->obj_register;
 
 		/* Replace GetPNameList line with a `for (<next> in <obj>)` header */
 		RETURN_IF_ERROR (token_string_clear_tokens (line));
 		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("for")));
 		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_parenthesis_token ()));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_hand_reg_token (filni->next_value_register)));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_hand_reg_token (next_value_register)));
 		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("in")));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (fili->obj_register)));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (obj_register)));
 		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_parenthesis_token ()));
 
 		/* Silence the loop plumbing instructions */
@@ -1579,6 +1581,7 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				}
 			} else if (tok->type == TOKEN_TYPE_STORE_TO_ENVIRONMENT) {
 				StoreToEnvironmentToken *t = (StoreToEnvironmentToken *)tok;
+				int value_register = t->value_register;
 				Environment *env = envmap_get (function_body, t->env_register);
 				if (!env) {
 					continue;
@@ -1600,7 +1603,7 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				}
 				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token (existing)));
 				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_assignment_token ()));
-				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (t->value_register)));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (value_register)));
 				break;
 			} else if (tok->type == TOKEN_TYPE_LOAD_FROM_ENVIRONMENT) {
 				LoadFromEnvironmentToken *t = (LoadFromEnvironmentToken *)tok;
