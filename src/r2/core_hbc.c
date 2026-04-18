@@ -355,59 +355,148 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 	}
 }
 
-/* JSON output for current function */
-static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
-	Result res = hbc_load_current_binary (ctx, core);
-	if (res.code != RESULT_SUCCESS) {
-		PJ *pj = r_core_pj_new (core);
-		pj_o (pj);
-		pj_ks (pj, "error", safe_errmsg (res.error_message));
-		pj_end (pj);
-		char *s = pj_drain (pj);
-		r_cons_println (core->cons, s);
-		free (s);
-		return;
-	}
-
-	u32 function_id = parse_function_id (addr_str);
-	HBCDecompOptions opts = { .pretty_literals = true, .suppress_comments = false };
-	u32 count = hbc_function_count (ctx->hbc);
-	if (res.code != RESULT_SUCCESS) {
-		PJ *pj = r_core_pj_new (core);
-		pj_o (pj);
-		pj_ks (pj, "error", "cannot get function count");
-		pj_end (pj);
-		char *s = pj_drain (pj);
-		r_cons_println (core->cons, s);
-		free (s);
-		return;
-	}
+/* Emit a JSON error envelope compatible with the {code, annotations, errors} format */
+static void emit_json_error(RCore *core, const char *msg) {
 	PJ *pj = r_core_pj_new (core);
 	pj_o (pj);
-	pj_kn (pj, "function_id", function_id);
-	pj_k (pj, "decompilation");
-	if (function_id >= count) {
-		pj_null (pj);
-		pj_ks (pj, "error", "function id out of range");
-		pj_kn (pj, "count", count);
-		pj_end (pj);
-		char *s = pj_drain (pj);
-		r_cons_println (core->cons, s);
-		free (s);
-		return;
-	}
-	char *output = NULL;
-	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
-
-	if (res.code == RESULT_SUCCESS && output) {
-		pj_s (pj, output);
-	} else {
-		pj_null (pj);
-	}
+	pj_ks (pj, "code", "");
+	pj_ka (pj, "annotations");
+	pj_end (pj);
+	pj_ka (pj, "errors");
+	pj_s (pj, msg);
+	pj_end (pj);
 	pj_end (pj);
 	char *s = pj_drain (pj);
 	r_cons_println (core->cons, s);
 	free (s);
+}
+
+typedef struct {
+	size_t start;
+	size_t end;
+	u64 offset;
+} LineAnn;
+
+/* JSON output for a function in the codemeta-compatible {code, annotations, errors} shape.
+ * Uses show_offsets=true internally and parses the "0xHHHHHHHH: " line prefixes to
+ * produce per-line offset annotations, then strips the prefix from the emitted code. */
+static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
+	Result res = hbc_load_current_binary (ctx, core);
+	if (res.code != RESULT_SUCCESS) {
+		emit_json_error (core, safe_errmsg (res.error_message));
+		return;
+	}
+
+	u32 count = hbc_function_count (ctx->hbc);
+	u32 function_id = 0;
+	const char *as = r_str_trim_head_ro (addr_str);
+	if (*as) {
+		function_id = parse_function_id (addr_str);
+	} else if (find_function_at_offset (ctx, (u32)core->addr, &function_id) != 0) {
+		emit_json_error (core, "No function at current offset");
+		return;
+	}
+	if (function_id >= count) {
+		emit_json_error (core, "function id out of range");
+		return;
+	}
+
+	HBCFunc fi;
+	Result fres = hbc_get_function_info (ctx->hbc, function_id, &fi);
+	u64 func_base = (fres.code == RESULT_SUCCESS)? fi.offset: 0;
+
+	HBCDecompOptions opts = make_decompile_options (core, true, func_base);
+	opts.pretty_literals = true;
+
+	char *output = NULL;
+	res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
+	if (res.code != RESULT_SUCCESS || !output) {
+		emit_json_error (core, safe_errmsg (res.error_message));
+		free (output);
+		return;
+	}
+
+	RStrBuf *code_buf = r_strbuf_new ("");
+	LineAnn *anns = NULL;
+	size_t anns_n = 0, anns_cap = 0;
+
+	const char *p = output;
+	while (*p) {
+		const char *eol = strchr (p, '\n');
+		size_t line_len = eol? (size_t)(eol - p): strlen (p);
+
+		bool has_offset = false;
+		u64 line_offset = 0;
+		if (line_len >= 12 && p[0] == '0' && p[1] == 'x' && p[10] == ':' && p[11] == ' ') {
+			bool valid = true;
+			for (int i = 2; i < 10; i++) {
+				if (!isxdigit ((unsigned char)p[i])) {
+					valid = false;
+					break;
+				}
+			}
+			if (valid) {
+				char hexbuf[9];
+				memcpy (hexbuf, p + 2, 8);
+				hexbuf[8] = 0;
+				line_offset = strtoull (hexbuf, NULL, 16);
+				has_offset = true;
+			}
+		}
+
+		size_t start = r_strbuf_length (code_buf);
+		if (has_offset) {
+			r_strbuf_append_n (code_buf, p + 12, line_len - 12);
+		} else {
+			r_strbuf_append_n (code_buf, p, line_len);
+		}
+		r_strbuf_append (code_buf, "\n");
+		size_t end = r_strbuf_length (code_buf);
+
+		if (has_offset) {
+			if (anns_n == anns_cap) {
+				anns_cap = anns_cap? anns_cap * 2: 64;
+				LineAnn *grown = realloc (anns, anns_cap * sizeof (LineAnn));
+				if (!grown) {
+					break;
+				}
+				anns = grown;
+			}
+			anns[anns_n].start = start;
+			anns[anns_n].end = end;
+			anns[anns_n].offset = line_offset;
+			anns_n++;
+		}
+
+		if (!eol) {
+			break;
+		}
+		p = eol + 1;
+	}
+
+	char *cleaned = r_strbuf_drain (code_buf);
+
+	PJ *pj = r_core_pj_new (core);
+	pj_o (pj);
+	pj_ks (pj, "code", cleaned? cleaned: "");
+	pj_ka (pj, "annotations");
+	for (size_t i = 0; i < anns_n; i++) {
+		pj_o (pj);
+		pj_ks (pj, "type", "offset");
+		pj_kn (pj, "start", anns[i].start);
+		pj_kn (pj, "end", anns[i].end);
+		pj_kn (pj, "offset", anns[i].offset);
+		pj_end (pj);
+	}
+	pj_end (pj);
+	pj_ka (pj, "errors");
+	pj_end (pj);
+	pj_end (pj);
+	char *s = pj_drain (pj);
+	r_cons_println (core->cons, s);
+	free (s);
+	free (cleaned);
+	free (anns);
 	free (output);
 }
 

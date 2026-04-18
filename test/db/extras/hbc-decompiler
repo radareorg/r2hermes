@@ -178,13 +178,25 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:hj json output
+NAME=pd:hj json code field
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hj 0~function_id
+pd:hj 0~{code}
 EOF
 EXPECT=<<EOF
-{"function_id":0,"decompilation":"function global() {\n  r0 = \"print(123);\";\n  r0 = eval (r0);\n  return r0;\n}\n\n\n"}
+function global() {\n  r0 = \"print(123);\";\n  r0 = eval (r0);\n  return r0;\n}\n\n\n
+EOF
+RUN
+
+NAME=pd:hj json annotation offsets
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hj 0~{annotations[0].type}
+pd:hj 0~{annotations[0].offset}
+EOF
+EXPECT=<<EOF
+offset
+176
 EOF
 RUN
 
