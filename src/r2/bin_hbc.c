@@ -141,6 +141,7 @@ static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut
 	ret->type = strdup ("Hermes bytecode");
 	ret->machine = strdup ("Hermes VM");
 	ret->cpu = has_version? r_str_newf ("%u", version): strdup ("unknown");
+	ret->has_va = true;
 }
 
 static RBinInfo *bininfo(RBinFile *bf) {
@@ -184,6 +185,7 @@ static RList *sections(RBinFile *bf) {
 	section->paddr = 0;
 	section->vaddr = HBC_VADDR_BASE;
 	section->perm = R_PERM_R;
+	section->add = true;
 	r_list_append (sections, section);
 
 	return sections;
