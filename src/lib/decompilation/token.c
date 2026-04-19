@@ -326,10 +326,10 @@ Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 		{
 			FunctionTableIndexToken *t = (FunctionTableIndexToken *)token;
 			/* Try to resolve name if possible */
-		if (t->state && t->state->hbc_reader && t->function_id < t->state->hbc_reader->header.functionCount) {
+			if (t->state && t->state->hbc_reader && t->function_id < t->state->hbc_reader->header.functionCount) {
 				u32 name_id = t->state->hbc_reader->function_headers[t->function_id].functionName;
-			const char *name = (name_id < t->state->hbc_reader->header.stringCount && t->state->hbc_reader->strings)? t->state->hbc_reader->strings[name_id]: NULL;
-			if (name && *name) {
+				const char *name = (name_id < t->state->hbc_reader->header.stringCount && t->state->hbc_reader->strings)? t->state->hbc_reader->strings[name_id]: NULL;
+				if (name && *name) {
 					RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, name));
 					return SUCCESS_RESULT ();
 				}

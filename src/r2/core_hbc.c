@@ -425,7 +425,7 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	const char *p = output;
 	while (*p) {
 		const char *eol = strchr (p, '\n');
-		size_t line_len = eol? (size_t)(eol - p): strlen (p);
+		size_t line_len = eol? (size_t) (eol - p): strlen (p);
 
 		bool has_offset = false;
 		u64 line_offset = 0;

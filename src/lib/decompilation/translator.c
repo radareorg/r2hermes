@@ -576,7 +576,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_CreateInnerEnvironment:
 		{
-		if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
 				RETURN_IF_ERROR (add (out, create_new_inner_environment_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_inner_env_invalid*/")));
@@ -645,18 +645,18 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			u32 sid = insn->arg4;
 			const char *s = NULL;
-		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
 			bool ident = true;
-		if (!s || !*s) {
+			if (!s || !*s) {
 				ident = false;
 			} else {
-			if (! (isalpha ((unsigned char)*s) || *s == '_' || *s == '$')) {
+				if (! (isalpha ((unsigned char)*s) || *s == '_' || *s == '$')) {
 					ident = false;
 				}
-			for (const char *p = s + 1; ident && *p; p++) {
-				ident = (isalnum ((unsigned char)*p) || *p == '_' || *p == '$');
+				for (const char *p = s + 1; ident && *p; p++) {
+					ident = (isalnum ((unsigned char)*p) || *p == '_' || *p == '$');
 				}
 			}
 			if (ident) {
@@ -709,8 +709,8 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = (op == OP_PutNewOwnByIdShort)? insn->arg3: (op == OP_PutNewOwnById)? insn->arg3
 												: insn->arg4;
-		const char *s = (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount)? insn->hbc_reader->strings[sid]: NULL;
-		if (s && _hbc_is_js_identifier (s)) {
+			const char *s = (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount)? insn->hbc_reader->strings[sid]: NULL;
+			if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -811,7 +811,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_ResumeGenerator:
 		{
 			/* args: result_out, return_bool_out */
-		if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
 				RETURN_IF_ERROR (add (out, create_resume_generator_token ((int)insn->arg1, (int)insn->arg2)));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*resume_gen_invalid*/")));
@@ -837,7 +837,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_StoreToEnvironment:
 	case OP_StoreToEnvironmentL:
 		{
-		if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 2)) {
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 2)) {
 				RETURN_IF_ERROR (add (out, create_store_to_environment_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_store_invalid*/")));
@@ -880,7 +880,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				return r;
 			}
 			r = _hbc_format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, LITERALS_PRETTY_AUTO, false);
-		Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
+			Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
 			_hbc_string_buffer_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
@@ -899,7 +899,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				return r;
 			}
 			r = _hbc_format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, LITERALS_PRETTY_AUTO, false);
-		Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
+			Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
 			_hbc_string_buffer_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
@@ -928,10 +928,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = insn->arg2;
 			const char *s = NULL;
-		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
-		if (s && _hbc_is_js_identifier (s)) {
+			if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -1166,10 +1166,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = insn->arg3;
 			const char *s = NULL;
-		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
-		if (s && _hbc_is_js_identifier (s)) {
+			if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -1187,10 +1187,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = (op == OP_PutNewOwnNEById)? insn->arg3: insn->arg4;
 			const char *s = NULL;
-		if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
+			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
 				s = insn->hbc_reader->strings[sid];
 			}
-		if (s && _hbc_is_js_identifier (s)) {
+			if (s && _hbc_is_js_identifier (s)) {
 				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
 				RETURN_IF_ERROR (add (out, create_raw_token (s)));
 			} else {
@@ -1228,8 +1228,8 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	/* Property list operations */
 	case OP_GetPNameList:
 		{
-		if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
-			is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3)) {
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
+				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3)) {
 				RETURN_IF_ERROR (add (out, create_for_in_loop_init_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2), (int)get_operand_value (insn_c, 3))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_init_invalid*/")));
@@ -1238,8 +1238,8 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_GetNextPName:
 		{
-		if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
-			is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3) &&
+			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
+				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3) &&
 				is_operand_register (insn->inst, 4)) {
 				RETURN_IF_ERROR (add (out, create_for_in_loop_next_iter_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2), (int)get_operand_value (insn_c, 3), (int)get_operand_value (insn_c, 4))));
 			} else {
@@ -1305,7 +1305,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	default:
 		{
-		if (!insn->inst->name || strcmp (insn->inst->name, "Unknown") == 0) {
+			if (!insn->inst->name || strcmp (insn->inst->name, "Unknown") == 0) {
 				char buf[96];
 				u32 skipped = insn->arg1;
 				if (skipped) {
@@ -1323,7 +1323,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 
 			/* Generic compare-jump fallback (covers variants not explicitly handled above). */
 			const char *cmp = jump_cmp_operator (op);
-		if (cmp && is_operand_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
+			if (cmp && is_operand_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
 				i32 rel = (i32)get_operand_value (insn_c, 0);
 				u32 target = compute_target_address (insn, 0);
 				if (rel > 0) {

@@ -149,7 +149,7 @@ static bool u32set_contains(const U32Set *s, u32 v) {
 	if (!s || !s->bitmap || v / 8 >= s->bitmap_size) {
 		return false;
 	}
-	return (s->bitmap[v / 8] &(1 << (v % 8))) != 0;
+	return (s->bitmap[v / 8] & (1 << (v % 8))) != 0;
 }
 static Result u32set_add(U32Set *s, u32 v) {
 	if (!s) {
@@ -1893,9 +1893,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		function_body->statements_count);
 	for (u32 si = 0; si < function_body->statements_count; si++) {
 		/* Stop when budget exhausted or earlier phase (pass2) flagged it. */
-		if (state->output_truncated
-			|| (state->options.max_output_bytes > 0
-				&& out->length >= (size_t)state->options.max_output_bytes)) {
+		if (state->output_truncated || (state->options.max_output_bytes > 0 && out->length >= (size_t)state->options.max_output_bytes)) {
 			state->output_truncated = true;
 			if (!state->truncation_marker_emitted) {
 				state->truncation_marker_emitted = true;

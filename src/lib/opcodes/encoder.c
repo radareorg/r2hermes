@@ -187,89 +187,89 @@ Result hbc_encoder_parse_instruction(HBCEncoder *encoder, const char *asm_line, 
 		bool parse_success = false;
 
 		switch (expected_type) {
-			case OPERAND_TYPE_REG8:
-			case OPERAND_TYPE_REG32:
-				/* Register: rN or RN */
-				if (trim_start[0] == 'r' || trim_start[0] == 'R') {
-					operand_values[operand_count] = (u32)strtoul (trim_start + 1, &endptr, 10);
-					if (*endptr == '\0') {
-						parse_success = true;
-						/* Validate register range */
-						if (expected_type == OPERAND_TYPE_REG8 && operand_values[operand_count] > 255) {
-							return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Register number out of range for REG8");
-						}
-					}
-				} else {
-					/* Allow bare numbers for registers too */
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
-					if (*endptr == '\0') {
-						parse_success = true;
-						/* Validate register range */
-						if (expected_type == OPERAND_TYPE_REG8 && operand_values[operand_count] > 255) {
-							return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Register number out of range for REG8");
-						}
+		case OPERAND_TYPE_REG8:
+		case OPERAND_TYPE_REG32:
+			/* Register: rN or RN */
+			if (trim_start[0] == 'r' || trim_start[0] == 'R') {
+				operand_values[operand_count] = (u32)strtoul (trim_start + 1, &endptr, 10);
+				if (*endptr == '\0') {
+					parse_success = true;
+					/* Validate register range */
+					if (expected_type == OPERAND_TYPE_REG8 && operand_values[operand_count] > 255) {
+						return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Register number out of range for REG8");
 					}
 				}
-				break;
-
-			case OPERAND_TYPE_UINT8:
-			case OPERAND_TYPE_UINT16:
-			case OPERAND_TYPE_UINT32:
-			case OPERAND_TYPE_IMM32:
-			case OPERAND_TYPE_ADDR8:
-			case OPERAND_TYPE_ADDR32:
-				/* Immediate or address */
-				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
-					/* Hex */
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
-					if (*endptr == '\0') {
-						parse_success = true;
-					}
-				} else {
-					/* Decimal */
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
-					if (*endptr == '\0') {
-						parse_success = true;
+			} else {
+				/* Allow bare numbers for registers too */
+				operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+				if (*endptr == '\0') {
+					parse_success = true;
+					/* Validate register range */
+					if (expected_type == OPERAND_TYPE_REG8 && operand_values[operand_count] > 255) {
+						return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Register number out of range for REG8");
 					}
 				}
-				break;
-
-			case OPERAND_TYPE_DOUBLE:
-				/* Parse as double literal */
-				{
-					char *endptr_double;
-					double dval = strtod (trim_start, &endptr_double);
-					if (*endptr_double == '\0') {
-						/* Convert double to IEEE 754 bits */
-						u64 bits;
-						memcpy (&bits, &dval, sizeof (double));
-						operand_values[operand_count] = bits;
-						parse_success = true;
-					} else if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
-						/* Allow hex for bit patterns */
-						operand_values[operand_count] = (u64)strtoull (trim_start, &endptr_double, 16);
-						if (*endptr_double == '\0') {
-							parse_success = true;
-						}
-					}
-				}
-				break;
-
-			default:
-				/* Unknown type, try to parse as number */
-				if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
-					if (*endptr == '\0') {
-						parse_success = true;
-					}
-				} else {
-					operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
-					if (*endptr == '\0') {
-						parse_success = true;
-					}
-				}
-				break;
 			}
+			break;
+
+		case OPERAND_TYPE_UINT8:
+		case OPERAND_TYPE_UINT16:
+		case OPERAND_TYPE_UINT32:
+		case OPERAND_TYPE_IMM32:
+		case OPERAND_TYPE_ADDR8:
+		case OPERAND_TYPE_ADDR32:
+			/* Immediate or address */
+			if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
+				/* Hex */
+				operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
+				if (*endptr == '\0') {
+					parse_success = true;
+				}
+			} else {
+				/* Decimal */
+				operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+				if (*endptr == '\0') {
+					parse_success = true;
+				}
+			}
+			break;
+
+		case OPERAND_TYPE_DOUBLE:
+			/* Parse as double literal */
+			{
+				char *endptr_double;
+				double dval = strtod (trim_start, &endptr_double);
+				if (*endptr_double == '\0') {
+					/* Convert double to IEEE 754 bits */
+					u64 bits;
+					memcpy (&bits, &dval, sizeof (double));
+					operand_values[operand_count] = bits;
+					parse_success = true;
+				} else if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
+					/* Allow hex for bit patterns */
+					operand_values[operand_count] = (u64)strtoull (trim_start, &endptr_double, 16);
+					if (*endptr_double == '\0') {
+						parse_success = true;
+					}
+				}
+			}
+			break;
+
+		default:
+			/* Unknown type, try to parse as number */
+			if (trim_start[0] == '0' && (trim_start[1] == 'x' || trim_start[1] == 'X')) {
+				operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 16);
+				if (*endptr == '\0') {
+					parse_success = true;
+				}
+			} else {
+				operand_values[operand_count] = (u32)strtoul (trim_start, &endptr, 10);
+				if (*endptr == '\0') {
+					parse_success = true;
+				}
+			}
+			break;
+		}
 
 		if (!parse_success) {
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid operand format");

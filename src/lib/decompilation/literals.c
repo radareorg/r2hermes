@@ -216,8 +216,8 @@ static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key,
 	case SLP_ShortStringTag:
 	case SLP_ByteStringTag:
 		{
-		const char *s = (r && r->strings && v->v.str_id < r->header.stringCount)? r->strings[v->v.str_id]: NULL;
-		if (for_key && s && _hbc_is_js_identifier (s)) {
+			const char *s = (r && r->strings && v->v.str_id < r->header.stringCount)? r->strings[v->v.str_id]: NULL;
+			if (for_key && s && _hbc_is_js_identifier (s)) {
 				return _hbc_string_buffer_append (out, s);
 			}
 			if (s) {

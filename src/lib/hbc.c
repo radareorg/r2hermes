@@ -412,7 +412,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	u8 opcode = ctx->bytes[0];
 
 	/* Get instruction definition */
-	const Instruction *inst = (opcode < isa.count) ? &isa.instructions[opcode] : NULL;
+	const Instruction *inst = (opcode < isa.count)? &isa.instructions[opcode]: NULL;
 	if (!inst || !inst->name) {
 		out->text = strdup ("unk");
 		out->size = 1;
@@ -459,7 +459,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 			pos += 1;
 			break;
 		case OPERAND_TYPE_ADDR8:
-			operand_values[i] = (u32)(i32)(i8)ctx->bytes[pos];
+			operand_values[i] = (u32) (i32) (i8)ctx->bytes[pos];
 			pos += 1;
 			break;
 		case OPERAND_TYPE_UINT16:
@@ -564,7 +564,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 			!strncmp (mnemonic, "new_array_with_buffer", strlen ("new_array_with_buffer"));
 		if (is_literal_op) {
 			char *with_comment = build_literal_comment (&ctx->hbc->reader, mnemonic, operand_values, buf);
-			out->text = with_comment ? with_comment : strdup (buf);
+			out->text = with_comment? with_comment: strdup (buf);
 		} else {
 			out->text = strdup (buf);
 		}

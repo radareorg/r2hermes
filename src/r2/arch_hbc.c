@@ -231,7 +231,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.resolve_string_ids = true,
 		.string_tables = &string_tables,
 		.hbc = hs->hbc,
-	};
+};
 	if (mask & R_ARCH_OP_MASK_ESIL && mask & R_ARCH_OP_MASK_DISASM) {
 		ctx.build_objects = true;
 	}
