@@ -139,7 +139,9 @@ static HBCDecompOptions make_decompile_options(RCore *core, bool show_offsets, u
 		.skip_pass4_closure = r_config_get_b (core->config, "hbc.skip_pass4"),
 		.force_dispatch = r_config_get_b (core->config, "hbc.force_dispatch"),
 		.inline_closures = r_config_get_b (core->config, "hbc.inline_closures"),
-		.inline_threshold = r_config_get_i (core->config, "hbc.inline_threshold")
+		.inline_threshold = r_config_get_i (core->config, "hbc.inline_threshold"),
+		.max_ast_statements = r_config_get_i (core->config, "hbc.max_ast"),
+		.max_output_bytes = r_config_get_i (core->config, "hbc.max_bytes")
 	};
 	return opts;
 }
@@ -669,6 +671,16 @@ static bool plugin_init(RCorePluginSession *s) {
 	node = r_config_set (cfg, "hbc.inline_threshold", "0");
 	if (node) {
 		r_config_node_desc (node, "Max bytecode size (bytes) for closure inlining (0=no limit, -1=never inline)");
+	}
+
+	node = r_config_set_i (cfg, "hbc.max_ast", 5000);
+	if (node) {
+		r_config_node_desc (node, "Abort AST build once N statements per function (0=unlimited)");
+	}
+
+	node = r_config_set_i (cfg, "hbc.max_bytes", 262144);
+	if (node) {
+		r_config_node_desc (node, "Stop decompilation once total output reaches N bytes (0=unlimited)");
 	}
 
 	r_config_lock (cfg, true);

@@ -710,6 +710,8 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->function_in_progress = NULL;
 	decompiler->indent_level = 0;
 	decompiler->inlining_function = false;
+	decompiler->output_truncated = false;
+	decompiler->truncation_marker_emitted = false;
 	decompiler->hbc = NULL; /* Will be set if using state-based API */
 	decompiler->options.pretty_literals = true;
 	decompiler->options.suppress_comments = false;
@@ -882,6 +884,9 @@ Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options,
 		/* Skip if already decompiled as a nested function */
 		if (dec.decompiled_functions[i]) {
 			continue;
+		}
+		if (dec.output_truncated) {
+			break;
 		}
 		Result r = _hbc_decompile_function (&dec, i, NULL, -1, false, false, false);
 		if (r.code != RESULT_SUCCESS) {
@@ -1089,6 +1094,9 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 		/* Skip if already decompiled as a nested function */
 		if (dec.decompiled_functions[i]) {
 			continue;
+		}
+		if (dec.output_truncated) {
+			break;
 		}
 		Result r = _hbc_decompile_function (&dec, i, NULL, -1, false, false, false);
 		if (r.code != RESULT_SUCCESS) {
@@ -1428,8 +1436,13 @@ Result _hbc_pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody
 	if (!state || !function_body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_pass2_transform_code args");
 	}
-	/* Translate each parsed instruction into a TokenString line */
+	int ast_budget = state->options.max_ast_statements;
 	for (u32 i = 0; i < function_body->instructions.count; i++) {
+		/* AST-size cap: bail mid-build so pass3/4 and output stay cheap. */
+		if (ast_budget > 0 && function_body->statements_count >= (u32)ast_budget) {
+			state->output_truncated = true;
+			break;
+		}
 		ParsedInstruction *ins = &function_body->instructions.instructions[i];
 		if (!ins->inst) {
 			continue;
@@ -1879,6 +1892,19 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		(unsigned long long)state->options.function_base,
 		function_body->statements_count);
 	for (u32 si = 0; si < function_body->statements_count; si++) {
+		/* Stop when budget exhausted or earlier phase (pass2) flagged it. */
+		if (state->output_truncated
+			|| (state->options.max_output_bytes > 0
+				&& out->length >= (size_t)state->options.max_output_bytes)) {
+			state->output_truncated = true;
+			if (!state->truncation_marker_emitted) {
+				state->truncation_marker_emitted = true;
+				append_indent (out, state->indent_level);
+				_hbc_string_buffer_append (out,
+					"// [output truncated: raise 'hbc.max_ast'/'hbc.max_bytes' (0=unlimited) for full output]\n");
+			}
+			break;
+		}
 		/* Skip dead code */
 		if (dce && dce[si]) {
 			continue;
@@ -2195,6 +2221,9 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async) {
 	if (!state || !state->hbc_reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function args");
+	}
+	if (state->output_truncated) {
+		return SUCCESS_RESULT ();
 	}
 	HBCReader *reader = state->hbc_reader;
 	if (function_id >= reader->header.functionCount) {

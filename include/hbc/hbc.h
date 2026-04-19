@@ -104,6 +104,10 @@ typedef struct {
 	bool force_dispatch; /* Force switch/case dispatch loop for linear functions */
 	bool inline_closures; /* Inline closure definitions (default: true) */
 	int inline_threshold; /* Max instruction count to inline (0 = no limit, -1 = no inline) */
+	/* Early-stop budgets (0 = unlimited). max_ast_statements caps pass2 AST
+	 * growth per function; max_output_bytes caps total emitted output. */
+	int max_ast_statements;
+	int max_output_bytes;
 } HBCDecompOptions;
 
 /* Per-instruction details */
