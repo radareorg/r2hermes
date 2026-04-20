@@ -8,21 +8,35 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 typedef struct {
-	const char *program_name;
-} CliContext;
-
-typedef Result(*CommandHandler)(const CliContext *ctx, int argc, char **argv);
+	bool json, verbose, bytecode, debug, asm_syntax;
+	bool pretty_literals, no_pretty_literals, no_comments;
+} CliFlags;
 
 typedef struct {
-	const char *name;
-	const char *help;
-	CommandHandler handler;
-} Command;
+	const char *program_name;
+	CliFlags flags;
+} CliContext;
+
+typedef Result (*CommandHandler)(const CliContext *ctx, int argc, char **argv);
+typedef struct { const char *name; const char *help; CommandHandler handler; } Command;
+
+static const struct { const char *lname; char sname; size_t offset; } flag_table[] = {
+	{ "json",               'j', offsetof (CliFlags, json) },
+	{ "verbose",            'v', offsetof (CliFlags, verbose) },
+	{ "bytecode",           'b', offsetof (CliFlags, bytecode) },
+	{ "debug",              'd', offsetof (CliFlags, debug) },
+	{ "asmsyntax",          0,   offsetof (CliFlags, asm_syntax) },
+	{ "pretty-literals",    'P', offsetof (CliFlags, pretty_literals) },
+	{ "no-pretty-literals", 'N', offsetof (CliFlags, no_pretty_literals) },
+	{ "no-comments",        'C', offsetof (CliFlags, no_comments) },
+};
+#define FLAG_TABLE_N (sizeof (flag_table) / sizeof (flag_table[0]))
 
 static Result errorf(ResultCode code, const char *fmt, ...) {
 	static char buf[256];
@@ -47,33 +61,77 @@ static bool streq(const char *a, const char *b) {
 	return a && b && !strcmp (a, b);
 }
 
-static Result write_text(const char *output_path, const char *text) {
-	FILE *f = stdout;
-	if (output_path) {
-		f = fopen (output_path, "w");
-		if (!f) {
-			return errorf (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file: %s", output_path);
+static bool flag_set(CliFlags *f, const char *lname, char sname) {
+	for (size_t i = 0; i < FLAG_TABLE_N; i++) {
+		bool m = lname? !strcmp (lname, flag_table[i].lname)
+			: (flag_table[i].sname && flag_table[i].sname == sname);
+		if (m) {
+			*(bool *)((char *)f + flag_table[i].offset) = true;
+			return true;
 		}
 	}
-	fputs (text? text: "", f);
-	if (output_path) {
-		fclose (f);
+	return false;
+}
+
+static Result parse_flags(CliFlags *flags, int *argc, char **argv) {
+	int w = 0;
+	bool end = false;
+	for (int r = 0; r < *argc; r++) {
+		const char *a = argv[r];
+		if (end || a[0] != '-' || !a[1]) {
+			argv[w++] = argv[r];
+			continue;
+		}
+		if (streq (a, "--")) {
+			end = true;
+			continue;
+		}
+		if (a[1] == '-') {
+			if (!flag_set (flags, a + 2, 0)) {
+				return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unknown option: %s", a);
+			}
+			continue;
+		}
+		for (const char *p = a + 1; *p; p++) {
+			if (!flag_set (flags, NULL, *p)) {
+				return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unknown option: -%c", *p);
+			}
+		}
+	}
+	*argc = w;
+	return SUCCESS_RESULT ();
+}
+
+static Result open_hbc(const char *path, HBC **out) {
+	*out = NULL;
+	Result r = hbc_open (path, out);
+	if (r.code != RESULT_SUCCESS || !*out) {
+		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", path);
 	}
 	return SUCCESS_RESULT ();
 }
 
-static Result write_bytes(const char *output_path, const u8 *buf, size_t len) {
-	FILE *f = stdout;
-	if (output_path) {
-		f = fopen (output_path, "wb");
-		if (!f) {
-			return errorf (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file: %s", output_path);
-		}
+static FILE *open_out(const char *path, const char *mode, Result *err) {
+	if (!path) {
+		return stdout;
+	}
+	FILE *f = fopen (path, mode);
+	if (!f) {
+		*err = errorf (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file: %s", path);
+	}
+	return f;
+}
+
+static Result write_out(const char *path, const u8 *buf, size_t len, bool binary) {
+	Result err = SUCCESS_RESULT ();
+	FILE *f = open_out (path, binary? "wb": "w", &err);
+	if (!f) {
+		return err;
 	}
 	if (len) {
 		fwrite (buf, 1, len, f);
 	}
-	if (output_path) {
+	if (f != stdout) {
 		fclose (f);
 	}
 	return SUCCESS_RESULT ();
@@ -82,49 +140,33 @@ static Result write_bytes(const char *output_path, const u8 *buf, size_t len) {
 static Result read_entire_file(const char *path, char **out_buf, size_t *out_len) {
 	*out_buf = NULL;
 	*out_len = 0;
-
 	FILE *f = fopen (path, "rb");
 	if (!f) {
 		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open input file: %s", path);
 	}
-	if (fseek (f, 0, SEEK_END) != 0) {
-		fclose (f);
-		return errorf (RESULT_ERROR_PARSING_FAILED, "Failed to seek input file: %s", path);
-	}
+	fseek (f, 0, SEEK_END);
 	long sz = ftell (f);
+	rewind (f);
 	if (sz < 0) {
 		fclose (f);
-		return errorf (RESULT_ERROR_PARSING_FAILED, "Failed to get input file size: %s", path);
+		return errorf (RESULT_ERROR_PARSING_FAILED, "Failed to size input file: %s", path);
 	}
-	if (fseek (f, 0, SEEK_SET) != 0) {
-		fclose (f);
-		return errorf (RESULT_ERROR_PARSING_FAILED, "Failed to seek input file: %s", path);
-	}
-
-	char *buf = (char *)calloc ((size_t)sz + 1, 1);
+	char *buf = calloc ((size_t)sz + 1, 1);
 	if (!buf) {
 		fclose (f);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
-	size_t nread = fread (buf, 1, (size_t)sz, f);
+	*out_len = fread (buf, 1, (size_t)sz, f);
 	fclose (f);
-	buf[nread] = '\0';
-
+	buf[*out_len] = '\0';
 	*out_buf = buf;
-	*out_len = nread;
 	return SUCCESS_RESULT ();
 }
 
 static int hex_nibble(char c) {
-	if (c >= '0' && c <= '9') {
-		return c - '0';
-	}
-	if (c >= 'a' && c <= 'f') {
-		return 10 + (c - 'a');
-	}
-	if (c >= 'A' && c <= 'F') {
-		return 10 + (c - 'A');
-	}
+	if (c >= '0' && c <= '9') { return c - '0'; }
+	if (c >= 'a' && c <= 'f') { return 10 + c - 'a'; }
+	if (c >= 'A' && c <= 'F') { return 10 + c - 'A'; }
 	return -1;
 }
 
@@ -137,25 +179,15 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 	if (!s || !*s) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Empty hex string");
 	}
-	const char *p = s;
-	while (*p) {
-		while (*p && is_hex_sep (*p)) {
-			p++;
-		}
-		if (!*p) {
-			break;
-		}
-		if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-			p += 2;
-			continue;
-		}
+	for (const char *p = s; *p; ) {
+		while (*p && is_hex_sep (*p)) { p++; }
+		if (!*p) { break; }
+		if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) { p += 2; continue; }
 		int hi = hex_nibble (*p++);
 		if (hi < 0) {
 			return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid hex character: '%c'", p[-1]);
 		}
-		while (*p && is_hex_sep (*p)) {
-			p++;
-		}
+		while (*p && is_hex_sep (*p)) { p++; }
 		int lo = hex_nibble (*p++);
 		if (lo < 0) {
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Odd number of hex nibbles");
@@ -163,9 +195,9 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 		if (*out_len >= out_cap) {
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Too many bytes (max 64)");
 		}
-		out[(*out_len)++] = (u8) ((hi << 4) | lo);
+		out[(*out_len)++] = (u8)((hi << 4) | lo);
 	}
-	if (*out_len == 0) {
+	if (!*out_len) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No bytes parsed");
 	}
 	return SUCCESS_RESULT ();
@@ -173,251 +205,156 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 
 static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s d <input_file>", ctx->program_name);
+	if (argc != 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: d <input_file>");
 	}
-	const char *input = argv[0];
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return ERROR_RESULT (RESULT_ERROR_READ, "Failed to open file: %s");
-	}
-
-	// Just dump function info using printf directly since we don't need the complex provider API
-	u32 func_count = hbc_function_count (hbc);
-	printf ("HBC Disassembly Output:\n");
-	printf ("=====================\n\n");
-	printf ("Total functions: %u\n\n", func_count);
-
-	for (u32 i = 0; i < func_count; i++) {
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	u32 fc = hbc_function_count (hbc);
+	printf ("HBC Disassembly Output:\n=====================\n\nTotal functions: %u\n\n", fc);
+	for (u32 i = 0; i < fc; i++) {
 		HBCFunc fi;
-		res = hbc_get_function_info (hbc, i, &fi);
-		if (res.code == RESULT_SUCCESS) {
-			printf ("Function %u: %s\n", i, fi.name? fi.name: "unnamed");
-			printf ("  Offset: 0x%08x\n", fi.offset);
-			printf ("  Size: %u bytes\n", fi.size);
-			printf ("  Params: %u\n\n", fi.param_count);
+		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
+			continue;
 		}
+		printf ("Function %u: %s\n  Offset: 0x%08x\n  Size: %u bytes\n  Params: %u\n\n",
+			i, fi.name? fi.name: "unnamed", fi.offset, fi.size, fi.param_count);
 	}
-
 	hbc_close (hbc);
 	return SUCCESS_RESULT ();
 }
 
 static Result cmd_c(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s c <input_file>", ctx->program_name);
+	if (argc != 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: c <input_file>");
 	}
-	const char *input = argv[0];
-
-	// Use the internal API that handles file I/O
-	Result res = _hbc_decompile_file (input, NULL);
-	return res;
+	return _hbc_decompile_file (argv[0], NULL);
 }
 
 static Result cmd_dis(const CliContext *ctx, int argc, char **argv) {
-	if (argc < 1) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s dis <hexbytes> [--asmsyntax]", ctx->program_name);
+	if (argc != 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: dis <hexbytes>");
 	}
-	bool asm_syntax = false;
-	for (int i = 1; i < argc; i++) {
-		if (streq (argv[i], "--asmsyntax")) {
-			asm_syntax = true;
-		} else {
-			return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unknown option: %s", argv[i]);
-		}
-	}
-	const char *hex = argv[0];
 	u8 bytes[64];
 	size_t bcount = 0;
-	RETURN_IF_ERROR (parse_hex_bytes (hex, bytes, sizeof (bytes), &bcount));
-
-	HBCInsnInfo sinfo;
-	memset (&sinfo, 0, sizeof (sinfo));
-
+	RETURN_IF_ERROR (parse_hex_bytes (argv[0], bytes, sizeof (bytes), &bcount));
+	HBCInsnInfo sinfo = { 0 };
 	HBCDecodeCtx dec_ctx = {
-		.bytes = bytes,
-		.len = bcount,
-		.bytecode_version = 96,
-		.pc = 0,
-		.asm_syntax = asm_syntax,
-		.resolve_string_ids = false,
-		.string_tables = NULL,
-		.hbc = NULL,
-		.build_objects = true
+		.bytes = bytes, .len = bcount, .bytecode_version = 96, .pc = 0,
+		.asm_syntax = ctx->flags.asm_syntax, .build_objects = true,
 	};
-
 	Result r = hbc_dec (&dec_ctx, &sinfo);
-	if (r.code != RESULT_SUCCESS) {
-		return r;
+	if (r.code == RESULT_SUCCESS) {
+		printf ("%s\n", sinfo.text? sinfo.text: "");
 	}
-	printf ("%s\n", sinfo.text? sinfo.text: "");
 	free (sinfo.text);
-	return SUCCESS_RESULT ();
+	return r;
 }
 
 static Result encode_asm(const char *input, bool is_file, const char *output) {
-	char *asm_text = NULL;
-	size_t asm_len = 0;
-
+	char *text = NULL;
+	size_t len = 0;
 	if (is_file) {
-		RETURN_IF_ERROR (read_entire_file (input, &asm_text, &asm_len));
-		if (asm_len == 0) {
-			free (asm_text);
-			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Empty input file");
-		}
+		RETURN_IF_ERROR (read_entire_file (input, &text, &len));
 	} else {
-		/* Inline assembly */
-		asm_text = (char *)malloc (strlen (input) + 1);
-		if (!asm_text) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
-		}
-		strcpy (asm_text, input);
-		asm_len = strlen (input);
+		text = strdup (input);
+		len = text? strlen (input): 0;
 	}
-
-	const size_t out_cap = 64 * 1024;
-	u8 *buffer = (u8 *)malloc (out_cap);
-	if (!buffer) {
-		free (asm_text);
+	if (!text) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
-
-	HBCEncBuf eb = (HBCEncBuf){ .buffer = buffer, .buffer_size = out_cap, .bytes_written = 0 };
-	Result r = hbc_enc_multi (asm_text, 96, &eb);
-	free (asm_text);
-	if (r.code != RESULT_SUCCESS) {
-		free (buffer);
-		return r;
+	if (!len) {
+		free (text);
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Empty input");
 	}
-	r = write_bytes (output, buffer, eb.bytes_written);
+	const size_t cap = 64 * 1024;
+	u8 *buffer = malloc (cap);
+	if (!buffer) {
+		free (text);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	HBCEncBuf eb = { .buffer = buffer, .buffer_size = cap, .bytes_written = 0 };
+	Result r = hbc_enc_multi (text, 96, &eb);
+	free (text);
+	if (r.code == RESULT_SUCCESS) {
+		r = write_out (output, buffer, eb.bytes_written, true);
+	}
 	free (buffer);
 	return r;
 }
 
 static Result cmd_a(const CliContext *ctx, int argc, char **argv) {
-	if (argc < 1) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s a <asm_instruction> [output_file]", ctx->program_name);
+	(void)ctx;
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: a <asm_instruction> [output_file]");
 	}
-	const char *output = (argc >= 2)? argv[1]: NULL;
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-	return encode_asm (argv[0], false, output);
+	return encode_asm (argv[0], false, argc == 2? argv[1]: NULL);
 }
 
 static Result cmd_asm(const CliContext *ctx, int argc, char **argv) {
-	if (argc < 1) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s asm <asm_file> [output_file]", ctx->program_name);
+	(void)ctx;
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: asm <asm_file> [output_file]");
 	}
-	const char *output = (argc >= 2)? argv[1]: NULL;
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-	return encode_asm (argv[0], true, output);
+	return encode_asm (argv[0], true, argc == 2? argv[1]: NULL);
 }
 
 static Result cmd_r(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: r <input_file> [output_file]");
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: r <input> [output]");
 	}
-	const char *input = argv[0];
-	const char *output = (argc >= 2)? argv[1]: NULL;
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-	return _hbc_generate_r2_script (input, output);
+	return _hbc_generate_r2_script (argv[0], argc == 2? argv[1]: NULL);
 }
 
 static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: v <input_file> [output_file]");
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: v <input> [output]");
 	}
-	const char *input = argv[0];
-	const char *output = (argc >= 2)? argv[1]: NULL;
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result r = hbc_open (input, &hbc);
-	if (r.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
-
-	/* Get header to verify validity */
-	HBCHeader header;
-	r = hbc_get_header (hbc, &header);
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	HBCHeader h;
+	Result r = hbc_get_header (hbc, &h);
 	if (r.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return r;
 	}
-
-	/* Basic validation: check magic and version */
-	StringBuffer sb;
-	r = _hbc_string_buffer_init (&sb, 1024);
-	if (r.code != RESULT_SUCCESS) {
+	Result err = SUCCESS_RESULT ();
+	FILE *out = open_out (argc == 2? argv[1]: NULL, "w", &err);
+	if (!out) {
 		hbc_close (hbc);
-		return r;
+		return err;
 	}
-
-	_hbc_string_buffer_append (&sb, "HBC File Validation Report\n");
-	_hbc_string_buffer_append (&sb, "===========================\n\n");
-
-	_hbc_string_buffer_append_int (&sb, header.magic);
-	_hbc_string_buffer_append (&sb, " (magic)\n");
-
-	_hbc_string_buffer_append_int (&sb, header.version);
-	_hbc_string_buffer_append (&sb, " (version)\n");
-
-	_hbc_string_buffer_append_int (&sb, header.functionCount);
-	_hbc_string_buffer_append (&sb, " functions\n");
-
-	_hbc_string_buffer_append_int (&sb, header.stringCount);
-	_hbc_string_buffer_append (&sb, " strings\n");
-
-	_hbc_string_buffer_append (&sb, "\nFile appears valid.\n");
-
-	r = write_text (output, sb.data);
-	_hbc_string_buffer_free (&sb);
+	fprintf (out, "HBC File Validation Report\n===========================\n\n");
+	fprintf (out, "%llu (magic)\n%u (version)\n%u functions\n%u strings\n\nFile appears valid.\n",
+		(unsigned long long)h.magic, h.version, h.functionCount, h.stringCount);
+	if (out != stdout) {
+		fclose (out);
+	}
 	hbc_close (hbc);
-	return r;
+	return SUCCESS_RESULT ();
 }
 
 static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: h <input_file> [output_file]");
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: h <input> [output]");
 	}
-	const char *input = argv[0];
-	const char *output = (argc >= 2)? argv[1]: NULL;
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result r = hbc_open (input, &hbc);
-	if (r.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	HBCHeader hh;
-	r = hbc_get_header (hbc, &hh);
+	Result r = hbc_get_header (hbc, &hh);
 	if (r.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return r;
 	}
-
-	FILE *out = stdout;
-	if (output) {
-		out = fopen (output, "w");
-		if (!out) {
-			hbc_close (hbc);
-			return errorf (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file: %s", output);
-		}
+	Result err = SUCCESS_RESULT ();
+	FILE *out = open_out (argc == 2? argv[1]: NULL, "w", &err);
+	if (!out) {
+		hbc_close (hbc);
+		return err;
 	}
 	fprintf (out, "Hermes Bytecode File Header:\n");
 	fprintf (out, "  Magic: 0x%016llx\n", (unsigned long long)hh.magic);
@@ -455,7 +392,8 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	if (hh.version >= 99) {
 		fprintf (out, "  String Switch Instruction Count: %u\n", hh.numStringSwitchImms);
 	}
-	fprintf (out, "  %s: %u\n  CJS Module Count: %u\n", (hh.version < 78)? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
+	fprintf (out, "  %s: %u\n  CJS Module Count: %u\n",
+		hh.version < 78? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
 	if (hh.version >= 84) {
 		fprintf (out, "  Function Source Count: %u\n", hh.functionSourceCount);
 	}
@@ -464,7 +402,7 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	fprintf (out, "    Static Builtins: %s\n", hh.staticBuiltins? "Yes": "No");
 	fprintf (out, "    CJS Modules Statically Resolved: %s\n", hh.cjsModulesStaticallyResolved? "Yes": "No");
 	fprintf (out, "    Has Async: %s\n", hh.hasAsync? "Yes": "No");
-	if (output) {
+	if (out != stdout) {
 		fclose (out);
 	}
 	hbc_close (hbc);
@@ -473,33 +411,18 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 
 static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: f <input_file> [n]");
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: f <input> [n]");
 	}
-	const char *input = argv[0];
-	u32 n = 50;
-	if (argc >= 2) {
-		n = (u32)strtoul (argv[1], NULL, 0);
-		if (!n) {
-			n = 50;
-		}
-	}
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	u32 n = (argc == 2)? (u32)strtoul (argv[1], NULL, 0): 50;
+	if (!n) { n = 50; }
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 fc = hbc_function_count (hbc);
 	u32 count = fc < n? fc: n;
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc fi;
-		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
-			continue;
-		}
+		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) { continue; }
 		printf ("id=%u offset=0x%08x size=%u name=%s\n", i, fi.offset, fi.size, fi.name? fi.name: "");
 	}
 	hbc_close (hbc);
@@ -508,38 +431,23 @@ static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 
 static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 1) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: cmp <input_file> [n]");
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: cmp <input> [n]");
 	}
-	const char *input = argv[0];
-	u32 n = 100;
-	if (argc >= 2) {
-		n = (u32)strtoul (argv[1], NULL, 0);
-		if (!n) {
-			n = 100;
-		}
-	}
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	u32 n = (argc == 2)? (u32)strtoul (argv[1], NULL, 0): 100;
+	if (!n) { n = 100; }
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 fc = hbc_function_count (hbc);
 	u32 count = fc < n? fc: n;
 
-	const char *py_path = "parser.txt";
-	FILE *py = fopen (py_path, "r");
+	FILE *py = fopen ("parser.txt", "r");
 	if (!py) {
 		hbc_close (hbc);
-		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", py_path);
+		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open parser.txt");
 	}
-
-	u32 *py_sizes = (u32 *)calloc (count, sizeof (u32));
-	u32 *py_offs = (u32 *)calloc (count, sizeof (u32));
+	u32 *py_sizes = calloc (count, sizeof (u32));
+	u32 *py_offs = calloc (count, sizeof (u32));
 	if (!py_sizes || !py_offs) {
 		fclose (py);
 		hbc_close (hbc);
@@ -547,52 +455,32 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 		free (py_offs);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
-
 	char line[4096];
 	while (fgets (line, sizeof (line), py)) {
-		const char *needle = "=> [Function #";
-		char *p = strstr (line, needle);
-		if (!p) {
-			continue;
-		}
-		p += strlen (needle);
+		char *p = strstr (line, "=> [Function #");
+		if (!p) { continue; }
+		p += strlen ("=> [Function #");
 		char *end = NULL;
 		long id = strtol (p, &end, 10);
-		if (end == p || id < 0 || (u32)id >= count) {
-			continue;
-		}
+		if (end == p || id < 0 || (u32)id >= count) { continue; }
 		char *ofp = strstr (end, " of ");
-		if (!ofp) {
-			continue;
-		}
-		ofp += 4;
-		long sz = strtol (ofp, &end, 10);
-		if (end == ofp || sz < 0) {
-			continue;
-		}
+		if (!ofp) { continue; }
+		long sz = strtol (ofp + 4, &end, 10);
+		if (end == ofp + 4 || sz < 0) { continue; }
 		char *offp = strstr (end, " at 0x");
-		if (!offp) {
-			continue;
-		}
-		offp += 6;
+		if (!offp) { continue; }
 		unsigned int off = 0;
-		if (sscanf (offp, "%x", &off) != 1) {
-			continue;
-		}
+		if (sscanf (offp + 6, "%x", &off) != 1) { continue; }
 		py_sizes[id] = (u32)sz;
 		py_offs[id] = (u32)off;
 	}
 	fclose (py);
-
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc fi;
-		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
-			continue;
-		}
-		u32 po = py_offs[i];
-		u32 ps = py_sizes[i];
-		const char *res = (fi.offset == po && fi.size == ps)? "OK": "MISMATCH";
-		printf ("id=%u C(off=0x%08x,sz=%u) PY(off=0x%08x,sz=%u) => %s\n", i, fi.offset, fi.size, po, ps, res);
+		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) { continue; }
+		const char *res = (fi.offset == py_offs[i] && fi.size == py_sizes[i])? "OK": "MISMATCH";
+		printf ("id=%u C(off=0x%08x,sz=%u) PY(off=0x%08x,sz=%u) => %s\n",
+			i, fi.offset, fi.size, py_offs[i], py_sizes[i], res);
 	}
 	free (py_sizes);
 	free (py_offs);
@@ -603,136 +491,93 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 static Result disasm_function(HBC *hbc, u32 function_id, char **out) {
 	const u8 *bytecode = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode, &bytecode_size);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
+	RETURN_IF_ERROR (hbc_get_function_bytecode (hbc, function_id, &bytecode, &bytecode_size));
 	HBCHeader hdr;
-	res = hbc_get_header (hbc, &hdr);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
-
+	RETURN_IF_ERROR (hbc_get_header (hbc, &hdr));
 	HBCFunc fi;
-	res = hbc_get_function_info (hbc, function_id, &fi);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
+	RETURN_IF_ERROR (hbc_get_function_info (hbc, function_id, &fi));
 
-	size_t cap = 4096;
-	size_t len = 0;
+	size_t cap = 4096, len = 0;
 	char *buf = malloc (cap);
 	if (!buf) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
 	buf[0] = '\0';
-
-	u32 offset = 0;
-	while (offset < bytecode_size) {
-		HBCInsnInfo insn_info;
-		memset (&insn_info, 0, sizeof (insn_info));
-		HBCDecodeCtx dec_ctx = {
-			.bytes = bytecode + offset,
-			.len = bytecode_size - offset,
-			.pc = fi.offset + offset,
-			.bytecode_version = hdr.version,
-			.asm_syntax = false,
-			.resolve_string_ids = false,
-			.string_tables = NULL,
+	for (u32 offset = 0; offset < bytecode_size; ) {
+		HBCInsnInfo ii = { 0 };
+		HBCDecodeCtx dc = {
+			.bytes = bytecode + offset, .len = bytecode_size - offset,
+			.pc = fi.offset + offset, .bytecode_version = hdr.version,
 			.hbc = hbc,
-			.build_objects = false
 		};
-		res = hbc_dec (&dec_ctx, &insn_info);
-		if (res.code != RESULT_SUCCESS || insn_info.size == 0) {
-			free (insn_info.text);
+		Result r = hbc_dec (&dc, &ii);
+		if (r.code != RESULT_SUCCESS || !ii.size) {
+			free (ii.text);
 			break;
 		}
-		const char *text = insn_info.text? insn_info.text: "";
-		size_t text_len = strlen (text);
-		if (len + text_len + 2 > cap) {
-			cap *= 2;
+		const char *text = ii.text? ii.text: "";
+		size_t tl = strlen (text);
+		if (len + tl + 2 > cap) {
+			cap = (len + tl + 2) * 2;
 			char *tmp = realloc (buf, cap);
 			if (!tmp) {
-				free (insn_info.text);
+				free (ii.text);
 				free (buf);
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 			}
 			buf = tmp;
 		}
-		memcpy (buf + len, text, text_len);
-		len += text_len;
+		memcpy (buf + len, text, tl);
+		len += tl;
 		buf[len++] = '\n';
 		buf[len] = '\0';
-		free (insn_info.text);
-		offset += insn_info.size;
+		free (ii.text);
+		offset += ii.size;
 	}
 	*out = buf;
 	return SUCCESS_RESULT ();
 }
 
 static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
-	if (argc < 3) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: %s cf <input_file> <python_dis_file> <function_id>", ctx->program_name);
+	(void)ctx;
+	if (argc != 3) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: cf <input> <python_dis_file> <function_id>");
 	}
-	const char *input = argv[0];
-	const char *python_dis_file = argv[1];
 	u32 function_id = (u32)strtoul (argv[2], NULL, 0);
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
-	u32 fc = hbc_function_count (hbc);
-	if (function_id >= fc) {
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	if (function_id >= hbc_function_count (hbc)) {
 		hbc_close (hbc);
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid function id %u", function_id);
 	}
-
 	char *disasm_str = NULL;
-	res = disasm_function (hbc, function_id, &disasm_str);
+	Result res = disasm_function (hbc, function_id, &disasm_str);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return res;
 	}
-
-	FILE *py = fopen (python_dis_file, "r");
+	FILE *py = fopen (argv[1], "r");
 	if (!py) {
 		free (disasm_str);
 		hbc_close (hbc);
-		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", python_dis_file);
+		return errorf (RESULT_ERROR_FILE_NOT_FOUND, "could not open %s", argv[1]);
 	}
-
-	char line_py[2048];
-	char *cbuf = disasm_str;
-	char line_c[2048];
+	char line_py[2048], line_c[2048];
 	size_t cpos = 0;
 	while (fgets (line_py, sizeof (line_py), py)) {
-		if (strncmp (line_py, ">> ", 3) != 0) {
-			continue;
+		if (strncmp (line_py, ">> ", 3)) { continue; }
+		while (disasm_str[cpos] && strncmp (disasm_str + cpos, "==> ", 4)) {
+			while (disasm_str[cpos] && disasm_str[cpos] != '\n') { cpos++; }
+			if (disasm_str[cpos] == '\n') { cpos++; }
 		}
-		while (cbuf[cpos] && strncmp (&cbuf[cpos], "==> ", 4) != 0) {
-			while (cbuf[cpos] && cbuf[cpos] != '\n') {
-				cpos++;
-			}
-			if (cbuf[cpos] == '\n') {
-				cpos++;
-			}
-		}
-		if (!cbuf[cpos]) {
-			break;
-		}
+		if (!disasm_str[cpos]) { break; }
 		size_t l = 0;
-		while (cbuf[cpos + l] && cbuf[cpos + l] != '\n' && l < sizeof (line_c) - 1) {
-			line_c[l] = cbuf[cpos + l];
+		while (disasm_str[cpos + l] && disasm_str[cpos + l] != '\n' && l < sizeof (line_c) - 1) {
+			line_c[l] = disasm_str[cpos + l];
 			l++;
 		}
 		line_c[l] = '\0';
-		cpos += l;
-		if (cbuf[cpos] == '\n') {
-			cpos++;
-		}
+		cpos += l + (disasm_str[cpos + l] == '\n');
 		printf ("C: %s\nP: %s\n\n", line_c, line_py);
 	}
 	fclose (py);
@@ -743,23 +588,15 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 
 static Result cmd_s(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 2) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: s <input_file> <index>");
+	if (argc != 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: s <input> <index>");
 	}
-	const char *input = argv[0];
 	long idx = strtol (argv[1], NULL, 10);
 	if (idx < 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid index");
 	}
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 sc = hbc_string_count (hbc);
 	if ((u32)idx >= sc) {
 		hbc_close (hbc);
@@ -774,25 +611,16 @@ static Result cmd_s(const CliContext *ctx, int argc, char **argv) {
 
 static Result cmd_fs(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 2) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: fs <input_file> <needle>");
+	if (argc != 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: fs <input> <needle>");
 	}
-	const char *input = argv[0];
-	const char *needle = argv[1];
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 sc = hbc_string_count (hbc);
 	for (u32 i = 0; i < sc; i++) {
 		const char *s = NULL;
 		hbc_get_string (hbc, i, &s);
-		if (s && strstr (s, needle)) {
+		if (s && strstr (s, argv[1])) {
 			printf ("idx=%u name=%s\n", i, s);
 		}
 	}
@@ -802,23 +630,15 @@ static Result cmd_fs(const CliContext *ctx, int argc, char **argv) {
 
 static Result cmd_sm(const CliContext *ctx, int argc, char **argv) {
 	(void)ctx;
-	if (argc < 2) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Usage: sm <input_file> <index>");
+	if (argc != 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: sm <input> <index>");
 	}
-	const char *input = argv[0];
 	long idx = strtol (argv[1], NULL, 10);
 	if (idx < 0) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid index");
 	}
-	if (argc > 2) {
-		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Unexpected argument: %s", argv[2]);
-	}
-
-	HBC *hbc = NULL;
-	Result res = hbc_open (input, &hbc);
-	if (res.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 sc = hbc_string_count (hbc);
 	if ((u32)idx >= sc) {
 		hbc_close (hbc);
@@ -833,10 +653,7 @@ static Result cmd_sm(const CliContext *ctx, int argc, char **argv) {
 
 /* ---------------------------------------------------------------------------
  * lit: SLP buffer literal inspection
- *
- * Subcommands:
- *   lit list    <file>                                scan code, list cache
- *   lit listj   <file>                                scan code, print JSON
+ *   lit list    <file>                                scan code, list cache (-j for JSON)
  *   lit get     <file> {a|o} <num> <primary> [<sec>]  format from raw params
  *   lit pool    <file> [a|o]                          enumerate SLP pool groups
  *   lit xrefs   <file>                                scan code, list xrefs
@@ -846,38 +663,34 @@ static const char *lit_kind_name(HBCLiteralKind k) {
 	return k == HBC_LIT_ARRAY? "array": "object";
 }
 
-static Result lit_list_impl(const char *input, bool as_json) {
-	HBC *hbc = NULL;
-	Result r = hbc_open (input, &hbc);
-	if (r.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
-	u32 n_scanned = 0;
-	r = hbc_literals_scan_code (hbc, &n_scanned);
+static Result lit_scan(const char *input, HBC **out_hbc, const HBCLiteralEntry **arr, u32 *n) {
+	RETURN_IF_ERROR (open_hbc (input, out_hbc));
+	u32 scanned = 0;
+	Result r = hbc_literals_scan_code (*out_hbc, &scanned);
 	if (r.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
+		hbc_close (*out_hbc);
 		return r;
 	}
+	hbc_literals_list (*out_hbc, arr, n);
+	return SUCCESS_RESULT ();
+}
+
+static Result lit_list_impl(const char *input, bool as_json) {
+	HBC *hbc;
 	const HBCLiteralEntry *arr = NULL;
 	u32 n = 0;
-	hbc_literals_list (hbc, &arr, &n);
+	RETURN_IF_ERROR (lit_scan (input, &hbc, &arr, &n));
 	if (as_json) {
 		printf ("[");
 		for (u32 i = 0; i < n; i++) {
 			const HBCLiteralEntry *e = &arr[i];
 			printf ("%s{\"kind\":\"%s\",\"num_items\":%u,"
 				"\"primary_id\":%u,\"secondary_id\":%u,\"paddr\":%u,"
-				"\"xrefs\":%u,\"formatted\":",
+				"\"xrefs\":%u,\"formatted\":\"",
 				i? ",": "", lit_kind_name (e->kind), e->num_items,
-				e->primary_id, e->secondary_id, e->paddr,
-				e->xref_count);
-			/* Print string as a JSON string; we trust the formatter output to
-			 * be JS-valid but may contain double quotes — escape them. */
-			printf ("\"");
+				e->primary_id, e->secondary_id, e->paddr, e->xref_count);
 			for (const char *p = e->formatted; p && *p; p++) {
-				if (*p == '"' || *p == '\\') {
-					putchar ('\\');
-				}
+				if (*p == '"' || *p == '\\') { putchar ('\\'); }
 				putchar (*p);
 			}
 			printf ("\"}");
@@ -898,14 +711,11 @@ static Result lit_list_impl(const char *input, bool as_json) {
 }
 
 static Result lit_get_impl(const char *input, char kindc, u32 num, u32 primary, u32 secondary) {
-	HBC *hbc = NULL;
-	Result r = hbc_open (input, &hbc);
-	if (r.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (input, &hbc));
 	HBCLiteralKind kind = (kindc == 'a')? HBC_LIT_ARRAY: HBC_LIT_OBJECT;
 	char *text = NULL;
-	r = hbc_literals_format_raw (hbc, kind, num, primary, secondary, &text);
+	Result r = hbc_literals_format_raw (hbc, kind, num, primary, secondary, &text);
 	if (r.code == RESULT_SUCCESS && text) {
 		puts (text);
 	}
@@ -915,14 +725,11 @@ static Result lit_get_impl(const char *input, char kindc, u32 num, u32 primary, 
 }
 
 static Result lit_pool_impl(const char *input, HBCLiteralKind kind) {
-	HBC *hbc = NULL;
-	Result r = hbc_open (input, &hbc);
-	if (r.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (input, &hbc));
 	HBCPoolGroup *groups = NULL;
 	u32 n = 0;
-	r = hbc_literals_scan_pool (hbc, kind, &groups, &n);
+	Result r = hbc_literals_scan_pool (hbc, kind, &groups, &n);
 	if (r.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return r;
@@ -930,8 +737,7 @@ static Result lit_pool_impl(const char *input, HBCLiteralKind kind) {
 	printf ("%s pool: %u groups\n", lit_kind_name (kind), n);
 	for (u32 i = 0; i < n; i++) {
 		printf ("  paddr=0x%08x pool_off=0x%08x n=%-4u tag=%u\n",
-			groups[i].paddr, groups[i].pool_offset, groups[i].num_items,
-			groups[i].tag);
+			groups[i].paddr, groups[i].pool_offset, groups[i].num_items, groups[i].tag);
 	}
 	free (groups);
 	hbc_close (hbc);
@@ -939,26 +745,15 @@ static Result lit_pool_impl(const char *input, HBCLiteralKind kind) {
 }
 
 static Result lit_xrefs_impl(const char *input) {
-	HBC *hbc = NULL;
-	Result r = hbc_open (input, &hbc);
-	if (r.code != RESULT_SUCCESS || !hbc) {
-		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
-	}
-	u32 n_scanned = 0;
-	r = hbc_literals_scan_code (hbc, &n_scanned);
-	if (r.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return r;
-	}
+	HBC *hbc;
 	const HBCLiteralEntry *arr = NULL;
 	u32 n = 0;
-	hbc_literals_list (hbc, &arr, &n);
+	RETURN_IF_ERROR (lit_scan (input, &hbc, &arr, &n));
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
 		for (u32 j = 0; j < e->xref_count; j++) {
 			printf ("0x%08x -> %s 0x%08x  (n=%u)\n",
-				e->xref_addrs[j], lit_kind_name (e->kind),
-				e->paddr, e->num_items);
+				e->xref_addrs[j], lit_kind_name (e->kind), e->paddr, e->num_items);
 		}
 	}
 	hbc_close (hbc);
@@ -966,12 +761,10 @@ static Result lit_xrefs_impl(const char *input) {
 }
 
 static Result cmd_lit(const CliContext *ctx, int argc, char **argv) {
-	(void)ctx;
 	if (argc < 2) {
 		fprintf (stderr,
 			"Usage:\n"
-			"  lit list    <file>\n"
-			"  lit listj   <file>\n"
+			"  lit list    <file>                 (use -j for JSON)\n"
 			"  lit get     <file> {a|o} <num> <primary> [<secondary>]\n"
 			"  lit pool    <file> [a|o]           (default: a)\n"
 			"  lit xrefs   <file>\n");
@@ -980,16 +773,10 @@ static Result cmd_lit(const CliContext *ctx, int argc, char **argv) {
 	const char *sub = argv[0];
 	const char *input = argv[1];
 	if (streq (sub, "list")) {
-		return lit_list_impl (input, false);
-	}
-	if (streq (sub, "listj")) {
-		return lit_list_impl (input, true);
+		return lit_list_impl (input, ctx->flags.json);
 	}
 	if (streq (sub, "pool")) {
-		HBCLiteralKind kind = HBC_LIT_ARRAY;
-		if (argc >= 3 && argv[2][0] == 'o') {
-			kind = HBC_LIT_OBJECT;
-		}
+		HBCLiteralKind kind = (argc >= 3 && argv[2][0] == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
 		return lit_pool_impl (input, kind);
 	}
 	if (streq (sub, "xrefs")) {
@@ -1000,52 +787,52 @@ static Result cmd_lit(const CliContext *ctx, int argc, char **argv) {
 			return errorf (RESULT_ERROR_INVALID_ARGUMENT,
 				"Usage: lit get <file> {a|o} <num> <primary> [<secondary>]");
 		}
-		char kindc = argv[2][0];
-		u32 num = (u32)strtoul (argv[3], NULL, 0);
-		u32 primary = (u32)strtoul (argv[4], NULL, 0);
-		u32 secondary = (argc > 5)? (u32)strtoul (argv[5], NULL, 0): 0;
-		return lit_get_impl (input, kindc, num, primary, secondary);
+		return lit_get_impl (input, argv[2][0],
+			(u32)strtoul (argv[3], NULL, 0),
+			(u32)strtoul (argv[4], NULL, 0),
+			argc > 5? (u32)strtoul (argv[5], NULL, 0): 0);
 	}
 	return errorf (RESULT_ERROR_INVALID_ARGUMENT, "unknown lit subcommand: %s", sub);
 }
 
 static const Command commands[] = {
-	{ "d", "Disassemble a Hermes bytecode file", cmd_d },
-	{ "c", "Decompile a Hermes bytecode file", cmd_c },
-	{ "dis", "Disassemble raw hex bytes (rasm2-like)", cmd_dis },
-	{ "a", "Assemble a single instruction", cmd_a },
-	{ "asm", "Assemble instructions from file", cmd_asm },
-	{ "h", "Display header information", cmd_h },
-	{ "v", "Validate file and show details", cmd_v },
-	{ "r", "Generate an r2 script with function flags", cmd_r },
-	{ "f", "Dump first N function headers", cmd_f },
-	{ "cmp", "Compare first N funcs with parser.txt", cmd_cmp },
-	{ "cf", "Compare one function vs Python disasm", cmd_cf },
-	{ "s", "Print a string by index", cmd_s },
-	{ "fs", "Find strings by substring", cmd_fs },
-	{ "sm", "Show string entry metadata", cmd_sm },
+	{ "d",   "Disassemble a Hermes bytecode file",       cmd_d   },
+	{ "c",   "Decompile a Hermes bytecode file",         cmd_c   },
+	{ "dis", "Disassemble raw hex bytes (rasm2-like)",   cmd_dis },
+	{ "a",   "Assemble a single instruction",            cmd_a   },
+	{ "asm", "Assemble instructions from file",          cmd_asm },
+	{ "h",   "Display header information",               cmd_h   },
+	{ "v",   "Validate file and show details",           cmd_v   },
+	{ "r",   "Generate an r2 script with function flags",cmd_r   },
+	{ "f",   "Dump first N function headers",            cmd_f   },
+	{ "cmp", "Compare first N funcs with parser.txt",    cmd_cmp },
+	{ "cf",  "Compare one function vs Python disasm",    cmd_cf  },
+	{ "s",   "Print a string by index",                  cmd_s   },
+	{ "fs",  "Find strings by substring",                cmd_fs  },
+	{ "sm",  "Show string entry metadata",               cmd_sm  },
 	{ "lit", "SLP buffer literals: list, get, pool, xrefs", cmd_lit },
 };
+#define COMMANDS_N (sizeof (commands) / sizeof (commands[0]))
 
 static void print_usage(const char *program_name) {
-	printf ("Usage: %s <command> <args...>\n\n", program_name);
-	printf ("Commands:\n");
-	for (size_t i = 0; i < sizeof (commands) / sizeof (commands[0]); i++) {
+	printf ("Usage: %s <command> <args...>\n\nCommands:\n", program_name);
+	for (size_t i = 0; i < COMMANDS_N; i++) {
 		printf ("  %-5s %s\n", commands[i].name, commands[i].help);
 	}
-	printf ("\nOptions:\n");
-	printf ("  --verbose, -v            Show detailed metadata (d)\n");
-	printf ("  --json, -j               Output in JSON format (d)\n");
-	printf ("  --bytecode, -b           Show raw bytecode bytes (d)\n");
-	printf ("  --debug, -d              Show debug information (d)\n");
-	printf ("  --asmsyntax              Use CPU-like asm syntax (d, dis)\n");
-	printf ("  --pretty-literals, -P    Force multi-line literals (c)\n");
-	printf ("  --no-pretty-literals, -N Force single-line literals (c)\n");
-	printf ("  --no-comments, -C        Suppress comments in output (c)\n");
+	printf ("\nOptions (may appear anywhere after the command):\n");
+	printf ("  --json, -j               JSON output (lit list)\n");
+	printf ("  --asmsyntax              CPU-like asm syntax (dis)\n");
+	printf ("  --verbose, -v            Verbose output\n");
+	printf ("  --bytecode, -b           Include bytecode bytes\n");
+	printf ("  --debug, -d              Include debug info\n");
+	printf ("  --pretty-literals, -P    Force multi-line literals\n");
+	printf ("  --no-pretty-literals, -N Force single-line literals\n");
+	printf ("  --no-comments, -C        Suppress comments\n");
+	printf ("  --                       End of options marker\n");
 }
 
 static const Command *find_command(const char *name) {
-	for (size_t i = 0; i < sizeof (commands) / sizeof (commands[0]); i++) {
+	for (size_t i = 0; i < COMMANDS_N; i++) {
 		if (streq (name, commands[i].name)) {
 			return &commands[i];
 		}
@@ -1054,21 +841,23 @@ static const Command *find_command(const char *name) {
 }
 
 int main(int argc, char **argv) {
-	CliContext ctx = { argv[0] };
+	CliContext ctx = { argv[0], { 0 } };
 	if (argc < 2) {
 		print_usage (ctx.program_name);
 		return 1;
 	}
-
-	const char *command_name = argv[1];
-	const Command *cmd = find_command (command_name);
+	const Command *cmd = find_command (argv[1]);
 	if (!cmd) {
 		print_usage (ctx.program_name);
-		eprintf ("Unknown command: %s", command_name);
+		eprintf ("Unknown command: %s", argv[1]);
 		return 1;
 	}
-
-	Result r = cmd->handler (&ctx, argc - 2, argv + 2);
+	int rest_argc = argc - 2;
+	char **rest_argv = argv + 2;
+	Result r = parse_flags (&ctx.flags, &rest_argc, rest_argv);
+	if (r.code == RESULT_SUCCESS) {
+		r = cmd->handler (&ctx, rest_argc, rest_argv);
+	}
 	if (r.code != RESULT_SUCCESS) {
 		eprintf ("%s", r.error_message[0]? r.error_message: "Unknown error");
 		return 1;
