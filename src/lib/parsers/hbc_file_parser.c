@@ -1077,6 +1077,7 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 
 	/* Read array buffer */
 	if (reader->header.arrayBufferSize > 0) {
+		reader->arrays_paddr = (u32)reader->file_buffer.position;
 		reader->arrays = (u8 *)malloc (reader->header.arrayBufferSize);
 		if (!reader->arrays) {
 			hbc_debug_printf ("Failed to allocate %u bytes for array buffer\n", reader->header.arrayBufferSize);
@@ -1108,6 +1109,7 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 			reader->header.objKeyBufferSize = 0;
 		} else {
 			/* Safe to read object keys */
+			reader->object_keys_paddr = (u32)reader->file_buffer.position;
 			reader->object_keys = (u8 *)malloc (reader->header.objKeyBufferSize);
 			if (!reader->object_keys) {
 				fprintf (stderr, "Failed to allocate %u bytes for object key buffer\n", reader->header.objKeyBufferSize);
@@ -1149,6 +1151,7 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 		}
 		reader->literal_values = reader->arrays;
 		reader->object_values = reader->arrays;
+		reader->object_values_paddr = reader->arrays_paddr;
 		return SUCCESS_RESULT ();
 	}
 
@@ -1164,6 +1167,7 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 			reader->header.objValueBufferSize = 0;
 		} else {
 			/* Safe to read object values */
+			reader->object_values_paddr = (u32)reader->file_buffer.position;
 			reader->object_values = (u8 *)malloc (reader->header.objValueBufferSize);
 			if (!reader->object_values) {
 				fprintf (stderr, "Failed to allocate %u bytes for object value buffer\n", reader->header.objValueBufferSize);

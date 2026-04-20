@@ -67,6 +67,7 @@ lib_opcodes_src = files(
 
 lib_core_src = files(
   'src/lib/hbc.c',
+  'src/lib/literals_api.c',
   'src/lib/r2.c'
 )
 

@@ -2,6 +2,7 @@
 
 #include <r_bin.h>
 #include <hbc/hbc.h>
+#include <hbc/literals.h>
 #include "utils.inc.c"
 
 #define HEADER_MAGIC 0x1f1903c103bc1fc6ULL
@@ -172,6 +173,26 @@ static RBinInfo *bininfo(RBinFile *bf) {
 	return ret;
 }
 
+/* Helper: append a section if the pool is present. Owns no strings — `name`
+ * is duplicated into a heap-allocated section name via strdup. */
+static void add_pool_section(RList *list, const char *name, ut64 paddr, ut64 size) {
+	if (!size || !paddr) {
+		return;
+	}
+	RBinSection *s = R_NEW0 (RBinSection);
+	if (!s) {
+		return;
+	}
+	s->name = strdup (name);
+	s->size = size;
+	s->vsize = size;
+	s->paddr = paddr;
+	s->vaddr = HBC_VADDR_BASE + paddr;
+	s->perm = R_PERM_R;
+	s->add = true;
+	r_list_append (list, s);
+}
+
 static RList *sections(RBinFile *bf) {
 	RList *sections = r_list_newf ((RListFree)free);
 	if (!sections) {
@@ -187,6 +208,21 @@ static RList *sections(RBinFile *bf) {
 	section->perm = R_PERM_R;
 	section->add = true;
 	r_list_append (sections, section);
+
+	/* SLP pool subsections — gives `iS` a quick map of where the buffer
+	 * literals live, and lets users `s` / `pd @` straight into them. */
+	HBC *hbc = get_hbc (bf);
+	if (hbc) {
+		add_pool_section (sections, "slp.arrays",
+			hbc_get_pool_paddr (hbc, HBC_LIT_ARRAY),
+			hbc_get_pool_size (hbc, HBC_LIT_ARRAY));
+		add_pool_section (sections, "slp.object_keys",
+			hbc_get_pool_paddr (hbc, HBC_LIT_OBJECT),
+			hbc_get_pool_size (hbc, HBC_LIT_OBJECT));
+		add_pool_section (sections, "slp.object_values",
+			hbc_get_object_values_paddr (hbc),
+			hbc_get_object_values_size (hbc));
+	}
 
 	return sections;
 }
@@ -263,6 +299,38 @@ static RList *symbols(RBinFile *bf) {
 		r_list_append (symbols, symbol);
 		free (final);
 		free (san);
+	}
+
+	/* SLP pool groups as symbols — one per group discovered by the
+	 * pool-side linear scan. Lets users see `lit.arr.* / lit.obj.*` in `is`
+	 * without needing to run pd:hLs. The scan is linear in pool size and
+	 * runs at RBin load time. */
+	for (int k = 0; k < 2; k++) {
+		HBCLiteralKind kind = k? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
+		const char *prefix = k? "lit.obj.": "lit.arr.";
+		HBCPoolGroup *groups = NULL;
+		u32 n = 0;
+		if (hbc_literals_scan_pool (hbc, kind, &groups, &n).code
+				!= RESULT_SUCCESS || !groups) {
+			continue;
+		}
+		for (u32 i = 0; i < n; i++) {
+			RBinSymbol *sym = R_NEW0 (RBinSymbol);
+			if (!sym) {
+				continue;
+			}
+			char *nm = r_str_newf ("%s0x%x", prefix, groups[i].paddr);
+			sym->name = r_bin_name_new (nm);
+			r_bin_name_filtered (sym->name, nm);
+			sym->paddr = groups[i].paddr;
+			sym->vaddr = HBC_VADDR_BASE + groups[i].paddr;
+			sym->size = 1;
+			sym->type = R_BIN_TYPE_OBJECT_STR;
+			sym->bits = 32;
+			r_list_append (symbols, sym);
+			free (nm);
+		}
+		free (groups);
 	}
 
 	return symbols;

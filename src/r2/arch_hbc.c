@@ -2,6 +2,7 @@
 
 #include <r_anal.h>
 #include <hbc/hbc.h>
+#include <hbc/literals.h>
 #include <hbc/opcodes.h>
 #include <hbc/bytecode.h>
 #include <hbc/parser.h>
@@ -232,7 +233,11 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.string_tables = &string_tables,
 		.hbc = hs->hbc,
 };
-	if (mask & R_ARCH_OP_MASK_ESIL && mask & R_ARCH_OP_MASK_DISASM) {
+	/* Inlining of buffer-literal contents into the disasm line is opt-in —
+	 * it makes arch.decode O(n) in literal size and breaks r2's O(1) per-op
+	 * disasm assumption. Toggle via `e hbc.inline_buffer_literals=true`
+	 * (core plugin updates a process-wide flag). */
+	if ((mask & R_ARCH_OP_MASK_DISASM) && hbc_get_inline_literals ()) {
 		ctx.build_objects = true;
 	}
 

@@ -239,6 +239,11 @@ struct HBCReader {
 	ShapeTableEntry *object_shapes;
 	size_t object_shape_count;
 
+	/* Absolute file offsets of the SLP pools (0 if the pool is absent). */
+	u32 arrays_paddr;
+	u32 object_keys_paddr;
+	u32 object_values_paddr;
+
 	/* BigInt data */
 	i64 *bigint_values;
 	size_t bigint_count;

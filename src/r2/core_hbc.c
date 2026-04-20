@@ -4,7 +4,10 @@
 
 #include <r_core.h>
 #include <hbc/hbc.h>
+#include <hbc/literals.h>
 #include "utils.inc.c"
+
+#define HBC_VADDR_BASE 0x10000000ULL
 
 /* Plugin registration - need these when HBC_CORE_REGISTER_PLUGINS is enabled */
 #ifdef HBC_CORE_REGISTER_PLUGINS
@@ -502,6 +505,254 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	free (output);
 }
 
+/* ==========================================================================
+ * Literal-buffer commands (pd:hL*)
+ *
+ * Work against the lazy HBC literal cache. Registration in r2 is additive:
+ * flags (lit.arr.* / lit.obj.*) and CC comments are created at the literal
+ * paddr; code→data xrefs are added for every call site. None of this is
+ * attempted while plain disasm runs — the cache only populates on demand.
+ * ========================================================================== */
+
+static const char *lit_kind_prefix(HBCLiteralKind k) {
+	return k == HBC_LIT_ARRAY? "lit.arr.": "lit.obj.";
+}
+
+/* Register r2 artifacts for one cache entry. Safe to call repeatedly. */
+static void register_r2_artifacts(RCore *core, const HBCLiteralEntry *e) {
+	if (!e->paddr) {
+		return;
+	}
+	ut64 vaddr = HBC_VADDR_BASE + (ut64)e->paddr;
+	char flag_name[64];
+	snprintf (flag_name, sizeof (flag_name), "%s0x%x", lit_kind_prefix (e->kind), e->paddr);
+	r_flag_set (core->flags, flag_name, vaddr, 1);
+	if (e->formatted && *e->formatted) {
+		r_meta_set_string (core->anal, R_META_TYPE_COMMENT, vaddr, e->formatted);
+	}
+	for (u32 i = 0; i < e->xref_count; i++) {
+		ut64 from = HBC_VADDR_BASE + (ut64)e->xref_addrs[i];
+		r_anal_xrefs_set (core->anal, from, vaddr, R_ANAL_REF_TYPE_DATA);
+	}
+}
+
+static void register_all_artifacts(RCore *core, HBC *hbc) {
+	const HBCLiteralEntry *arr = NULL;
+	u32 n = 0;
+	if (hbc_literals_list (hbc, &arr, &n).code != RESULT_SUCCESS) {
+		return;
+	}
+	for (u32 i = 0; i < n; i++) {
+		register_r2_artifacts (core, &arr[i]);
+	}
+}
+
+static const char *kind_label(HBCLiteralKind k) {
+	return k == HBC_LIT_ARRAY? "array": "object";
+}
+
+/* Make sure the current binary is loaded into the core plugin's HbcContext. */
+static Result ensure_hbc_loaded(HbcContext *ctx, RCore *core, HBC **out) {
+	Result res = hbc_load_current_binary (ctx, core);
+	if (res.code == RESULT_SUCCESS) {
+		*out = ctx->hbc;
+	}
+	return res;
+}
+
+static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
+	HBC *hbc = NULL;
+	Result r = ensure_hbc_loaded (ctx, core, &hbc);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	const HBCLiteralEntry *arr = NULL;
+	u32 n = 0;
+	if (hbc_literals_list (hbc, &arr, &n).code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("list failed");
+		return;
+	}
+	if (n == 0) {
+		r_cons_println (core->cons, "(cache empty — run pd:hLs to scan)");
+		return;
+	}
+	if (as_json) {
+		PJ *pj = r_core_pj_new (core);
+		pj_a (pj);
+		for (u32 i = 0; i < n; i++) {
+			const HBCLiteralEntry *e = &arr[i];
+			pj_o (pj);
+			pj_ks (pj, "kind", kind_label (e->kind));
+			pj_kn (pj, "num_items", e->num_items);
+			pj_kn (pj, "primary_id", e->primary_id);
+			pj_kn (pj, "secondary_id", e->secondary_id);
+			pj_kn (pj, "paddr", e->paddr);
+			pj_kn (pj, "vaddr", HBC_VADDR_BASE + e->paddr);
+			pj_ks (pj, "formatted", e->formatted? e->formatted: "");
+			pj_ka (pj, "xrefs");
+			for (u32 j = 0; j < e->xref_count; j++) {
+				pj_N (pj, HBC_VADDR_BASE + (ut64)e->xref_addrs[j]);
+			}
+			pj_end (pj);
+			pj_end (pj);
+		}
+		pj_end (pj);
+		char *s = pj_drain (pj);
+		r_cons_println (core->cons, s);
+		free (s);
+		return;
+	}
+	r_cons_printf (core->cons, "literals: %u\n", n);
+	for (u32 i = 0; i < n; i++) {
+		const HBCLiteralEntry *e = &arr[i];
+		r_cons_printf (core->cons,
+			"%-6s n=%-4u id=(%u,%u) paddr=0x%08x xrefs=%u  %s\n",
+			kind_label (e->kind), e->num_items, e->primary_id,
+			e->secondary_id, e->paddr, e->xref_count,
+			e->formatted? e->formatted: "");
+	}
+}
+
+static void cmd_lit_scan_code(HbcContext *ctx, RCore *core) {
+	HBC *hbc = NULL;
+	Result r = ensure_hbc_loaded (ctx, core, &hbc);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	u32 n = 0;
+	r = hbc_literals_scan_code (hbc, &n);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("scan failed: %s", safe_errmsg (r.error_message));
+		return;
+	}
+	register_all_artifacts (core, hbc);
+	r_cons_printf (core->cons, "scanned code, %u distinct literals (flags + xrefs registered)\n", n);
+}
+
+static void cmd_lit_scan_pool(HbcContext *ctx, RCore *core, HBCLiteralKind kind) {
+	HBC *hbc = NULL;
+	Result r = ensure_hbc_loaded (ctx, core, &hbc);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	HBCPoolGroup *groups = NULL;
+	u32 n = 0;
+	r = hbc_literals_scan_pool (hbc, kind, &groups, &n);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("pool scan failed: %s", safe_errmsg (r.error_message));
+		return;
+	}
+	r_cons_printf (core->cons, "%s pool: %u groups\n", kind_label (kind), n);
+	for (u32 i = 0; i < n; i++) {
+		r_cons_printf (core->cons,
+			"  paddr=0x%08x pool_off=0x%08x n=%-4u tag=%u\n",
+			groups[i].paddr, groups[i].pool_offset, groups[i].num_items,
+			groups[i].tag);
+	}
+	free (groups);
+}
+
+static void cmd_lit_reset(HbcContext *ctx, RCore *core) {
+	HBC *hbc = NULL;
+	Result r = ensure_hbc_loaded (ctx, core, &hbc);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	hbc_literals_reset (hbc);
+	r_cons_println (core->cons, "literal cache reset (r2 flags/comments/xrefs kept — use 'f- lit.*' to drop)");
+}
+
+static void cmd_lit_get(HbcContext *ctx, RCore *core, const char *args) {
+	HBC *hbc = NULL;
+	Result r = ensure_hbc_loaded (ctx, core, &hbc);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	/* Syntax: pd:hLg a <num> <array_id>        (array)
+	 *         pd:hLg o <num> <primary> [<sec>] (object)  */
+	char kindc = 0;
+	u64 num = 0, primary = 0, secondary = 0;
+	if (!args || sscanf (args, " %c %" SCNu64 " %" SCNu64 " %" SCNu64,
+			&kindc, &num, &primary, &secondary) < 3) {
+		R_LOG_ERROR ("usage: pd:hLg {a|o} <num_items> <primary_id> [<secondary_id>]");
+		return;
+	}
+	HBCLiteralKind kind = (kindc == 'a')? HBC_LIT_ARRAY: HBC_LIT_OBJECT;
+	char *text = NULL;
+	r = hbc_literals_format_raw (hbc, kind, (u32)num, (u32)primary,
+		(u32)secondary, &text);
+	if (r.code != RESULT_SUCCESS || !text) {
+		R_LOG_ERROR ("format failed: %s", safe_errmsg (r.error_message));
+		free (text);
+		return;
+	}
+	r_cons_println (core->cons, text);
+	free (text);
+}
+
+static void cmd_lit_toggle_inline(RCore *core) {
+	bool cur = hbc_get_inline_literals ();
+	bool next = !cur;
+	hbc_set_inline_literals (next);
+	r_config_set_b (core->config, "hbc.inline_buffer_literals", next);
+	r_cons_printf (core->cons, "inline buffer literals: %s\n", next? "on": "off");
+}
+
+static const char LIT_HELP[] =
+	"Usage: pd:hL[subcmd]\n"
+	" pd:hL            List cached literals\n"
+	" pd:hLj           List as JSON\n"
+	" pd:hLs           Scan all code; register literals as flags/xrefs/comments\n"
+	" pd:hLp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
+	" pd:hLr           Reset literal cache (does not remove r2 flags/comments)\n"
+	" pd:hLg <k> <n> <primary> [<sec>]\n"
+	"                  Format a literal from raw params (k=a|o)\n"
+	" pd:hLi           Toggle inline literal comments in disasm\n"
+	" pd:hL?           This help\n";
+
+static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
+	while (*arg && isspace ((unsigned char)*arg)) {
+		arg++;
+	}
+	switch (*arg) {
+	case 0:
+		cmd_lit_list (ctx, core, false);
+		break;
+	case 'j':
+		cmd_lit_list (ctx, core, true);
+		break;
+	case 's':
+		cmd_lit_scan_code (ctx, core);
+		break;
+	case 'p': {
+		char k = arg[1];
+		HBCLiteralKind kind = (k == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
+		cmd_lit_scan_pool (ctx, core, kind);
+		break;
+	}
+	case 'r':
+		cmd_lit_reset (ctx, core);
+		break;
+	case 'g':
+		cmd_lit_get (ctx, core, arg + 1);
+		break;
+	case 'i':
+		cmd_lit_toggle_inline (core);
+		break;
+	case '?':
+		r_cons_print (core->cons, LIT_HELP);
+		break;
+	default:
+		R_LOG_ERROR ("Unknown subcommand. Use pd:hL? for help");
+		break;
+	}
+}
+
 /* Show help */
 static void cmd_help(RCore *core) {
 	r_cons_print (core->cons,
@@ -516,6 +767,7 @@ static void cmd_help(RCore *core) {
 		"  pd:hj [id]     - JSON output for function\n"
 		"  pd:ho [id]     - Decompile with offsets (addresses) per statement\n"
 		"  pd:hoa         - Decompile all with offsets\n"
+		"  pd:hL[?]       - SLP literal cache: list/scan/reset (see pd:hL?)\n"
 		"  pd:h?          - Show this help\n"
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
@@ -582,6 +834,9 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 		}
 		break;
 	}
+	case 'L': /* pd:hL* — literal cache / buffer-literal commands */
+		cmd_literals (ctx, core, arg + 1);
+		break;
 	case '?': /* pd:h? */
 		cmd_help (core);
 		break;
@@ -590,6 +845,13 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 		break;
 	}
 
+	return true;
+}
+
+static bool cb_inline_buffer_literals(void *user, void *data) {
+	(void)user;
+	RConfigNode *node = (RConfigNode *)data;
+	hbc_set_inline_literals (node && node->i_value);
 	return true;
 }
 
@@ -681,6 +943,15 @@ static bool plugin_init(RCorePluginSession *s) {
 	node = r_config_set_i (cfg, "hbc.max_bytes", 262144);
 	if (node) {
 		r_config_node_desc (node, "Stop decompilation once total output reaches N bytes (0=unlimited)");
+	}
+
+	/* Default off: inlining the SLP literal as a disasm-line comment makes
+	 * arch.decode O(n) in literal size. Use pd:hL* to inspect literals
+	 * without impacting disasm speed. */
+	hbc_set_inline_literals (false);
+	node = r_config_set_b_cb (cfg, "hbc.inline_buffer_literals", false, cb_inline_buffer_literals);
+	if (node) {
+		r_config_node_desc (node, "Inline SLP buffer literals as comments in disasm (slow; default off)");
 	}
 
 	r_config_lock (cfg, true);

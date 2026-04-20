@@ -3,6 +3,7 @@
 #include <hbc/disasm.h>
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/decompilation/literals.h>
+#include <hbc/literals.h>
 #include <hbc/hermes_encoder.h>
 #include <hbc/parser.h>
 #include <hbc/bytecode.h>
@@ -127,6 +128,7 @@ void hbc_close(HBC *hbc) {
 	if (!hbc) {
 		return;
 	}
+	hbc_literals_reset (hbc);
 	_hbc_reader_cleanup (&hbc->reader);
 	free (hbc);
 }

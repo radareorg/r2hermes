@@ -1,5 +1,6 @@
 #include <hbc/common.h>
 #include <hbc/hbc.h>
+#include <hbc/literals.h>
 #include <hbc/decompilation/literals.h>
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/disasm.h>
@@ -830,6 +831,184 @@ static Result cmd_sm(const CliContext *ctx, int argc, char **argv) {
 	return SUCCESS_RESULT ();
 }
 
+/* ---------------------------------------------------------------------------
+ * lit: SLP buffer literal inspection
+ *
+ * Subcommands:
+ *   lit list    <file>                                scan code, list cache
+ *   lit listj   <file>                                scan code, print JSON
+ *   lit get     <file> {a|o} <num> <primary> [<sec>]  format from raw params
+ *   lit pool    <file> [a|o]                          enumerate SLP pool groups
+ *   lit xrefs   <file>                                scan code, list xrefs
+ * ------------------------------------------------------------------------- */
+
+static const char *lit_kind_name(HBCLiteralKind k) {
+	return k == HBC_LIT_ARRAY? "array": "object";
+}
+
+static Result lit_list_impl(const char *input, bool as_json) {
+	HBC *hbc = NULL;
+	Result r = hbc_open (input, &hbc);
+	if (r.code != RESULT_SUCCESS || !hbc) {
+		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 n_scanned = 0;
+	r = hbc_literals_scan_code (hbc, &n_scanned);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+	const HBCLiteralEntry *arr = NULL;
+	u32 n = 0;
+	hbc_literals_list (hbc, &arr, &n);
+	if (as_json) {
+		printf ("[");
+		for (u32 i = 0; i < n; i++) {
+			const HBCLiteralEntry *e = &arr[i];
+			printf ("%s{\"kind\":\"%s\",\"num_items\":%u,"
+				"\"primary_id\":%u,\"secondary_id\":%u,\"paddr\":%u,"
+				"\"xrefs\":%u,\"formatted\":",
+				i? ",": "", lit_kind_name (e->kind), e->num_items,
+				e->primary_id, e->secondary_id, e->paddr,
+				e->xref_count);
+			/* Print string as a JSON string; we trust the formatter output to
+			 * be JS-valid but may contain double quotes — escape them. */
+			printf ("\"");
+			for (const char *p = e->formatted; p && *p; p++) {
+				if (*p == '"' || *p == '\\') {
+					putchar ('\\');
+				}
+				putchar (*p);
+			}
+			printf ("\"}");
+		}
+		printf ("]\n");
+	} else {
+		printf ("literals: %u\n", n);
+		for (u32 i = 0; i < n; i++) {
+			const HBCLiteralEntry *e = &arr[i];
+			printf ("%-6s n=%-4u id=(%u,%u) paddr=0x%08x xrefs=%u  %s\n",
+				lit_kind_name (e->kind), e->num_items, e->primary_id,
+				e->secondary_id, e->paddr, e->xref_count,
+				e->formatted? e->formatted: "");
+		}
+	}
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
+static Result lit_get_impl(const char *input, char kindc, u32 num, u32 primary, u32 secondary) {
+	HBC *hbc = NULL;
+	Result r = hbc_open (input, &hbc);
+	if (r.code != RESULT_SUCCESS || !hbc) {
+		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	HBCLiteralKind kind = (kindc == 'a')? HBC_LIT_ARRAY: HBC_LIT_OBJECT;
+	char *text = NULL;
+	r = hbc_literals_format_raw (hbc, kind, num, primary, secondary, &text);
+	if (r.code == RESULT_SUCCESS && text) {
+		puts (text);
+	}
+	free (text);
+	hbc_close (hbc);
+	return r;
+}
+
+static Result lit_pool_impl(const char *input, HBCLiteralKind kind) {
+	HBC *hbc = NULL;
+	Result r = hbc_open (input, &hbc);
+	if (r.code != RESULT_SUCCESS || !hbc) {
+		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	HBCPoolGroup *groups = NULL;
+	u32 n = 0;
+	r = hbc_literals_scan_pool (hbc, kind, &groups, &n);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+	printf ("%s pool: %u groups\n", lit_kind_name (kind), n);
+	for (u32 i = 0; i < n; i++) {
+		printf ("  paddr=0x%08x pool_off=0x%08x n=%-4u tag=%u\n",
+			groups[i].paddr, groups[i].pool_offset, groups[i].num_items,
+			groups[i].tag);
+	}
+	free (groups);
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
+static Result lit_xrefs_impl(const char *input) {
+	HBC *hbc = NULL;
+	Result r = hbc_open (input, &hbc);
+	if (r.code != RESULT_SUCCESS || !hbc) {
+		return errorf (RESULT_ERROR_READ, "Failed to open file: %s", input);
+	}
+	u32 n_scanned = 0;
+	r = hbc_literals_scan_code (hbc, &n_scanned);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+	const HBCLiteralEntry *arr = NULL;
+	u32 n = 0;
+	hbc_literals_list (hbc, &arr, &n);
+	for (u32 i = 0; i < n; i++) {
+		const HBCLiteralEntry *e = &arr[i];
+		for (u32 j = 0; j < e->xref_count; j++) {
+			printf ("0x%08x -> %s 0x%08x  (n=%u)\n",
+				e->xref_addrs[j], lit_kind_name (e->kind),
+				e->paddr, e->num_items);
+		}
+	}
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
+static Result cmd_lit(const CliContext *ctx, int argc, char **argv) {
+	(void)ctx;
+	if (argc < 2) {
+		fprintf (stderr,
+			"Usage:\n"
+			"  lit list    <file>\n"
+			"  lit listj   <file>\n"
+			"  lit get     <file> {a|o} <num> <primary> [<secondary>]\n"
+			"  lit pool    <file> [a|o]           (default: a)\n"
+			"  lit xrefs   <file>\n");
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "usage");
+	}
+	const char *sub = argv[0];
+	const char *input = argv[1];
+	if (streq (sub, "list")) {
+		return lit_list_impl (input, false);
+	}
+	if (streq (sub, "listj")) {
+		return lit_list_impl (input, true);
+	}
+	if (streq (sub, "pool")) {
+		HBCLiteralKind kind = HBC_LIT_ARRAY;
+		if (argc >= 3 && argv[2][0] == 'o') {
+			kind = HBC_LIT_OBJECT;
+		}
+		return lit_pool_impl (input, kind);
+	}
+	if (streq (sub, "xrefs")) {
+		return lit_xrefs_impl (input);
+	}
+	if (streq (sub, "get")) {
+		if (argc < 5) {
+			return errorf (RESULT_ERROR_INVALID_ARGUMENT,
+				"Usage: lit get <file> {a|o} <num> <primary> [<secondary>]");
+		}
+		char kindc = argv[2][0];
+		u32 num = (u32)strtoul (argv[3], NULL, 0);
+		u32 primary = (u32)strtoul (argv[4], NULL, 0);
+		u32 secondary = (argc > 5)? (u32)strtoul (argv[5], NULL, 0): 0;
+		return lit_get_impl (input, kindc, num, primary, secondary);
+	}
+	return errorf (RESULT_ERROR_INVALID_ARGUMENT, "unknown lit subcommand: %s", sub);
+}
+
 static const Command commands[] = {
 	{ "d", "Disassemble a Hermes bytecode file", cmd_d },
 	{ "c", "Decompile a Hermes bytecode file", cmd_c },
@@ -845,6 +1024,7 @@ static const Command commands[] = {
 	{ "s", "Print a string by index", cmd_s },
 	{ "fs", "Find strings by substring", cmd_fs },
 	{ "sm", "Show string entry metadata", cmd_sm },
+	{ "lit", "SLP buffer literals: list, get, pool, xrefs", cmd_lit },
 };
 
 static void print_usage(const char *program_name) {
