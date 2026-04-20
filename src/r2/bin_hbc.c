@@ -374,7 +374,7 @@ static RList *strings(RBinFile *bf) {
 		}
 
 		ptr->paddr = meta.offset;
-		ptr->vaddr = meta.offset;
+		ptr->vaddr = HBC_VADDR_BASE + meta.offset;
 		ptr->size = meta.isUTF16? (meta.length * 2): meta.length;
 		ptr->length = meta.length;
 		ptr->ordinal = i;

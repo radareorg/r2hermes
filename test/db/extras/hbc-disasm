@@ -1,4 +1,4 @@
-NAME=hbc disasm basic instructions
+NAME=hbc disasm basic instructions (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
@@ -7,7 +7,22 @@ EOF
 EXPECT=<<EOF
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
+            0x100000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2 ; "print(123);"
+            0x100000b4      5e000000       direct_eval r0, r0, 0
+            0x100000b8      5c00           ret r0
+EOF
+RUN
+
+NAME=hbc disasm basic instructions (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
+CMDS=<<EOF
+pd 3 @ 0xb0
+EOF
+EXPECT=<<EOF
+            0x000000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2
             0x000000b4      5e000000       direct_eval r0, r0, 0
             0x000000b8      5c00           ret r0
 EOF
@@ -47,9 +62,20 @@ cpu      96
 EOF
 RUN
 
-NAME=hbc symbols list
+NAME=hbc symbols list (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+is~FUNC
+EOF
+EXPECT=<<EOF
+0   0x000000b0 0x100000b0 NONE FUNC 10       global_0x000000b0
+EOF
+RUN
+
+NAME=hbc symbols list (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 is~FUNC
 EOF
@@ -58,9 +84,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc entry point
+NAME=hbc entry point (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+ie~program
+EOF
+EXPECT=<<EOF
+0x000000b0 0x100000b0 ---------- ---------- program
+EOF
+RUN
+
+NAME=hbc entry point (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 ie~program
 EOF
@@ -69,9 +106,21 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc disasm ret instruction
+NAME=hbc disasm ret instruction (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+s 0x100000b8
+pd 1
+EOF
+EXPECT=<<EOF
+            0x100000b8      5c00           ret r0
+EOF
+RUN
+
+NAME=hbc disasm ret instruction (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 s 0xb8
 pd 1
@@ -81,23 +130,49 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc disasm load_const_string
+NAME=hbc disasm load_const_string (va)
 ARGS=-e asm.sub.varmin=16
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+s 0x100000b0
+pd 1
+EOF
+EXPECT=<<EOF
+            ;-- entry0:
+            ;-- global_0x000000b0:
+            0x100000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2 ; "print(123);"
+EOF
+RUN
+
+NAME=hbc disasm load_const_string (no va)
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
 s 0xb0
 pd 1
 EOF
 EXPECT=<<EOF
-            ;-- entry0:
-            ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
+            0x000000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2
 EOF
 RUN
 
-NAME=hbc disasm direct_eval
+NAME=hbc disasm direct_eval (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+s 0x100000b4
+pd 1
+EOF
+EXPECT=<<EOF
+            0x100000b4      5e000000       direct_eval r0, r0, 0
+EOF
+RUN
+
+NAME=hbc disasm direct_eval (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 s 0xb4
 pd 1
@@ -107,9 +182,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc sections
+NAME=hbc sections (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+iS~hermes
+EOF
+EXPECT=<<EOF
+0   0x00000000  0x124 0x10000000  0x124 -r-- 0x0   ---- hermes_bytecode
+EOF
+RUN
+
+NAME=hbc sections (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 iS~hermes
 EOF
@@ -118,7 +204,7 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc seek and disasm
+NAME=hbc seek and disasm (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
@@ -128,14 +214,28 @@ EOF
 EXPECT=<<EOF
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
-            0x000000b4      5e000000       direct_eval r0, r0, 0
+            0x100000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2 ; "print(123);"
+            0x100000b4      5e000000       direct_eval r0, r0, 0
 EOF
 RUN
 
-NAME=hbc print hex bytes
+NAME=hbc print hex bytes (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+s 0x100000b0
+px 10
+EOF
+EXPECT=<<EOF
+- offset -  B0B1 B2B3 B4B5 B6B7 B8B9 BABB BCBD BEBF  0123456789ABCDEF
+0x100000b0  7300 0100 5e00 0000 5c00                 s...^...\.
+EOF
+RUN
+
+NAME=hbc print hex bytes (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 s 0xb0
 px 10
@@ -146,9 +246,22 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc unreachable padding
+NAME=hbc unreachable padding (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+s 0x100000ba
+pd 2
+EOF
+EXPECT=<<EOF
+            0x100000ba      00             unreachable
+            0x100000bb      00             unreachable
+EOF
+RUN
+
+NAME=hbc unreachable padding (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 s 0xba
 pd 2
@@ -169,20 +282,44 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc get_global_object instruction
+NAME=hbc get_global_object instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e510
+pd 1
+EOF
+EXPECT=<<EOF
+            ;-- clear_0x0003e510:
+            0x1003e510      3000           get_global_object r0
+EOF
+RUN
+
+NAME=hbc get_global_object instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e510
 pd 1
 EOF
 EXPECT=<<EOF
-            ;-- clear_0x0003e510:
             0x0003e510      3000           get_global_object r0
 EOF
 RUN
 
-NAME=hbc try_get_by_id instruction
+NAME=hbc try_get_by_id instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e512
+ao~mnemonic
+EOF
+EXPECT=<<EOF
+mnemonic: try_get_by_id
+EOF
+RUN
+
+NAME=hbc try_get_by_id instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e512
 ao~mnemonic
@@ -192,8 +329,20 @@ mnemonic: try_get_by_id
 EOF
 RUN
 
-NAME=hbc get_by_id_short instruction
+NAME=hbc get_by_id_short instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e518
+ao~mnemonic
+EOF
+EXPECT=<<EOF
+mnemonic: get_by_id_short
+EOF
+RUN
+
+NAME=hbc get_by_id_short instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e518
 ao~mnemonic
@@ -203,8 +352,20 @@ mnemonic: get_by_id_short
 EOF
 RUN
 
-NAME=hbc create_this instruction
+NAME=hbc create_this instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e51d
+pd 1
+EOF
+EXPECT=<<EOF
+            0x1003e51d      6a010100       create_this r1, r1, r0
+EOF
+RUN
+
+NAME=hbc create_this instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e51d
 pd 1
@@ -214,8 +375,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc mov instruction
+NAME=hbc mov instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e521
+pd 1
+EOF
+EXPECT=<<EOF
+            0x1003e521      080201         mov r2, r1
+EOF
+RUN
+
+NAME=hbc mov instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e521
 pd 1
@@ -225,8 +398,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc construct instruction
+NAME=hbc construct instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e524
+pd 1
+EOF
+EXPECT=<<EOF
+            0x1003e524      50000001       construct r0, r0, 1
+EOF
+RUN
+
+NAME=hbc construct instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e524
 pd 1
@@ -236,8 +421,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc select_object instruction
+NAME=hbc select_object instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e528
+pd 1
+EOF
+EXPECT=<<EOF
+            0x1003e528      6b000100       select_object r0, r1, r0
+EOF
+RUN
+
+NAME=hbc select_object instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e528
 pd 1
@@ -247,8 +444,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc get_environment instruction
+NAME=hbc get_environment instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e52c
+pd 1
+EOF
+EXPECT=<<EOF
+            0x1003e52c      290100         get_environment r1, 0
+EOF
+RUN
+
+NAME=hbc get_environment instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e52c
 pd 1
@@ -258,8 +467,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc store_to_environment instruction
+NAME=hbc store_to_environment instruction (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e52f
+pd 1
+EOF
+EXPECT=<<EOF
+            0x1003e52f      2a010100       store_to_environment r1, 1, r0
+EOF
+RUN
+
+NAME=hbc store_to_environment instruction (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e52f
 pd 1
@@ -269,8 +490,24 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=hbc complete function disasm
+NAME=hbc complete function disasm (va)
 FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+s 0x1003e510
+pd 3~get_global
+pd 1 @ 0x1003e51d~create_this
+pd 1 @ 0x1003e533~ret
+EOF
+EXPECT=<<EOF
+            0x1003e510      3000           get_global_object r0
+            0x1003e51d      6a010100       create_this r1, r1, r0
+            0x1003e533      5c00           ret r0
+EOF
+RUN
+
+NAME=hbc complete function disasm (no va)
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
 CMDS=<<EOF
 s 0x3e510
 pd 3~get_global
@@ -580,4 +817,3 @@ EXPECT=<<EOF
 store_to_environment r1, 1, r0
 EOF
 RUN
-

@@ -1,4 +1,4 @@
-NAME=r2hermes test
+NAME=r2hermes test (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
@@ -9,7 +9,23 @@ EXPECT=<<EOF
 hbc
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x000000b0      73000100       load_const_string r0, str.print_123__ ; 0xa2 ; "print(123);"
+            0x100000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2 ; "print(123);"
+            0x100000b4      5e000000       direct_eval r0, r0, 0
+EOF
+RUN
+
+NAME=r2hermes test (no va)
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16 -e io.va=false
+CMDS=<<EOF
+-a
+pd 2 @ 0xb0
+EOF
+EXPECT=<<EOF
+hbc
+            0x000000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+                                                                       ; 0x100000a2
             0x000000b4      5e000000       direct_eval r0, r0, 0
 EOF
 RUN

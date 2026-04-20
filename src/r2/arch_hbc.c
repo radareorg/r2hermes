@@ -8,6 +8,7 @@
 #include <hbc/parser.h>
 
 #define MAX_OP_SIZE 16
+#define HBC_VADDR_BASE 0x10000000
 #ifndef R_ARCH_SYNTAX_CAMEL
 #define R_ARCH_SYNTAX_CAMEL 6
 #endif
@@ -170,7 +171,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 				HBCStringMeta meta;
 				Result meta_result = hbc_get_string_meta (hs->hbc, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
-					op->ptr = (st64)meta.offset;
+					op->ptr = (st64)(HBC_VADDR_BASE + meta.offset);
 				}
 			}
 		}
@@ -186,7 +187,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					offset = fi.offset;
 					(void)fi.size;
 					(void)fi.param_count;
-					op->ptr = (st64)offset;
+					op->ptr = (st64)(HBC_VADDR_BASE + offset);
 				}
 			}
 		}
