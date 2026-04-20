@@ -205,7 +205,7 @@ static RList *sections(RBinFile *bf) {
 	section->vsize = section->size;
 	section->paddr = 0;
 	section->vaddr = HBC_VADDR_BASE;
-	section->perm = R_PERM_R;
+	section->perm = R_PERM_RX;
 	section->add = true;
 	r_list_append (sections, section);
 

@@ -189,7 +189,7 @@ CMDS=<<EOF
 iS~hermes
 EOF
 EXPECT=<<EOF
-0   0x00000000  0x124 0x10000000  0x124 -r-- 0x0   ---- hermes_bytecode
+0   0x00000000  0x124 0x10000000  0x124 -r-x 0x0   ---- hermes_bytecode
 EOF
 RUN
 
@@ -200,7 +200,7 @@ CMDS=<<EOF
 iS~hermes
 EOF
 EXPECT=<<EOF
-0   0x00000000  0x124 0x00000000  0x124 -r-- 0x0   ---- hermes_bytecode
+0   0x00000000  0x124 0x00000000  0x124 -r-x 0x0   ---- hermes_bytecode
 EOF
 RUN
 
