@@ -9,7 +9,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
-#include "version.h"
 
 #ifndef R2_VERSION
 #define R_RETURN_VAL_IF_FAIL(x, y) \
