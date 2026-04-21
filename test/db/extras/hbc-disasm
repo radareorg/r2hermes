@@ -225,6 +225,7 @@ FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
 CMDS=<<EOF
 s 0x100000b0
+-e hex.header=true
 px 10
 EOF
 EXPECT=<<EOF
@@ -238,6 +239,7 @@ FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16 -e io.va=false
 CMDS=<<EOF
 s 0xb0
+-e hex.header=true
 px 10
 EOF
 EXPECT=<<EOF
