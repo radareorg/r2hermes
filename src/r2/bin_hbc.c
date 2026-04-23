@@ -1,6 +1,7 @@
 /* radare2 - LGPL - Copyright 2025-2026 - pancake */
 
 #include <r_bin.h>
+#include <r_bin_dwarf.h>
 #include <hbc/hbc.h>
 #include <hbc/literals.h>
 #include "utils.inc.c"
@@ -132,7 +133,7 @@ static ut64 resolve_entrypoint(RBinFile *bf, HBC *hbc) {
 	return 0;
 }
 
-static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut32 version) {
+static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut32 version, bool has_source_lines) {
 	ret->file = file_path? strdup (file_path): NULL;
 	ret->bclass = strdup ("Hermes bytecode");
 	ret->rclass = strdup ("hermes");
@@ -143,15 +144,18 @@ static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut
 	ret->machine = strdup ("Hermes VM");
 	ret->cpu = has_version? r_str_newf ("%u", version): strdup ("unknown");
 	ret->has_va = true;
+	ret->dbg_info = has_source_lines? R_BIN_DBG_LINENUMS: R_BIN_DBG_STRIPPED;
 }
 
 static RBinInfo *bininfo(RBinFile *bf) {
 	RBinInfo *ret = R_NEW0 (RBinInfo);
 	bool has_version = false;
 	ut32 version = 0;
+	bool has_source_lines = false;
 
 	HBC *hbc = get_hbc (bf);
 	if (hbc) {
+		has_source_lines = hbc_has_source_lines (hbc);
 		HBCHeader hh;
 		if (hbc_get_header (hbc, &hh).code == RESULT_SUCCESS) {
 			has_version = true;
@@ -169,7 +173,7 @@ static RBinInfo *bininfo(RBinFile *bf) {
 		}
 	}
 
-	fill_info (ret, bf->file, has_version, version);
+	fill_info (ret, bf->file, has_version, version, has_source_lines);
 	return ret;
 }
 
@@ -392,6 +396,48 @@ static RList *imports(RBinFile *bf) {
 	return imports;
 }
 
+static R_UNOWNED RList *lines(RBinFile *bf) {
+	HBC *hbc = get_hbc (bf);
+	if (!hbc) {
+		return NULL;
+	}
+	HBCSourceLineArray lines = { 0 };
+	if (hbc_get_source_lines (hbc, &lines).code != RESULT_SUCCESS || !lines.count) {
+		hbc_free_source_lines (&lines);
+		return NULL;
+	}
+	RList *ret = r_list_newf (free);
+	if (!ret) {
+		hbc_free_source_lines (&lines);
+		return NULL;
+	}
+	for (u32 i = 0; i < lines.count; i++) {
+		HBCSourceLine *sl = &lines.lines[i];
+		ut64 addr = HBC_VADDR_BASE + sl->address;
+		const char *file = sl->filename? sl->filename: "";
+		if (bf->addrline.al_add && bf->addrline.al_get) {
+			bf->addrline.al_add (&bf->addrline, addr, file, NULL, sl->line, sl->column);
+		}
+		RBinAddrline *row = R_NEW0 (RBinAddrline);
+		if (!row) {
+			continue;
+		}
+		const RBinAddrline *stored = bf->addrline.al_get? bf->addrline.al_get (&bf->addrline, addr): NULL;
+		if (stored) {
+			*row = *stored;
+		} else {
+			row->addr = addr;
+			row->file = UT32_MAX;
+			row->path = UT32_MAX;
+			row->line = sl->line;
+			row->column = sl->column;
+		}
+		r_list_append (ret, row);
+	}
+	hbc_free_source_lines (&lines);
+	return ret;
+}
+
 static RList *strings(RBinFile *bf) {
 	RList *ret = r_list_newf ((RListFree)r_bin_string_free);
 	HBC *hbc = get_hbc (bf);
@@ -456,6 +502,7 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.baddr = &baddr,
 	.symbols = &symbols,
 	.imports = &imports,
+	.lines = &lines,
 	.strings = &strings,
 };
 

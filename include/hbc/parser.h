@@ -268,6 +268,7 @@ struct HBCReader {
 	OffsetLengthPair *debug_string_table;
 	u8 *debug_string_storage;
 	size_t debug_string_storage_size;
+	char **debug_filenames;
 	DebugFileRegion *debug_file_regions;
 	size_t debug_file_region_count;
 	u8 *sources_data_storage;

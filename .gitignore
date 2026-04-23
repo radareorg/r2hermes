@@ -1,5 +1,5 @@
 build/
-bin/libhbctool
+bin/
 third_party/
 *.d
 *.o
@@ -8,4 +8,3 @@ third_party/
 test/bins
 *.swp
 include/hbc/version.h
-./bin

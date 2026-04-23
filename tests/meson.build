@@ -1,13 +1,14 @@
 test_src = files(
-  # Add test files here as needed
+  'test_debug_info.c',
 )
 
 if test_src.length() > 0
-  executable(
+  run_tests = executable(
     'run_tests',
     test_src,
     link_with: libhbc,
     include_directories: include_dirs,
     install: false,
   )
+  test('debug-info', run_tests, args: [meson.project_source_root()])
 endif

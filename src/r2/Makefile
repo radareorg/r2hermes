@@ -33,6 +33,7 @@ BIN_SRC = bin_hbc.c
 ASM_SRC = asm_hbc.c
 CORE_SRC = core_hbc.c
 CORE_ONE_SRC = core_hbc_one.c
+HBC_HEADERS = $(shell find ../../include -name '*.h') utils.inc.c
 
 # Object files
 ARCH_OBJ = arch_hbc.o
@@ -107,19 +108,19 @@ $(CORE_ONE_PLUGIN): $(CORE_ONE_OBJ) $(HERMES_LIB)
 	$(CC) $(LDFLAGS) -o $@ $(CORE_ONE_OBJ) $(HERMES_LIB)
 
 # Compile object files
-$(ARCH_OBJ): $(ARCH_SRC)
+$(ARCH_OBJ): $(ARCH_SRC) $(HBC_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BIN_OBJ): $(BIN_SRC)
+$(BIN_OBJ): $(BIN_SRC) $(HBC_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(ASM_OBJ): $(ASM_SRC)
+$(ASM_OBJ): $(ASM_SRC) $(HBC_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(CORE_OBJ): $(CORE_SRC)
+$(CORE_OBJ): $(CORE_SRC) $(HBC_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(CORE_ONE_OBJ): $(CORE_ONE_SRC)
+$(CORE_ONE_OBJ): $(CORE_ONE_SRC) $(HBC_HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 

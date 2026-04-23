@@ -20,6 +20,7 @@ OPCODES_SRC = $(filter-out $(SRC_DIR)/opcodes/%.inc.c,$(wildcard $(SRC_DIR)/opco
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
           $(SRC_DIR)/hbc.c $(SRC_DIR)/literals_api.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
 MAIN_SRC = src/tool/libhbctool.c
+HBC_HEADERS = $(shell find include -name '*.h')
 
 ## Object files
 LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
@@ -55,11 +56,11 @@ $(STATIC_LIB): $(LIB_OBJ)
 $(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ) | $(shell mkdir -p $(BIN_DIR))
 	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhbc
 
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(VH)
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HBC_HEADERS) | $(VH)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(MAIN_OBJ): $(MAIN_SRC) | $(VH)
+$(MAIN_OBJ): $(MAIN_SRC) $(HBC_HEADERS) | $(VH)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
@@ -72,6 +73,14 @@ TEST_DIR = tests
 TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_BIN = $(BIN_DIR)/run_tests
 
+$(TEST_BIN): $(STATIC_LIB) $(TEST_SRC) | $(shell mkdir -p $(BIN_DIR))
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc
+
+test: $(BIN_FILE) $(TEST_BIN)
+	$(TEST_BIN)
+	$(BIN_FILE) sl test/bins/hbc/bespoke_eval.hbc | grep -q '0x000000b4 f=0 +0x4 yes.js:1:5 stmt=0'
+	$(BIN_FILE) h test/bins/hbc/bespoke_eval.hbc | grep -q 'Source Locations: 13 bytes'
+	$(BIN_FILE) h test/bins/hbc/index.android.bundle | grep -q 'Source Locations: 0 bytes'
 
 r2:
 	$(MAKE) clean

@@ -81,6 +81,12 @@ Result _hbc_reader_cleanup(HBCReader *reader) {
 	/* Clean up debug info */
 	free (reader->debug_string_table);
 	free (reader->debug_string_storage);
+	if (reader->debug_filenames) {
+		for (u32 i = 0; i < reader->debug_info_header.filename_count; i++) {
+			free (reader->debug_filenames[i]);
+		}
+		free (reader->debug_filenames);
+	}
 	free (reader->debug_file_regions);
 	free (reader->sources_data_storage);
 	free (reader->scope_desc_data_storage);
@@ -1584,9 +1590,6 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 	if (reader->header.debugInfoOffset == 0) {
-		return SUCCESS_RESULT ();
-	}
-	if (reader->header.version >= 97) {
 		return SUCCESS_RESULT ();
 	}
 

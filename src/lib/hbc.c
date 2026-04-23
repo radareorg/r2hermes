@@ -118,7 +118,11 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 		hbc_close (hbc);
 		return res;
 	}
-	(void)_hbc_reader_read_debug_info;
+	res = _hbc_reader_read_debug_info (&hbc->reader);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return res;
+	}
 
 	*out = hbc;
 	return SUCCESS_RESULT ();
@@ -239,10 +243,254 @@ Result hbc_get_function_source(HBC *hbc, u32 function_id, const char **out_src) 
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
 	*out_src = NULL;
-	if (hbc->reader.function_sources && function_id < hbc->reader.header.functionSourceCount) {
-		u32 string_id = hbc->reader.function_sources[function_id].string_id;
-		if (string_id < hbc->reader.header.stringCount) {
-			*out_src = hbc->reader.strings[string_id];
+	if (hbc->reader.function_sources) {
+		for (u32 i = 0; i < hbc->reader.header.functionSourceCount; i++) {
+			if (hbc->reader.function_sources[i].function_id != function_id) {
+				continue;
+			}
+			u32 string_id = hbc->reader.function_sources[i].string_id;
+			if (string_id < hbc->reader.header.stringCount) {
+				*out_src = hbc->reader.strings[string_id];
+			}
+			break;
+		}
+	}
+	return SUCCESS_RESULT ();
+}
+
+static bool read_sleb128(const u8 *data, size_t size, size_t *pos, int64_t *out) {
+	uint64_t result = 0;
+	unsigned shift = 0;
+	u8 byte = 0;
+
+	do {
+		if (*pos >= size || shift > 63) {
+			return false;
+		}
+		byte = data[(*pos)++];
+		if (shift == 63 && (byte & 0x7e)) {
+			return false;
+		}
+		result |= ((uint64_t)(byte & 0x7f)) << shift;
+		shift += 7;
+	} while (byte & 0x80);
+
+	if ((shift < 64) && (byte & 0x40)) {
+		result |= (~0ULL) << shift;
+	}
+	*out = (int64_t)result;
+	return true;
+}
+
+static const char *debug_filename_at(HBCReader *reader, u32 index) {
+	if (!reader || index >= reader->debug_info_header.filename_count || !reader->debug_string_table || !reader->debug_string_storage) {
+		return NULL;
+	}
+	if (!reader->debug_filenames) {
+		reader->debug_filenames = (char **)calloc (reader->debug_info_header.filename_count, sizeof (char *));
+		if (!reader->debug_filenames) {
+			return NULL;
+		}
+	}
+	if (!reader->debug_filenames[index]) {
+		const OffsetLengthPair *entry = &reader->debug_string_table[index];
+		if ((size_t)entry->offset > reader->debug_string_storage_size || (size_t)entry->length > reader->debug_string_storage_size - entry->offset) {
+			return NULL;
+		}
+		char *filename = (char *)malloc ((size_t)entry->length + 1);
+		if (!filename) {
+			return NULL;
+		}
+		memcpy (filename, reader->debug_string_storage + entry->offset, entry->length);
+		filename[entry->length] = '\0';
+		reader->debug_filenames[index] = filename;
+	}
+	return reader->debug_filenames[index];
+}
+
+static const char *debug_filename_for_source_offset(HBCReader *reader, u32 source_offset) {
+	const DebugFileRegion *best = NULL;
+	if (!reader || !reader->debug_file_regions) {
+		return NULL;
+	}
+	for (u32 i = 0; i < reader->debug_file_region_count; i++) {
+		const DebugFileRegion *region = &reader->debug_file_regions[i];
+		if (region->from_address <= source_offset && (!best || region->from_address >= best->from_address)) {
+			best = region;
+		}
+	}
+	return best? debug_filename_at (reader, best->filename_id): NULL;
+}
+
+static Result append_source_line(HBCSourceLineArray *arr, u32 *cap, HBCSourceLine line) {
+	if (arr->count >= *cap) {
+		u32 next = *cap? (*cap * 2): 64;
+		HBCSourceLine *lines = (HBCSourceLine *)realloc (arr->lines, (size_t)next * sizeof (HBCSourceLine));
+		if (!lines) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate source lines");
+		}
+		arr->lines = lines;
+		*cap = next;
+	}
+	arr->lines[arr->count++] = line;
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+	memset (out, 0, sizeof (*out));
+	HBCReader *reader = &hbc->reader;
+	const u8 *data = reader->sources_data_storage;
+	const size_t size = reader->sources_data_storage_size;
+	if (!data || !size) {
+		return SUCCESS_RESULT ();
+	}
+
+	u32 cap = 0;
+	size_t pos = 0;
+	while (pos < size) {
+		const size_t source_offset = pos;
+		if (source_offset > UINT32_MAX) {
+			hbc_free_source_lines (out);
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Source location offset out of range");
+		}
+		int64_t function_id = 0;
+		int64_t line = 0;
+		int64_t column = 0;
+		if (!read_sleb128 (data, size, &pos, &function_id)
+				|| !read_sleb128 (data, size, &pos, &line)
+				|| !read_sleb128 (data, size, &pos, &column)) {
+			hbc_free_source_lines (out);
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location header");
+		}
+		if (function_id < 0 || function_id >= (int64_t)reader->header.functionCount
+				|| line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX) {
+			hbc_free_source_lines (out);
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Source location header out of range");
+		}
+
+		HBCFunc fi = { 0 };
+		(void)hbc_get_function_info (hbc, (u32)function_id, &fi);
+		const char *filename = debug_filename_for_source_offset (reader, (u32)source_offset);
+		int64_t address = 0;
+		int64_t statement = 0;
+		HBCSourceLine first = {
+			.function_id = (u32)function_id,
+			.function_offset = fi.offset,
+			.address = fi.offset,
+			.function_address = 0,
+			.line = (u32)line,
+			.column = (u32)column,
+			.statement = (u32)statement,
+			.scope_address = 0,
+			.env_reg = UINT32_MAX,
+			.filename = filename
+		};
+		Result res = append_source_line (out, &cap, first);
+		if (res.code != RESULT_SUCCESS) {
+			hbc_free_source_lines (out);
+			return res;
+		}
+
+		for (;;) {
+			int64_t address_delta = 0;
+			int64_t line_delta = 0;
+			int64_t column_delta = 0;
+			int64_t scope_address = 0;
+			int64_t env_reg = 0;
+			int64_t statement_delta = 0;
+			if (!read_sleb128 (data, size, &pos, &address_delta)) {
+				hbc_free_source_lines (out);
+				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location address delta");
+			}
+			if (address_delta == -1) {
+				break;
+			}
+			if (address_delta < 0
+					|| !read_sleb128 (data, size, &pos, &line_delta)
+					|| !read_sleb128 (data, size, &pos, &column_delta)
+					|| !read_sleb128 (data, size, &pos, &scope_address)
+					|| !read_sleb128 (data, size, &pos, &env_reg)) {
+				hbc_free_source_lines (out);
+				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location entry");
+			}
+			if (line_delta & 1) {
+				if (!read_sleb128 (data, size, &pos, &statement_delta)) {
+					hbc_free_source_lines (out);
+					return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location statement delta");
+				}
+			}
+			line_delta = (line_delta - (line_delta & 1)) / 2;
+			address += address_delta;
+			line += line_delta;
+			column += column_delta;
+			statement += statement_delta;
+			if (address < 0 || address > UINT32_MAX || (uint64_t)fi.offset + (uint64_t)address > UINT32_MAX
+					|| line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX
+					|| statement < 0 || statement > UINT32_MAX || scope_address < 0 || scope_address > UINT32_MAX
+					|| env_reg < 0 || env_reg > UINT32_MAX) {
+				hbc_free_source_lines (out);
+				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Source location entry out of range");
+			}
+			HBCSourceLine entry = {
+				.function_id = (u32)function_id,
+				.function_offset = fi.offset,
+				.address = fi.offset + (u32)address,
+				.function_address = (u32)address,
+				.line = (u32)line,
+				.column = (u32)column,
+				.statement = (u32)statement,
+				.scope_address = (u32)scope_address,
+				.env_reg = (u32)env_reg,
+				.filename = filename
+			};
+			res = append_source_line (out, &cap, entry);
+			if (res.code != RESULT_SUCCESS) {
+				hbc_free_source_lines (out);
+				return res;
+			}
+		}
+	}
+	return SUCCESS_RESULT ();
+}
+
+void hbc_free_source_lines(HBCSourceLineArray *arr) {
+	if (!arr) {
+		return;
+	}
+	free (arr->lines);
+	memset (arr, 0, sizeof (*arr));
+}
+
+bool hbc_has_source_lines(HBC *hbc) {
+	return hbc && hbc->reader.sources_data_storage && hbc->reader.sources_data_storage_size > 0;
+}
+
+Result hbc_get_debug_info(HBC *hbc, HBCDebugInfo *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+	memset (out, 0, sizeof (*out));
+	HBCReader *reader = &hbc->reader;
+	out->has_debug_info = reader->header.debugInfoOffset != 0;
+	if (!out->has_debug_info) {
+		return SUCCESS_RESULT ();
+	}
+	out->filename_count = reader->debug_info_header.filename_count;
+	out->filename_storage_size = reader->debug_info_header.filename_storage_size;
+	out->file_region_count = reader->debug_info_header.file_region_count;
+	out->source_locations_size = (u32)reader->sources_data_storage_size;
+	out->scope_desc_data_size = (u32)reader->scope_desc_data_storage_size;
+	out->textified_data_size = (u32)reader->textified_data_storage_size;
+	out->string_table_size = (u32)reader->string_table_storage_size;
+	out->debug_data_size = reader->debug_info_header.debug_data_size;
+	if (reader->function_headers) {
+		for (u32 i = 0; i < reader->header.functionCount; i++) {
+			if (reader->function_headers[i].hasDebugInfo) {
+				out->functions_with_debug_info++;
+			}
 		}
 	}
 	return SUCCESS_RESULT ();
