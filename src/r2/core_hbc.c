@@ -5,6 +5,7 @@
 #include <r_core.h>
 #include <hbc/hbc.h>
 #include <hbc/literals.h>
+#include <hbc/opcodes.h>
 #include "utils.inc.c"
 
 #define HBC_VADDR_BASE 0x10000000ULL
@@ -256,6 +257,55 @@ static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 		Result res = hbc_get_function_info (ctx->hbc, i, &info);
 		if (res.code == RESULT_SUCCESS) {
 			r_cons_printf (core->cons, "  [%3u] %s at 0x%08x size=0x%x params=%u\n", i, r_str_get_fail (info.name, "unknown"), info.offset, info.size, info.param_count);
+		}
+	}
+}
+
+/* List functions containing direct eval instructions */
+static void cmd_list_eval_functions(HbcContext *ctx, RCore *core) {
+	Result res = hbc_load_current_binary (ctx, core);
+	if (res.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
+		return;
+	}
+
+	HBCHeader header;
+	res = hbc_get_header (ctx->hbc, &header);
+	if (res.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("reading header: %s", safe_errmsg (res.error_message));
+		return;
+	}
+	HBCISA isa = hbc_isa_getv (header.version);
+	if (!isa.instructions) {
+		R_LOG_ERROR ("No ISA for Hermes bytecode version %u", header.version);
+		return;
+	}
+
+	const u32 count = hbc_function_count (ctx->hbc);
+	for (u32 fid = 0; fid < count; fid++) {
+		HBCFunc info;
+		if (hbc_get_function_info (ctx->hbc, fid, &info).code != RESULT_SUCCESS) {
+			continue;
+		}
+		const u8 *code = NULL;
+		u32 size = 0;
+		if (hbc_get_function_bytecode (ctx->hbc, fid, &code, &size).code != RESULT_SUCCESS || !code) {
+			continue;
+		}
+		for (u32 pc = 0; pc < size; ) {
+			const u8 op = code[pc];
+			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
+			if (!inst || !inst->name || !inst->binary_size) {
+				break;
+			}
+			if (hbc_canonical_opcode_from_name (inst->name) == OP_DirectEval) {
+				r_cons_printf (core->cons,
+					"0x%08"PFMT64x" f=%u +0x%x func=0x%08"PFMT64x" name=%s\n",
+					(ut64)HBC_VADDR_BASE + info.offset + pc, fid, pc,
+					(ut64)HBC_VADDR_BASE + info.offset,
+					r_str_get_fail (info.name, "unknown"));
+			}
+			pc += inst->binary_size;
 		}
 	}
 }
@@ -848,6 +898,7 @@ static void cmd_help(RCore *core) {
 		"  pd:h           - Decompile function at current offset (or all if not in function)\n"
 		"  pd:hc [id]     - Decompile function by id\n"
 		"  pd:ha          - Decompile all functions\n"
+		"  pd:he          - List functions containing eval instructions\n"
 		"  pd:hf          - List all functions\n"
 		"  pd:hi          - Show file information\n"
 		"  pd:hj [id]     - JSON output for function\n"
@@ -890,6 +941,9 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 		break;
 	case 'c': /* pd:hc [id] */
 		cmd_decompile_function_ex (ctx, core, arg + 1, false);
+		break;
+	case 'e': /* pd:he */
+		cmd_list_eval_functions (ctx, core);
 		break;
 	case 'f': /* pd:hf */
 		cmd_list_functions (ctx, core);
