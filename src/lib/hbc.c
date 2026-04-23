@@ -863,12 +863,10 @@ static const BindingHint g_hints[] = {
 };
 #define HINTS_N (sizeof (g_hints) / sizeof (g_hints[0]))
 
-static bool str_eq(const char *a, const char *b) {
-	if (a == b) {
-		return true;
-	}
-	return a && b && !strcmp (a, b);
-}
+/* Per-sid dedup flags for hbc_scan_bindings; avoids O(N^2) strcmp dedup. */
+#define SEEN_CJS 0x1
+#define SEEN_IMP 0x2
+#define SEEN_EXP 0x4
 
 static bool is_export_marker(const char *s) {
 	return !strcmp (s, "exports") || !strcmp (s, "module");
@@ -880,13 +878,6 @@ static bool is_export_store(const char *name) {
 
 static Result binding_add(HBCBindings *out, HBCBindingType type, const char *kind,
 	const char *name, const char *module, u32 function_id, u32 offset, u32 string_id) {
-	for (u32 i = 0; i < out->count; i++) {
-		HBCBinding *b = &out->bindings[i];
-		if (b->type == type && !strcmp (b->kind, kind)
-				&& !strcmp (b->name, name) && str_eq (b->module, module)) {
-			return SUCCESS_RESULT ();
-		}
-	}
 	HBCBinding *nb = realloc (out->bindings, (out->count + 1) * sizeof (HBCBinding));
 	if (!nb) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
@@ -949,7 +940,11 @@ static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t l
 	return pos;
 }
 
-static Result scan_hint_matches(HBCBindings *out, const char *s, u32 fid, u32 off, u32 sid) {
+static Result scan_hint_matches(HBCBindings *out, const char *s, u32 fid, u32 off, u32 sid, u8 *flag) {
+	/* Dedup identical (kind,module) across hints (pointers are stable literals).
+	 * Set SEEN_EXP when adding an EXPORT so caller's put_by_id skips this sid. */
+	const void *added[HINTS_N * 2];
+	u32 added_n = 0;
 	for (size_t h = 0; h < HINTS_N; h++) {
 		const BindingHint *hint = &g_hints[h];
 		bool match = hint->name? !strcmp (s, hint->name):
@@ -957,35 +952,25 @@ static Result scan_hint_matches(HBCBindings *out, const char *s, u32 fid, u32 of
 		if (!match) {
 			continue;
 		}
+		bool dup = false;
+		for (u32 a = 0; a < added_n; a += 2) {
+			if (added[a] == hint->kind && added[a + 1] == hint->module) {
+				dup = true;
+				break;
+			}
+		}
+		if (dup) {
+			continue;
+		}
+		added[added_n++] = hint->kind;
+		added[added_n++] = hint->module;
+		if (hint->type == HBC_BINDING_EXPORT) {
+			*flag |= SEEN_EXP;
+		}
 		RETURN_IF_ERROR (binding_add (out, hint->type, hint->kind, s,
 			hint->module, fid, off, sid));
 	}
 	return SUCCESS_RESULT ();
-}
-
-static bool function_has_export_marker(HBCReader *r, const u8 *code, u32 size, HBCISA isa) {
-	for (u32 pc = 0; pc < size; ) {
-		u8 op = code[pc];
-		const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
-		if (!inst || !inst->name || !inst->binary_size) {
-			break;
-		}
-		u32 values[6];
-		if (!decode_operands (inst, code + pc, size - pc, values)) {
-			break;
-		}
-		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
-			if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
-				u32 sid = values[i];
-				const char *s = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
-				if (s && is_export_marker (s)) {
-					return true;
-				}
-			}
-		}
-		pc += inst->binary_size;
-	}
-	return false;
 }
 
 Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
@@ -998,16 +983,29 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 	if (!isa.instructions) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "no isa for version");
 	}
+	u32 sc = r->header.stringCount;
+	u8 *seen = sc? calloc (sc, 1): NULL;
+	if (sc && !seen) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	Result res = SUCCESS_RESULT ();
 	if (r->header.cjsModuleCount > 0 && r->header.version >= 77 && r->cjs_modules) {
 		for (u32 i = 0; i < r->header.cjsModuleCount; i++) {
 			u32 sid = r->cjs_modules[i].symbol_id;
-			const char *name = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
-			if (name && *name) {
-				RETURN_IF_ERROR (binding_add (out, HBC_BINDING_IMPORT,
-					"cjs", name, "commonjs", 0, r->cjs_modules[i].offset, sid));
+			const char *name = (sid < sc && r->strings)? r->strings[sid]: NULL;
+			if (!name || !*name || (seen[sid] & SEEN_CJS)) {
+				continue;
+			}
+			seen[sid] |= SEEN_CJS;
+			res = binding_add (out, HBC_BINDING_IMPORT, "cjs", name,
+				"commonjs", 0, r->cjs_modules[i].offset, sid);
+			if (res.code != RESULT_SUCCESS) {
+				goto done;
 			}
 		}
 	}
+	struct { u32 sid, off; } *cand = NULL;
+	u32 cand_cap = 0;
 	for (u32 fid = 0; fid < r->header.functionCount; fid++) {
 		const u8 *code = NULL;
 		u32 size = 0;
@@ -1017,7 +1015,8 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 		}
 		HBCFunc fi = { 0 };
 		(void)hbc_get_function_info (hbc, fid, &fi);
-		bool has_export_marker = function_has_export_marker (r, code, size, isa);
+		u32 cand_n = 0;
+		bool has_marker = false;
 		for (u32 pc = 0; pc < size; ) {
 			u8 op = code[pc];
 			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
@@ -1028,25 +1027,72 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 			if (!decode_operands (inst, code + pc, size - pc, values)) {
 				break;
 			}
+			bool is_store = is_export_store (inst->name);
 			for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
 				if (inst->operands[i].operand_meaning != OPERAND_MEANING_STRING_ID) {
 					continue;
 				}
 				u32 sid = values[i];
-				const char *s = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
+				if (sid >= sc || !r->strings) {
+					continue;
+				}
+				const char *s = r->strings[sid];
 				if (!s || !*s) {
 					continue;
 				}
-				RETURN_IF_ERROR (scan_hint_matches (out, s, fid, fi.offset + pc, sid));
-				if (has_export_marker && is_export_store (inst->name) && !is_export_marker (s)) {
-					RETURN_IF_ERROR (binding_add (out, HBC_BINDING_EXPORT,
-						"module", s, NULL, fid, fi.offset + pc, sid));
+				bool marker = is_export_marker (s);
+				if (marker) {
+					has_marker = true;
+				}
+				if (!(seen[sid] & SEEN_IMP)) {
+					seen[sid] |= SEEN_IMP;
+					res = scan_hint_matches (out, s, fid, fi.offset + pc, sid, &seen[sid]);
+					if (res.code != RESULT_SUCCESS) {
+						goto done_scan;
+					}
+				}
+				if (is_store && !marker && !(seen[sid] & SEEN_EXP)) {
+					if (cand_n == cand_cap) {
+						u32 nc = cand_cap? cand_cap * 2: 16;
+						void *nb = realloc (cand, nc * sizeof (*cand));
+						if (!nb) {
+							res = ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+							goto done_scan;
+						}
+						cand = nb;
+						cand_cap = nc;
+					}
+					cand[cand_n].sid = sid;
+					cand[cand_n].off = fi.offset + pc;
+					cand_n++;
 				}
 			}
 			pc += inst->binary_size;
 		}
+		if (!has_marker) {
+			continue;
+		}
+		for (u32 k = 0; k < cand_n; k++) {
+			u32 sid = cand[k].sid;
+			if (seen[sid] & SEEN_EXP) {
+				continue;
+			}
+			seen[sid] |= SEEN_EXP;
+			res = binding_add (out, HBC_BINDING_EXPORT, "module",
+				r->strings[sid], NULL, fid, cand[k].off, sid);
+			if (res.code != RESULT_SUCCESS) {
+				goto done_scan;
+			}
+		}
 	}
-	return SUCCESS_RESULT ();
+done_scan:
+	free (cand);
+done:
+	free (seen);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_free_bindings (out);
+	}
+	return res;
 }
 
 void hbc_free_bindings(HBCBindings *bindings) {
