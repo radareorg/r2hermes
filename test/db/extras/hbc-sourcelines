@@ -1,0 +1,172 @@
+NAME=pd:hs help entry
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:h?~pd:hs
+EOF
+EXPECT=<<EOF
+  pd:hs [id]     - List source-line information
+EOF
+RUN
+
+NAME=pd:hs source lines small
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hs
+EOF
+EXPECT=<<EOF
+0x000000b0 f=0 +0x0 yes.js:1:1 stmt=0
+0x000000b4 f=0 +0x4 yes.js:1:5 stmt=0
+EOF
+RUN
+
+NAME=pd:hs source lines filter
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hs 0
+EOF
+EXPECT=<<EOF
+0x000000b0 f=0 +0x0 yes.js:1:1 stmt=0
+0x000000b4 f=0 +0x4 yes.js:1:5 stmt=0
+EOF
+RUN
+
+NAME=pd:hs source lines filter miss
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hs 99
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=pd:hs empty source lines
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hs
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=pd:hi debug info present
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~Debug Info Present
+EOF
+EXPECT=<<EOF
+  Debug Info Present: yes
+EOF
+RUN
+
+NAME=pd:hi source locations size
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~Source Locations
+EOF
+EXPECT=<<EOF
+  Source Locations: 13 bytes
+EOF
+RUN
+
+NAME=pd:hi debug files count
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+pd:hi~Debug Files
+EOF
+EXPECT=<<EOF
+  Debug Files: 1 (6 bytes)
+EOF
+RUN
+
+NAME=iI linenum exposed (debug info)
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+iI~linenum
+EOF
+EXPECT=<<EOF
+linenum  true
+EOF
+RUN
+
+NAME=iI linenum stripped
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+iI~linenum
+EOF
+EXPECT=<<EOF
+linenum  false
+EOF
+RUN
+
+NAME=iI linenum honours file truth with bin.dbginfo=false
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e bin.dbginfo=false
+CMDS=<<EOF
+iI~linenum,stripped
+EOF
+EXPECT=<<EOF
+linenum  true
+stripped false
+EOF
+RUN
+
+NAME=iI stripped file still stripped with bin.dbginfo=false
+FILE=bins/hbc/index.android.bundle
+ARGS=-e bin.dbginfo=false
+CMDS=<<EOF
+iI~linenum,stripped
+EOF
+EXPECT=<<EOF
+linenum  false
+stripped true
+EOF
+RUN
+
+NAME=iI stripped file stripped with bin.dbginfo=true
+FILE=bins/hbc/index.android.bundle
+ARGS=-e bin.dbginfo=true
+CMDS=<<EOF
+iI~linenum,stripped
+EOF
+EXPECT=<<EOF
+linenum  false
+stripped true
+EOF
+RUN
+
+NAME=CL populated with bin.dbginfo=true
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e bin.dbginfo=true
+CMDS=<<EOF
+CL
+EOF
+EXPECT=<<EOF
+file: yes.js
+line: 1
+colu: 1
+addr: 0x100000b0
+file: yes.js
+line: 1
+colu: 5
+addr: 0x100000b4
+EOF
+RUN
+
+NAME=CL empty with bin.dbginfo=false
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e bin.dbginfo=false
+CMDS=<<EOF
+CL
+EOF
+EXPECT=<<EOF
+EOF
+RUN
+
+NAME=CL empty on stripped file
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+CL
+EOF
+EXPECT=<<EOF
+EOF
+RUN

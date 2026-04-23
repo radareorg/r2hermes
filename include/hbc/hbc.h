@@ -344,6 +344,22 @@ typedef struct {
 	u32 count;
 } HBCBindings;
 
+typedef struct {
+	char *name;
+	char *path;
+	char *version;
+	const char *kind; /* cjs, package, js, native, global */
+	u32 function_id;
+	u32 offset;
+	u32 string_id;
+	bool inferred;
+} HBCModule;
+
+typedef struct {
+	HBCModule *modules;
+	u32 count;
+} HBCModules;
+
 /**
  * Free instruction array.
  */
@@ -356,6 +372,13 @@ void hbc_free_insns(HBCInsn *insns, u32 count);
  */
 Result hbc_scan_bindings(HBC *hbc, HBCBindings *out);
 void hbc_free_bindings(HBCBindings *bindings);
+
+/**
+ * List probable bundled modules/libraries. Hermes bytecode has no SBOM table,
+ * so versions are only populated when they are explicitly preserved in strings.
+ */
+Result hbc_list_modules(HBC *hbc, HBCModules *out);
+void hbc_free_modules(HBCModules *modules);
 
 /**
  * Encoding buffer and functions

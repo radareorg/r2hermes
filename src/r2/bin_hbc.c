@@ -399,6 +399,37 @@ static RList *imports(RBinFile *bf) {
 	return imports;
 }
 
+static bool list_has_string(RList *list, const char *name) {
+	RListIter *iter;
+	const char *it;
+	r_list_foreach (list, iter, it) {
+		if (it && name && !strcmp (it, name)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static RList *libs(RBinFile *bf) {
+	RList *libs = r_list_newf (free);
+	HBC *hbc = get_hbc (bf);
+	if (!libs || !hbc) {
+		return libs;
+	}
+	HBCModules modules = { 0 };
+	if (hbc_list_modules (hbc, &modules).code != RESULT_SUCCESS) {
+		return libs;
+	}
+	for (u32 i = 0; i < modules.count; i++) {
+		HBCModule *m = &modules.modules[i];
+		if (m->name && *m->name && !list_has_string (libs, m->name)) {
+			r_list_append (libs, strdup (m->name));
+		}
+	}
+	hbc_free_modules (&modules);
+	return libs;
+}
+
 static R_UNOWNED RList *lines(RBinFile *bf) {
 	HBC *hbc = get_hbc (bf);
 	if (!hbc) {
@@ -511,6 +542,7 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.baddr = &baddr,
 	.symbols = &symbols,
 	.imports = &imports,
+	.libs = &libs,
 	.lines = &lines,
 	.strings = &strings,
 };

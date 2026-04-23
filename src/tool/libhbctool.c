@@ -879,6 +879,14 @@ static void json_print_string(const char *s) {
 	putchar ('"');
 }
 
+static void json_print_nullable_string(const char *s) {
+	if (s) {
+		json_print_string (s);
+	} else {
+		fputs ("null", stdout);
+	}
+}
+
 static const char *binding_type_name(HBCBindingType type) {
 	return type == HBC_BINDING_EXPORT? "export": "import";
 }
@@ -927,6 +935,58 @@ static Result cmd_bind(const CliContext *ctx, int argc, char **argv) {
 	return SUCCESS_RESULT ();
 }
 
+static Result cmd_libs(const CliContext *ctx, int argc, char **argv) {
+	if (argc != 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: libs <input>");
+	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	HBCModules modules = { 0 };
+	Result r = hbc_list_modules (hbc, &modules);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+	if (ctx->flags.json) {
+		putchar ('[');
+		for (u32 i = 0; i < modules.count; i++) {
+			HBCModule *m = &modules.modules[i];
+			printf ("%s{\"kind\":", i? ",": "");
+			json_print_string (m->kind);
+			printf (",\"name\":");
+			json_print_string (m->name);
+			printf (",\"path\":");
+			json_print_nullable_string (m->path);
+			printf (",\"version\":");
+			json_print_nullable_string (m->version);
+			printf (",\"function_id\":%u,\"offset\":%u,\"string_id\":%u,\"inferred\":%s}",
+				m->function_id, m->offset, m->string_id, m->inferred? "true": "false");
+		}
+		puts ("]");
+	} else {
+		printf ("libs: %u\n", modules.count);
+		for (u32 i = 0; i < modules.count; i++) {
+			HBCModule *m = &modules.modules[i];
+			printf ("%-8s sid=%-5u fn=%-5u off=0x%08x %-30s",
+				m->kind? m->kind: "", m->string_id, m->function_id,
+				m->offset, m->name? m->name: "");
+			if (m->version && *m->version) {
+				printf (" version=%s", m->version);
+			}
+			if (m->path && *m->path && (!m->name || strcmp (m->path, m->name))) {
+				printf (" path=%s", m->path);
+			}
+			if (m->inferred) {
+				printf (" inferred");
+			}
+			putchar ('\n');
+		}
+	}
+	hbc_free_modules (&modules);
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
 static const Command commands[] = {
 	{ "d",   "Disassemble a Hermes bytecode file",       cmd_d   },
 	{ "c",   "Decompile a Hermes bytecode file",         cmd_c   },
@@ -945,6 +1005,7 @@ static const Command commands[] = {
 	{ "sm",  "Show string entry metadata",               cmd_sm  },
 	{ "lit", "SLP buffer literals: list, get, pool, xrefs", cmd_lit },
 	{ "bind", "List probable imports/exports/native bindings", cmd_bind },
+	{ "libs", "List probable bundled modules/libraries", cmd_libs },
 };
 #define COMMANDS_N (sizeof (commands) / sizeof (commands[0]))
 
@@ -954,7 +1015,7 @@ static void print_usage(const char *program_name) {
 		printf ("  %-5s %s\n", commands[i].name, commands[i].help);
 	}
 	printf ("\nOptions (may appear anywhere after the command):\n");
-	printf ("  --json, -j               JSON output (lit list)\n");
+	printf ("  --json, -j               JSON output (lit list, bind, libs)\n");
 	printf ("  --asmsyntax              CPU-like asm syntax (dis)\n");
 	printf ("  --verbose, -v            Verbose output\n");
 	printf ("  --bytecode, -b           Include bytecode bytes\n");

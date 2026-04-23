@@ -81,6 +81,7 @@ test: $(BIN_FILE) $(TEST_BIN)
 	$(BIN_FILE) sl test/bins/hbc/bespoke_eval.hbc | grep -q '0x000000b4 f=0 +0x4 yes.js:1:5 stmt=0'
 	$(BIN_FILE) h test/bins/hbc/bespoke_eval.hbc | grep -q 'Source Locations: 13 bytes'
 	$(BIN_FILE) h test/bins/hbc/index.android.bundle | grep -q 'Source Locations: 0 bytes'
+	$(BIN_FILE) libs test/bins/hbc/index.android.bundle | grep -q 'react-native'
 
 r2:
 	$(MAKE) clean

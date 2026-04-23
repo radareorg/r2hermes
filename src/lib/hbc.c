@@ -1062,6 +1062,154 @@ void hbc_free_bindings(HBCBindings *bindings) {
 	bindings->count = 0;
 }
 
+static char *dup_range(const char *s, size_t n) {
+	char *ret = (char *)malloc (n + 1);
+	if (!ret) {
+		return NULL;
+	}
+	memcpy (ret, s, n);
+	ret[n] = 0;
+	return ret;
+}
+
+static char *package_from_path(const char *s) {
+	const char *nm = strstr (s, "node_modules/");
+	if (nm) {
+		const char *p = nm + strlen ("node_modules/");
+		const char *end;
+		if (*p == '@') {
+			const char *scope_end = strchr (p, '/');
+			if (!scope_end) {
+				return strdup (p);
+			}
+			end = strchr (scope_end + 1, '/');
+		} else {
+			end = strchr (p, '/');
+		}
+		return end? dup_range (p, (size_t)(end - p)): strdup (p);
+	}
+	if (s[0] == '@') {
+		const char *scope_end = strchr (s, '/');
+		if (scope_end) {
+			const char *end = strchr (scope_end + 1, '/');
+			return end? dup_range (s, (size_t)(end - s)): strdup (s);
+		}
+	}
+	return NULL;
+}
+
+static bool module_eq(const HBCModule *m, const char *kind, const char *name) {
+	return m->kind && kind && !strcmp (m->kind, kind)
+		&& m->name && name && !strcmp (m->name, name);
+}
+
+static Result module_add(HBCModules *out, const char *kind, const char *name,
+	const char *path, const char *version, u32 function_id, u32 offset,
+	u32 string_id, bool inferred) {
+	if (!name || !*name) {
+		return SUCCESS_RESULT ();
+	}
+	for (u32 i = 0; i < out->count; i++) {
+		if (module_eq (&out->modules[i], kind, name)) {
+			return SUCCESS_RESULT ();
+		}
+	}
+	HBCModule *nm = realloc (out->modules, (out->count + 1) * sizeof (HBCModule));
+	if (!nm) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	out->modules = nm;
+	HBCModule *m = &nm[out->count++];
+	*m = (HBCModule){
+		.name = strdup (name),
+		.path = path? strdup (path): NULL,
+		.version = version? strdup (version): NULL,
+		.kind = kind,
+		.function_id = function_id,
+		.offset = offset,
+		.string_id = string_id,
+		.inferred = inferred,
+	};
+	if (!m->name || (path && !m->path) || (version && !m->version)) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_list_modules(HBC *hbc, HBCModules *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
+	}
+	memset (out, 0, sizeof (*out));
+	HBCReader *r = &hbc->reader;
+	if (r->header.cjsModuleCount > 0 && r->header.version >= 77 && r->cjs_modules) {
+		for (u32 i = 0; i < r->header.cjsModuleCount; i++) {
+			u32 sid = r->cjs_modules[i].symbol_id;
+			const char *s = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
+			if (!s || !*s) {
+				continue;
+			}
+			char *pkg = package_from_path (s);
+			if (pkg) {
+				Result res = module_add (out, "package", pkg, s, NULL, 0,
+					r->cjs_modules[i].offset, sid, true);
+				free (pkg);
+				if (res.code != RESULT_SUCCESS) {
+					hbc_free_modules (out);
+					return res;
+				}
+			} else {
+				Result res = module_add (out, "cjs", s, s, NULL, 0,
+					r->cjs_modules[i].offset, sid, false);
+				if (res.code != RESULT_SUCCESS) {
+					hbc_free_modules (out);
+					return res;
+				}
+			}
+		}
+	}
+
+	HBCBindings bindings = { 0 };
+	Result res = hbc_scan_bindings (hbc, &bindings);
+	if (res.code != RESULT_SUCCESS) {
+		hbc_free_modules (out);
+		return res;
+	}
+	for (u32 i = 0; i < bindings.count; i++) {
+		HBCBinding *b = &bindings.bindings[i];
+		if (b->type != HBC_BINDING_IMPORT) {
+			continue;
+		}
+		const char *name = b->module? b->module: b->name;
+		if (!name || !*name || !strcmp (name, "commonjs")) {
+			name = b->name;
+		}
+		res = module_add (out, b->kind? b->kind: "js", name,
+			b->name, NULL, b->function_id, b->offset, b->string_id, true);
+		if (res.code != RESULT_SUCCESS) {
+			hbc_free_bindings (&bindings);
+			hbc_free_modules (out);
+			return res;
+		}
+	}
+	hbc_free_bindings (&bindings);
+	return SUCCESS_RESULT ();
+}
+
+void hbc_free_modules(HBCModules *modules) {
+	if (!modules || !modules->modules) {
+		return;
+	}
+	for (u32 i = 0; i < modules->count; i++) {
+		free (modules->modules[i].name);
+		free (modules->modules[i].path);
+		free (modules->modules[i].version);
+	}
+	free (modules->modules);
+	modules->modules = NULL;
+	modules->count = 0;
+}
+
 /* Encoding functions */
 
 Result hbc_enc(
