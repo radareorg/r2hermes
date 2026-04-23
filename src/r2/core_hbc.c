@@ -431,21 +431,17 @@ static void cmd_source_lines(HbcContext *ctx, RCore *core, const char *arg) {
 		return;
 	}
 	const char *as = r_str_trim_head_ro (arg);
-	bool filter = *as != '\0';
-	ut32 filter_id = filter? parse_function_id (as): 0;
+	const bool filter = *as != '\0';
+	const ut32 filter_id = filter? parse_function_id (as): 0;
 	for (u32 i = 0; i < lines.count; i++) {
-		HBCSourceLine *sl = &lines.lines[i];
+		const HBCSourceLine *sl = &lines.lines[i];
 		if (filter && sl->function_id != filter_id) {
 			continue;
 		}
 		r_cons_printf (core->cons, "0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n",
-			sl->address,
-			sl->function_id,
-			sl->function_address,
+			sl->address, sl->function_id, sl->function_address,
 			sl->filename? sl->filename: "",
-			sl->line,
-			sl->column,
-			sl->statement);
+			sl->line, sl->column, sl->statement);
 	}
 	hbc_free_source_lines (&lines);
 }

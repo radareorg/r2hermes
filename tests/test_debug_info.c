@@ -10,13 +10,9 @@
 	} \
 } while (0)
 
-static void path_join(char *dst, size_t dst_size, const char *root, const char *path) {
-	snprintf (dst, dst_size, "%s/%s", root, path);
-}
-
 static int test_small_debug_info(const char *root) {
 	char path[512];
-	path_join (path, sizeof (path), root, "test/bins/hbc/bespoke_eval.hbc");
+	snprintf (path, sizeof (path), "%s/test/bins/hbc/bespoke_eval.hbc", root);
 
 	HBC *hbc = NULL;
 	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);
@@ -53,7 +49,7 @@ static int test_small_debug_info(const char *root) {
 
 static int test_empty_debug_info(const char *root) {
 	char path[512];
-	path_join (path, sizeof (path), root, "test/bins/hbc/index.android.bundle");
+	snprintf (path, sizeof (path), "%s/test/bins/hbc/index.android.bundle", root);
 
 	HBC *hbc = NULL;
 	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);

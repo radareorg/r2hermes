@@ -283,18 +283,20 @@ static bool read_sleb128(const u8 *data, size_t size, size_t *pos, int64_t *out)
 }
 
 static const char *debug_filename_at(HBCReader *reader, u32 index) {
-	if (!reader || index >= reader->debug_info_header.filename_count || !reader->debug_string_table || !reader->debug_string_storage) {
+	const u32 count = reader->debug_info_header.filename_count;
+	if (index >= count || !reader->debug_string_table || !reader->debug_string_storage) {
 		return NULL;
 	}
 	if (!reader->debug_filenames) {
-		reader->debug_filenames = (char **)calloc (reader->debug_info_header.filename_count, sizeof (char *));
+		reader->debug_filenames = (char **)calloc (count, sizeof (char *));
 		if (!reader->debug_filenames) {
 			return NULL;
 		}
 	}
 	if (!reader->debug_filenames[index]) {
 		const OffsetLengthPair *entry = &reader->debug_string_table[index];
-		if ((size_t)entry->offset > reader->debug_string_storage_size || (size_t)entry->length > reader->debug_string_storage_size - entry->offset) {
+		const size_t storage_size = reader->debug_string_storage_size;
+		if ((size_t)entry->offset > storage_size || (size_t)entry->length > storage_size - entry->offset) {
 			return NULL;
 		}
 		char *filename = (char *)malloc ((size_t)entry->length + 1);
@@ -310,9 +312,6 @@ static const char *debug_filename_at(HBCReader *reader, u32 index) {
 
 static const char *debug_filename_for_source_offset(HBCReader *reader, u32 source_offset) {
 	const DebugFileRegion *best = NULL;
-	if (!reader || !reader->debug_file_regions) {
-		return NULL;
-	}
 	for (u32 i = 0; i < reader->debug_file_region_count; i++) {
 		const DebugFileRegion *region = &reader->debug_file_regions[i];
 		if (region->from_address <= source_offset && (!best || region->from_address >= best->from_address)) {
@@ -322,7 +321,7 @@ static const char *debug_filename_for_source_offset(HBCReader *reader, u32 sourc
 	return best? debug_filename_at (reader, best->filename_id): NULL;
 }
 
-static Result append_source_line(HBCSourceLineArray *arr, u32 *cap, HBCSourceLine line) {
+static Result append_source_line(HBCSourceLineArray *arr, u32 *cap, const HBCSourceLine *line) {
 	if (arr->count >= *cap) {
 		u32 next = *cap? (*cap * 2): 64;
 		HBCSourceLine *lines = (HBCSourceLine *)realloc (arr->lines, (size_t)next * sizeof (HBCSourceLine));
@@ -332,9 +331,11 @@ static Result append_source_line(HBCSourceLineArray *arr, u32 *cap, HBCSourceLin
 		arr->lines = lines;
 		*cap = next;
 	}
-	arr->lines[arr->count++] = line;
+	arr->lines[arr->count++] = *line;
 	return SUCCESS_RESULT ();
 }
+
+#define PARSE_FAIL(msg) do { res = ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, msg); goto fail; } while (0)
 
 Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 	if (!hbc || !out) {
@@ -348,113 +349,85 @@ Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 		return SUCCESS_RESULT ();
 	}
 
+	Result res = SUCCESS_RESULT ();
 	u32 cap = 0;
 	size_t pos = 0;
 	while (pos < size) {
 		const size_t source_offset = pos;
-		if (source_offset > UINT32_MAX) {
-			hbc_free_source_lines (out);
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Source location offset out of range");
-		}
-		int64_t function_id = 0;
-		int64_t line = 0;
-		int64_t column = 0;
-		if (!read_sleb128 (data, size, &pos, &function_id)
+		int64_t function_id = 0, line = 0, column = 0;
+		if (source_offset > UINT32_MAX
+				|| !read_sleb128 (data, size, &pos, &function_id)
 				|| !read_sleb128 (data, size, &pos, &line)
 				|| !read_sleb128 (data, size, &pos, &column)) {
-			hbc_free_source_lines (out);
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location header");
+			PARSE_FAIL ("Invalid source location header");
 		}
 		if (function_id < 0 || function_id >= (int64_t)reader->header.functionCount
 				|| line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX) {
-			hbc_free_source_lines (out);
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Source location header out of range");
+			PARSE_FAIL ("Source location header out of range");
 		}
 
 		HBCFunc fi = { 0 };
 		(void)hbc_get_function_info (hbc, (u32)function_id, &fi);
-		const char *filename = debug_filename_for_source_offset (reader, (u32)source_offset);
-		int64_t address = 0;
-		int64_t statement = 0;
-		HBCSourceLine first = {
+		HBCSourceLine sl = {
 			.function_id = (u32)function_id,
-			.function_offset = fi.offset,
 			.address = fi.offset,
-			.function_address = 0,
 			.line = (u32)line,
 			.column = (u32)column,
-			.statement = (u32)statement,
-			.scope_address = 0,
-			.env_reg = UINT32_MAX,
-			.filename = filename
+			.filename = debug_filename_for_source_offset (reader, (u32)source_offset)
 		};
-		Result res = append_source_line (out, &cap, first);
+		res = append_source_line (out, &cap, &sl);
 		if (res.code != RESULT_SUCCESS) {
-			hbc_free_source_lines (out);
-			return res;
+			goto fail;
 		}
 
+		int64_t address = 0, statement = 0;
 		for (;;) {
-			int64_t address_delta = 0;
-			int64_t line_delta = 0;
-			int64_t column_delta = 0;
-			int64_t scope_address = 0;
-			int64_t env_reg = 0;
-			int64_t statement_delta = 0;
-			if (!read_sleb128 (data, size, &pos, &address_delta)) {
-				hbc_free_source_lines (out);
-				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location address delta");
+			int64_t adelta = 0;
+			if (!read_sleb128 (data, size, &pos, &adelta)) {
+				PARSE_FAIL ("Invalid source location address delta");
 			}
-			if (address_delta == -1) {
+			if (adelta == -1) {
 				break;
 			}
-			if (address_delta < 0
-					|| !read_sleb128 (data, size, &pos, &line_delta)
-					|| !read_sleb128 (data, size, &pos, &column_delta)
-					|| !read_sleb128 (data, size, &pos, &scope_address)
-					|| !read_sleb128 (data, size, &pos, &env_reg)) {
-				hbc_free_source_lines (out);
-				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location entry");
+			int64_t ldelta = 0, cdelta = 0, scope = 0, env = 0, sdelta = 0;
+			if (adelta < 0
+					|| !read_sleb128 (data, size, &pos, &ldelta)
+					|| !read_sleb128 (data, size, &pos, &cdelta)
+					|| !read_sleb128 (data, size, &pos, &scope)
+					|| !read_sleb128 (data, size, &pos, &env)) {
+				PARSE_FAIL ("Invalid source location entry");
 			}
-			if (line_delta & 1) {
-				if (!read_sleb128 (data, size, &pos, &statement_delta)) {
-					hbc_free_source_lines (out);
-					return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid source location statement delta");
-				}
+			if ((ldelta & 1) && !read_sleb128 (data, size, &pos, &sdelta)) {
+				PARSE_FAIL ("Invalid source location statement delta");
 			}
-			line_delta = (line_delta - (line_delta & 1)) / 2;
-			address += address_delta;
-			line += line_delta;
-			column += column_delta;
-			statement += statement_delta;
+			ldelta = (ldelta - (ldelta & 1)) / 2;
+			address += adelta;
+			line += ldelta;
+			column += cdelta;
+			statement += sdelta;
 			if (address < 0 || address > UINT32_MAX || (uint64_t)fi.offset + (uint64_t)address > UINT32_MAX
 					|| line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX
-					|| statement < 0 || statement > UINT32_MAX || scope_address < 0 || scope_address > UINT32_MAX
-					|| env_reg < 0 || env_reg > UINT32_MAX) {
-				hbc_free_source_lines (out);
-				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Source location entry out of range");
+					|| statement < 0 || statement > UINT32_MAX) {
+				PARSE_FAIL ("Source location entry out of range");
 			}
-			HBCSourceLine entry = {
-				.function_id = (u32)function_id,
-				.function_offset = fi.offset,
-				.address = fi.offset + (u32)address,
-				.function_address = (u32)address,
-				.line = (u32)line,
-				.column = (u32)column,
-				.statement = (u32)statement,
-				.scope_address = (u32)scope_address,
-				.env_reg = (u32)env_reg,
-				.filename = filename
-			};
-			res = append_source_line (out, &cap, entry);
+			sl.address = fi.offset + (u32)address;
+			sl.function_address = (u32)address;
+			sl.line = (u32)line;
+			sl.column = (u32)column;
+			sl.statement = (u32)statement;
+			res = append_source_line (out, &cap, &sl);
 			if (res.code != RESULT_SUCCESS) {
-				hbc_free_source_lines (out);
-				return res;
+				goto fail;
 			}
 		}
 	}
 	return SUCCESS_RESULT ();
+fail:
+	hbc_free_source_lines (out);
+	return res;
 }
+
+#undef PARSE_FAIL
 
 void hbc_free_source_lines(HBCSourceLineArray *arr) {
 	if (!arr) {

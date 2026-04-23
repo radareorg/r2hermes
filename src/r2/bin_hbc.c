@@ -402,27 +402,27 @@ static R_UNOWNED RList *lines(RBinFile *bf) {
 		return NULL;
 	}
 	HBCSourceLineArray lines = { 0 };
+	RList *ret = NULL;
 	if (hbc_get_source_lines (hbc, &lines).code != RESULT_SUCCESS || !lines.count) {
-		hbc_free_source_lines (&lines);
-		return NULL;
+		goto done;
 	}
-	RList *ret = r_list_newf (free);
+	ret = r_list_newf (free);
 	if (!ret) {
-		hbc_free_source_lines (&lines);
-		return NULL;
+		goto done;
 	}
+	const bool has_al = bf->addrline.al_add && bf->addrline.al_get;
 	for (u32 i = 0; i < lines.count; i++) {
 		HBCSourceLine *sl = &lines.lines[i];
 		ut64 addr = HBC_VADDR_BASE + sl->address;
 		const char *file = sl->filename? sl->filename: "";
-		if (bf->addrline.al_add && bf->addrline.al_get) {
+		if (has_al) {
 			bf->addrline.al_add (&bf->addrline, addr, file, NULL, sl->line, sl->column);
 		}
 		RBinAddrline *row = R_NEW0 (RBinAddrline);
 		if (!row) {
 			continue;
 		}
-		const RBinAddrline *stored = bf->addrline.al_get? bf->addrline.al_get (&bf->addrline, addr): NULL;
+		const RBinAddrline *stored = has_al? bf->addrline.al_get (&bf->addrline, addr): NULL;
 		if (stored) {
 			*row = *stored;
 		} else {
@@ -434,6 +434,7 @@ static R_UNOWNED RList *lines(RBinFile *bf) {
 		}
 		r_list_append (ret, row);
 	}
+done:
 	hbc_free_source_lines (&lines);
 	return ret;
 }

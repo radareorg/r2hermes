@@ -65,14 +65,11 @@ typedef struct {
 
 typedef struct {
 	u32 function_id;
-	u32 function_offset;
 	u32 address;
 	u32 function_address;
 	u32 line;
 	u32 column;
 	u32 statement;
-	u32 scope_address;
-	u32 env_reg;
 	const char *filename;
 } HBCSourceLine;
 

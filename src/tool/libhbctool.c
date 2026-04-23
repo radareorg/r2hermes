@@ -459,44 +459,35 @@ static Result cmd_sl(const CliContext *ctx, int argc, char **argv) {
 		return r;
 	}
 
-	bool filter = argc == 2;
-	u32 filter_id = filter? (u32)strtoul (argv[1], NULL, 0): 0;
-	if (ctx->flags.json) {
-		bool first = true;
+	const bool filter = argc == 2;
+	const u32 filter_id = filter? (u32)strtoul (argv[1], NULL, 0): 0;
+	const bool json = ctx->flags.json;
+	bool first = true;
+	if (json) {
 		putchar ('[');
-		for (u32 i = 0; i < lines.count; i++) {
-			HBCSourceLine *sl = &lines.lines[i];
-			if (filter && sl->function_id != filter_id) {
-				continue;
-			}
+	}
+	for (u32 i = 0; i < lines.count; i++) {
+		const HBCSourceLine *sl = &lines.lines[i];
+		if (filter && sl->function_id != filter_id) {
+			continue;
+		}
+		if (json) {
 			printf ("%s{\"function\":%u,\"address\":%u,\"offset\":%u,\"line\":%u,\"column\":%u,\"statement\":%u,\"file\":",
 				first? "": ",",
-				sl->function_id,
-				sl->address,
-				sl->function_address,
-				sl->line,
-				sl->column,
-				sl->statement);
+				sl->function_id, sl->address, sl->function_address,
+				sl->line, sl->column, sl->statement);
 			json_print_string (sl->filename);
 			putchar ('}');
 			first = false;
-		}
-		puts ("]");
-	} else {
-		for (u32 i = 0; i < lines.count; i++) {
-			HBCSourceLine *sl = &lines.lines[i];
-			if (filter && sl->function_id != filter_id) {
-				continue;
-			}
+		} else {
 			printf ("0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n",
-				sl->address,
-				sl->function_id,
-				sl->function_address,
+				sl->address, sl->function_id, sl->function_address,
 				sl->filename? sl->filename: "",
-				sl->line,
-				sl->column,
-				sl->statement);
+				sl->line, sl->column, sl->statement);
 		}
+	}
+	if (json) {
+		puts ("]");
 	}
 	hbc_free_source_lines (&lines);
 	hbc_close (hbc);
