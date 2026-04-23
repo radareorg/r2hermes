@@ -248,6 +248,33 @@ static ut64 baddr(RBinFile *bf R_UNUSED) {
 	return HBC_VADDR_BASE;
 }
 
+static void append_binding_symbols(RList *symbols, HBC *hbc) {
+	HBCBindings bindings = { 0 };
+	if (hbc_scan_bindings (hbc, &bindings).code != RESULT_SUCCESS) {
+		return;
+	}
+	for (u32 i = 0; i < bindings.count; i++) {
+		HBCBinding *b = &bindings.bindings[i];
+		if (b->type != HBC_BINDING_EXPORT) {
+			continue;
+		}
+		RBinSymbol *sym = R_NEW0 (RBinSymbol);
+		char *nm = r_str_newf ("hbc.export.%s.%s", b->kind? b->kind: "js", b->name);
+		sym->name = r_bin_name_new (nm);
+		r_bin_name_filtered (sym->name, nm);
+		sym->paddr = b->offset;
+		sym->vaddr = HBC_VADDR_BASE + b->offset;
+		sym->size = 1;
+		sym->ordinal = b->string_id;
+		sym->type = R_BIN_TYPE_OBJECT_STR;
+		sym->bind = R_BIN_BIND_GLOBAL_STR;
+		sym->bits = 32;
+		r_list_append (symbols, sym);
+		free (nm);
+	}
+	hbc_free_bindings (&bindings);
+}
+
 static RList *symbols(RBinFile *bf) {
 	RList *symbols = r_list_newf ((RListFree)r_bin_symbol_free);
 	HBC *hbc = get_hbc (bf);
@@ -316,9 +343,6 @@ static RList *symbols(RBinFile *bf) {
 		}
 		for (u32 i = 0; i < n; i++) {
 			RBinSymbol *sym = R_NEW0 (RBinSymbol);
-			if (!sym) {
-				continue;
-			}
 			char *nm = r_str_newf ("%s0x%x", prefix, groups[i].paddr);
 			sym->name = r_bin_name_new (nm);
 			r_bin_name_filtered (sym->name, nm);
@@ -333,7 +357,39 @@ static RList *symbols(RBinFile *bf) {
 		free (groups);
 	}
 
+	append_binding_symbols (symbols, hbc);
 	return symbols;
+}
+
+static RList *imports(RBinFile *bf) {
+	RList *imports = r_list_newf ((RListFree)r_bin_import_free);
+	HBC *hbc = get_hbc (bf);
+	if (!imports || !hbc) {
+		return imports;
+	}
+	HBCBindings bindings = { 0 };
+	if (hbc_scan_bindings (hbc, &bindings).code != RESULT_SUCCESS) {
+		return imports;
+	}
+	for (u32 i = 0; i < bindings.count; i++) {
+		HBCBinding *b = &bindings.bindings[i];
+		if (b->type != HBC_BINDING_IMPORT) {
+			continue;
+		}
+		RBinImport *imp = R_NEW0 (RBinImport);
+		char *nm = r_str_newf ("%s.%s", b->kind? b->kind: "js", b->name);
+		imp->name = r_bin_name_new (nm);
+		r_bin_name_filtered (imp->name, nm);
+		imp->libname = strdup (b->module? b->module: "hermes");
+		imp->bind = "NONE";
+		imp->type = "FUNC";
+		imp->ordinal = b->string_id;
+		imp->is_imported = true;
+		r_list_append (imports, imp);
+		free (nm);
+	}
+	hbc_free_bindings (&bindings);
+	return imports;
 }
 
 static RList *strings(RBinFile *bf) {
@@ -399,6 +455,7 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.sections = &sections,
 	.baddr = &baddr,
 	.symbols = &symbols,
+	.imports = &imports,
 	.strings = &strings,
 };
 

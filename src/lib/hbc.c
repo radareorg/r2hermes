@@ -594,6 +594,237 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	return SUCCESS_RESULT ();
 }
 
+typedef struct {
+	const char *name;    /* exact match, else match prefix */
+	const char *prefix;
+	const char *kind;
+	const char *module;  /* NULL for exports */
+	HBCBindingType type;
+} BindingHint;
+
+static const BindingHint g_hints[] = {
+	{ "NativeModules",          NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "TurboModuleRegistry",    NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "__turboModuleProxy",     NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "requireNativeComponent", NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "codegenNativeComponent", NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "NativeEventEmitter",     NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "RCTDeviceEventEmitter",  NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "HermesInternal",         NULL,     "native", "react-native", HBC_BINDING_IMPORT },
+	{ "require",                NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
+	{ "metroRequire",           NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
+	{ "__r",                    NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
+	{ "importScripts",          NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
+	{ "global",                 NULL,     "global", "react-native", HBC_BINDING_IMPORT },
+	{ "globalThis",             NULL,     "global", "react-native", HBC_BINDING_IMPORT },
+	{ "exports",                NULL,     "module", NULL,           HBC_BINDING_EXPORT },
+	{ "module",                 NULL,     "module", NULL,           HBC_BINDING_EXPORT },
+	{ "__esModule",             NULL,     "module", NULL,           HBC_BINDING_EXPORT },
+	{ "default",                NULL,     "module", NULL,           HBC_BINDING_EXPORT },
+	{ NULL,                     "RCT",    "native", "react-native", HBC_BINDING_IMPORT },
+	{ NULL,                     "Native", "native", "react-native", HBC_BINDING_IMPORT },
+};
+#define HINTS_N (sizeof (g_hints) / sizeof (g_hints[0]))
+
+static bool str_eq(const char *a, const char *b) {
+	if (a == b) {
+		return true;
+	}
+	return a && b && !strcmp (a, b);
+}
+
+static bool is_export_marker(const char *s) {
+	return !strcmp (s, "exports") || !strcmp (s, "module");
+}
+
+static bool is_export_store(const char *name) {
+	return strstr (name, "put") && strstr (name, "by_id");
+}
+
+static Result binding_add(HBCBindings *out, HBCBindingType type, const char *kind,
+	const char *name, const char *module, u32 function_id, u32 offset, u32 string_id) {
+	for (u32 i = 0; i < out->count; i++) {
+		HBCBinding *b = &out->bindings[i];
+		if (b->type == type && !strcmp (b->kind, kind)
+				&& !strcmp (b->name, name) && str_eq (b->module, module)) {
+			return SUCCESS_RESULT ();
+		}
+	}
+	HBCBinding *nb = realloc (out->bindings, (out->count + 1) * sizeof (HBCBinding));
+	if (!nb) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	out->bindings = nb;
+	HBCBinding *b = &nb[out->count++];
+	*b = (HBCBinding){
+		.type = type, .kind = kind, .name = strdup (name),
+		.module = module? strdup (module): NULL,
+		.function_id = function_id, .offset = offset, .string_id = string_id,
+	};
+	if (!b->name || (module && !b->module)) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
+	}
+	return SUCCESS_RESULT ();
+}
+
+static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t len,
+	u32 values[6]) {
+	size_t pos = 1;
+	memset (values, 0, 6 * sizeof (u32));
+	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+		OperandType t = inst->operands[i].operand_type;
+		size_t need;
+		switch (t) {
+		case OPERAND_TYPE_REG8:
+		case OPERAND_TYPE_UINT8:
+			need = 1;
+			if (pos + need > len) { return 0; }
+			values[i] = bytes[pos];
+			break;
+		case OPERAND_TYPE_ADDR8:
+			need = 1;
+			if (pos + need > len) { return 0; }
+			values[i] = (u32)(i32)(i8)bytes[pos];
+			break;
+		case OPERAND_TYPE_UINT16:
+			need = 2;
+			if (pos + need > len) { return 0; }
+			values[i] = (u32)bytes[pos] | ((u32)bytes[pos + 1] << 8);
+			break;
+		case OPERAND_TYPE_REG32:
+		case OPERAND_TYPE_UINT32:
+		case OPERAND_TYPE_IMM32:
+		case OPERAND_TYPE_ADDR32:
+			need = 4;
+			if (pos + need > len) { return 0; }
+			values[i] = (u32)bytes[pos] | ((u32)bytes[pos + 1] << 8)
+				| ((u32)bytes[pos + 2] << 16) | ((u32)bytes[pos + 3] << 24);
+			break;
+		case OPERAND_TYPE_DOUBLE:
+			need = 8;
+			if (pos + need > len) { return 0; }
+			break;
+		default:
+			return 0;
+		}
+		pos += need;
+	}
+	return pos;
+}
+
+static Result scan_hint_matches(HBCBindings *out, const char *s, u32 fid, u32 off, u32 sid) {
+	for (size_t h = 0; h < HINTS_N; h++) {
+		const BindingHint *hint = &g_hints[h];
+		bool match = hint->name? !strcmp (s, hint->name):
+			!strncmp (s, hint->prefix, strlen (hint->prefix));
+		if (!match) {
+			continue;
+		}
+		RETURN_IF_ERROR (binding_add (out, hint->type, hint->kind, s,
+			hint->module, fid, off, sid));
+	}
+	return SUCCESS_RESULT ();
+}
+
+static bool function_has_export_marker(HBCReader *r, const u8 *code, u32 size, HBCISA isa) {
+	for (u32 pc = 0; pc < size; ) {
+		u8 op = code[pc];
+		const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
+		if (!inst || !inst->name || !inst->binary_size) {
+			break;
+		}
+		u32 values[6];
+		if (!decode_operands (inst, code + pc, size - pc, values)) {
+			break;
+		}
+		for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+			if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
+				u32 sid = values[i];
+				const char *s = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
+				if (s && is_export_marker (s)) {
+					return true;
+				}
+			}
+		}
+		pc += inst->binary_size;
+	}
+	return false;
+}
+
+Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
+	}
+	memset (out, 0, sizeof (*out));
+	HBCReader *r = &hbc->reader;
+	HBCISA isa = hbc_isa_getv (r->header.version);
+	if (!isa.instructions) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "no isa for version");
+	}
+	if (r->header.cjsModuleCount > 0 && r->header.version >= 77 && r->cjs_modules) {
+		for (u32 i = 0; i < r->header.cjsModuleCount; i++) {
+			u32 sid = r->cjs_modules[i].symbol_id;
+			const char *name = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
+			if (name && *name) {
+				RETURN_IF_ERROR (binding_add (out, HBC_BINDING_IMPORT,
+					"cjs", name, "commonjs", 0, r->cjs_modules[i].offset, sid));
+			}
+		}
+	}
+	for (u32 fid = 0; fid < r->header.functionCount; fid++) {
+		const u8 *code = NULL;
+		u32 size = 0;
+		if (hbc_get_function_bytecode (hbc, fid, &code, &size).code != RESULT_SUCCESS
+				|| !code || !size) {
+			continue;
+		}
+		HBCFunc fi = { 0 };
+		(void)hbc_get_function_info (hbc, fid, &fi);
+		bool has_export_marker = function_has_export_marker (r, code, size, isa);
+		for (u32 pc = 0; pc < size; ) {
+			u8 op = code[pc];
+			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
+			if (!inst || !inst->name || !inst->binary_size) {
+				break;
+			}
+			u32 values[6];
+			if (!decode_operands (inst, code + pc, size - pc, values)) {
+				break;
+			}
+			for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
+				if (inst->operands[i].operand_meaning != OPERAND_MEANING_STRING_ID) {
+					continue;
+				}
+				u32 sid = values[i];
+				const char *s = (sid < r->header.stringCount && r->strings)? r->strings[sid]: NULL;
+				if (!s || !*s) {
+					continue;
+				}
+				RETURN_IF_ERROR (scan_hint_matches (out, s, fid, fi.offset + pc, sid));
+				if (has_export_marker && is_export_store (inst->name) && !is_export_marker (s)) {
+					RETURN_IF_ERROR (binding_add (out, HBC_BINDING_EXPORT,
+						"module", s, NULL, fid, fi.offset + pc, sid));
+				}
+			}
+			pc += inst->binary_size;
+		}
+	}
+	return SUCCESS_RESULT ();
+}
+
+void hbc_free_bindings(HBCBindings *bindings) {
+	if (!bindings || !bindings->bindings) {
+		return;
+	}
+	for (u32 i = 0; i < bindings->count; i++) {
+		free (bindings->bindings[i].name);
+		free (bindings->bindings[i].module);
+	}
+	free (bindings->bindings);
+	bindings->bindings = NULL;
+	bindings->count = 0;
+}
+
 /* Encoding functions */
 
 Result hbc_enc(

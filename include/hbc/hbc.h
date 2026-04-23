@@ -288,10 +288,38 @@ typedef struct {
 	u32 count;
 } HBCInsns;
 
+typedef enum {
+	HBC_BINDING_IMPORT = 0,
+	HBC_BINDING_EXPORT = 1
+} HBCBindingType;
+
+typedef struct {
+	HBCBindingType type;
+	const char *kind; /* js, native, cjs, global, module */
+	char *name;
+	char *module;
+	u32 function_id;
+	u32 offset;
+	u32 string_id;
+} HBCBinding;
+
+typedef struct {
+	HBCBinding *bindings;
+	u32 count;
+} HBCBindings;
+
 /**
  * Free instruction array.
  */
 void hbc_free_insns(HBCInsn *insns, u32 count);
+
+/**
+ * Scan bytecode/string references for probable JS/native import/export
+ * boundaries. Hermes has no native import table, so these entries are derived
+ * from bytecode operands and CJS metadata.
+ */
+Result hbc_scan_bindings(HBC *hbc, HBCBindings *out);
+void hbc_free_bindings(HBCBindings *bindings);
 
 /**
  * Encoding buffer and functions

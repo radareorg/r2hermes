@@ -795,6 +795,73 @@ static Result cmd_lit(const CliContext *ctx, int argc, char **argv) {
 	return errorf (RESULT_ERROR_INVALID_ARGUMENT, "unknown lit subcommand: %s", sub);
 }
 
+static void json_print_string(const char *s) {
+	putchar ('"');
+	for (const char *p = s? s: ""; *p; p++) {
+		if (*p == '"' || *p == '\\') {
+			putchar ('\\');
+		}
+		if (*p == '\n') {
+			fputs ("\\n", stdout);
+		} else if (*p == '\r') {
+			fputs ("\\r", stdout);
+		} else if (*p == '\t') {
+			fputs ("\\t", stdout);
+		} else {
+			putchar (*p);
+		}
+	}
+	putchar ('"');
+}
+
+static const char *binding_type_name(HBCBindingType type) {
+	return type == HBC_BINDING_EXPORT? "export": "import";
+}
+
+static Result cmd_bind(const CliContext *ctx, int argc, char **argv) {
+	if (argc != 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: bind <input>");
+	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	HBCBindings bindings = { 0 };
+	Result r = hbc_scan_bindings (hbc, &bindings);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+	if (ctx->flags.json) {
+		putchar ('[');
+		for (u32 i = 0; i < bindings.count; i++) {
+			HBCBinding *b = &bindings.bindings[i];
+			printf ("%s{\"type\":", i? ",": "");
+			json_print_string (binding_type_name (b->type));
+			printf (",\"kind\":");
+			json_print_string (b->kind);
+			printf (",\"name\":");
+			json_print_string (b->name);
+			printf (",\"module\":");
+			json_print_string (b->module);
+			printf (",\"function_id\":%u,\"offset\":%u,\"string_id\":%u}",
+				b->function_id, b->offset, b->string_id);
+		}
+		puts ("]");
+	} else {
+		printf ("bindings: %u\n", bindings.count);
+		for (u32 i = 0; i < bindings.count; i++) {
+			HBCBinding *b = &bindings.bindings[i];
+			printf ("%-6s %-7s sid=%-5u fn=%-5u off=0x%08x %s%s%s\n",
+				binding_type_name (b->type), b->kind? b->kind: "",
+				b->string_id, b->function_id, b->offset,
+				b->module? b->module: "", b->module? ":": "",
+				b->name? b->name: "");
+		}
+	}
+	hbc_free_bindings (&bindings);
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
 static const Command commands[] = {
 	{ "d",   "Disassemble a Hermes bytecode file",       cmd_d   },
 	{ "c",   "Decompile a Hermes bytecode file",         cmd_c   },
@@ -811,6 +878,7 @@ static const Command commands[] = {
 	{ "fs",  "Find strings by substring",                cmd_fs  },
 	{ "sm",  "Show string entry metadata",               cmd_sm  },
 	{ "lit", "SLP buffer literals: list, get, pool, xrefs", cmd_lit },
+	{ "bind", "List probable imports/exports/native bindings", cmd_bind },
 };
 #define COMMANDS_N (sizeof (commands) / sizeof (commands[0]))
 
