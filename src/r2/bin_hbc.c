@@ -220,15 +220,9 @@ static RList *sections(RBinFile *bf) {
 	 * literals live, and lets users `s` / `pd @` straight into them. */
 	HBC *hbc = get_hbc (bf);
 	if (hbc) {
-		add_pool_section (sections, "slp.arrays",
-			hbc_get_pool_paddr (hbc, HBC_LIT_ARRAY),
-			hbc_get_pool_size (hbc, HBC_LIT_ARRAY));
-		add_pool_section (sections, "slp.object_keys",
-			hbc_get_pool_paddr (hbc, HBC_LIT_OBJECT),
-			hbc_get_pool_size (hbc, HBC_LIT_OBJECT));
-		add_pool_section (sections, "slp.object_values",
-			hbc_get_object_values_paddr (hbc),
-			hbc_get_object_values_size (hbc));
+		add_pool_section (sections, "slp.arrays", hbc_get_pool_paddr (hbc, HBC_LIT_ARRAY), hbc_get_pool_size (hbc, HBC_LIT_ARRAY));
+		add_pool_section (sections, "slp.object_keys", hbc_get_pool_paddr (hbc, HBC_LIT_OBJECT), hbc_get_pool_size (hbc, HBC_LIT_OBJECT));
+		add_pool_section (sections, "slp.object_values", hbc_get_object_values_paddr (hbc), hbc_get_object_values_size (hbc));
 	}
 
 	return sections;
@@ -344,8 +338,7 @@ static RList *symbols(RBinFile *bf) {
 		const char *prefix = k? "lit.obj.": "lit.arr.";
 		HBCPoolGroup *groups = NULL;
 		u32 n = 0;
-		if (hbc_literals_scan_pool (hbc, kind, &groups, &n).code
-				!= RESULT_SUCCESS || !groups) {
+		if (hbc_literals_scan_pool (hbc, kind, &groups, &n).code != RESULT_SUCCESS || !groups) {
 			continue;
 		}
 		for (u32 i = 0; i < n; i++) {
@@ -436,7 +429,7 @@ static R_UNOWNED RList *lines(RBinFile *bf) {
 		return NULL;
 	}
 	/* Respect bin.dbginfo=false — return early so the lazy debug-info parse
-	 * (triggered by hbc_get_source_lines) never runs for users who opted out. */
+	 *(triggered by hbc_get_source_lines) never runs for users who opted out. */
 	if (bf->rbin && !bf->rbin->want_dbginfo) {
 		return NULL;
 	}
@@ -526,6 +519,232 @@ static RList *strings(RBinFile *bf) {
 	return ret;
 }
 
+static void hbc_source_hash_hex(const HBCHeader *hh, char *dst, size_t dstsz) {
+	if (!dst || dstsz < 41) {
+		return;
+	}
+	r_hex_bin2str (hh->sourceHash, 20, dst);
+}
+
+static void hbc_header_print_u32(RStrBuf *sb, ut64 off, const char *name, ut32 value) {
+	r_strbuf_appendf (sb, "0x%08" PFMT64x "  %-29s 0x%08x\n", off, name, value);
+}
+
+static void hbc_header_print_bool(RStrBuf *sb, ut64 off, const char *name, bool value) {
+	r_strbuf_appendf (sb, "0x%08" PFMT64x "  %-29s %s\n", off, name, value? "true": "false");
+}
+
+static char *header(RBinFile *bf, int mode) {
+	HBC *hbc = get_hbc (bf);
+	if (!hbc) {
+		return NULL;
+	}
+	HBCHeader hh;
+	if (hbc_get_header (hbc, &hh).code != RESULT_SUCCESS) {
+		return NULL;
+	}
+	char hash[41] = { 0 };
+	hbc_source_hash_hex (&hh, hash, sizeof (hash));
+	RStrBuf *sb = r_strbuf_new ("");
+	if (!sb) {
+		return NULL;
+	}
+	if (mode == R_MODE_EQUAL) {
+		r_strbuf_appendf (sb, "magic=0x%016" PFMT64x "\n", hh.magic);
+		r_strbuf_appendf (sb, "version=%u\n", hh.version);
+		r_strbuf_appendf (sb, "sourceHash=%s\n", hash);
+		r_strbuf_appendf (sb, "fileLength=%u\n", hh.fileLength);
+		r_strbuf_appendf (sb, "globalCodeIndex=%u\n", hh.globalCodeIndex);
+		r_strbuf_appendf (sb, "functionCount=%u\n", hh.functionCount);
+		r_strbuf_appendf (sb, "stringKindCount=%u\n", hh.stringKindCount);
+		r_strbuf_appendf (sb, "identifierCount=%u\n", hh.identifierCount);
+		r_strbuf_appendf (sb, "stringCount=%u\n", hh.stringCount);
+		r_strbuf_appendf (sb, "overflowStringCount=%u\n", hh.overflowStringCount);
+		r_strbuf_appendf (sb, "stringStorageSize=%u\n", hh.stringStorageSize);
+		r_strbuf_appendf (sb, "bigIntCount=%u\n", hh.bigIntCount);
+		r_strbuf_appendf (sb, "bigIntStorageSize=%u\n", hh.bigIntStorageSize);
+		r_strbuf_appendf (sb, "regExpCount=%u\n", hh.regExpCount);
+		r_strbuf_appendf (sb, "regExpStorageSize=%u\n", hh.regExpStorageSize);
+		r_strbuf_appendf (sb, "literalValueBufferSize=%u\n", hh.literalValueBufferSize);
+		r_strbuf_appendf (sb, "arrayBufferSize=%u\n", hh.arrayBufferSize);
+		r_strbuf_appendf (sb, "objKeyBufferSize=%u\n", hh.objKeyBufferSize);
+		r_strbuf_appendf (sb, "objValueBufferSize=%u\n", hh.objValueBufferSize);
+		r_strbuf_appendf (sb, "objShapeTableCount=%u\n", hh.objShapeTableCount);
+		r_strbuf_appendf (sb, "numStringSwitchImms=%u\n", hh.numStringSwitchImms);
+		r_strbuf_appendf (sb, "segmentID=%u\n", hh.segmentID);
+		r_strbuf_appendf (sb, "cjsModuleCount=%u\n", hh.cjsModuleCount);
+		r_strbuf_appendf (sb, "functionSourceCount=%u\n", hh.functionSourceCount);
+		r_strbuf_appendf (sb, "debugInfoOffset=%u\n", hh.debugInfoOffset);
+		r_strbuf_appendf (sb, "staticBuiltins=%s\n", hh.staticBuiltins? "true": "false");
+		r_strbuf_appendf (sb, "cjsModulesStaticallyResolved=%s\n", hh.cjsModulesStaticallyResolved? "true": "false");
+		r_strbuf_appendf (sb, "hasAsync=%s\n", hh.hasAsync? "true": "false");
+		return r_strbuf_drain (sb);
+	}
+	if (mode == R_MODE_JSON) {
+		PJ *pj = pj_new ();
+		if (!pj) {
+			r_strbuf_free (sb);
+			return NULL;
+		}
+		pj_o (pj);
+		pj_kn (pj, "magic", hh.magic);
+		pj_kn (pj, "version", hh.version);
+		pj_ks (pj, "sourceHash", hash);
+		pj_kn (pj, "fileLength", hh.fileLength);
+		pj_kn (pj, "globalCodeIndex", hh.globalCodeIndex);
+		pj_kn (pj, "functionCount", hh.functionCount);
+		pj_kn (pj, "stringKindCount", hh.stringKindCount);
+		pj_kn (pj, "identifierCount", hh.identifierCount);
+		pj_kn (pj, "stringCount", hh.stringCount);
+		pj_kn (pj, "overflowStringCount", hh.overflowStringCount);
+		pj_kn (pj, "stringStorageSize", hh.stringStorageSize);
+		pj_kn (pj, "bigIntCount", hh.bigIntCount);
+		pj_kn (pj, "bigIntStorageSize", hh.bigIntStorageSize);
+		pj_kn (pj, "regExpCount", hh.regExpCount);
+		pj_kn (pj, "regExpStorageSize", hh.regExpStorageSize);
+		pj_kn (pj, "literalValueBufferSize", hh.literalValueBufferSize);
+		pj_kn (pj, "arrayBufferSize", hh.arrayBufferSize);
+		pj_kn (pj, "objKeyBufferSize", hh.objKeyBufferSize);
+		pj_kn (pj, "objValueBufferSize", hh.objValueBufferSize);
+		pj_kn (pj, "objShapeTableCount", hh.objShapeTableCount);
+		pj_kn (pj, "numStringSwitchImms", hh.numStringSwitchImms);
+		pj_kn (pj, "segmentID", hh.segmentID);
+		pj_kn (pj, "cjsModuleCount", hh.cjsModuleCount);
+		pj_kn (pj, "functionSourceCount", hh.functionSourceCount);
+		pj_kn (pj, "debugInfoOffset", hh.debugInfoOffset);
+		pj_kb (pj, "staticBuiltins", hh.staticBuiltins);
+		pj_kb (pj, "cjsModulesStaticallyResolved", hh.cjsModulesStaticallyResolved);
+		pj_kb (pj, "hasAsync", hh.hasAsync);
+		pj_end (pj);
+		r_strbuf_free (sb);
+		return pj_drain (pj);
+	}
+	ut64 off = 0;
+	r_strbuf_append (sb, "Hermes bytecode header:\n");
+	r_strbuf_appendf (sb, "0x%08" PFMT64x "  %-29s 0x%016" PFMT64x "\n", off, "magic", hh.magic);
+	off += 8;
+	hbc_header_print_u32 (sb, off, "version", hh.version);
+	off += 4;
+	r_strbuf_appendf (sb, "0x%08" PFMT64x "  %-29s %s\n", off, "sourceHash", hash);
+	off += 20;
+	hbc_header_print_u32 (sb, off, "fileLength", hh.fileLength);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "globalCodeIndex", hh.globalCodeIndex);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "functionCount", hh.functionCount);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "stringKindCount", hh.stringKindCount);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "identifierCount", hh.identifierCount);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "stringCount", hh.stringCount);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "overflowStringCount", hh.overflowStringCount);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "stringStorageSize", hh.stringStorageSize);
+	off += 4;
+	if (hh.version >= 87) {
+		hbc_header_print_u32 (sb, off, "bigIntCount", hh.bigIntCount);
+		off += 4;
+		hbc_header_print_u32 (sb, off, "bigIntStorageSize", hh.bigIntStorageSize);
+		off += 4;
+	}
+	hbc_header_print_u32 (sb, off, "regExpCount", hh.regExpCount);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "regExpStorageSize", hh.regExpStorageSize);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "literalValueBufferSize", hh.literalValueBufferSize);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "objKeyBufferSize", hh.objKeyBufferSize);
+	off += 4;
+	if (hh.version >= 97) {
+		hbc_header_print_u32 (sb, off, "objShapeTableCount", hh.objShapeTableCount);
+		off += 4;
+	} else {
+		hbc_header_print_u32 (sb, off, "objValueBufferSize", hh.objValueBufferSize);
+		off += 4;
+	}
+	if (hh.version >= 99) {
+		hbc_header_print_u32 (sb, off, "numStringSwitchImms", hh.numStringSwitchImms);
+		off += 4;
+	}
+	hbc_header_print_u32 (sb, off, "segmentID", hh.segmentID);
+	off += 4;
+	hbc_header_print_u32 (sb, off, "cjsModuleCount", hh.cjsModuleCount);
+	off += 4;
+	if (hh.version >= 84) {
+		hbc_header_print_u32 (sb, off, "functionSourceCount", hh.functionSourceCount);
+		off += 4;
+	}
+	hbc_header_print_u32 (sb, off, "debugInfoOffset", hh.debugInfoOffset);
+	off += 4;
+	hbc_header_print_bool (sb, off, "staticBuiltins", hh.staticBuiltins);
+	hbc_header_print_bool (sb, off, "cjsModulesStaticallyResolved", hh.cjsModulesStaticallyResolved);
+	hbc_header_print_bool (sb, off, "hasAsync", hh.hasAsync);
+	return r_strbuf_drain (sb);
+}
+
+static void hbc_fields_append_u32(RList *ret, ut64 *off, const char *name, ut32 value) {
+	r_list_append (ret, r_bin_field_new (*off, *off, value, 4, name, NULL, "x", false));
+	*off += 4;
+}
+
+static RList *fields(RBinFile *bf) {
+	RList *ret = r_list_new ();
+	HBC *hbc = get_hbc (bf);
+	if (!ret || !hbc) {
+		return ret;
+	}
+	HBCHeader hh;
+	if (hbc_get_header (hbc, &hh).code != RESULT_SUCCESS) {
+		return ret;
+	}
+	char hash[41] = { 0 };
+	hbc_source_hash_hex (&hh, hash, sizeof (hash));
+	ut64 off = 0;
+	r_list_append (ret, r_bin_field_new (off, off, hh.magic, 8, "magic", NULL, "q", false));
+	off += 8;
+	hbc_fields_append_u32 (ret, &off, "version", hh.version);
+	r_list_append (ret, r_bin_field_new (off, off, 0, 20, "sourceHash", hash, "s", false));
+	off += 20;
+	hbc_fields_append_u32 (ret, &off, "fileLength", hh.fileLength);
+	hbc_fields_append_u32 (ret, &off, "globalCodeIndex", hh.globalCodeIndex);
+	hbc_fields_append_u32 (ret, &off, "functionCount", hh.functionCount);
+	hbc_fields_append_u32 (ret, &off, "stringKindCount", hh.stringKindCount);
+	hbc_fields_append_u32 (ret, &off, "identifierCount", hh.identifierCount);
+	hbc_fields_append_u32 (ret, &off, "stringCount", hh.stringCount);
+	hbc_fields_append_u32 (ret, &off, "overflowStringCount", hh.overflowStringCount);
+	hbc_fields_append_u32 (ret, &off, "stringStorageSize", hh.stringStorageSize);
+	if (hh.version >= 87) {
+		hbc_fields_append_u32 (ret, &off, "bigIntCount", hh.bigIntCount);
+		hbc_fields_append_u32 (ret, &off, "bigIntStorageSize", hh.bigIntStorageSize);
+	}
+	hbc_fields_append_u32 (ret, &off, "regExpCount", hh.regExpCount);
+	hbc_fields_append_u32 (ret, &off, "regExpStorageSize", hh.regExpStorageSize);
+	hbc_fields_append_u32 (ret, &off, "literalValueBufferSize", hh.literalValueBufferSize);
+	hbc_fields_append_u32 (ret, &off, "objKeyBufferSize", hh.objKeyBufferSize);
+	if (hh.version >= 97) {
+		hbc_fields_append_u32 (ret, &off, "objShapeTableCount", hh.objShapeTableCount);
+	} else {
+		hbc_fields_append_u32 (ret, &off, "objValueBufferSize", hh.objValueBufferSize);
+	}
+	if (hh.version >= 99) {
+		hbc_fields_append_u32 (ret, &off, "numStringSwitchImms", hh.numStringSwitchImms);
+	}
+	hbc_fields_append_u32 (ret, &off, "segmentID", hh.segmentID);
+	hbc_fields_append_u32 (ret, &off, "cjsModuleCount", hh.cjsModuleCount);
+	if (hh.version >= 84) {
+		hbc_fields_append_u32 (ret, &off, "functionSourceCount", hh.functionSourceCount);
+	}
+	hbc_fields_append_u32 (ret, &off, "debugInfoOffset", hh.debugInfoOffset);
+	ut32 flags = (hh.staticBuiltins? 1: 0) | (hh.cjsModulesStaticallyResolved? 2: 0) | (hh.hasAsync? 4: 0);
+	r_list_append (ret, r_bin_field_new (off, off, flags, 1, "flags", NULL, "b", false));
+	r_list_append (ret, r_bin_field_new (off, off, hh.staticBuiltins? 1: 0, 1, "staticBuiltins", NULL, "b", false));
+	r_list_append (ret, r_bin_field_new (off, off, hh.cjsModulesStaticallyResolved? 1: 0, 1, "cjsModulesStaticallyResolved", NULL, "b", false));
+	r_list_append (ret, r_bin_field_new (off, off, hh.hasAsync? 1: 0, 1, "hasAsync", NULL, "b", false));
+	return ret;
+}
+
 const RBinPlugin r_bin_plugin_r2hermes = {
 	.meta = {
 		.name = "hbc.bin",
@@ -545,6 +764,8 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.libs = &libs,
 	.lines = &lines,
 	.strings = &strings,
+	.header = &header,
+	.fields = &fields,
 };
 
 #ifndef R2_PLUGIN_INCORE

@@ -1,0 +1,83 @@
+NAME=hbc ih header fields
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+ih~version
+ih~functionCount
+ih~debugInfoOffset
+EOF
+EXPECT=<<EOF
+0x00000008 0x00000008 0x00000060 version
+0x00000028 0x00000028 0x00000001 functionCount
+0x00000068 0x00000068 0x000000c8 debugInfoOffset
+EOF
+RUN
+
+NAME=hbc ihq header fields
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+ihq~version
+ihq~functionCount
+ihq~debugInfoOffset
+EOF
+EXPECT=<<EOF
+0x00000008 0x00000060 version
+0x00000028 0x00000001 functionCount
+0x00000068 0x000000c8 debugInfoOffset
+EOF
+RUN
+
+NAME=hbc ihj header fields
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+ihj~{}~version
+ihj~{}~functionCount
+ihj~{}~debugInfoOffset
+EOF
+EXPECT=<<EOF
+    "name": "version",
+    "name": "functionCount",
+    "name": "debugInfoOffset",
+EOF
+RUN
+
+NAME=hbc iH ascii header
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+iH~version
+iH~functionCount
+iH~debugInfoOffset
+EOF
+EXPECT=<<EOF
+0x00000008  version                       0x00000060
+0x00000028  functionCount                 0x00000001
+0x00000068  debugInfoOffset               0x000000c8
+EOF
+RUN
+
+NAME=hbc iH key values
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+iH=~version
+iH=~functionCount
+iH=~debugInfoOffset
+EOF
+EXPECT=<<EOF
+version=96
+functionCount=1
+debugInfoOffset=200
+EOF
+RUN
+
+NAME=hbc iH json
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+iHj~version
+iHj~functionCount
+iHj~debugInfoOffset
+EOF
+EXPECT=<<EOF
+{"magic":2240826417119764422,"version":96,"sourceHash":"a97c8302dab90bec7184a9183b22b43badd57a65","fileLength":292,"globalCodeIndex":0,"functionCount":1,"stringKindCount":1,"identifierCount":0,"stringCount":2,"overflowStringCount":0,"stringStorageSize":17,"bigIntCount":0,"bigIntStorageSize":0,"regExpCount":0,"regExpStorageSize":0,"literalValueBufferSize":0,"arrayBufferSize":0,"objKeyBufferSize":0,"objValueBufferSize":0,"objShapeTableCount":0,"numStringSwitchImms":0,"segmentID":0,"cjsModuleCount":0,"functionSourceCount":0,"debugInfoOffset":200,"staticBuiltins":false,"cjsModulesStaticallyResolved":false,"hasAsync":false}
+{"magic":2240826417119764422,"version":96,"sourceHash":"a97c8302dab90bec7184a9183b22b43badd57a65","fileLength":292,"globalCodeIndex":0,"functionCount":1,"stringKindCount":1,"identifierCount":0,"stringCount":2,"overflowStringCount":0,"stringStorageSize":17,"bigIntCount":0,"bigIntStorageSize":0,"regExpCount":0,"regExpStorageSize":0,"literalValueBufferSize":0,"arrayBufferSize":0,"objKeyBufferSize":0,"objValueBufferSize":0,"objShapeTableCount":0,"numStringSwitchImms":0,"segmentID":0,"cjsModuleCount":0,"functionSourceCount":0,"debugInfoOffset":200,"staticBuiltins":false,"cjsModulesStaticallyResolved":false,"hasAsync":false}
+{"magic":2240826417119764422,"version":96,"sourceHash":"a97c8302dab90bec7184a9183b22b43badd57a65","fileLength":292,"globalCodeIndex":0,"functionCount":1,"stringKindCount":1,"identifierCount":0,"stringCount":2,"overflowStringCount":0,"stringStorageSize":17,"bigIntCount":0,"bigIntStorageSize":0,"regExpCount":0,"regExpStorageSize":0,"literalValueBufferSize":0,"arrayBufferSize":0,"objKeyBufferSize":0,"objValueBufferSize":0,"objShapeTableCount":0,"numStringSwitchImms":0,"segmentID":0,"cjsModuleCount":0,"functionSourceCount":0,"debugInfoOffset":200,"staticBuiltins":false,"cjsModulesStaticallyResolved":false,"hasAsync":false}
+EOF
+RUN
