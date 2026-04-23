@@ -118,7 +118,12 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_debug_info (&hbc->reader);
+	/* Read only the DebugInfoHeader eagerly — a handful of u32s — so
+	 * hbc_has_source_lines() can answer accurately without committing to the
+	 * full body parse. The filename, file region and sources/scope/textified
+	 * storage blobs are read lazily on first hbc_get_source_lines /
+	 * hbc_get_debug_info call. */
+	res = _hbc_reader_read_debug_info_header (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return res;
@@ -343,6 +348,7 @@ Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 	}
 	memset (out, 0, sizeof (*out));
 	HBCReader *reader = &hbc->reader;
+	RETURN_IF_ERROR (_hbc_reader_read_debug_info (reader));
 	const u8 *data = reader->sources_data_storage;
 	const size_t size = reader->sources_data_storage_size;
 	if (!data || !size) {
@@ -437,8 +443,17 @@ void hbc_free_source_lines(HBCSourceLineArray *arr) {
 	memset (arr, 0, sizeof (*arr));
 }
 
+/* Describes the file, not the runtime preference: true iff the file carries
+ * a non-empty source-locations blob. Relies on the DebugInfoHeader parsed at
+ * load time, so callers pay no body-parse cost for this query. */
 bool hbc_has_source_lines(HBC *hbc) {
-	return hbc && hbc->reader.sources_data_storage && hbc->reader.sources_data_storage_size > 0;
+	if (!hbc || hbc->reader.header.debugInfoOffset == 0) {
+		return false;
+	}
+	if (_hbc_reader_read_debug_info_header (&hbc->reader).code != RESULT_SUCCESS) {
+		return false;
+	}
+	return hbc->reader.debug_info_header.scope_desc_data_offset > 0;
 }
 
 Result hbc_get_debug_info(HBC *hbc, HBCDebugInfo *out) {
@@ -451,6 +466,7 @@ Result hbc_get_debug_info(HBC *hbc, HBCDebugInfo *out) {
 	if (!out->has_debug_info) {
 		return SUCCESS_RESULT ();
 	}
+	RETURN_IF_ERROR (_hbc_reader_read_debug_info (reader));
 	out->filename_count = reader->debug_info_header.filename_count;
 	out->filename_storage_size = reader->debug_info_header.filename_storage_size;
 	out->file_region_count = reader->debug_info_header.file_region_count;

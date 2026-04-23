@@ -155,12 +155,15 @@ static RBinInfo *bininfo(RBinFile *bf) {
 
 	HBC *hbc = get_hbc (bf);
 	if (hbc) {
-		has_source_lines = hbc_has_source_lines (hbc);
 		HBCHeader hh;
 		if (hbc_get_header (hbc, &hh).code == RESULT_SUCCESS) {
 			has_version = true;
 			version = hh.version;
 		}
+		/* Cheap: answered from the DebugInfoHeader parsed at load time.
+		 * Reflects file truth (does this file carry source lines?) regardless
+		 * of bin.dbginfo — that setting only gates whether we decode them. */
+		has_source_lines = hbc_has_source_lines (hbc);
 	}
 
 	/* Fallback: parse version directly from buffer */
@@ -399,6 +402,11 @@ static RList *imports(RBinFile *bf) {
 static R_UNOWNED RList *lines(RBinFile *bf) {
 	HBC *hbc = get_hbc (bf);
 	if (!hbc) {
+		return NULL;
+	}
+	/* Respect bin.dbginfo=false — return early so the lazy debug-info parse
+	 * (triggered by hbc_get_source_lines) never runs for users who opted out. */
+	if (bf->rbin && !bf->rbin->want_dbginfo) {
 		return NULL;
 	}
 	HBCSourceLineArray lines = { 0 };
