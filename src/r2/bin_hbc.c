@@ -259,9 +259,6 @@ static void append_binding_symbols(RList *symbols, HBC *hbc) {
 			continue;
 		}
 		RBinSymbol *sym = R_NEW0 (RBinSymbol);
-		if (!sym) {
-			continue;
-		}
 		char *nm = r_str_newf ("hbc.export.%s.%s", b->kind? b->kind: "js", b->name);
 		sym->name = r_bin_name_new (nm);
 		r_bin_name_filtered (sym->name, nm);
@@ -270,6 +267,7 @@ static void append_binding_symbols(RList *symbols, HBC *hbc) {
 		sym->size = 1;
 		sym->ordinal = b->string_id;
 		sym->type = R_BIN_TYPE_OBJECT_STR;
+		sym->bind = R_BIN_BIND_GLOBAL_STR;
 		sym->bits = 32;
 		r_list_append (symbols, sym);
 		free (nm);
@@ -345,9 +343,6 @@ static RList *symbols(RBinFile *bf) {
 		}
 		for (u32 i = 0; i < n; i++) {
 			RBinSymbol *sym = R_NEW0 (RBinSymbol);
-			if (!sym) {
-				continue;
-			}
 			char *nm = r_str_newf ("%s0x%x", prefix, groups[i].paddr);
 			sym->name = r_bin_name_new (nm);
 			r_bin_name_filtered (sym->name, nm);
@@ -382,9 +377,6 @@ static RList *imports(RBinFile *bf) {
 			continue;
 		}
 		RBinImport *imp = R_NEW0 (RBinImport);
-		if (!imp) {
-			continue;
-		}
 		char *nm = r_str_newf ("%s.%s", b->kind? b->kind: "js", b->name);
 		imp->name = r_bin_name_new (nm);
 		r_bin_name_filtered (imp->name, nm);
