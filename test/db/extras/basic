@@ -9,9 +9,9 @@ EXPECT=<<EOF
 hbc
             ;-- entry0:
             ;-- global_0x000000b0:
-            0x100000b0      73000100       load_const_string r0, 0xa2  ; str.print_123__
+            0x100000b0      73000100       load_const_string r0, 0xa2  ; yes.js:1:1 ; str.print_123__
                                                                        ; 0x100000a2 ; "print(123);"
-            0x100000b4      5e000000       direct_eval r0, r0, 0
+            0x100000b4      5e000000       direct_eval r0, r0, 0       ; yes.js:1:5
 EOF
 RUN
 
