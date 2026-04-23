@@ -282,18 +282,75 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 		"  File Length: %u bytes\n"
 		"  Functions: %u\n"
 		"  Strings: %u\n"
+		"  String Kinds: %u\n"
+		"  Overflow Strings: %u\n"
+		"  String Storage Size: %u\n"
 		"  Identifiers: %u\n"
 		"  Global Code Index: %u\n"
+		"  Function Sources: %u\n"
+		"  Debug Info Offset: %u\n"
+		"  BigInts: %u (%u bytes)\n"
+		"  RegExps: %u (%u bytes)\n"
+		"  Literal Value Buffer: %u bytes\n"
+		"  Array Buffer: %u bytes\n"
+		"  Object Key Buffer: %u bytes\n"
+		"  Object Value Buffer: %u bytes\n"
+		"  Object Shapes: %u\n"
+		"  CJS Modules: %u\n"
 		"  Static Builtins: %s\n"
+		"  CJS Modules Statically Resolved: %s\n"
 		"  Has Async: %s\n",
 		header.version,
 		header.fileLength,
 		header.functionCount,
 		header.stringCount,
+		header.stringKindCount,
+		header.overflowStringCount,
+		header.stringStorageSize,
 		header.identifierCount,
 		header.globalCodeIndex,
+		header.functionSourceCount,
+		header.debugInfoOffset,
+		header.bigIntCount,
+		header.bigIntStorageSize,
+		header.regExpCount,
+		header.regExpStorageSize,
+		header.literalValueBufferSize,
+		header.arrayBufferSize,
+		header.objKeyBufferSize,
+		header.objValueBufferSize,
+		header.objShapeTableCount,
+		header.cjsModuleCount,
 		header.staticBuiltins? "yes": "no",
+		header.cjsModulesStaticallyResolved? "yes": "no",
 		header.hasAsync? "yes": "no");
+
+	HBCDebugInfo di = { 0 };
+	if (hbc_get_debug_info (ctx->hbc, &di).code == RESULT_SUCCESS) {
+		r_cons_printf (cons,
+			"  Debug Info Present: %s\n",
+			di.has_debug_info? "yes": "no");
+		if (di.has_debug_info) {
+			r_cons_printf (cons,
+				"  Debug Files: %u (%u bytes)\n"
+				"  Debug File Regions: %u\n"
+				"  Functions With Debug Info: %u\n"
+				"  Source Locations: %u bytes\n"
+				"  Scope Descriptors: %u bytes\n"
+				"  Textified Callees: %u bytes\n"
+				"  Debug String Table: %u bytes\n"
+				"  Debug Data Size: %u bytes\n",
+				di.filename_count,
+				di.filename_storage_size,
+				di.file_region_count,
+				di.functions_with_debug_info,
+				di.source_locations_size,
+				di.scope_desc_data_size,
+				di.textified_data_size,
+				di.string_table_size,
+				di.debug_data_size);
+		}
+	}
 
 	char hex[41] = { 0 };
 	r_hex_bin2str (header.sourceHash, 20, hex);
@@ -358,6 +415,35 @@ static void cmd_file_info(HbcContext *ctx, RCore *core) {
 		r_cons_printf (core->cons, "  Expected: %" PFMT64u " or %u bytes, got %" PFMT64u "\n", expected_size, header.fileLength, file_size);
 		r_cons_printf (core->cons, "  Fix: .(fix-hbc)  or  r2 -wqc '.(fix-hbc)' file.hbc\n");
 	}
+}
+
+static void cmd_source_lines(HbcContext *ctx, RCore *core, const char *arg) {
+	Result res = hbc_load_current_binary (ctx, core);
+	if (res.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
+		return;
+	}
+	HBCSourceLineArray lines = { 0 };
+	res = hbc_get_source_lines (ctx->hbc, &lines);
+	if (res.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("source lines: %s", safe_errmsg (res.error_message));
+		hbc_free_source_lines (&lines);
+		return;
+	}
+	const char *as = r_str_trim_head_ro (arg);
+	const bool filter = *as != '\0';
+	const ut32 filter_id = filter? parse_function_id (as): 0;
+	for (u32 i = 0; i < lines.count; i++) {
+		const HBCSourceLine *sl = &lines.lines[i];
+		if (filter && sl->function_id != filter_id) {
+			continue;
+		}
+		r_cons_printf (core->cons, "0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n",
+			sl->address, sl->function_id, sl->function_address,
+			sl->filename? sl->filename: "",
+			sl->line, sl->column, sl->statement);
+	}
+	hbc_free_source_lines (&lines);
 }
 
 /* Emit a JSON error envelope compatible with the {code, annotations, errors} format */
@@ -767,6 +853,7 @@ static void cmd_help(RCore *core) {
 		"  pd:hj [id]     - JSON output for function\n"
 		"  pd:ho [id]     - Decompile with offsets (addresses) per statement\n"
 		"  pd:hoa         - Decompile all with offsets\n"
+		"  pd:hs [id]     - List source-line information\n"
 		"  pd:hL[?]       - SLP literal cache: list/scan/reset (see pd:hL?)\n"
 		"  pd:h?          - Show this help\n"
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
@@ -836,6 +923,9 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 	}
 	case 'L': /* pd:hL* — literal cache / buffer-literal commands */
 		cmd_literals (ctx, core, arg + 1);
+		break;
+	case 's': /* pd:hs [id] */
+		cmd_source_lines (ctx, core, arg + 1);
 		break;
 	case '?': /* pd:h? */
 		cmd_help (core);

@@ -63,6 +63,34 @@ typedef struct {
 	u32 param_count; // Number of parameters
 } HBCFunc;
 
+typedef struct {
+	u32 function_id;
+	u32 address;
+	u32 function_address;
+	u32 line;
+	u32 column;
+	u32 statement;
+	const char *filename;
+} HBCSourceLine;
+
+typedef struct {
+	HBCSourceLine *lines;
+	u32 count;
+} HBCSourceLineArray;
+
+typedef struct {
+	bool has_debug_info;
+	u32 filename_count;
+	u32 filename_storage_size;
+	u32 file_region_count;
+	u32 source_locations_size;
+	u32 scope_desc_data_size;
+	u32 textified_data_size;
+	u32 string_table_size;
+	u32 debug_data_size;
+	u32 functions_with_debug_info;
+} HBCDebugInfo;
+
 /* String table data */
 typedef struct {
 	u32 string_count;
@@ -219,6 +247,14 @@ Result hbc_get_string_tables(HBC *hbc, HBCStrs *out);
  * Get source/module name associated with a function.
  */
 Result hbc_get_function_source(HBC *hbc, u32 function_id, const char **out_src);
+
+/**
+ * Get decoded source-line records from debug information.
+ */
+Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out);
+void hbc_free_source_lines(HBCSourceLineArray *arr);
+bool hbc_has_source_lines(HBC *hbc);
+Result hbc_get_debug_info(HBC *hbc, HBCDebugInfo *out);
 
 /**
  * Get the raw bytecode bytes for a function.

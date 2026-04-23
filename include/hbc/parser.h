@@ -263,11 +263,21 @@ struct HBCReader {
 	FunctionSourceEntry *function_sources;
 	size_t function_source_count;
 
-	/* Debug info */
+	/* Debug info — split into two phases:
+	 *   debug_info_header_loaded: cheap parse of the DebugInfoHeader fields
+	 *     only (a handful of u32s), populated eagerly at load time so callers
+	 *     can report accurate "has source lines" / "stripped" without paying
+	 *     for the full parse.
+	 *   debug_info_loaded: full parse of filenames, file regions, and the
+	 *     sources / scope / textified / string-table storage blobs. Populated
+	 *     lazily on first hbc_get_source_lines / hbc_get_debug_info call. */
+	bool debug_info_header_loaded;
+	bool debug_info_loaded;
 	DebugInfoHeader debug_info_header;
 	OffsetLengthPair *debug_string_table;
 	u8 *debug_string_storage;
 	size_t debug_string_storage_size;
+	char **debug_filenames;
 	DebugFileRegion *debug_file_regions;
 	size_t debug_file_region_count;
 	u8 *sources_data_storage;
@@ -298,6 +308,7 @@ Result _hbc_reader_read_bigints(HBCReader *reader);
 Result _hbc_reader_read_regexp(HBCReader *reader);
 Result _hbc_reader_read_cjs_modules(HBCReader *reader);
 Result _hbc_reader_read_function_sources(HBCReader *reader);
+Result _hbc_reader_read_debug_info_header(HBCReader *reader);
 Result _hbc_reader_read_debug_info(HBCReader *reader);
 Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename);
 

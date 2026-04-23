@@ -26,6 +26,8 @@ typedef struct {
 typedef Result (*CommandHandler)(const CliContext *ctx, int argc, char **argv);
 typedef struct { const char *name; const char *help; CommandHandler handler; } Command;
 
+static void json_print_string(const char *s);
+
 static const struct { const char *lname; char sname; size_t offset; } flag_table[] = {
 	{ "json",               'j', offsetof (CliFlags, json) },
 	{ "verbose",            'v', offsetof (CliFlags, verbose) },
@@ -402,6 +404,21 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	fprintf (out, "    Static Builtins: %s\n", hh.staticBuiltins? "Yes": "No");
 	fprintf (out, "    CJS Modules Statically Resolved: %s\n", hh.cjsModulesStaticallyResolved? "Yes": "No");
 	fprintf (out, "    Has Async: %s\n", hh.hasAsync? "Yes": "No");
+	HBCDebugInfo di = { 0 };
+	if (hbc_get_debug_info (hbc, &di).code == RESULT_SUCCESS) {
+		fprintf (out, "  Debug Info:\n");
+		fprintf (out, "    Present: %s\n", di.has_debug_info? "Yes": "No");
+		if (di.has_debug_info) {
+			fprintf (out, "    Files: %u (%u bytes)\n", di.filename_count, di.filename_storage_size);
+			fprintf (out, "    File Regions: %u\n", di.file_region_count);
+			fprintf (out, "    Functions With Debug Info: %u\n", di.functions_with_debug_info);
+			fprintf (out, "    Source Locations: %u bytes\n", di.source_locations_size);
+			fprintf (out, "    Scope Descriptors: %u bytes\n", di.scope_desc_data_size);
+			fprintf (out, "    Textified Callees: %u bytes\n", di.textified_data_size);
+			fprintf (out, "    Debug String Table: %u bytes\n", di.string_table_size);
+			fprintf (out, "    Debug Data Size: %u bytes\n", di.debug_data_size);
+		}
+	}
 	if (out != stdout) {
 		fclose (out);
 	}
@@ -425,6 +442,54 @@ static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) { continue; }
 		printf ("id=%u offset=0x%08x size=%u name=%s\n", i, fi.offset, fi.size, fi.name? fi.name: "");
 	}
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
+static Result cmd_sl(const CliContext *ctx, int argc, char **argv) {
+	if (argc < 1 || argc > 2) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: sl <input> [function_id]");
+	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	HBCSourceLineArray lines = { 0 };
+	Result r = hbc_get_source_lines (hbc, &lines);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+
+	const bool filter = argc == 2;
+	const u32 filter_id = filter? (u32)strtoul (argv[1], NULL, 0): 0;
+	const bool json = ctx->flags.json;
+	bool first = true;
+	if (json) {
+		putchar ('[');
+	}
+	for (u32 i = 0; i < lines.count; i++) {
+		const HBCSourceLine *sl = &lines.lines[i];
+		if (filter && sl->function_id != filter_id) {
+			continue;
+		}
+		if (json) {
+			printf ("%s{\"function\":%u,\"address\":%u,\"offset\":%u,\"line\":%u,\"column\":%u,\"statement\":%u,\"file\":",
+				first? "": ",",
+				sl->function_id, sl->address, sl->function_address,
+				sl->line, sl->column, sl->statement);
+			json_print_string (sl->filename);
+			putchar ('}');
+			first = false;
+		} else {
+			printf ("0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n",
+				sl->address, sl->function_id, sl->function_address,
+				sl->filename? sl->filename: "",
+				sl->line, sl->column, sl->statement);
+		}
+	}
+	if (json) {
+		puts ("]");
+	}
+	hbc_free_source_lines (&lines);
 	hbc_close (hbc);
 	return SUCCESS_RESULT ();
 }
@@ -872,6 +937,7 @@ static const Command commands[] = {
 	{ "v",   "Validate file and show details",           cmd_v   },
 	{ "r",   "Generate an r2 script with function flags",cmd_r   },
 	{ "f",   "Dump first N function headers",            cmd_f   },
+	{ "sl",  "List source-line information",             cmd_sl  },
 	{ "cmp", "Compare first N funcs with parser.txt",    cmd_cmp },
 	{ "cf",  "Compare one function vs Python disasm",    cmd_cf  },
 	{ "s",   "Print a string by index",                  cmd_s   },

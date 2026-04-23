@@ -81,6 +81,12 @@ Result _hbc_reader_cleanup(HBCReader *reader) {
 	/* Clean up debug info */
 	free (reader->debug_string_table);
 	free (reader->debug_string_storage);
+	if (reader->debug_filenames) {
+		for (u32 i = 0; i < reader->debug_info_header.filename_count; i++) {
+			free (reader->debug_filenames[i]);
+		}
+		free (reader->debug_filenames);
+	}
 	free (reader->debug_file_regions);
 	free (reader->sources_data_storage);
 	free (reader->scope_desc_data_storage);
@@ -1578,22 +1584,31 @@ Result _hbc_reader_read_function_sources(HBCReader *reader) {
 	return SUCCESS_RESULT ();
 }
 
-/* Read debug information */
-Result _hbc_reader_read_debug_info(HBCReader *reader) {
+/* Size of the on-disk DebugInfoHeader block, in bytes. */
+static u32 debug_info_header_bytes(u32 version) {
+	/* v<91: 5 u32s (filename_count, filename_storage_size, file_region_count,
+	 * scope_desc_data_offset, debug_data_size).
+	 * v>=91: 7 u32s (adds textified_data_offset, string_table_offset). */
+	return (version >= 91? 7u: 5u) * sizeof (u32);
+}
+
+/* Read just the DebugInfoHeader fields (no storage blobs, no allocations).
+ * Cheap enough to run eagerly at load time so "has source lines" is knowable
+ * without committing to a full debug-info parse. Idempotent. */
+Result _hbc_reader_read_debug_info_header(HBCReader *reader) {
 	if (!reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
-	if (reader->header.debugInfoOffset == 0) {
+	if (reader->debug_info_header_loaded) {
 		return SUCCESS_RESULT ();
 	}
-	if (reader->header.version >= 97) {
+	if (reader->header.debugInfoOffset == 0) {
+		reader->debug_info_header_loaded = true;
 		return SUCCESS_RESULT ();
 	}
 
-	/* Seek to debug info offset */
 	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, reader->header.debugInfoOffset));
 
-	/* Read debug info header */
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_count));
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_storage_size));
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.file_region_count));
@@ -1605,6 +1620,30 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 	}
 
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.debug_data_size));
+
+	reader->debug_info_header_loaded = true;
+	return SUCCESS_RESULT ();
+}
+
+/* Read the full debug-info body (filenames, file regions, sources/scope/
+ * textified/string-table storage blobs). Builds on the cheap header parse.
+ * Idempotent: subsequent calls after a successful load are no-ops. */
+Result _hbc_reader_read_debug_info(HBCReader *reader) {
+	if (!reader) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
+	}
+	if (reader->debug_info_loaded) {
+		return SUCCESS_RESULT ();
+	}
+	RETURN_IF_ERROR (_hbc_reader_read_debug_info_header (reader));
+	if (reader->header.debugInfoOffset == 0) {
+		reader->debug_info_loaded = true;
+		return SUCCESS_RESULT ();
+	}
+
+	/* Seek past the already-parsed header to the start of the body. */
+	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer,
+		reader->header.debugInfoOffset + debug_info_header_bytes (reader->header.version)));
 
 	/* Allocate debug string table */
 	if (reader->debug_info_header.filename_count > 0) {
@@ -1707,6 +1746,7 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 		reader->string_table_storage_size = string_table_size;
 	}
 
+	reader->debug_info_loaded = true;
 	return SUCCESS_RESULT ();
 }
 
@@ -2029,10 +2069,11 @@ Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 		}
 	}
 
-	/* Read debug info */
-	result = _hbc_reader_read_debug_info (reader);
+	/* Read only the DebugInfoHeader eagerly (cheap). The body is parsed lazily
+	 * via _hbc_reader_read_debug_info() on first API use. */
+	result = _hbc_reader_read_debug_info_header (reader);
 	if (result.code != RESULT_SUCCESS) {
-		fprintf (stderr, "Error reading debug info: %s\n", result.error_message);
+		fprintf (stderr, "Error reading debug info header: %s\n", result.error_message);
 		return result;
 	}
 
