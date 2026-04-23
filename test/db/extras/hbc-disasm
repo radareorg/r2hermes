@@ -284,6 +284,43 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc imports js require
+FILE=bins/hbc/index.android.bundle
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+ii~js.__r
+ii~?
+EOF
+EXPECT=<<EOF
+3048 0x00000000 NONE FUNC react-native js.__r
+58
+EOF
+RUN
+
+NAME=hbc imports native module
+FILE=bins/hbc/index.android.bundle
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+ii~native.NativeModules
+EOF
+EXPECT=<<EOF
+3894 0x00000000 NONE FUNC react-native native.NativeModules
+EOF
+RUN
+
+NAME=hbc exports module symbol
+FILE=bins/hbc/index.android.bundle
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+iE~hbc.export.module.RN$AppRegistry
+iE~?
+EOF
+EXPECT=<<EOF
+3630 0x00071961 0x10071961 GLOBAL OBJ  1        hbc.export.module.RN$AppRegistry
+451
+EOF
+RUN
+
 NAME=hbc get_global_object instruction (va)
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
