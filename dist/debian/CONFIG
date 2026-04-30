@@ -1,0 +1,20 @@
+PACKAGE=r2hermes
+VERSION=$(shell grep version ../../meson.build | head -1 | cut -d "'" -f 2)
+DEPENDS=radare2
+SECTION=user/shell
+PRIORITY=optional
+MAINTAINER=pancake <pancake@nopcode.org>
+
+UNAMEM=$(shell uname -m)
+DPKG_ARCH=$(shell command -v dpkg >/dev/null 2>&1 && dpkg --print-architecture)
+ifneq ($(DPKG_ARCH),)
+ARCH=$(DPKG_ARCH)
+else ifeq ($(UNAMEM),x86_64)
+ARCH=amd64
+else ifeq ($(UNAMEM),aarch64)
+ARCH=arm64
+else ifeq ($(UNAMEM),arm64)
+ARCH=arm64
+else
+ARCH=$(UNAMEM)
+endif
