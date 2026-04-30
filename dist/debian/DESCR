@@ -1,0 +1,2 @@
+Hermes bytecode tools and radare2 plugins
+r2hermes provides libhbctool, libhbc, and radare2 plugins to inspect, disassemble, assemble, and decompile React Native Hermes bytecode files.
