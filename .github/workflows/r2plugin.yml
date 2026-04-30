@@ -1,8 +1,5 @@
 name: CI
 
-env:
-  R2V: 6.1.4
-
 permissions:
   contents: write
 
