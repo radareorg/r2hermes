@@ -93,7 +93,7 @@ jobs:
           ls -l libhbc*
 
       - name: Download Debian package artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: debian-package
           path: release-artifacts
