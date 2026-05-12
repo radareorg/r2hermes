@@ -1119,7 +1119,7 @@ RCorePlugin r_core_plugin_r2hermes = {
 		.name = "core_hbc",
 		.desc = "Hermes bytecode decompiler plugin",
 		.author = "pancake",
-		.license = "LGPL-3.0-only",
+		.license = "BSD-3-Clause",
 	},
 	.call = cmd_handler,
 	.init = plugin_init,
