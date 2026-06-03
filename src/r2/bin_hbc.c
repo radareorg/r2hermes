@@ -471,7 +471,7 @@ done:
 	return ret;
 }
 
-static RList *strings(RBinFile *bf) {
+static RList *strings_list(RBinFile *bf) {
 	RList *ret = r_list_newf ((RListFree)r_bin_string_free);
 	HBC *hbc = get_hbc (bf);
 	if (!hbc) {
@@ -518,6 +518,129 @@ static RList *strings(RBinFile *bf) {
 
 	return ret;
 }
+
+#if R2_ABIVERSION >= 104
+static bool sections_vec(RBinFile *bf) {
+	if (!bf || !bf->bo) {
+		return false;
+	}
+	if (!RVecRBinSection_empty (&bf->bo->sections_vec)) {
+		return true;
+	}
+	RList *list = sections (bf);
+	if (!list) {
+		return false;
+	}
+	bool ok = true;
+	RListIter *iter;
+	RBinSection *section;
+	r_list_foreach (list, iter, section) {
+		RBinSection *dst = RVecRBinSection_emplace_back (&bf->bo->sections_vec);
+		if (!dst) {
+			ok = false;
+			break;
+		}
+		*dst = *section;
+		memset (section, 0, sizeof (*section));
+	}
+	if (!ok) {
+		RVecRBinSection_clear (&bf->bo->sections_vec);
+	}
+	list->free = (RListFree)r_bin_section_free;
+	r_list_free (list);
+	return ok;
+}
+
+static bool symbols_vec(RBinFile *bf) {
+	if (!bf || !bf->bo) {
+		return false;
+	}
+	if (!RVecRBinSymbol_empty (&bf->bo->symbols_vec)) {
+		return true;
+	}
+	RList *list = symbols (bf);
+	if (!list) {
+		return false;
+	}
+	bool ok = true;
+	RListIter *iter;
+	RBinSymbol *symbol;
+	r_list_foreach (list, iter, symbol) {
+		RBinSymbol *dst = RVecRBinSymbol_emplace_back (&bf->bo->symbols_vec);
+		if (!dst) {
+			ok = false;
+			break;
+		}
+		*dst = *symbol;
+		memset (symbol, 0, sizeof (*symbol));
+	}
+	if (!ok) {
+		RVecRBinSymbol_clear (&bf->bo->symbols_vec);
+	}
+	r_list_free (list);
+	return ok;
+}
+
+static bool imports_vec(RBinFile *bf) {
+	if (!bf || !bf->bo) {
+		return false;
+	}
+	if (!RVecRBinImport_empty (&bf->bo->imports_vec)) {
+		return true;
+	}
+	RList *list = imports (bf);
+	if (!list) {
+		return false;
+	}
+	bool ok = true;
+	RListIter *iter;
+	RBinImport *imp;
+	r_list_foreach (list, iter, imp) {
+		RBinImport *dst = RVecRBinImport_emplace_back (&bf->bo->imports_vec);
+		if (!dst) {
+			ok = false;
+			break;
+		}
+		*dst = *imp;
+		memset (imp, 0, sizeof (*imp));
+	}
+	if (!ok) {
+		RVecRBinImport_clear (&bf->bo->imports_vec);
+	}
+	r_list_free (list);
+	return ok;
+}
+
+static RVecRBinString *strings_vec(RBinFile *bf) {
+	RList *list = strings_list (bf);
+	if (!list) {
+		return NULL;
+	}
+	RVecRBinString *ret = RVecRBinString_new ();
+	if (!ret) {
+		r_list_free (list);
+		return NULL;
+	}
+	bool ok = true;
+	RListIter *iter;
+	RBinString *str;
+	r_list_foreach (list, iter, str) {
+		RBinString *dst = RVecRBinString_emplace_back (ret);
+		if (!dst) {
+			ok = false;
+			break;
+		}
+		*dst = *str;
+		memset (str, 0, sizeof (*str));
+	}
+	r_list_free (list);
+	if (!ok) {
+		RVecRBinString_free (ret);
+		return NULL;
+	}
+	return ret;
+}
+#endif
 
 static void hbc_source_hash_hex(const HBCHeader *hh, char *dst, size_t dstsz) {
 	if (!dst || dstsz < 41) {
@@ -757,13 +880,20 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.destroy = &destroy,
 	.check = &check,
 	.entries = &entries,
+#if R2_ABIVERSION >= 104
+	.sections_vec = &sections_vec,
+	.symbols_vec = &symbols_vec,
+	.imports_vec = &imports_vec,
+	.strings = &strings_vec,
+#else
 	.sections = &sections,
-	.baddr = &baddr,
 	.symbols = &symbols,
 	.imports = &imports,
+	.strings = &strings_list,
+#endif
+	.baddr = &baddr,
 	.libs = &libs,
 	.lines = &lines,
-	.strings = &strings,
 	.header = &header,
 	.fields = &fields,
 };
