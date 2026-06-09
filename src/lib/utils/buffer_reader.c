@@ -63,141 +63,57 @@ Result _hbc_buffer_reader_init_from_memory(BufferReader *reader, const u8 *data,
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_buffer_reader_read_u8(BufferReader *reader, u8 *out_value) {
-	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u8");
+/* Shared validity + bounds check for a read of `need` bytes at the cursor. */
+static Result buffer_reader_check(const BufferReader *reader, size_t need) {
+	if (!reader || !reader->data) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer reader");
 	}
-
-	/* Safety check - is the reader data valid? */
-	if (!reader->data) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
+	if (reader->position + need > reader->size) {
+		hbc_debug_printf ("Warning: Buffer overflow prevented reading %zu bytes at position %zu of %zu\n",
+			need, reader->position, reader->size);
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow");
 	}
-
-	/* Extra validation for position */
-	if (reader->position >= reader->size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer position at or beyond buffer size");
-	}
-
-	/* Now check if we can read a byte */
-	if (reader->position + sizeof (u8) > reader->size) {
-		/* Provide a default but warn */
-		hbc_debug_printf ("Warning: Buffer overflow prevented in read_u8 at position %zu of %zu bytes\n",
-			reader->position,
-			reader->size);
-		*out_value = 0;
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u8");
-	}
-
-	/* All good, proceed with read */
-	*out_value = reader->data[reader->position];
-	reader->position += sizeof (u8);
-
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_buffer_reader_read_u16(BufferReader *reader, u16 *out_value) {
-	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u16");
+/* Read `n` (1..8) little-endian bytes at the cursor, advancing the position.
+ * *out is zeroed on any failure. */
+static Result buffer_reader_read_le(BufferReader *reader, size_t n, u64 *out) {
+	*out = 0;
+	RETURN_IF_ERROR (buffer_reader_check (reader, n));
+	u64 v = 0;
+	for (size_t i = 0; i < n; i++) {
+		v |= (u64)reader->data[reader->position + i] << (8 * i);
 	}
-
-	/* Safety check - is the reader data valid? */
-	if (!reader->data) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
-	}
-
-	/* Extra validation for position */
-	if (reader->position >= reader->size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer position at or beyond buffer size");
-	}
-
-	/* Now check if we can read 2 bytes */
-	if (reader->position + sizeof (u16) > reader->size) {
-		/* Provide a default but warn */
-		hbc_debug_printf ("Warning: Buffer overflow prevented in read_u16 at position %zu of %zu bytes\n",
-			reader->position,
-			reader->size);
-		*out_value = 0;
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u16");
-	}
-
-	/* Read in little-endian format */
-	*out_value = (u16)reader->data[reader->position] |
-		((u16)reader->data[reader->position + 1] << 8);
-	reader->position += sizeof (u16);
-
+	reader->position += n;
+	*out = v;
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_buffer_reader_read_u32(BufferReader *reader, u32 *out_value) {
-	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u32");
+/* Define the fixed-width little-endian readers; all share buffer_reader_read_le. */
+#define HBC_DEFINE_READ(bits) \
+	Result _hbc_buffer_reader_read_u##bits(BufferReader *reader, u##bits *out_value) { \
+		if (!out_value) { \
+			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "read out_value is NULL"); \
+		} \
+		u64 v; \
+		Result r = buffer_reader_read_le (reader, sizeof (u##bits), &v); \
+		*out_value = (u##bits)v; \
+		return r; \
 	}
-
-	/* Safety check - is the reader data valid? */
-	if (!reader->data) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "BufferReader has no data");
-	}
-
-	/* Extra validation for position */
-	if (reader->position >= reader->size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer position at or beyond buffer size");
-	}
-
-	/* Now check if we can read 4 bytes */
-	if (reader->position + sizeof (u32) > reader->size) {
-		/* Provide a default but warn */
-		hbc_debug_printf ("Warning: Buffer overflow prevented in read_u32 at position %zu of %zu bytes\n",
-			reader->position,
-			reader->size);
-		*out_value = 0;
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u32");
-	}
-
-	/* Read in little-endian format */
-	*out_value = (u32)reader->data[reader->position] |
-		((u32)reader->data[reader->position + 1] << 8) |
-		((u32)reader->data[reader->position + 2] << 16) |
-		((u32)reader->data[reader->position + 3] << 24);
-	reader->position += sizeof (u32);
-
-	return SUCCESS_RESULT ();
-}
-
-Result _hbc_buffer_reader_read_u64(BufferReader *reader, u64 *out_value) {
-	if (!reader || !out_value) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_u64");
-	}
-
-	if (reader->position + sizeof (u64) > reader->size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_u64");
-	}
-
-	/* Read in little-endian format */
-	*out_value = (u64)reader->data[reader->position] |
-		((u64)reader->data[reader->position + 1] << 8) |
-		((u64)reader->data[reader->position + 2] << 16) |
-		((u64)reader->data[reader->position + 3] << 24) |
-		((u64)reader->data[reader->position + 4] << 32) |
-		((u64)reader->data[reader->position + 5] << 40) |
-		((u64)reader->data[reader->position + 6] << 48) |
-		((u64)reader->data[reader->position + 7] << 56);
-	reader->position += sizeof (u64);
-
-	return SUCCESS_RESULT ();
-}
+HBC_DEFINE_READ(8)
+HBC_DEFINE_READ(16)
+HBC_DEFINE_READ(32)
+HBC_DEFINE_READ(64)
+#undef HBC_DEFINE_READ
 
 Result _hbc_buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t length) {
-	if (!reader || !out_buffer) {
+	if (!out_buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for _hbc_buffer_reader_read_bytes");
 	}
-
-	if (reader->position + length > reader->size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in read_bytes");
-	}
-
+	RETURN_IF_ERROR (buffer_reader_check (reader, length));
 	memcpy (out_buffer, reader->data + reader->position, length);
 	reader->position += length;
-
 	return SUCCESS_RESULT ();
 }
 
