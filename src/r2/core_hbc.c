@@ -895,9 +895,11 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 
 /* Show help */
 static void r2hermes_help(RCore *core) {
-	const char msg[] = "Usage: r2hermes[-arg]  # see also pd:h for decompilation\n";
-		"r2hermes-h      - help message (same as r2hermes-?, see pd:h? too)\n"
-		"r2hermes-L      - scan and list SLP literals\n"
+	const char msg[] =
+		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
+		"r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)\n"
+		"r2hermes-L       - scan and list SLP literals\n"
+		"r2hermes-S[j?]   - emit SBOM from SLP literals (j=CycloneDX JSON)\n";
 	r_cons_print (core->cons, msg);
 }
 
@@ -921,12 +923,16 @@ static void cmd_help(RCore *core) {
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
 
+#include "sbom.inc.c"
+
 static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
-	(void)ctx;
 	if (*arg == '-') {
 		switch (arg[1]) {
 		case 'L':
 			cmd_literals (ctx, core, arg + 2);
+			break;
+		case 'S':
+			cmd_sbom (ctx, core, arg + 2);
 			break;
 		case '?':
 		case 'h':

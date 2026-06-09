@@ -33,7 +33,7 @@ BIN_SRC = bin_hbc.c
 ASM_SRC = asm_hbc.c
 CORE_SRC = core_hbc.c
 CORE_ONE_SRC = core_hbc_one.c
-HBC_HEADERS = $(shell find ../../include -name '*.h') utils.inc.c
+HBC_HEADERS = $(shell find ../../include -name '*.h') utils.inc.c sbom.inc.c
 
 # Object files
 ARCH_OBJ = arch_hbc.o
