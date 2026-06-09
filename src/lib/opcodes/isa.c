@@ -101,6 +101,35 @@ static const IsaVersion k_isa_versions[] = {
 	{ 99, &k_isa_v99 },
 };
 
+const char *hbc_operand_name(const InstructionOperand *operand) {
+	if (!operand) {
+		return "Unknown";
+	}
+	switch (operand->operand_meaning) {
+	case OPERAND_MEANING_STRING_ID: return "string_id";
+	case OPERAND_MEANING_BIGINT_ID: return "bigint_id";
+	case OPERAND_MEANING_FUNCTION_ID: return "function_id";
+	case OPERAND_MEANING_BUILTIN_ID: return "builtin_id";
+	case OPERAND_MEANING_ARRAY_ID: return "array_id";
+	case OPERAND_MEANING_OBJ_KEY_ID: return "obj_key_id";
+	case OPERAND_MEANING_OBJ_VAL_ID: return "obj_val_id";
+	case OPERAND_MEANING_NONE: break;
+	}
+	switch (operand->operand_type) {
+	case OPERAND_TYPE_REG8: return "Reg8";
+	case OPERAND_TYPE_REG32: return "Reg32";
+	case OPERAND_TYPE_UINT8: return "UInt8";
+	case OPERAND_TYPE_UINT16: return "UInt16";
+	case OPERAND_TYPE_UINT32: return "UInt32";
+	case OPERAND_TYPE_ADDR8: return "Addr8";
+	case OPERAND_TYPE_ADDR32: return "Addr32";
+	case OPERAND_TYPE_IMM32: return "Imm32";
+	case OPERAND_TYPE_DOUBLE: return "Double";
+	case OPERAND_TYPE_NONE: break;
+	}
+	return "Unknown";
+}
+
 u8 hbc_canonical_opcode_from_name(const char *name) {
 	if (!name) {
 		return HBC_CANONICAL_OPCODE_UNKNOWN;

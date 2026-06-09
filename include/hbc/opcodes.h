@@ -7,16 +7,16 @@
 
 /* Operand type enum */
 typedef enum {
-	OPERAND_TYPE_NONE,
-	OPERAND_TYPE_REG8,
-	OPERAND_TYPE_REG32,
-	OPERAND_TYPE_UINT8,
-	OPERAND_TYPE_UINT16,
-	OPERAND_TYPE_UINT32,
-	OPERAND_TYPE_ADDR8,
-	OPERAND_TYPE_ADDR32,
-	OPERAND_TYPE_IMM32,
-	OPERAND_TYPE_DOUBLE
+	OPERAND_TYPE_NONE,  // 0
+	OPERAND_TYPE_REG8,  // 'r'
+	OPERAND_TYPE_REG32, // 'R'
+	OPERAND_TYPE_UINT8, // 'b'
+	OPERAND_TYPE_UINT16,// 'u'
+	OPERAND_TYPE_UINT32,// 'U'
+	OPERAND_TYPE_ADDR8, // 'a'
+	OPERAND_TYPE_ADDR32,// 'A'
+	OPERAND_TYPE_IMM32, // 'i'
+	OPERAND_TYPE_DOUBLE // 'd'
 } OperandType;
 
 /* Operand meaning enum */
@@ -44,7 +44,7 @@ typedef struct {
 	u32 binary_size; /* Total size in bytes */
 } Instruction;
 
-/* Hermes opcodes based on hbc95.py (version 95) - Complete list */
+/* Hermes opcodes based on v95 */
 enum HermesOpcodes {
 	OP_Unreachable = 0,
 	OP_NewObjectWithBuffer = 1,
@@ -266,5 +266,9 @@ typedef struct {
 /* Public API for getting instruction set by version */
 HBCISA hbc_isa_getv(int version);
 u8 hbc_canonical_opcode_from_name(const char *name);
+
+/* Human-readable label for an operand, derived from its meaning or type.
+ * Never returns NULL; falls back to "Unknown" for unexpected values. */
+const char *hbc_operand_name(const InstructionOperand *operand);
 
 #endif /* LIBHBC_HERMES_OPCODES_H */

@@ -265,68 +265,8 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 		}
 		first = false;
 
-		/* Get operand name */
-		const char *operand_name = "Unknown";
-		switch (instruction->inst->operands[i].operand_meaning) {
-		case OPERAND_MEANING_NONE:
-			switch (operand_type) {
-			case OPERAND_TYPE_REG8:
-				operand_name = "Reg8";
-				break;
-			case OPERAND_TYPE_REG32:
-				operand_name = "Reg32";
-				break;
-			case OPERAND_TYPE_UINT8:
-				operand_name = "UInt8";
-				break;
-			case OPERAND_TYPE_UINT16:
-				operand_name = "UInt16";
-				break;
-			case OPERAND_TYPE_UINT32:
-				operand_name = "UInt32";
-				break;
-			case OPERAND_TYPE_ADDR8:
-				operand_name = "Addr8";
-				break;
-			case OPERAND_TYPE_ADDR32:
-				operand_name = "Addr32";
-				break;
-			case OPERAND_TYPE_IMM32:
-				operand_name = "Imm32";
-				break;
-			case OPERAND_TYPE_DOUBLE:
-				operand_name = "Double";
-				break;
-				break;
-			default:
-				operand_name = "Unknown";
-				break;
-			}
-			break;
-		case OPERAND_MEANING_STRING_ID:
-			operand_name = "string_id";
-			break;
-		case OPERAND_MEANING_BIGINT_ID:
-			operand_name = "bigint_id";
-			break;
-		case OPERAND_MEANING_FUNCTION_ID:
-			operand_name = "function_id";
-			break;
-		case OPERAND_MEANING_BUILTIN_ID:
-			operand_name = "builtin_id";
-			break;
-		case OPERAND_MEANING_ARRAY_ID:
-			operand_name = "array_id";
-			break;
-		case OPERAND_MEANING_OBJ_KEY_ID:
-			operand_name = "obj_key_id";
-			break;
-		case OPERAND_MEANING_OBJ_VAL_ID:
-			operand_name = "obj_val_id";
-			break;
-		}
-
 		/* Print operand name and value */
+		const char *operand_name = hbc_operand_name (&instruction->inst->operands[i]);
 		RETURN_IF_ERROR (_hbc_string_buffer_append (output, operand_name));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (output, ": "));
 
