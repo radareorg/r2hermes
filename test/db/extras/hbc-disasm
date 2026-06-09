@@ -58,7 +58,7 @@ CMDS=<<EOF
 i~cpu
 EOF
 EXPECT=<<EOF
-cpu      96
+cpu      v96
 EOF
 RUN
 
@@ -716,6 +716,30 @@ pad 080201
 EOF
 EXPECT=<<EOF
 mov r2, r1
+EOF
+RUN
+
+NAME=hbc pad respects asm.cpu v99
+FILE=--
+CMDS=<<EOF
+-a hbc
+e asm.cpu=v99
+pad 010203040506
+EOF
+EXPECT=<<EOF
+new_object_with_buffer r2, 1027, 1541
+EOF
+RUN
+
+NAME=hbc pa respects asm.cpu v99
+FILE=--
+CMDS=<<EOF
+-a hbc
+e asm.cpu=v99
+pa new_object_with_buffer r2, 1027, 1541
+EOF
+EXPECT=<<EOF
+010203040506
 EOF
 RUN
 

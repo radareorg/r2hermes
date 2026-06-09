@@ -14,7 +14,7 @@
 #endif
 
 typedef struct {
-	ut32 bytecode_version; /* cached from RBinInfo->cpu if available */
+	ut32 bytecode_version; /* cached effective HBC bytecode version */
 	HBC *hbc; /* Hermes state for direct access */
 	u32 string_count;
 	const void *small_string_table;
@@ -22,25 +22,41 @@ typedef struct {
 	u64 string_storage_offset;
 } HermesArchSession;
 
+static ut32 parse_cpu_version(const char *cpu) {
+	if (!cpu || !*cpu) {
+		return 0;
+	}
+	const char *p = cpu;
+	if (p[0] != 'v') {
+		return 0;
+	}
+	unsigned long v = strtoul (p + 1, NULL, 10);
+	return v > 0 && v <= UT32_MAX? (ut32)v: 0;
+}
+
 static ut32 detect_version_from_bin(RArchSession *s) {
 	if (!s || !s->arch || !s->arch->binb.bin) {
-		return 96; /* sane default */
+		return 0;
 	}
 	RBin *bin = s->arch->binb.bin;
 	RBinInfo *bi = r_bin_get_info (bin);
 	if (bi && bi->cpu && *bi->cpu) {
-		const char *p = bi->cpu;
-		/* Accept optional leading 'v' or 'V' (e.g., "v76") */
-		if (p[0] == 'v' || p[0] == 'V') {
-			p++;
-		}
 		/* cpu holds the version string set by bin plugin */
-		ut32 v = (ut32)strtoul (p, NULL, 10);
+		ut32 v = parse_cpu_version (bi->cpu);
 		if (v > 0) {
 			return v;
 		}
 	}
-	return 96;
+	return 0;
+}
+
+static ut32 detect_version(RArchSession *s) {
+	ut32 v = parse_cpu_version (s && s->config? s->config->cpu: NULL);
+	if (v > 0) {
+		return v;
+	}
+	v = detect_version_from_bin (s);
+	return v > 0? v: 96; /* sane default */
 }
 
 #include "esil.inc.c"
@@ -207,13 +223,12 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		return false;
 	}
 
-	if (!hs->bytecode_version) {
-		hs->bytecode_version = detect_version_from_bin (s);
-	}
+	hs->bytecode_version = detect_version (s);
 
 	/* Load string tables if not already loaded */
 	if (!hs->hbc) {
 		load_string_tables (hs, s);
+		hs->bytecode_version = detect_version (s);
 	}
 
 	/* Build decode context */
@@ -533,7 +548,10 @@ static int archinfo(RArchSession *s, ut32 q) {
 
 static char *mnemonics(RArchSession *s, int id, bool json) {
 	HermesArchSession *hs = s? (HermesArchSession *)s->data: NULL;
-	ut32 version = (hs && hs->bytecode_version)? hs->bytecode_version: 96;
+	ut32 version = detect_version (s);
+	if (hs) {
+		hs->bytecode_version = version;
+	}
 	HBCISA isa = hbc_isa_getv (version);
 	if (!isa.instructions || isa.count == 0) {
 		return NULL;
@@ -571,12 +589,7 @@ static bool encode(RArchSession *s, RAnalOp *op, RArchEncodeMask mask) {
 		return false;
 	}
 
-	if (!hs->bytecode_version) {
-		hs->bytecode_version = detect_version_from_bin (s);
-		if (!hs->bytecode_version) {
-			hs->bytecode_version = 96;
-		}
-	}
+	hs->bytecode_version = detect_version (s);
 
 	const char *asm_line = op->mnemonic;
 
@@ -667,7 +680,10 @@ const RArchPlugin r_arch_plugin_r2hermes = {
 	},
 	.arch = "hbc",
 	.bits = R_SYS_BITS_PACK1 (64),
-	.cpus = "v76,v90,v91,v92,v93,v94,v95,v96,v97,v98,v99",
+	.cpus =
+		"v51,v58,v59,v61,v62,v68,v69,v70,v72,v73,v76,"
+		"v80,v81,v82,v83,v84,v85,v86,v87,v88,v89,"
+		"v90,v91,v92,v93,v94,v95,v96,v97,v98,v99",
 	.decode = &decode,
 	.encode = &encode,
 	.regs = regs,

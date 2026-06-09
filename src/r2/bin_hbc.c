@@ -142,7 +142,7 @@ static void fill_info(RBinInfo *ret, const char *file_path, bool has_version, ut
 	ret->bits = 32;
 	ret->type = strdup ("Hermes bytecode");
 	ret->machine = strdup ("Hermes VM");
-	ret->cpu = has_version? r_str_newf ("%u", version): strdup ("unknown");
+	ret->cpu = has_version? r_str_newf ("v%u", version): strdup ("unknown");
 	ret->has_va = true;
 	ret->dbg_info = has_source_lines? R_BIN_DBG_LINENUMS: R_BIN_DBG_STRIPPED;
 }
