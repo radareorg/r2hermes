@@ -622,6 +622,10 @@ static char *build_literal_comment(HBCReader *reader, const char *mnemonic, cons
 	return result;
 }
 
+/* Read each operand by type into values[6], little-endian with sign-extension
+ * for relative addresses; returns total instruction size, or 0 if truncated. */
+static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t len, u32 values[6]);
+
 Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	if (!ctx || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid context");
@@ -661,62 +665,8 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	}
 
 	/* Parse operands */
-	u32 operand_values[6] = { 0 };
-	size_t pos = 1; /* Start after opcode */
-
-	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
-		OperandType operand_type = inst->operands[i].operand_type;
-
-		/* Check if we have enough bytes */
-		size_t need = 0;
-		switch (operand_type) {
-		case OPERAND_TYPE_REG8:
-		case OPERAND_TYPE_UINT8:
-		case OPERAND_TYPE_ADDR8: need = 1; break;
-		case OPERAND_TYPE_UINT16: need = 2; break;
-		case OPERAND_TYPE_REG32:
-		case OPERAND_TYPE_UINT32:
-		case OPERAND_TYPE_IMM32:
-		case OPERAND_TYPE_ADDR32: need = 4; break;
-		case OPERAND_TYPE_DOUBLE: need = 8; break;
-		default: need = 0; break;
-		}
-
-		if (pos + need > ctx->len) {
-			break;
-		}
-
-		/* Read operand value */
-		switch (operand_type) {
-		case OPERAND_TYPE_REG8:
-		case OPERAND_TYPE_UINT8:
-			operand_values[i] = ctx->bytes[pos];
-			pos += 1;
-			break;
-		case OPERAND_TYPE_ADDR8:
-			operand_values[i] = (u32) (i32) (i8)ctx->bytes[pos];
-			pos += 1;
-			break;
-		case OPERAND_TYPE_UINT16:
-			operand_values[i] = (u32)ctx->bytes[pos] | ((u32)ctx->bytes[pos + 1] << 8);
-			pos += 2;
-			break;
-		case OPERAND_TYPE_REG32:
-		case OPERAND_TYPE_UINT32:
-		case OPERAND_TYPE_IMM32:
-		case OPERAND_TYPE_ADDR32:
-			operand_values[i] = (u32)ctx->bytes[pos] | ((u32)ctx->bytes[pos + 1] << 8) |
-				((u32)ctx->bytes[pos + 2] << 16) | ((u32)ctx->bytes[pos + 3] << 24);
-			pos += 4;
-			break;
-		case OPERAND_TYPE_DOUBLE:
-			/* Skip for now */
-			pos += 8;
-			break;
-		default:
-			break;
-		}
-	}
+	u32 operand_values[6];
+	size_t pos = decode_operands (inst, ctx->bytes, ctx->len, operand_values);
 
 	/* Format output string */
 	char buf[512];
