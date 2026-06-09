@@ -171,7 +171,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 				HBCStringMeta meta;
 				Result meta_result = hbc_get_string_meta (hs->hbc, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
-					op->ptr = (st64)(HBC_VADDR_BASE + meta.offset);
+					op->ptr = (st64) (HBC_VADDR_BASE + meta.offset);
 				}
 			}
 		}
@@ -187,7 +187,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					offset = fi.offset;
 					(void)fi.size;
 					(void)fi.param_count;
-					op->ptr = (st64)(HBC_VADDR_BASE + offset);
+					op->ptr = (st64) (HBC_VADDR_BASE + offset);
 				}
 			}
 		}
@@ -235,9 +235,9 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 		.hbc = hs->hbc,
 };
 	/* Inlining of buffer-literal contents into the disasm line is opt-in —
-	 * it makes arch.decode O(n) in literal size and breaks r2's O(1) per-op
+	 * it makes arch.decode O (n) in literal size and breaks r2's O(1) per-op
 	 * disasm assumption. Toggle via `e hbc.inline_buffer_literals=true`
-	 * (core plugin updates a process-wide flag). */
+	 *(core plugin updates a process-wide flag). */
 	if ((mask & R_ARCH_OP_MASK_DISASM) && hbc_get_inline_literals ()) {
 		ctx.build_objects = true;
 	}

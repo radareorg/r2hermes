@@ -2,8 +2,17 @@
 
 #include <hbc/hbc.h>
 #include <hbc/parser.h>
+#include <ctype.h>
 
-/* Generate r2 script with function flags - robust version inspired by the Python implementation */
+static void sanitize_identifier(const char *src, char *dst, size_t dst_size) {
+	size_t out = 0;
+	for (size_t j = 0; src[j] && out + 1 < dst_size; j++) {
+		char c = src[j];
+		dst[out++] = (isalnum ((unsigned char)c) || c == '_')? c: '_';
+	}
+	dst[out] = '\0';
+}
+
 Result _hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	if (!input_file) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Input file is NULL");
@@ -211,21 +220,7 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 
 		/* Generate sanitized name for r2 */
 		char sanitized_name[256] = { 0 };
-		size_t name_len = strlen (function_name);
-		size_t sanitized_idx = 0;
-
-		for (size_t j = 0; j < name_len && sanitized_idx < sizeof (sanitized_name) - 1; j++) {
-			char c = function_name[j];
-			if ((c >= 'a' && c <= 'z') ||
-				(c >= 'A' && c <= 'Z') ||
-				(c >= '0' && c <= '9') ||
-				c == '_') {
-				sanitized_name[sanitized_idx++] = c;
-			} else {
-				sanitized_name[sanitized_idx++] = '_';
-			}
-		}
-		sanitized_name[sanitized_idx] = '\0';
+		sanitize_identifier (function_name, sanitized_name, sizeof (sanitized_name));
 
 		/* If sanitized name is empty, use a default */
 		if (sanitized_name[0] == '\0') {
@@ -412,21 +407,7 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 
 			/* Generate sanitized name for r2 - only include alphanumeric and underscores */
 			char sanitized_name[64] = { 0 };
-			size_t name_len = strlen (str_value);
-			size_t sanitized_idx = 0;
-
-			for (size_t j = 0; j < name_len && sanitized_idx < sizeof (sanitized_name) - 1; j++) {
-				char c = str_value[j];
-				if ((c >= 'a' && c <= 'z') ||
-					(c >= 'A' && c <= 'Z') ||
-					(c >= '0' && c <= '9') ||
-					c == '_') {
-					sanitized_name[sanitized_idx++] = c;
-				} else {
-					sanitized_name[sanitized_idx++] = '_';
-				}
-			}
-			sanitized_name[sanitized_idx] = '\0';
+			sanitize_identifier (str_value, sanitized_name, sizeof (sanitized_name));
 
 			/* Add index to name to ensure uniqueness */
 			char unique_name[96];

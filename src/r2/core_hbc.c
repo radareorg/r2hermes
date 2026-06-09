@@ -292,7 +292,7 @@ static void cmd_list_eval_functions(HbcContext *ctx, RCore *core) {
 		if (hbc_get_function_bytecode (ctx->hbc, fid, &code, &size).code != RESULT_SUCCESS || !code) {
 			continue;
 		}
-		for (u32 pc = 0; pc < size; ) {
+		for (u32 pc = 0; pc < size;) {
 			const u8 op = code[pc];
 			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
 			if (!inst || !inst->name || !inst->binary_size) {
@@ -300,8 +300,10 @@ static void cmd_list_eval_functions(HbcContext *ctx, RCore *core) {
 			}
 			if (hbc_canonical_opcode_from_name (inst->name) == OP_DirectEval) {
 				r_cons_printf (core->cons,
-					"0x%08"PFMT64x" f=%u +0x%x func=0x%08"PFMT64x" name=%s\n",
-					(ut64)HBC_VADDR_BASE + info.offset + pc, fid, pc,
+					"0x%08" PFMT64x " f=%u +0x%x func=0x%08" PFMT64x " name=%s\n",
+					(ut64)HBC_VADDR_BASE + info.offset + pc,
+					fid,
+					pc,
 					(ut64)HBC_VADDR_BASE + info.offset,
 					r_str_get_fail (info.name, "unknown"));
 			}
@@ -488,10 +490,7 @@ static void cmd_source_lines(HbcContext *ctx, RCore *core, const char *arg) {
 		if (filter && sl->function_id != filter_id) {
 			continue;
 		}
-		r_cons_printf (core->cons, "0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n",
-			sl->address, sl->function_id, sl->function_address,
-			sl->filename? sl->filename: "",
-			sl->line, sl->column, sl->statement);
+		r_cons_printf (core->cons, "0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n", sl->address, sl->function_id, sl->function_address, sl->filename? sl->filename: "", sl->line, sl->column, sl->statement);
 	}
 	hbc_free_source_lines (&lines);
 }
@@ -744,8 +743,12 @@ static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 		const HBCLiteralEntry *e = &arr[i];
 		r_cons_printf (core->cons,
 			"%-6s n=%-4u id=(%u,%u) paddr=0x%08x xrefs=%u  %s\n",
-			kind_label (e->kind), e->num_items, e->primary_id,
-			e->secondary_id, e->paddr, e->xref_count,
+			kind_label (e->kind),
+			e->num_items,
+			e->primary_id,
+			e->secondary_id,
+			e->paddr,
+			e->xref_count,
 			e->formatted? e->formatted: "");
 	}
 }
@@ -785,7 +788,9 @@ static void cmd_lit_scan_pool(HbcContext *ctx, RCore *core, HBCLiteralKind kind)
 	for (u32 i = 0; i < n; i++) {
 		r_cons_printf (core->cons,
 			"  paddr=0x%08x pool_off=0x%08x n=%-4u tag=%u\n",
-			groups[i].paddr, groups[i].pool_offset, groups[i].num_items,
+			groups[i].paddr,
+			groups[i].pool_offset,
+			groups[i].num_items,
 			groups[i].tag);
 	}
 	free (groups);
@@ -809,19 +814,17 @@ static void cmd_lit_get(HbcContext *ctx, RCore *core, const char *args) {
 		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
 		return;
 	}
-	/* Syntax: pd:hLg a <num> <array_id>        (array)
+	/* Syntax: pd:hLg a <num> <array_id> (array)
 	 *         pd:hLg o <num> <primary> [<sec>] (object)  */
 	char kindc = 0;
 	u64 num = 0, primary = 0, secondary = 0;
-	if (!args || sscanf (args, " %c %" SCNu64 " %" SCNu64 " %" SCNu64,
-			&kindc, &num, &primary, &secondary) < 3) {
+	if (!args || sscanf (args, " %c %" SCNu64 " %" SCNu64 " %" SCNu64, &kindc, &num, &primary, &secondary) < 3) {
 		R_LOG_ERROR ("usage: pd:hLg {a|o} <num_items> <primary_id> [<secondary_id>]");
 		return;
 	}
 	HBCLiteralKind kind = (kindc == 'a')? HBC_LIT_ARRAY: HBC_LIT_OBJECT;
 	char *text = NULL;
-	r = hbc_literals_format_raw (hbc, kind, (u32)num, (u32)primary,
-		(u32)secondary, &text);
+	r = hbc_literals_format_raw (hbc, kind, (u32)num, (u32)primary, (u32)secondary, &text);
 	if (r.code != RESULT_SUCCESS || !text) {
 		R_LOG_ERROR ("format failed: %s", safe_errmsg (r.error_message));
 		free (text);
@@ -865,12 +868,13 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 	case 's':
 		cmd_lit_scan_code (ctx, core);
 		break;
-	case 'p': {
-		char k = arg[1];
-		HBCLiteralKind kind = (k == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
-		cmd_lit_scan_pool (ctx, core, kind);
-		break;
-	}
+	case 'p':
+		{
+			char k = arg[1];
+			HBCLiteralKind kind = (k == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
+			cmd_lit_scan_pool (ctx, core, kind);
+			break;
+		}
 	case 'r':
 		cmd_lit_reset (ctx, core);
 		break;
@@ -1090,7 +1094,7 @@ static bool plugin_init(RCorePluginSession *s) {
 	}
 
 	/* Default off: inlining the SLP literal as a disasm-line comment makes
-	 * arch.decode O(n) in literal size. Use pd:hL* to inspect literals
+	 * arch.decode O (n) in literal size. Use pd:hL* to inspect literals
 	 * without impacting disasm speed. */
 	hbc_set_inline_literals (false);
 	node = r_config_set_b_cb (cfg, "hbc.inline_buffer_literals", false, cb_inline_buffer_literals);

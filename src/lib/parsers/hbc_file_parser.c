@@ -2076,7 +2076,7 @@ Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	}
 
 	/* Read only the DebugInfoHeader eagerly (cheap). The body is parsed lazily
-	 * via _hbc_reader_read_debug_info() on first API use. */
+	 * via _hbc_reader_read_debug_info () on first API use. */
 	result = _hbc_reader_read_debug_info_header (reader);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Error reading debug info header: %s\n", result.error_message);

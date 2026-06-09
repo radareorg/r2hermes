@@ -121,7 +121,7 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 		return res;
 	}
 	/* Read only the DebugInfoHeader eagerly — a handful of u32s — so
-	 * hbc_has_source_lines() can answer accurately without committing to the
+	 * hbc_has_source_lines () can answer accurately without committing to the
 	 * full body parse. The filename, file region and sources/scope/textified
 	 * storage blobs are read lazily on first hbc_get_source_lines /
 	 * hbc_get_debug_info call. */
@@ -278,7 +278,7 @@ static bool read_sleb128(const u8 *data, size_t size, size_t *pos, int64_t *out)
 		if (shift == 63 && (byte & 0x7e)) {
 			return false;
 		}
-		result |= ((uint64_t)(byte & 0x7f)) << shift;
+		result |= ((uint64_t) (byte & 0x7f)) << shift;
 		shift += 7;
 	} while (byte & 0x80);
 
@@ -342,7 +342,11 @@ static Result append_source_line(HBCSourceLineArray *arr, u32 *cap, const HBCSou
 	return SUCCESS_RESULT ();
 }
 
-#define PARSE_FAIL(msg) do { res = ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, msg); goto fail; } while (0)
+#define PARSE_FAIL(msg) \
+	do { \
+		res = ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, msg); \
+		goto fail; \
+	} while (0)
 
 Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 	if (!hbc || !out) {
@@ -363,14 +367,10 @@ Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 	while (pos < size) {
 		const size_t source_offset = pos;
 		int64_t function_id = 0, line = 0, column = 0;
-		if (source_offset > UINT32_MAX
-				|| !read_sleb128 (data, size, &pos, &function_id)
-				|| !read_sleb128 (data, size, &pos, &line)
-				|| !read_sleb128 (data, size, &pos, &column)) {
+		if (source_offset > UINT32_MAX || !read_sleb128 (data, size, &pos, &function_id) || !read_sleb128 (data, size, &pos, &line) || !read_sleb128 (data, size, &pos, &column)) {
 			PARSE_FAIL ("Invalid source location header");
 		}
-		if (function_id < 0 || function_id >= (int64_t)reader->header.functionCount
-				|| line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX) {
+		if (function_id < 0 || function_id >= (int64_t)reader->header.functionCount || line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX) {
 			PARSE_FAIL ("Source location header out of range");
 		}
 
@@ -398,11 +398,7 @@ Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 				break;
 			}
 			int64_t ldelta = 0, cdelta = 0, scope = 0, env = 0, sdelta = 0;
-			if (adelta < 0
-					|| !read_sleb128 (data, size, &pos, &ldelta)
-					|| !read_sleb128 (data, size, &pos, &cdelta)
-					|| !read_sleb128 (data, size, &pos, &scope)
-					|| !read_sleb128 (data, size, &pos, &env)) {
+			if (adelta < 0 || !read_sleb128 (data, size, &pos, &ldelta) || !read_sleb128 (data, size, &pos, &cdelta) || !read_sleb128 (data, size, &pos, &scope) || !read_sleb128 (data, size, &pos, &env)) {
 				PARSE_FAIL ("Invalid source location entry");
 			}
 			if ((ldelta & 1) && !read_sleb128 (data, size, &pos, &sdelta)) {
@@ -413,9 +409,7 @@ Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out) {
 			line += ldelta;
 			column += cdelta;
 			statement += sdelta;
-			if (address < 0 || address > UINT32_MAX || (uint64_t)fi.offset + (uint64_t)address > UINT32_MAX
-					|| line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX
-					|| statement < 0 || statement > UINT32_MAX) {
+			if (address < 0 || address > UINT32_MAX || (uint64_t)fi.offset + (uint64_t)address > UINT32_MAX || line < 0 || line > UINT32_MAX || column < 0 || column > UINT32_MAX || statement < 0 || statement > UINT32_MAX) {
 				PARSE_FAIL ("Source location entry out of range");
 			}
 			sl.address = fi.offset + (u32)address;
@@ -834,38 +828,38 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 }
 
 typedef struct {
-	const char *name;    /* exact match, else match prefix */
+	const char *name; /* exact match, else match prefix */
 	const char *prefix;
 	const char *kind;
-	const char *module;  /* NULL for exports */
+	const char *module; /* NULL for exports */
 	HBCBindingType type;
 } BindingHint;
 
 static const BindingHint g_hints[] = {
-	{ "NativeModules",          NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "TurboModuleRegistry",    NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "__turboModuleProxy",     NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "requireNativeComponent", NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "codegenNativeComponent", NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "NativeEventEmitter",     NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "RCTDeviceEventEmitter",  NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "HermesInternal",         NULL,     "native", "react-native", HBC_BINDING_IMPORT },
-	{ "require",                NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
-	{ "metroRequire",           NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
-	{ "__r",                    NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
-	{ "importScripts",          NULL,     "js",     "react-native", HBC_BINDING_IMPORT },
-	{ "global",                 NULL,     "global", "react-native", HBC_BINDING_IMPORT },
-	{ "globalThis",             NULL,     "global", "react-native", HBC_BINDING_IMPORT },
-	{ "exports",                NULL,     "module", NULL,           HBC_BINDING_EXPORT },
-	{ "module",                 NULL,     "module", NULL,           HBC_BINDING_EXPORT },
-	{ "__esModule",             NULL,     "module", NULL,           HBC_BINDING_EXPORT },
-	{ "default",                NULL,     "module", NULL,           HBC_BINDING_EXPORT },
-	{ NULL,                     "RCT",    "native", "react-native", HBC_BINDING_IMPORT },
-	{ NULL,                     "Native", "native", "react-native", HBC_BINDING_IMPORT },
+	{ "NativeModules", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "TurboModuleRegistry", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "__turboModuleProxy", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "requireNativeComponent", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "codegenNativeComponent", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "NativeEventEmitter", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "RCTDeviceEventEmitter", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "HermesInternal", NULL, "native", "react-native", HBC_BINDING_IMPORT },
+	{ "require", NULL, "js", "react-native", HBC_BINDING_IMPORT },
+	{ "metroRequire", NULL, "js", "react-native", HBC_BINDING_IMPORT },
+	{ "__r", NULL, "js", "react-native", HBC_BINDING_IMPORT },
+	{ "importScripts", NULL, "js", "react-native", HBC_BINDING_IMPORT },
+	{ "global", NULL, "global", "react-native", HBC_BINDING_IMPORT },
+	{ "globalThis", NULL, "global", "react-native", HBC_BINDING_IMPORT },
+	{ "exports", NULL, "module", NULL, HBC_BINDING_EXPORT },
+	{ "module", NULL, "module", NULL, HBC_BINDING_EXPORT },
+	{ "__esModule", NULL, "module", NULL, HBC_BINDING_EXPORT },
+	{ "default", NULL, "module", NULL, HBC_BINDING_EXPORT },
+	{ NULL, "RCT", "native", "react-native", HBC_BINDING_IMPORT },
+	{ NULL, "Native", "native", "react-native", HBC_BINDING_IMPORT },
 };
 #define HINTS_N (sizeof (g_hints) / sizeof (g_hints[0]))
 
-/* Per-sid dedup flags for hbc_scan_bindings; avoids O(N^2) strcmp dedup. */
+/* Per-sid dedup flags for hbc_scan_bindings; avoids O (N^2) strcmp dedup. */
 #define SEEN_CJS 0x1
 #define SEEN_IMP 0x2
 #define SEEN_EXP 0x4
@@ -878,8 +872,7 @@ static bool is_export_store(const char *name) {
 	return strstr (name, "put") && strstr (name, "by_id");
 }
 
-static Result binding_add(HBCBindings *out, HBCBindingType type, const char *kind,
-	const char *name, const char *module, u32 function_id, u32 offset, u32 string_id) {
+static Result binding_add(HBCBindings *out, HBCBindingType type, const char *kind, const char *name, const char *module, u32 function_id, u32 offset, u32 string_id) {
 	HBCBinding *nb = realloc (out->bindings, (out->count + 1) * sizeof (HBCBinding));
 	if (!nb) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
@@ -887,18 +880,21 @@ static Result binding_add(HBCBindings *out, HBCBindingType type, const char *kin
 	out->bindings = nb;
 	HBCBinding *b = &nb[out->count++];
 	*b = (HBCBinding){
-		.type = type, .kind = kind, .name = strdup (name),
+		.type = type,
+		.kind = kind,
+		.name = strdup (name),
 		.module = module? strdup (module): NULL,
-		.function_id = function_id, .offset = offset, .string_id = string_id,
-	};
+		.function_id = function_id,
+		.offset = offset,
+		.string_id = string_id,
+};
 	if (!b->name || (module && !b->module)) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
 	return SUCCESS_RESULT ();
 }
 
-static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t len,
-	u32 values[6]) {
+static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t len, u32 values[6]) {
 	size_t pos = 1;
 	memset (values, 0, 6 * sizeof (u32));
 	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
@@ -908,17 +904,23 @@ static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t l
 		case OPERAND_TYPE_REG8:
 		case OPERAND_TYPE_UINT8:
 			need = 1;
-			if (pos + need > len) { return 0; }
+			if (pos + need > len) {
+				return 0;
+			}
 			values[i] = bytes[pos];
 			break;
 		case OPERAND_TYPE_ADDR8:
 			need = 1;
-			if (pos + need > len) { return 0; }
-			values[i] = (u32)(i32)(i8)bytes[pos];
+			if (pos + need > len) {
+				return 0;
+			}
+			values[i] = (u32) (i32) (i8)bytes[pos];
 			break;
 		case OPERAND_TYPE_UINT16:
 			need = 2;
-			if (pos + need > len) { return 0; }
+			if (pos + need > len) {
+				return 0;
+			}
 			values[i] = (u32)bytes[pos] | ((u32)bytes[pos + 1] << 8);
 			break;
 		case OPERAND_TYPE_REG32:
@@ -926,13 +928,16 @@ static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t l
 		case OPERAND_TYPE_IMM32:
 		case OPERAND_TYPE_ADDR32:
 			need = 4;
-			if (pos + need > len) { return 0; }
-			values[i] = (u32)bytes[pos] | ((u32)bytes[pos + 1] << 8)
-				| ((u32)bytes[pos + 2] << 16) | ((u32)bytes[pos + 3] << 24);
+			if (pos + need > len) {
+				return 0;
+			}
+			values[i] = (u32)bytes[pos] | ((u32)bytes[pos + 1] << 8) | ((u32)bytes[pos + 2] << 16) | ((u32)bytes[pos + 3] << 24);
 			break;
 		case OPERAND_TYPE_DOUBLE:
 			need = 8;
-			if (pos + need > len) { return 0; }
+			if (pos + need > len) {
+				return 0;
+			}
 			break;
 		default:
 			return 0;
@@ -949,8 +954,7 @@ static Result scan_hint_matches(HBCBindings *out, const char *s, u32 fid, u32 of
 	u32 added_n = 0;
 	for (size_t h = 0; h < HINTS_N; h++) {
 		const BindingHint *hint = &g_hints[h];
-		bool match = hint->name? !strcmp (s, hint->name):
-			!strncmp (s, hint->prefix, strlen (hint->prefix));
+		bool match = hint->name? !strcmp (s, hint->name): !strncmp (s, hint->prefix, strlen (hint->prefix));
 		if (!match) {
 			continue;
 		}
@@ -969,8 +973,7 @@ static Result scan_hint_matches(HBCBindings *out, const char *s, u32 fid, u32 of
 		if (hint->type == HBC_BINDING_EXPORT) {
 			*flag |= SEEN_EXP;
 		}
-		RETURN_IF_ERROR (binding_add (out, hint->type, hint->kind, s,
-			hint->module, fid, off, sid));
+		RETURN_IF_ERROR (binding_add (out, hint->type, hint->kind, s, hint->module, fid, off, sid));
 	}
 	return SUCCESS_RESULT ();
 }
@@ -999,27 +1002,27 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 				continue;
 			}
 			seen[sid] |= SEEN_CJS;
-			res = binding_add (out, HBC_BINDING_IMPORT, "cjs", name,
-				"commonjs", 0, r->cjs_modules[i].offset, sid);
+			res = binding_add (out, HBC_BINDING_IMPORT, "cjs", name, "commonjs", 0, r->cjs_modules[i].offset, sid);
 			if (res.code != RESULT_SUCCESS) {
 				goto done;
 			}
 		}
 	}
-	struct { u32 sid, off; } *cand = NULL;
+	struct {
+		u32 sid, off;
+	} *cand = NULL;
 	u32 cand_cap = 0;
 	for (u32 fid = 0; fid < r->header.functionCount; fid++) {
 		const u8 *code = NULL;
 		u32 size = 0;
-		if (hbc_get_function_bytecode (hbc, fid, &code, &size).code != RESULT_SUCCESS
-				|| !code || !size) {
+		if (hbc_get_function_bytecode (hbc, fid, &code, &size).code != RESULT_SUCCESS || !code || !size) {
 			continue;
 		}
 		HBCFunc fi = { 0 };
 		(void)hbc_get_function_info (hbc, fid, &fi);
 		u32 cand_n = 0;
 		bool has_marker = false;
-		for (u32 pc = 0; pc < size; ) {
+		for (u32 pc = 0; pc < size;) {
 			u8 op = code[pc];
 			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
 			if (!inst || !inst->name || !inst->binary_size) {
@@ -1046,14 +1049,14 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 				if (marker) {
 					has_marker = true;
 				}
-				if (!(seen[sid] & SEEN_IMP)) {
+				if (! (seen[sid] & SEEN_IMP)) {
 					seen[sid] |= SEEN_IMP;
 					res = scan_hint_matches (out, s, fid, fi.offset + pc, sid, &seen[sid]);
 					if (res.code != RESULT_SUCCESS) {
 						goto done_scan;
 					}
 				}
-				if (is_store && !marker && !(seen[sid] & SEEN_EXP)) {
+				if (is_store && !marker && ! (seen[sid] & SEEN_EXP)) {
 					if (cand_n == cand_cap) {
 						u32 nc = cand_cap? cand_cap * 2: 16;
 						void *nb = realloc (cand, nc * sizeof (*cand));
@@ -1080,8 +1083,7 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 				continue;
 			}
 			seen[sid] |= SEEN_EXP;
-			res = binding_add (out, HBC_BINDING_EXPORT, "module",
-				r->strings[sid], NULL, fid, cand[k].off, sid);
+			res = binding_add (out, HBC_BINDING_EXPORT, "module", r->strings[sid], NULL, fid, cand[k].off, sid);
 			if (res.code != RESULT_SUCCESS) {
 				goto done_scan;
 			}
@@ -1134,26 +1136,23 @@ static char *package_from_path(const char *s) {
 		} else {
 			end = strchr (p, '/');
 		}
-		return end? dup_range (p, (size_t)(end - p)): strdup (p);
+		return end? dup_range (p, (size_t) (end - p)): strdup (p);
 	}
 	if (s[0] == '@') {
 		const char *scope_end = strchr (s, '/');
 		if (scope_end) {
 			const char *end = strchr (scope_end + 1, '/');
-			return end? dup_range (s, (size_t)(end - s)): strdup (s);
+			return end? dup_range (s, (size_t) (end - s)): strdup (s);
 		}
 	}
 	return NULL;
 }
 
 static bool module_eq(const HBCModule *m, const char *kind, const char *name) {
-	return m->kind && kind && !strcmp (m->kind, kind)
-		&& m->name && name && !strcmp (m->name, name);
+	return m->kind && kind && !strcmp (m->kind, kind) && m->name && name && !strcmp (m->name, name);
 }
 
-static Result module_add(HBCModules *out, const char *kind, const char *name,
-	const char *path, const char *version, u32 function_id, u32 offset,
-	u32 string_id, bool inferred) {
+static Result module_add(HBCModules *out, const char *kind, const char *name, const char *path, const char *version, u32 function_id, u32 offset, u32 string_id, bool inferred) {
 	if (!name || !*name) {
 		return SUCCESS_RESULT ();
 	}
@@ -1177,7 +1176,7 @@ static Result module_add(HBCModules *out, const char *kind, const char *name,
 		.offset = offset,
 		.string_id = string_id,
 		.inferred = inferred,
-	};
+};
 	if (!m->name || (path && !m->path) || (version && !m->version)) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
@@ -1199,16 +1198,14 @@ Result hbc_list_modules(HBC *hbc, HBCModules *out) {
 			}
 			char *pkg = package_from_path (s);
 			if (pkg) {
-				Result res = module_add (out, "package", pkg, s, NULL, 0,
-					r->cjs_modules[i].offset, sid, true);
+				Result res = module_add (out, "package", pkg, s, NULL, 0, r->cjs_modules[i].offset, sid, true);
 				free (pkg);
 				if (res.code != RESULT_SUCCESS) {
 					hbc_free_modules (out);
 					return res;
 				}
 			} else {
-				Result res = module_add (out, "cjs", s, s, NULL, 0,
-					r->cjs_modules[i].offset, sid, false);
+				Result res = module_add (out, "cjs", s, s, NULL, 0, r->cjs_modules[i].offset, sid, false);
 				if (res.code != RESULT_SUCCESS) {
 					hbc_free_modules (out);
 					return res;
@@ -1232,8 +1229,7 @@ Result hbc_list_modules(HBC *hbc, HBCModules *out) {
 		if (!name || !*name || !strcmp (name, "commonjs")) {
 			name = b->name;
 		}
-		res = module_add (out, b->kind? b->kind: "js", name,
-			b->name, NULL, b->function_id, b->offset, b->string_id, true);
+		res = module_add (out, b->kind? b->kind: "js", name, b->name, NULL, b->function_id, b->offset, b->string_id, true);
 		if (res.code != RESULT_SUCCESS) {
 			hbc_free_bindings (&bindings);
 			hbc_free_modules (out);

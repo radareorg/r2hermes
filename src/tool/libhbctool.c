@@ -25,20 +25,28 @@ typedef struct {
 	CliFlags flags;
 } CliContext;
 
-typedef Result (*CommandHandler)(const CliContext *ctx, int argc, char **argv);
-typedef struct { const char *name; const char *help; CommandHandler handler; } Command;
+typedef Result(*CommandHandler)(const CliContext *ctx, int argc, char **argv);
+typedef struct {
+	const char *name;
+	const char *help;
+	CommandHandler handler;
+} Command;
 
 static void json_print_string(const char *s);
 
-static const struct { const char *lname; char sname; size_t offset; } flag_table[] = {
-	{ "json",               'j', offsetof (CliFlags, json) },
-	{ "verbose",            'v', offsetof (CliFlags, verbose) },
-	{ "bytecode",           'b', offsetof (CliFlags, bytecode) },
-	{ "debug",              'd', offsetof (CliFlags, debug) },
-	{ "asmsyntax",          0,   offsetof (CliFlags, asm_syntax) },
-	{ "pretty-literals",    'P', offsetof (CliFlags, pretty_literals) },
+static const struct {
+	const char *lname;
+	char sname;
+	size_t offset;
+} flag_table[] = {
+	{ "json", 'j', offsetof (CliFlags, json) },
+	{ "verbose", 'v', offsetof (CliFlags, verbose) },
+	{ "bytecode", 'b', offsetof (CliFlags, bytecode) },
+	{ "debug", 'd', offsetof (CliFlags, debug) },
+	{ "asmsyntax", 0, offsetof (CliFlags, asm_syntax) },
+	{ "pretty-literals", 'P', offsetof (CliFlags, pretty_literals) },
 	{ "no-pretty-literals", 'N', offsetof (CliFlags, no_pretty_literals) },
-	{ "no-comments",        'C', offsetof (CliFlags, no_comments) },
+	{ "no-comments", 'C', offsetof (CliFlags, no_comments) },
 };
 #define FLAG_TABLE_N (sizeof (flag_table) / sizeof (flag_table[0]))
 
@@ -70,7 +78,7 @@ static bool flag_set(CliFlags *f, const char *lname, char sname) {
 		bool m = lname? !strcmp (lname, flag_table[i].lname)
 			: (flag_table[i].sname && flag_table[i].sname == sname);
 		if (m) {
-			*(bool *)((char *)f + flag_table[i].offset) = true;
+			*(bool *) ((char *)f + flag_table[i].offset) = true;
 			return true;
 		}
 	}
@@ -168,9 +176,15 @@ static Result read_entire_file(const char *path, char **out_buf, size_t *out_len
 }
 
 static int hex_nibble(char c) {
-	if (c >= '0' && c <= '9') { return c - '0'; }
-	if (c >= 'a' && c <= 'f') { return 10 + c - 'a'; }
-	if (c >= 'A' && c <= 'F') { return 10 + c - 'A'; }
+	if (c >= '0' && c <= '9') {
+		return c - '0';
+	}
+	if (c >= 'a' && c <= 'f') {
+		return 10 + c - 'a';
+	}
+	if (c >= 'A' && c <= 'F') {
+		return 10 + c - 'A';
+	}
 	return -1;
 }
 
@@ -183,15 +197,24 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 	if (!s || !*s) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Empty hex string");
 	}
-	for (const char *p = s; *p; ) {
-		while (*p && is_hex_sep (*p)) { p++; }
-		if (!*p) { break; }
-		if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) { p += 2; continue; }
+	for (const char *p = s; *p;) {
+		while (*p && is_hex_sep (*p)) {
+			p++;
+		}
+		if (!*p) {
+			break;
+		}
+		if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+			p += 2;
+			continue;
+		}
 		int hi = hex_nibble (*p++);
 		if (hi < 0) {
 			return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Invalid hex character: '%c'", p[-1]);
 		}
-		while (*p && is_hex_sep (*p)) { p++; }
+		while (*p && is_hex_sep (*p)) {
+			p++;
+		}
 		int lo = hex_nibble (*p++);
 		if (lo < 0) {
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Odd number of hex nibbles");
@@ -199,7 +222,7 @@ static Result parse_hex_bytes(const char *s, u8 *out, size_t out_cap, size_t *ou
 		if (*out_len >= out_cap) {
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Too many bytes (max 64)");
 		}
-		out[(*out_len)++] = (u8)((hi << 4) | lo);
+		out[(*out_len)++] = (u8) ((hi << 4) | lo);
 	}
 	if (!*out_len) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "No bytes parsed");
@@ -222,7 +245,11 @@ static Result cmd_d(const CliContext *ctx, int argc, char **argv) {
 			continue;
 		}
 		printf ("Function %u: %s\n  Offset: 0x%08x\n  Size: %u bytes\n  Params: %u\n\n",
-			i, fi.name? fi.name: "unnamed", fi.offset, fi.size, fi.param_count);
+			i,
+			fi.name? fi.name: "unnamed",
+			fi.offset,
+			fi.size,
+			fi.param_count);
 	}
 	hbc_close (hbc);
 	return SUCCESS_RESULT ();
@@ -245,9 +272,13 @@ static Result cmd_dis(const CliContext *ctx, int argc, char **argv) {
 	RETURN_IF_ERROR (parse_hex_bytes (argv[0], bytes, sizeof (bytes), &bcount));
 	HBCInsnInfo sinfo = { 0 };
 	HBCDecodeCtx dec_ctx = {
-		.bytes = bytes, .len = bcount, .bytecode_version = 96, .pc = 0,
-		.asm_syntax = ctx->flags.asm_syntax, .build_objects = true,
-	};
+		.bytes = bytes,
+		.len = bcount,
+		.bytecode_version = 96,
+		.pc = 0,
+		.asm_syntax = ctx->flags.asm_syntax,
+		.build_objects = true,
+};
 	Result r = hbc_dec (&dec_ctx, &sinfo);
 	if (r.code == RESULT_SUCCESS) {
 		printf ("%s\n", sinfo.text? sinfo.text: "");
@@ -332,8 +363,7 @@ static Result cmd_v(const CliContext *ctx, int argc, char **argv) {
 		return err;
 	}
 	fprintf (out, "HBC File Validation Report\n===========================\n\n");
-	fprintf (out, "%llu (magic)\n%u (version)\n%u functions\n%u strings\n\nFile appears valid.\n",
-		(unsigned long long)h.magic, h.version, h.functionCount, h.stringCount);
+	fprintf (out, "%llu (magic)\n%u (version)\n%u functions\n%u strings\n\nFile appears valid.\n", (unsigned long long)h.magic, h.version, h.functionCount, h.stringCount);
 	if (out != stdout) {
 		fclose (out);
 	}
@@ -396,8 +426,7 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	if (hh.version >= 99) {
 		fprintf (out, "  String Switch Instruction Count: %u\n", hh.numStringSwitchImms);
 	}
-	fprintf (out, "  %s: %u\n  CJS Module Count: %u\n",
-		hh.version < 78? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
+	fprintf (out, "  %s: %u\n  CJS Module Count: %u\n", hh.version < 78? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
 	if (hh.version >= 84) {
 		fprintf (out, "  Function Source Count: %u\n", hh.functionSourceCount);
 	}
@@ -434,14 +463,18 @@ static Result cmd_f(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: f <input> [n]");
 	}
 	u32 n = (argc == 2)? (u32)strtoul (argv[1], NULL, 0): 50;
-	if (!n) { n = 50; }
+	if (!n) {
+		n = 50;
+	}
 	HBC *hbc;
 	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 fc = hbc_function_count (hbc);
 	u32 count = fc < n? fc: n;
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc fi;
-		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) { continue; }
+		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
+			continue;
+		}
 		printf ("id=%u offset=0x%08x size=%u name=%s\n", i, fi.offset, fi.size, fi.name? fi.name: "");
 	}
 	hbc_close (hbc);
@@ -476,16 +509,24 @@ static Result cmd_sl(const CliContext *ctx, int argc, char **argv) {
 		if (json) {
 			printf ("%s{\"function\":%u,\"address\":%u,\"offset\":%u,\"line\":%u,\"column\":%u,\"statement\":%u,\"file\":",
 				first? "": ",",
-				sl->function_id, sl->address, sl->function_address,
-				sl->line, sl->column, sl->statement);
+				sl->function_id,
+				sl->address,
+				sl->function_address,
+				sl->line,
+				sl->column,
+				sl->statement);
 			json_print_string (sl->filename);
 			putchar ('}');
 			first = false;
 		} else {
 			printf ("0x%08x f=%u +0x%x %s:%u:%u stmt=%u\n",
-				sl->address, sl->function_id, sl->function_address,
+				sl->address,
+				sl->function_id,
+				sl->function_address,
 				sl->filename? sl->filename: "",
-				sl->line, sl->column, sl->statement);
+				sl->line,
+				sl->column,
+				sl->statement);
 		}
 	}
 	if (json) {
@@ -502,7 +543,9 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: cmp <input> [n]");
 	}
 	u32 n = (argc == 2)? (u32)strtoul (argv[1], NULL, 0): 100;
-	if (!n) { n = 100; }
+	if (!n) {
+		n = 100;
+	}
 	HBC *hbc;
 	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
 	u32 fc = hbc_function_count (hbc);
@@ -525,29 +568,48 @@ static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
 	char line[4096];
 	while (fgets (line, sizeof (line), py)) {
 		char *p = strstr (line, "=> [Function #");
-		if (!p) { continue; }
+		if (!p) {
+			continue;
+		}
 		p += strlen ("=> [Function #");
 		char *end = NULL;
 		long id = strtol (p, &end, 10);
-		if (end == p || id < 0 || (u32)id >= count) { continue; }
+		if (end == p || id < 0 || (u32)id >= count) {
+			continue;
+		}
 		char *ofp = strstr (end, " of ");
-		if (!ofp) { continue; }
+		if (!ofp) {
+			continue;
+		}
 		long sz = strtol (ofp + 4, &end, 10);
-		if (end == ofp + 4 || sz < 0) { continue; }
+		if (end == ofp + 4 || sz < 0) {
+			continue;
+		}
 		char *offp = strstr (end, " at 0x");
-		if (!offp) { continue; }
+		if (!offp) {
+			continue;
+		}
 		unsigned int off = 0;
-		if (sscanf (offp + 6, "%x", &off) != 1) { continue; }
+		if (sscanf (offp + 6, "%x", &off) != 1) {
+			continue;
+		}
 		py_sizes[id] = (u32)sz;
 		py_offs[id] = (u32)off;
 	}
 	fclose (py);
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc fi;
-		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) { continue; }
+		if (hbc_get_function_info (hbc, i, &fi).code != RESULT_SUCCESS) {
+			continue;
+		}
 		const char *res = (fi.offset == py_offs[i] && fi.size == py_sizes[i])? "OK": "MISMATCH";
 		printf ("id=%u C(off=0x%08x,sz=%u) PY(off=0x%08x,sz=%u) => %s\n",
-			i, fi.offset, fi.size, py_offs[i], py_sizes[i], res);
+			i,
+			fi.offset,
+			fi.size,
+			py_offs[i],
+			py_sizes[i],
+			res);
 	}
 	free (py_sizes);
 	free (py_offs);
@@ -570,13 +632,15 @@ static Result disasm_function(HBC *hbc, u32 function_id, char **out) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "OOM");
 	}
 	buf[0] = '\0';
-	for (u32 offset = 0; offset < bytecode_size; ) {
+	for (u32 offset = 0; offset < bytecode_size;) {
 		HBCInsnInfo ii = { 0 };
 		HBCDecodeCtx dc = {
-			.bytes = bytecode + offset, .len = bytecode_size - offset,
-			.pc = fi.offset + offset, .bytecode_version = hdr.version,
+			.bytes = bytecode + offset,
+			.len = bytecode_size - offset,
+			.pc = fi.offset + offset,
+			.bytecode_version = hdr.version,
 			.hbc = hbc,
-		};
+};
 		Result r = hbc_dec (&dc, &ii);
 		if (r.code != RESULT_SUCCESS || !ii.size) {
 			free (ii.text);
@@ -632,12 +696,20 @@ static Result cmd_cf(const CliContext *ctx, int argc, char **argv) {
 	char line_py[2048], line_c[2048];
 	size_t cpos = 0;
 	while (fgets (line_py, sizeof (line_py), py)) {
-		if (strncmp (line_py, ">> ", 3)) { continue; }
-		while (disasm_str[cpos] && strncmp (disasm_str + cpos, "==> ", 4)) {
-			while (disasm_str[cpos] && disasm_str[cpos] != '\n') { cpos++; }
-			if (disasm_str[cpos] == '\n') { cpos++; }
+		if (strncmp (line_py, ">> ", 3)) {
+			continue;
 		}
-		if (!disasm_str[cpos]) { break; }
+		while (disasm_str[cpos] && strncmp (disasm_str + cpos, "==> ", 4)) {
+			while (disasm_str[cpos] && disasm_str[cpos] != '\n') {
+				cpos++;
+			}
+			if (disasm_str[cpos] == '\n') {
+				cpos++;
+			}
+		}
+		if (!disasm_str[cpos]) {
+			break;
+		}
 		size_t l = 0;
 		while (disasm_str[cpos + l] && disasm_str[cpos + l] != '\n' && l < sizeof (line_c) - 1) {
 			line_c[l] = disasm_str[cpos + l];
@@ -754,10 +826,17 @@ static Result lit_list_impl(const char *input, bool as_json) {
 			printf ("%s{\"kind\":\"%s\",\"num_items\":%u,"
 				"\"primary_id\":%u,\"secondary_id\":%u,\"paddr\":%u,"
 				"\"xrefs\":%u,\"formatted\":\"",
-				i? ",": "", lit_kind_name (e->kind), e->num_items,
-				e->primary_id, e->secondary_id, e->paddr, e->xref_count);
+				i? ",": "",
+				lit_kind_name (e->kind),
+				e->num_items,
+				e->primary_id,
+				e->secondary_id,
+				e->paddr,
+				e->xref_count);
 			for (const char *p = e->formatted; p && *p; p++) {
-				if (*p == '"' || *p == '\\') { putchar ('\\'); }
+				if (*p == '"' || *p == '\\') {
+					putchar ('\\');
+				}
 				putchar (*p);
 			}
 			printf ("\"}");
@@ -768,8 +847,12 @@ static Result lit_list_impl(const char *input, bool as_json) {
 		for (u32 i = 0; i < n; i++) {
 			const HBCLiteralEntry *e = &arr[i];
 			printf ("%-6s n=%-4u id=(%u,%u) paddr=0x%08x xrefs=%u  %s\n",
-				lit_kind_name (e->kind), e->num_items, e->primary_id,
-				e->secondary_id, e->paddr, e->xref_count,
+				lit_kind_name (e->kind),
+				e->num_items,
+				e->primary_id,
+				e->secondary_id,
+				e->paddr,
+				e->xref_count,
 				e->formatted? e->formatted: "");
 		}
 	}
@@ -804,7 +887,10 @@ static Result lit_pool_impl(const char *input, HBCLiteralKind kind) {
 	printf ("%s pool: %u groups\n", lit_kind_name (kind), n);
 	for (u32 i = 0; i < n; i++) {
 		printf ("  paddr=0x%08x pool_off=0x%08x n=%-4u tag=%u\n",
-			groups[i].paddr, groups[i].pool_offset, groups[i].num_items, groups[i].tag);
+			groups[i].paddr,
+			groups[i].pool_offset,
+			groups[i].num_items,
+			groups[i].tag);
 	}
 	free (groups);
 	hbc_close (hbc);
@@ -820,7 +906,10 @@ static Result lit_xrefs_impl(const char *input) {
 		const HBCLiteralEntry *e = &arr[i];
 		for (u32 j = 0; j < e->xref_count; j++) {
 			printf ("0x%08x -> %s 0x%08x  (n=%u)\n",
-				e->xref_addrs[j], lit_kind_name (e->kind), e->paddr, e->num_items);
+				e->xref_addrs[j],
+				lit_kind_name (e->kind),
+				e->paddr,
+				e->num_items);
 		}
 	}
 	hbc_close (hbc);
@@ -854,10 +943,7 @@ static Result cmd_lit(const CliContext *ctx, int argc, char **argv) {
 			return errorf (RESULT_ERROR_INVALID_ARGUMENT,
 				"Usage: lit get <file> {a|o} <num> <primary> [<secondary>]");
 		}
-		return lit_get_impl (input, argv[2][0],
-			(u32)strtoul (argv[3], NULL, 0),
-			(u32)strtoul (argv[4], NULL, 0),
-			argc > 5? (u32)strtoul (argv[5], NULL, 0): 0);
+		return lit_get_impl (input, argv[2][0], (u32)strtoul (argv[3], NULL, 0), (u32)strtoul (argv[4], NULL, 0), argc > 5? (u32)strtoul (argv[5], NULL, 0): 0);
 	}
 	return errorf (RESULT_ERROR_INVALID_ARGUMENT, "unknown lit subcommand: %s", sub);
 }
@@ -918,7 +1004,9 @@ static Result cmd_bind(const CliContext *ctx, int argc, char **argv) {
 			printf (",\"module\":");
 			json_print_string (b->module);
 			printf (",\"function_id\":%u,\"offset\":%u,\"string_id\":%u}",
-				b->function_id, b->offset, b->string_id);
+				b->function_id,
+				b->offset,
+				b->string_id);
 		}
 		puts ("]");
 	} else {
@@ -926,9 +1014,13 @@ static Result cmd_bind(const CliContext *ctx, int argc, char **argv) {
 		for (u32 i = 0; i < bindings.count; i++) {
 			HBCBinding *b = &bindings.bindings[i];
 			printf ("%-6s %-7s sid=%-5u fn=%-5u off=0x%08x %s%s%s\n",
-				binding_type_name (b->type), b->kind? b->kind: "",
-				b->string_id, b->function_id, b->offset,
-				b->module? b->module: "", b->module? ":": "",
+				binding_type_name (b->type),
+				b->kind? b->kind: "",
+				b->string_id,
+				b->function_id,
+				b->offset,
+				b->module? b->module: "",
+				b->module? ":": "",
 				b->name? b->name: "");
 		}
 	}
@@ -962,7 +1054,10 @@ static Result cmd_libs(const CliContext *ctx, int argc, char **argv) {
 			printf (",\"version\":");
 			json_print_nullable_string (m->version);
 			printf (",\"function_id\":%u,\"offset\":%u,\"string_id\":%u,\"inferred\":%s}",
-				m->function_id, m->offset, m->string_id, m->inferred? "true": "false");
+				m->function_id,
+				m->offset,
+				m->string_id,
+				m->inferred? "true": "false");
 		}
 		puts ("]");
 	} else {
@@ -970,8 +1065,11 @@ static Result cmd_libs(const CliContext *ctx, int argc, char **argv) {
 		for (u32 i = 0; i < modules.count; i++) {
 			HBCModule *m = &modules.modules[i];
 			printf ("%-8s sid=%-5u fn=%-5u off=0x%08x %-30s",
-				m->kind? m->kind: "", m->string_id, m->function_id,
-				m->offset, m->name? m->name: "");
+				m->kind? m->kind: "",
+				m->string_id,
+				m->function_id,
+				m->offset,
+				m->name? m->name: "");
 			if (m->version && *m->version) {
 				printf (" version=%s", m->version);
 			}
@@ -990,21 +1088,21 @@ static Result cmd_libs(const CliContext *ctx, int argc, char **argv) {
 }
 
 static const Command commands[] = {
-	{ "d",   "Disassemble a Hermes bytecode file",       cmd_d   },
-	{ "c",   "Decompile a Hermes bytecode file",         cmd_c   },
-	{ "dis", "Disassemble raw hex bytes (rasm2-like)",   cmd_dis },
-	{ "a",   "Assemble a single instruction",            cmd_a   },
-	{ "asm", "Assemble instructions from file",          cmd_asm },
-	{ "h",   "Display header information",               cmd_h   },
-	{ "v",   "Validate file and show details",           cmd_v   },
-	{ "r",   "Generate an r2 script with function flags",cmd_r   },
-	{ "f",   "Dump first N function headers",            cmd_f   },
-	{ "sl",  "List source-line information",             cmd_sl  },
-	{ "cmp", "Compare first N funcs with parser.txt",    cmd_cmp },
-	{ "cf",  "Compare one function vs Python disasm",    cmd_cf  },
-	{ "s",   "Print a string by index",                  cmd_s   },
-	{ "fs",  "Find strings by substring",                cmd_fs  },
-	{ "sm",  "Show string entry metadata",               cmd_sm  },
+	{ "d", "Disassemble a Hermes bytecode file", cmd_d },
+	{ "c", "Decompile a Hermes bytecode file", cmd_c },
+	{ "dis", "Disassemble raw hex bytes (rasm2-like)", cmd_dis },
+	{ "a", "Assemble a single instruction", cmd_a },
+	{ "asm", "Assemble instructions from file", cmd_asm },
+	{ "h", "Display header information", cmd_h },
+	{ "v", "Validate file and show details", cmd_v },
+	{ "r", "Generate an r2 script with function flags", cmd_r },
+	{ "f", "Dump first N function headers", cmd_f },
+	{ "sl", "List source-line information", cmd_sl },
+	{ "cmp", "Compare first N funcs with parser.txt", cmd_cmp },
+	{ "cf", "Compare one function vs Python disasm", cmd_cf },
+	{ "s", "Print a string by index", cmd_s },
+	{ "fs", "Find strings by substring", cmd_fs },
+	{ "sm", "Show string entry metadata", cmd_sm },
 	{ "lit", "SLP buffer literals: list, get, pool, xrefs", cmd_lit },
 	{ "bind", "List probable imports/exports/native bindings", cmd_bind },
 	{ "libs", "List probable bundled modules/libraries", cmd_libs },
