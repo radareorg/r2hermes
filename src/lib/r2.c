@@ -372,38 +372,16 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 				display_length = 32;
 			}
 
-			/* Generate a string value for the flag name */
+			/* Generate a string value for the flag name: decode each char (1 or
+			 * 2 bytes, LE) and keep only ASCII-printable bytes, else '_'. */
 			char str_value[64] = { 0 };
-			if (isUTF16) {
-				/* UTF-16 string - simplified handling */
-				u32 chars_added = 0;
-				for (u32 j = 0; j < display_length && chars_added < sizeof (str_value) - 1; j++) {
-					/* Read 16-bit character */
-					u16 c = (u16) (string_storage[offset + (j * 2)] | (string_storage[offset + (j * 2) + 1] << 8));
-
-					/* Only add ASCII-printable characters to name */
-					if (c >= 32 && c < 127) {
-						str_value[chars_added++] = (char)c;
-					} else {
-						str_value[chars_added++] = '_';
-					}
-				}
-				str_value[chars_added] = '\0';
-			} else {
-				/* ASCII string */
-				u32 chars_added = 0;
-				for (u32 j = 0; j < display_length && chars_added < sizeof (str_value) - 1; j++) {
-					char c = (char)string_storage[offset + j];
-
-					/* Only add printable characters to name */
-					if (c >= 32 && c < 127) {
-						str_value[chars_added++] = c;
-					} else {
-						str_value[chars_added++] = '_';
-					}
-				}
-				str_value[chars_added] = '\0';
+			u32 chars_added = 0;
+			for (u32 j = 0; j < display_length && chars_added < sizeof (str_value) - 1; j++) {
+				const u8 *p = string_storage + offset + (j * bpc);
+				u32 c = isUTF16? ((u32)p[0] | ((u32)p[1] << 8)): p[0];
+				str_value[chars_added++] = (c >= 32 && c < 127)? (char)c: '_';
 			}
+			str_value[chars_added] = '\0';
 
 			/* Generate sanitized name for r2 - only include alphanumeric and underscores */
 			char sanitized_name[64] = { 0 };
