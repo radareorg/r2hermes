@@ -894,6 +894,13 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 }
 
 /* Show help */
+static void r2hermes_help(RCore *core) {
+	const char msg[] = "Usage: r2hermes[-arg]  # see also pd:h for decompilation\n";
+		"r2hermes-h      - help message (same as r2hermes-?, see pd:h? too)\n"
+		"r2hermes-L      - scan and list SLP literals\n"
+	r_cons_print (core->cons, msg);
+}
+
 static void cmd_help(RCore *core) {
 	r_cons_print (core->cons,
 		"Usage: pd:h[subcommand]\n"
@@ -916,8 +923,21 @@ static void cmd_help(RCore *core) {
 
 static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 	(void)ctx;
-	(void)arg;
-	cmd_help (core);
+	if (*arg == '-') {
+		switch (arg[1]) {
+		case 'L':
+			cmd_literals (ctx, core, arg + 2);
+			break;
+		case '?':
+		case 'h':
+			r2hermes_help (core);
+			break;
+		}
+	} else if (!*arg) {
+		r2hermes_help (core);
+	} else {
+		R_LOG_ERROR ("Invalid argument for r2hermes");
+	}
 }
 
 static void cmd_pdh(RCore *core, HbcContext *ctx, const char *arg) {
