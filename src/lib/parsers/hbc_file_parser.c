@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/parser.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -142,8 +144,10 @@ Result _hbc_reader_read_file(HBCReader *reader, const char *filename) {
 			}
 		}
 
+#if 0
 		fprintf (stderr, "Warning: File does not start with Hermes bytecode magic number (found 0x%016llx, expected 0x%016llx).\n", (unsigned long long)magic, (unsigned long long)HEADER_MAGIC);
 		fprintf (stderr, "This file may not be a Hermes bytecode file or might be corrupted.\n");
+#endif
 	}
 
 	return SUCCESS_RESULT ();
@@ -1989,7 +1993,9 @@ Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename) {
 	/* Read header */
 	result = _hbc_reader_read_header (reader);
 	if (result.code != RESULT_SUCCESS) {
+#if 0
 		fprintf (stderr, "Error reading header: %s\n", result.error_message);
+#endif
 		return result;
 	}
 

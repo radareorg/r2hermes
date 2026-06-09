@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/hbc.h>
 #include <hbc/common.h>
 #include <hbc/disasm.h>
