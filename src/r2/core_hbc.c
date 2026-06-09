@@ -926,6 +926,7 @@ static void cmd_help(RCore *core) {
 #include "sbom.inc.c"
 
 static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
+	arg = r_str_trim_head_ro (arg);
 	if (*arg == '-') {
 		switch (arg[1]) {
 		case 'L':
