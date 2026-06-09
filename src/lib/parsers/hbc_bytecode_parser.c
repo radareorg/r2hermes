@@ -448,6 +448,21 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 	return SUCCESS_RESULT ();
 }
 
+u32 hbc_operand_value(const ParsedInstruction *insn, int i) {
+	if (!insn) {
+		return 0;
+	}
+	switch (i) {
+	case 0: return insn->arg1;
+	case 1: return insn->arg2;
+	case 2: return insn->arg3;
+	case 3: return insn->arg4;
+	case 4: return insn->arg5;
+	case 5: return insn->arg6;
+	default: return 0;
+	}
+}
+
 /* Convert instruction to string */
 Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string) {
 	if (!instruction || !out_string || !instruction->inst) {
@@ -478,16 +493,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 		first = false;
 
 		/* Get operand value */
-		u32 value;
-		switch (i) {
-		case 0: value = instruction->arg1; break;
-		case 1: value = instruction->arg2; break;
-		case 2: value = instruction->arg3; break;
-		case 3: value = instruction->arg4; break;
-		case 4: value = instruction->arg5; break;
-		case 5: value = instruction->arg6; break;
-		default: value = 0;
-		}
+		u32 value = hbc_operand_value (instruction, i);
 
 		/* Get operand name */
 		const char *operand_name = hbc_operand_name (&instruction->inst->operands[i]);
@@ -514,16 +520,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 				continue;
 			}
 
-			u32 value;
-			switch (i) {
-			case 0: value = instruction->arg1; break;
-			case 1: value = instruction->arg2; break;
-			case 2: value = instruction->arg3; break;
-			case 3: value = instruction->arg4; break;
-			case 4: value = instruction->arg5; break;
-			case 5: value = instruction->arg6; break;
-			default: value = 0;
-			}
+			u32 value = hbc_operand_value (instruction, i);
 
 			switch (operand_meaning) {
 			case OPERAND_MEANING_STRING_ID:
@@ -579,16 +576,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 				continue;
 			}
 
-			u32 value;
-			switch (i) {
-			case 0: value = instruction->arg1; break;
-			case 1: value = instruction->arg2; break;
-			case 2: value = instruction->arg3; break;
-			case 3: value = instruction->arg4; break;
-			case 4: value = instruction->arg5; break;
-			case 5: value = instruction->arg6; break;
-			default: value = 0;
-			}
+			u32 value = hbc_operand_value (instruction, i);
 
 			/* For addresses, calculate absolute target address */
 			u32 absolute_address = instruction->function_offset + instruction->original_pos + value;

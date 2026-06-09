@@ -91,24 +91,13 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 }
 
 /* Helpers to work with ParsedInstruction and operands */
-static u32 insn_get_operand_value(const ParsedInstruction *insn, int idx) {
-	switch (idx) {
-	case 0: return insn->arg1;
-	case 1: return insn->arg2;
-	case 2: return insn->arg3;
-	case 3: return insn->arg4;
-	case 4: return insn->arg5;
-	default: return insn->arg6;
-	}
-}
-
 static bool operand_is_addr(const Instruction *inst, int idx) {
 	OperandType t = inst->operands[idx].operand_type;
 	return t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32;
 }
 
 static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
-	u32 v = insn_get_operand_value (insn, op_index);
+	u32 v = hbc_operand_value (insn, op_index);
 	u32 base = insn->original_pos;
 	if (_hbc_is_jump_instruction (insn->opcode)) {
 		base += insn->inst->binary_size;

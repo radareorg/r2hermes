@@ -137,15 +137,7 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 static Result format_operand_asm(Disassembler *d, ParsedInstruction *ins, int idx, StringBuffer *out) {
 	OperandType t = ins->inst->operands[idx].operand_type;
 	OperandMeaning m = ins->inst->operands[idx].operand_meaning;
-	u32 v = 0;
-	switch (idx) {
-	case 0: v = ins->arg1; break;
-	case 1: v = ins->arg2; break;
-	case 2: v = ins->arg3; break;
-	case 3: v = ins->arg4; break;
-	case 4: v = ins->arg5; break;
-	case 5: v = ins->arg6; break;
-	}
+	u32 v = hbc_operand_value (ins, idx);
 
 	HBCReader *r = d->reader;
 	FunctionHeader *fh = &r->function_headers[d->current_function_id];
@@ -271,16 +263,7 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 		RETURN_IF_ERROR (_hbc_string_buffer_append (output, ": "));
 
 		/* Get operand value */
-		u32 value;
-		switch (i) {
-		case 0: value = instruction->arg1; break;
-		case 1: value = instruction->arg2; break;
-		case 2: value = instruction->arg3; break;
-		case 3: value = instruction->arg4; break;
-		case 4: value = instruction->arg5; break;
-		case 5: value = instruction->arg6; break;
-		default: value = 0;
-		}
+		u32 value = hbc_operand_value (instruction, i);
 
 		/* Print operand value */
 		if (instruction->inst->operands[i].operand_type != OPERAND_TYPE_DOUBLE) {
@@ -304,16 +287,7 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 			continue;
 		}
 
-		u32 value;
-		switch (i) {
-		case 0: value = instruction->arg1; break;
-		case 1: value = instruction->arg2; break;
-		case 2: value = instruction->arg3; break;
-		case 3: value = instruction->arg4; break;
-		case 4: value = instruction->arg5; break;
-		case 5: value = instruction->arg6; break;
-		default: value = 0;
-		}
+		u32 value = hbc_operand_value (instruction, i);
 
 		switch (operand_meaning) {
 		case OPERAND_MEANING_STRING_ID:
@@ -379,16 +353,7 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 			continue;
 		}
 
-		u32 value;
-		switch (i) {
-		case 0: value = instruction->arg1; break;
-		case 1: value = instruction->arg2; break;
-		case 2: value = instruction->arg3; break;
-		case 3: value = instruction->arg4; break;
-		case 4: value = instruction->arg5; break;
-		case 5: value = instruction->arg6; break;
-		default: value = 0;
-		}
+		u32 value = hbc_operand_value (instruction, i);
 
 		RETURN_IF_ERROR (_hbc_string_buffer_append (output, "  # Address: "));
 

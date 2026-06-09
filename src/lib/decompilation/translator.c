@@ -288,19 +288,8 @@ static bool is_operand_addr(const Instruction *inst, int idx) {
 	return t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32;
 }
 
-static u32 get_operand_value(const ParsedInstruction *insn, int idx) {
-	switch (idx) {
-	case 0: return insn->arg1;
-	case 1: return insn->arg2;
-	case 2: return insn->arg3;
-	case 3: return insn->arg4;
-	case 4: return insn->arg5;
-	default: return insn->arg6;
-	}
-}
-
 static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
-	u32 v = get_operand_value (insn, op_index);
+	u32 v = hbc_operand_value (insn, op_index);
 	u32 base = insn->original_pos;
 	if (_hbc_is_jump_instruction (insn->opcode)) {
 		base += insn->inst->binary_size;
@@ -362,7 +351,7 @@ static Token *reg_l_safe(const ParsedInstruction *insn, int idx) {
 	if (!is_operand_register (insn->inst, idx)) {
 		return create_raw_token ("/*not_reg*/");
 	}
-	u32 r = get_operand_value (insn, idx);
+	u32 r = hbc_operand_value (insn, idx);
 	if (!is_valid_register (r, insn)) {
 		/* Out-of-bounds register: show normally but warn in debug mode.
 		 * This is a rare error condition indicating bytecode corruption
@@ -379,7 +368,7 @@ static Token *reg_r_safe(const ParsedInstruction *insn, int idx) {
 	if (!is_operand_register (insn->inst, idx)) {
 		return create_raw_token ("/*not_reg*/");
 	}
-	u32 r = get_operand_value (insn, idx);
+	u32 r = hbc_operand_value (insn, idx);
 	if (!is_valid_register (r, insn)) {
 		/* Out-of-bounds register: show normally but warn in debug mode.
 		 * This is a rare error condition indicating bytecode corruption
@@ -560,7 +549,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* catch (rN) marker */
 			if (is_operand_register (insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_catch_block_start_token ((int)get_operand_value (insn, 0))));
+				RETURN_IF_ERROR (add (out, create_catch_block_start_token ((int)hbc_operand_value (insn, 0))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*catch non-reg*/")));
 			}
@@ -570,7 +559,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* Create a new environment object in rD */
 			if (is_operand_register (insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_new_environment_token ((int)get_operand_value (insn_c, 0))));
+				RETURN_IF_ERROR (add (out, create_new_environment_token ((int)hbc_operand_value (insn_c, 0))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_env_invalid*/")));
 			}
@@ -579,7 +568,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_CreateInnerEnvironment:
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
-				RETURN_IF_ERROR (add (out, create_new_inner_environment_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2))));
+				RETURN_IF_ERROR (add (out, create_new_inner_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_inner_env_invalid*/")));
 			}
@@ -590,11 +579,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->environment_id = (int)hbc_operand_value (insn_c, 1);
 			t->is_closure = true;
 			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
@@ -604,11 +593,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->environment_id = (int)hbc_operand_value (insn_c, 1);
 			t->is_closure = true;
 			t->is_generator = true;
 			RETURN_IF_ERROR (add (out, (Token *)t));
@@ -619,11 +608,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->environment_id = (int)hbc_operand_value (insn_c, 1);
 			t->is_generator = true;
 			RETURN_IF_ERROR (add (out, (Token *)t));
 			break;
@@ -830,7 +819,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_GetEnvironment:
 		{
 			if (is_operand_register (insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_get_environment_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1))));
+				RETURN_IF_ERROR (add (out, create_get_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*get_env_invalid*/")));
 			}
@@ -840,7 +829,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_StoreToEnvironmentL:
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 2)) {
-				RETURN_IF_ERROR (add (out, create_store_to_environment_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2))));
+				RETURN_IF_ERROR (add (out, create_store_to_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_store_invalid*/")));
 			}
@@ -865,7 +854,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			if (is_operand_register (insn->inst, 1)) {
-				RETURN_IF_ERROR (add (out, create_load_from_environment_token ((int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2))));
+				RETURN_IF_ERROR (add (out, create_load_from_environment_token ((int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_load_invalid*/")));
 			}
@@ -976,11 +965,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	/* Jump instructions */
 	case OP_Jmp:
 	case OP_JmpLong:
-		return emit_simple_jump (out, insn_c, (i32)get_operand_value (insn_c, 0) <= 0);
+		return emit_simple_jump (out, insn_c, (i32)hbc_operand_value (insn_c, 0) <= 0);
 	case OP_JmpTrue:
 	case OP_JmpTrueLong:
 		{
-			i32 rel = (i32)get_operand_value (insn_c, 0);
+			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
@@ -995,7 +984,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_JmpFalse:
 	case OP_JmpFalseLong:
 		{
-			i32 rel = (i32)get_operand_value (insn_c, 0);
+			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
@@ -1010,7 +999,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_JmpUndefined:
 	case OP_JmpUndefinedLong:
 		{
-			i32 rel = (i32)get_operand_value (insn_c, 0);
+			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
@@ -1048,7 +1037,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
 				break;
 			}
-			i32 rel = (i32)get_operand_value (insn_c, 0);
+			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
@@ -1086,7 +1075,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 1), NULL);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 1), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
@@ -1100,14 +1089,14 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			Token *t = create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
+			Token *t = create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
 			RETURN_IF_ERROR (add (out, t));
 			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 			RETURN_IF_ERROR (add (out, create_raw_token ("/*argc:")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (get_operand_value (insn_c, 1))));
+			RETURN_IF_ERROR (add (out, num_token_u32 (hbc_operand_value (insn_c, 1))));
 			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
 			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
 			break;
@@ -1232,7 +1221,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
 				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3)) {
-				RETURN_IF_ERROR (add (out, create_for_in_loop_init_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2), (int)get_operand_value (insn_c, 3))));
+				RETURN_IF_ERROR (add (out, create_for_in_loop_init_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2), (int)hbc_operand_value (insn_c, 3))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_init_invalid*/")));
 			}
@@ -1243,7 +1232,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
 				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3) &&
 				is_operand_register (insn->inst, 4)) {
-				RETURN_IF_ERROR (add (out, create_for_in_loop_next_iter_token ((int)get_operand_value (insn_c, 0), (int)get_operand_value (insn_c, 1), (int)get_operand_value (insn_c, 2), (int)get_operand_value (insn_c, 3), (int)get_operand_value (insn_c, 4))));
+				RETURN_IF_ERROR (add (out, create_for_in_loop_next_iter_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2), (int)hbc_operand_value (insn_c, 3), (int)hbc_operand_value (insn_c, 4))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_next_invalid*/")));
 			}
@@ -1255,11 +1244,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (get_operand_value (insn_c, 2), NULL);
+			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
-			t->environment_id = (int)get_operand_value (insn_c, 1);
+			t->environment_id = (int)hbc_operand_value (insn_c, 1);
 			t->is_async = true;
 			t->is_closure = true;
 			RETURN_IF_ERROR (add (out, (Token *)t));
@@ -1288,7 +1277,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
 				break;
 			}
-			i32 rel = (i32)get_operand_value (insn_c, 0);
+			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
@@ -1326,7 +1315,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			/* Generic compare-jump fallback (covers variants not explicitly handled above). */
 			const char *cmp = jump_cmp_operator (op);
 			if (cmp && is_operand_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
-				i32 rel = (i32)get_operand_value (insn_c, 0);
+				i32 rel = (i32)hbc_operand_value (insn_c, 0);
 				u32 target = compute_target_address (insn, 0);
 				if (rel > 0) {
 					RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));

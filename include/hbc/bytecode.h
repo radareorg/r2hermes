@@ -44,6 +44,9 @@ Result _hbc_parse_instruction(HBCReader *reader, FunctionHeader *function_header
 Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa);
 Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string);
 
+/* Raw value of the i-th operand (0..5); 0 when the index is out of range. */
+u32 hbc_operand_value(const ParsedInstruction *insn, int i);
+
 /* Bytecode version module getters */
 BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);
 const char **_hbc_get_builtin_functions(BytecodeModule *module, u32 *out_count);
