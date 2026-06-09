@@ -899,7 +899,7 @@ static void r2hermes_help(RCore *core) {
 		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
 		"r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)\n"
 		"r2hermes-L       - scan and list SLP literals\n"
-		"r2hermes-S[j?]   - emit SBOM from SLP literals (j=CycloneDX JSON)\n";
+		"r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)\n";
 	r_cons_print (core->cons, msg);
 }
 

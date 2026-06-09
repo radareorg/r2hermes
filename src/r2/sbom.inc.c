@@ -215,10 +215,17 @@ static void sbom_emit_json(RCore *core, const SbomCompList *list) {
 }
 
 static const char SBOM_HELP[] =
-	"Usage: r2hermes-S[j?]\n"
-	" r2hermes-S       Emit CycloneDX SBOM as plaintext (name + version per line)\n"
-	" r2hermes-Sj      Emit CycloneDX SBOM as JSON (CycloneDX 1.5)\n"
+	"Usage: r2hermes-S[jr?]\n"
+	" r2hermes-S       Emit SBOM as plaintext (name + version per line)\n"
+	" r2hermes-Sj      Emit CycloneDX 1.5 SBOM as JSON\n"
+	" r2hermes-Sr      Dump the raw matched SLP literal text (pre-JSON)\n"
 	" r2hermes-S?      Show this help\n";
+
+typedef enum {
+	SBOM_FMT_TEXT,
+	SBOM_FMT_JSON,
+	SBOM_FMT_RAW
+} SbomFormat;
 
 static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	while (*arg && isspace ((unsigned char)*arg)) {
@@ -228,7 +235,12 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 		r_cons_print (core->cons, SBOM_HELP);
 		return;
 	}
-	const bool as_json = (*arg == 'j');
+	SbomFormat fmt = SBOM_FMT_TEXT;
+	if (*arg == 'j') {
+		fmt = SBOM_FMT_JSON;
+	} else if (*arg == 'r') {
+		fmt = SBOM_FMT_RAW;
+	}
 
 	HBC *hbc = NULL;
 	Result r = ensure_hbc_loaded (ctx, core, &hbc);
@@ -252,6 +264,7 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	}
 
 	SbomCompList comps = { 0 };
+	u32 matched = 0;
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
 		if (e->kind != HBC_LIT_OBJECT || !e->formatted) {
@@ -260,7 +273,19 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 		if (!strstr (e->formatted, "typescript")) {
 			continue;
 		}
-		sbom_harvest (e->formatted, &comps);
+		matched++;
+		if (fmt == SBOM_FMT_RAW) {
+			r_cons_printf (core->cons, "# paddr=0x%08x xrefs=%u\n%s\n", e->paddr, e->xref_count, e->formatted);
+		} else {
+			sbom_harvest (e->formatted, &comps);
+		}
+	}
+
+	if (fmt == SBOM_FMT_RAW) {
+		if (matched == 0) {
+			r_cons_println (core->cons, "(no SLP object literal mentions \"typescript\")");
+		}
+		return;
 	}
 
 	if (comps.count > 1) {
@@ -268,7 +293,7 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 		sbom_dedup (&comps);
 	}
 
-	if (as_json) {
+	if (fmt == SBOM_FMT_JSON) {
 		sbom_emit_json (core, &comps);
 	} else {
 		sbom_emit_text (core, &comps);
