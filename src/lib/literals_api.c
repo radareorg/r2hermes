@@ -124,14 +124,8 @@ static HBCLiteralEntry *cache_find(HBCLiteralCache *c, HBCLiteralKind kind, u32 
 }
 
 static HBCLiteralEntry *cache_alloc(HBCLiteralCache *c) {
-	if (c->count == c->cap) {
-		u32 nc = c->cap? c->cap * 2: 64;
-		HBCLiteralEntry *ne = realloc (c->entries, nc * sizeof (HBCLiteralEntry));
-		if (!ne) {
-			return NULL;
-		}
-		c->entries = ne;
-		c->cap = nc;
+	if (grow_array (&c->entries, &c->cap, c->count, sizeof (HBCLiteralEntry), 64).code != RESULT_SUCCESS) {
+		return NULL;
 	}
 	HBCLiteralEntry *e = &c->entries[c->count++];
 	memset (e, 0, sizeof (*e));
@@ -472,14 +466,8 @@ Result hbc_literals_scan_pool(HBC *hbc, HBCLiteralKind kind, HBCPoolGroup **out,
 		if (!slp_skip_group (base, size, &pos, &tag, &length)) {
 			break;
 		}
-		if (n == cap) {
-			u32 nc = cap * 2;
-			HBCPoolGroup *na = realloc (arr, nc * sizeof (HBCPoolGroup));
-			if (!na) {
-				break;
-			}
-			arr = na;
-			cap = nc;
+		if (grow_array (&arr, &cap, n, sizeof (HBCPoolGroup), 64).code != RESULT_SUCCESS) {
+			break;
 		}
 		arr[n].pool_offset = (u32)group_start;
 		arr[n].paddr = paddr + (u32)group_start;

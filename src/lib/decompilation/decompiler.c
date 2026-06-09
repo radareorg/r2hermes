@@ -156,15 +156,7 @@ static Result u32set_add(U32Set *s, u32 v) {
 		}
 		s->bitmap[v / 8] |= (1 << (v % 8));
 	}
-	if (s->count >= s->cap) {
-		u32 nc = s->cap? s->cap * 2: 16;
-		u32 *nd = (u32 *)realloc (s->data, nc * sizeof (u32));
-		if (!nd) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
-		}
-		s->data = nd;
-		s->cap = nc;
-	}
+	RETURN_IF_ERROR (grow_array (&s->data, &s->cap, s->count, sizeof (u32), 16));
 	s->data[s->count++] = v;
 	return SUCCESS_RESULT ();
 }
@@ -228,15 +220,7 @@ static Result statements_push(DecompiledFunctionBody *fb, const TokenString *ts)
 	if (!fb || !ts) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "statements_push args");
 	}
-	if (fb->statements_count >= fb->statements_capacity) {
-		u32 nc = fb->statements_capacity? (fb->statements_capacity * 2): 64;
-		TokenString *na = (TokenString *)realloc (fb->statements, nc * sizeof (TokenString));
-		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom statements");
-		}
-		fb->statements = na;
-		fb->statements_capacity = nc;
-	}
+	RETURN_IF_ERROR (grow_array (&fb->statements, &fb->statements_capacity, fb->statements_count, sizeof (TokenString), 64));
 	fb->statements[fb->statements_count++] = *ts;
 	return SUCCESS_RESULT ();
 }
@@ -251,15 +235,7 @@ static Result nested_frames_push(DecompiledFunctionBody *fb, u32 start, u32 end)
 	if (!fb) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "nested_frames_push: fb NULL");
 	}
-	if (fb->nested_frames_count >= fb->nested_frames_capacity) {
-		u32 nc = fb->nested_frames_capacity? (fb->nested_frames_capacity * 2): 8;
-		NestedFrame *na = (NestedFrame *)realloc (fb->nested_frames, nc * sizeof (NestedFrame));
-		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom nested_frames");
-		}
-		fb->nested_frames = na;
-		fb->nested_frames_capacity = nc;
-	}
+	RETURN_IF_ERROR (grow_array (&fb->nested_frames, &fb->nested_frames_capacity, fb->nested_frames_count, sizeof (NestedFrame), 8));
 	fb->nested_frames[fb->nested_frames_count++] = (NestedFrame){ .start_address = start, .end_address = end };
 	return SUCCESS_RESULT ();
 }
@@ -308,15 +284,7 @@ static Result owned_env_push(DecompiledFunctionBody *fb, Environment *env) {
 	if (!fb || !env) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "owned_env_push args");
 	}
-	if (fb->owned_environments_count >= fb->owned_environments_capacity) {
-		u32 nc = fb->owned_environments_capacity? (fb->owned_environments_capacity * 2): 8;
-		Environment **na = (Environment **)realloc (fb->owned_environments, nc * sizeof (Environment *));
-		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom owned_envs");
-		}
-		fb->owned_environments = na;
-		fb->owned_environments_capacity = nc;
-	}
+	RETURN_IF_ERROR (grow_array (&fb->owned_environments, &fb->owned_environments_capacity, fb->owned_environments_count, sizeof (Environment *), 8));
 	fb->owned_environments[fb->owned_environments_count++] = env;
 	return SUCCESS_RESULT ();
 }
@@ -379,30 +347,14 @@ static inline void output_buffers_fini(OutputBuffers *ob) {
 }
 
 static inline Result if_block_stack_push(OutputBuffers *ob, u32 target_addr) {
-	if (ob->if_block_stack_count >= ob->if_block_stack_cap) {
-		u32 new_cap = ob->if_block_stack_cap? ob->if_block_stack_cap * 2: 16;
-		u32 *new_stack = (u32 *)realloc (ob->if_block_stack, new_cap * sizeof (u32));
-		if (!new_stack) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom if_block_stack");
-		}
-		ob->if_block_stack = new_stack;
-		ob->if_block_stack_cap = new_cap;
-	}
+	RETURN_IF_ERROR (grow_array (&ob->if_block_stack, &ob->if_block_stack_cap, ob->if_block_stack_count, sizeof (u32), 16));
 	ob->if_block_stack[ob->if_block_stack_count++] = target_addr;
 	return SUCCESS_RESULT ();
 }
 
 /* ============= CFG construction ============= */
 static Result bbvec_push(BasicBlock ***arr, u32 *count, u32 *cap, BasicBlock *bb) {
-	if (*count >= *cap) {
-		u32 nc = *cap? (*cap * 2): 8;
-		BasicBlock **na = (BasicBlock **)realloc (*arr, nc * sizeof (BasicBlock *));
-		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom bbvec");
-		}
-		*arr = na;
-		*cap = nc;
-	}
+	RETURN_IF_ERROR (grow_array (arr, cap, *count, sizeof (BasicBlock *), 8));
 	(*arr)[(*count)++] = bb;
 	return SUCCESS_RESULT ();
 }
@@ -552,15 +504,7 @@ Result _hbc_add_jump_target(DecompiledFunctionBody *body, u32 address) {
 			return SUCCESS_RESULT ();
 		}
 	}
-	if (body->jump_targets_count >= body->jump_targets_capacity) {
-		u32 nc = body->jump_targets_capacity? body->jump_targets_capacity * 2: 16;
-		u32 *na = (u32 *)realloc (body->jump_targets, nc * sizeof (u32));
-		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom _hbc_add_jump_target");
-		}
-		body->jump_targets = na;
-		body->jump_targets_capacity = nc;
-	}
+	RETURN_IF_ERROR (grow_array (&body->jump_targets, &body->jump_targets_capacity, body->jump_targets_count, sizeof (u32), 16));
 	body->jump_targets[body->jump_targets_count++] = address;
 	return SUCCESS_RESULT ();
 }
@@ -569,15 +513,7 @@ Result _hbc_create_basic_block(DecompiledFunctionBody *body, u32 start_address, 
 	if (!body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "create_bb body");
 	}
-	if (body->basic_blocks_count >= body->basic_blocks_capacity) {
-		u32 nc = body->basic_blocks_capacity? body->basic_blocks_capacity * 2: 16;
-		BasicBlock **na = (BasicBlock **)realloc (body->basic_blocks, nc * sizeof (BasicBlock *));
-		if (!na) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom create_bb");
-		}
-		body->basic_blocks = na;
-		body->basic_blocks_capacity = nc;
-	}
+	RETURN_IF_ERROR (grow_array (&body->basic_blocks, &body->basic_blocks_capacity, body->basic_blocks_count, sizeof (BasicBlock *), 16));
 	BasicBlock *bb = (BasicBlock *)calloc (1, sizeof (*bb));
 	if (!bb) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom create_bb");

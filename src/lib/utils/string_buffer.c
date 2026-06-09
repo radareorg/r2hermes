@@ -2,6 +2,29 @@
 
 #include <hbc/common.h>
 
+/* Grow the buffer (doubling) so it can hold at least required_capacity bytes. */
+static Result string_buffer_ensure(StringBuffer *buffer, size_t required_capacity) {
+	if (required_capacity <= buffer->capacity) {
+		return SUCCESS_RESULT ();
+	}
+	size_t new_capacity = buffer->capacity? buffer->capacity: 64;
+	while (new_capacity < required_capacity) {
+		size_t doubled = new_capacity * 2;
+		if (doubled <= new_capacity) { /* overflow: just take what's needed */
+			new_capacity = required_capacity;
+			break;
+		}
+		new_capacity = doubled;
+	}
+	char *new_data = (char *)realloc (buffer->data, new_capacity);
+	if (!new_data) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to resize string buffer");
+	}
+	buffer->data = new_data;
+	buffer->capacity = new_capacity;
+	return SUCCESS_RESULT ();
+}
+
 Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
@@ -34,21 +57,7 @@ Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
 	}
 
 	/* Ensure enough capacity */
-	size_t required_capacity = buffer->length + str_len + 1;
-	if (required_capacity > buffer->capacity) {
-		size_t new_capacity = buffer->capacity * 2;
-		while (new_capacity < required_capacity) {
-			new_capacity *= 2;
-		}
-
-		char *new_data = (char *)realloc (buffer->data, new_capacity);
-		if (!new_data) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to resize string buffer");
-		}
-
-		buffer->data = new_data;
-		buffer->capacity = new_capacity;
-	}
+	RETURN_IF_ERROR (string_buffer_ensure (buffer, buffer->length + str_len + 1));
 
 	/* Append the string */
 	memcpy (buffer->data + buffer->length, str, str_len);
@@ -63,19 +72,8 @@ Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
 
-	/* Ensure enough capacity */
-	size_t required_capacity = buffer->length + 2; /* +1 for the char, +1 for null terminator */
-	if (required_capacity > buffer->capacity) {
-		size_t new_capacity = buffer->capacity * 2;
-
-		char *new_data = (char *)realloc (buffer->data, new_capacity);
-		if (!new_data) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to resize string buffer");
-		}
-
-		buffer->data = new_data;
-		buffer->capacity = new_capacity;
-	}
+	/* Ensure enough capacity (+1 for the char, +1 for null terminator) */
+	RETURN_IF_ERROR (string_buffer_ensure (buffer, buffer->length + 2));
 
 	/* Append the character */
 	buffer->data[buffer->length] = c;
