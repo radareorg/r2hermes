@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Little-endian readers for raw bytecode operands. */
+static inline u32 rd_u16le(const u8 *p) {
+	return (u32)p[0] | ((u32)p[1] << 8);
+}
+static inline u32 rd_u32le(const u8 *p) {
+	return (u32)p[0] | ((u32)p[1] << 8) | ((u32)p[2] << 16) | ((u32)p[3] << 24);
+}
+
 /* ---------- Global toggles ---------- */
 
 static bool g_inline_literals = false;
@@ -283,29 +291,29 @@ static bool decode_buffer_op(u8 op, u32 version, const u8 *code, u32 size, u32 p
 	if (op == OP_NewArrayWithBuffer) {
 		/* reg8 + u16 prealloc + u16 num + u16 id (v<97 AND v97+) */
 		*kind = HBC_LIT_ARRAY;
-		*num_items = (u32)code[pc + 4] | ((u32)code[pc + 5] << 8);
-		*primary = (u32)code[pc + 6] | ((u32)code[pc + 7] << 8);
+		*num_items = rd_u16le (code + pc + 4);
+		*primary = rd_u16le (code + pc + 6);
 		return true;
 	}
 	if (op == OP_NewArrayWithBufferLong) {
 		/* reg8 + u16 prealloc + u16 num + u32 id */
 		*kind = HBC_LIT_ARRAY;
-		*num_items = (u32)code[pc + 4] | ((u32)code[pc + 5] << 8);
-		*primary = (u32)code[pc + 6] | ((u32)code[pc + 7] << 8) | ((u32)code[pc + 8] << 16) | ((u32)code[pc + 9] << 24);
+		*num_items = rd_u16le (code + pc + 4);
+		*primary = rd_u32le (code + pc + 6);
 		return true;
 	}
 	if (op == OP_NewObjectWithBuffer) {
 		*kind = HBC_LIT_OBJECT;
 		if (version >= 97) {
 			/* reg8 + u16 shape_id + u16 values_id */
-			*primary = (u32)code[pc + 2] | ((u32)code[pc + 3] << 8);
-			*secondary = (u32)code[pc + 4] | ((u32)code[pc + 5] << 8);
-			 *num_items = 0; /* resolved via shape table by the formatter */
+			*primary = rd_u16le (code + pc + 2);
+			*secondary = rd_u16le (code + pc + 4);
+			*num_items = 0; /* resolved via shape table by the formatter */
 		} else {
 			/* reg8 + u16 prealloc + u16 num + u16 keys + u16 vals */
-			*num_items = (u32)code[pc + 4] | ((u32)code[pc + 5] << 8);
-			*primary = (u32)code[pc + 6] | ((u32)code[pc + 7] << 8);
-			*secondary = (u32)code[pc + 8] | ((u32)code[pc + 9] << 8);
+			*num_items = rd_u16le (code + pc + 4);
+			*primary = rd_u16le (code + pc + 6);
+			*secondary = rd_u16le (code + pc + 8);
 		}
 		return true;
 	}
@@ -313,14 +321,14 @@ static bool decode_buffer_op(u8 op, u32 version, const u8 *code, u32 size, u32 p
 		*kind = HBC_LIT_OBJECT;
 		if (version >= 97) {
 			/* reg8 + u32 shape_id + u32 values_id */
-			*primary = (u32)code[pc + 2] | ((u32)code[pc + 3] << 8) | ((u32)code[pc + 4] << 16) | ((u32)code[pc + 5] << 24);
-			*secondary = (u32)code[pc + 6] | ((u32)code[pc + 7] << 8) | ((u32)code[pc + 8] << 16) | ((u32)code[pc + 9] << 24);
+			*primary = rd_u32le (code + pc + 2);
+			*secondary = rd_u32le (code + pc + 6);
 			*num_items = 0;
 		} else {
 			/* reg8 + u16 prealloc + u16 num + u32 keys + u32 vals */
-			*num_items = (u32)code[pc + 4] | ((u32)code[pc + 5] << 8);
-			*primary = (u32)code[pc + 6] | ((u32)code[pc + 7] << 8) | ((u32)code[pc + 8] << 16) | ((u32)code[pc + 9] << 24);
-			*secondary = (u32)code[pc + 10] | ((u32)code[pc + 11] << 8) | ((u32)code[pc + 12] << 16) | ((u32)code[pc + 13] << 24);
+			*num_items = rd_u16le (code + pc + 4);
+			*primary = rd_u32le (code + pc + 6);
+			*secondary = rd_u32le (code + pc + 10);
 		}
 		return true;
 	}
