@@ -41,11 +41,8 @@ static ut32 parse_function_id(const char *addr_str) {
 /* Comment callback for retrieving r2 comments (CC command) at an address */
 static char *r2_comment_callback(void *context, u64 address) {
 	RCore *core = (RCore *)context;
-	if (core) {
-		const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
-		return comment? strdup (comment): NULL;
-	}
-	return NULL;
+	const char *comment = r_meta_get_string (core->anal, R_META_TYPE_COMMENT, address);
+	return comment? strdup (comment): NULL;
 }
 
 /* Flag callback for retrieving r2 flag/symbol names at an address */
@@ -61,13 +58,8 @@ static char *r2_flag_callback(void *context, u64 address) {
 }
 
 static const char *current_file_path(RCore *core) {
-	if (core && core->bin) {
-		RBinInfo *bi = r_bin_get_info (core->bin);
-		if (bi) {
-			return bi->file;
-		}
-	}
-	return NULL;
+	RBinInfo *bi = r_bin_get_info (core->bin);
+	return bi? bi->file: NULL;
 }
 
 /* Helper to load the current binary as HBC using provider API */
@@ -905,7 +897,7 @@ static void r2hermes_help(RCore *core) {
 
 static void cmd_help(RCore *core) {
 	r_cons_print (core->cons,
-		"Usage: pd:h[subcommand]\n"
+		"Usage: pd:h[subcommand] (see r2hermes? for more command)\n"
 		"Hermes bytecode decompiler via libhbc\n\n"
 		"Subcommands:\n"
 		"  pd:h           - Decompile function at current offset (or all if not in function)\n"
@@ -918,7 +910,7 @@ static void cmd_help(RCore *core) {
 		"  pd:ho [id]     - Decompile with offsets (addresses) per statement\n"
 		"  pd:hoa         - Decompile all with offsets\n"
 		"  pd:hs [id]     - List source-line information\n"
-		"  pd:hL[?]       - SLP literal cache: list/scan/reset (see pd:hL?)\n"
+		"  pd:hL[?]       - SLP literal cache: list/scan/reset (see r2hermes-L?)\n"
 		"  pd:h?          - Show this help\n"
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
@@ -938,6 +930,9 @@ static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 		case '?':
 		case 'h':
 			r2hermes_help (core);
+			break;
+		default:
+			R_LOG_ERROR ("Invalid argument. See r2hermes-?");
 			break;
 		}
 	} else if (!*arg) {
