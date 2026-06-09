@@ -187,6 +187,45 @@ static Result align_over_padding(BufferReader *reader, size_t padding_amount) {
 	return SUCCESS_RESULT ();
 }
 
+static Result read_exception_handlers(HBCReader *reader, u32 function_id, u32 info_offset) {
+	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, info_offset));
+	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
+
+	u32 count;
+	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &count));
+	size_t remaining = reader->file_buffer.size - reader->file_buffer.position;
+	if (count > remaining / (3 * sizeof (u32))) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Exception handler table exceeds file size");
+	}
+
+	ExceptionHandlerInfo *handlers = NULL;
+	if (count) {
+		handlers = (ExceptionHandlerInfo *)malloc (count * sizeof (ExceptionHandlerInfo));
+		if (!handlers) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate exception handlers");
+		}
+	}
+	for (u32 j = 0; j < count; j++) {
+		Result res = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].start);
+		if (res.code == RESULT_SUCCESS) {
+			res = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].end);
+		}
+		if (res.code == RESULT_SUCCESS) {
+			res = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].target);
+		}
+		if (res.code != RESULT_SUCCESS) {
+			free (handlers);
+			return res;
+		}
+	}
+
+	ExceptionHandlerList *list = &reader->function_id_to_exc_handlers[function_id];
+	free (list->handlers);
+	list->handlers = handlers;
+	list->count = count;
+	return SUCCESS_RESULT ();
+}
+
 /* Read and validate the header */
 Result _hbc_reader_read_header(HBCReader *reader) {
 	if (!reader) {
@@ -646,34 +685,8 @@ Result _hbc_reader_read_functions(HBCReader *reader) {
 		/* Store the bytecode pointer */
 		header->bytecode = bytecode;
 
-		/* Read exception handlers if present */
 		if (header->hasExceptionHandler) {
-			/* Seek to the exception handler info */
-			RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header->infoOffset));
-
-			/* Align buffer */
-			RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
-
-			/* Read the number of exception handlers */
-			u32 exc_handler_count;
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &exc_handler_count));
-
-			/* Allocate exception handlers */
-			ExceptionHandlerInfo *handlers = (ExceptionHandlerInfo *)malloc (exc_handler_count * sizeof (ExceptionHandlerInfo));
-			if (!handlers) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate exception handlers");
-			}
-
-			/* Read each exception handler */
-			for (u32 j = 0; j < exc_handler_count; j++) {
-				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].start));
-				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].end));
-				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &handlers[j].target));
-			}
-
-			/* Store the exception handlers */
-			reader->function_id_to_exc_handlers[i].handlers = handlers;
-			reader->function_id_to_exc_handlers[i].count = exc_handler_count;
+			RETURN_IF_ERROR (read_exception_handlers (reader, i, header->infoOffset));
 		}
 
 		/* Read debug information if present */
@@ -1906,6 +1919,13 @@ Result _hbc_reader_read_functions_robust(HBCReader *reader) {
 
 		/* For robustness, we don't load bytecode here */
 		header->bytecode = NULL;
+
+		if (header->hasExceptionHandler) {
+			Result eh_res = read_exception_handlers (reader, i, header->infoOffset);
+			if (eh_res.code != RESULT_SUCCESS) {
+				hbc_debug_printf ("Warning: Skipping exception handlers for function %u: %s\n", i, eh_res.error_message);
+			}
+		}
 
 		successful_functions++;
 

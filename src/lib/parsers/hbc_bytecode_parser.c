@@ -370,7 +370,13 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			candidates[1] = function_header->offset + base; /* function-relative */
 			candidates[2] = base; /* absolute */
 			size_t func_start = function_header->offset;
-			size_t func_end = func_start + function_header->bytecodeSizeInBytes;
+			size_t table_limit = fsz;
+			if (function_id + 1 < reader->header.functionCount) {
+				size_t next_func = reader->function_headers[function_id + 1].offset;
+				if (next_func > func_start && next_func < table_limit) {
+					table_limit = next_func;
+				}
+			}
 
 			/* Save file position */
 			size_t saved_pos = reader->file_buffer.position;
@@ -400,8 +406,8 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 				if (table_end > fsz) {
 					continue;
 				}
-				/* Also require the table to lie within the function's bytecode region */
-				if (! (reader->file_buffer.position >= func_start && table_end <= func_end)) {
+				/* Jump tables live after the bytecode body, before the next function. */
+				if (! (reader->file_buffer.position >= func_start && table_end <= table_limit)) {
 					continue;
 				}
 
@@ -604,7 +610,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 		}
 
 		/* Add jump table for switch instructions */
-		if (strcmp (instruction->inst->name, "SwitchImm") == 0 &&
+		if (instruction->opcode == OP_SwitchImm &&
 			instruction->switch_jump_table && instruction->switch_jump_table_size > 0) {
 
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # Jump table: ["));

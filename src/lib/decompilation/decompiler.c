@@ -828,11 +828,7 @@ Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOp
 	dec.options = options;
 	dec.indent_level = 0;
 
-	/* Create a stub HBCReader for internal use.
-	 * The state is responsible for all actual data access. */
-	HBCReader stub_reader;
-	memset (&stub_reader, 0, sizeof (stub_reader));
-	dec.hbc_reader = &stub_reader;
+	dec.hbc_reader = &hbc->reader;
 
 	/* Get header from state and populate stub */
 	HBCHeader header;
@@ -841,64 +837,17 @@ Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOp
 		_hbc_decompiler_cleanup (&dec);
 		return hres;
 	}
-	stub_reader.header = header;
-
 	/* Validate function_id */
 	if (function_id >= header.functionCount) {
 		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
 
-	/* Allocate and populate function_headers */
-	stub_reader.function_headers = (FunctionHeader *)calloc (header.functionCount, sizeof (FunctionHeader));
-	if (!stub_reader.function_headers) {
-		_hbc_decompiler_cleanup (&dec);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function_headers");
-	}
-
-	for (u32 i = 0; i < header.functionCount; i++) {
-		HBCFunc fi;
-		Result fres = hbc_get_function_info (hbc, i, &fi);
-		if (fres.code != RESULT_SUCCESS) {
-			free (stub_reader.function_headers);
-			_hbc_decompiler_cleanup (&dec);
-			return fres;
-		}
-		stub_reader.function_headers[i].offset = fi.offset;
-		stub_reader.function_headers[i].bytecodeSizeInBytes = fi.size;
-		stub_reader.function_headers[i].bytecode = NULL;
-	}
-
-	/* Populate strings array from state */
-	if (header.stringCount > 0) {
-		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
-		if (!stub_reader.strings) {
-			free (stub_reader.function_headers);
-			_hbc_decompiler_cleanup (&dec);
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate strings array");
-		}
-		for (u32 i = 0; i < header.stringCount; i++) {
-			const char *str = NULL;
-			Result sres = hbc_get_string (hbc, i, &str);
-			if (sres.code == RESULT_SUCCESS && str) {
-				stub_reader.strings[i] = (char *)str; /* State owns the string, we just reference it */
-			}
-		}
-	}
-
-	stub_reader.object_keys = hbc->reader.object_keys;
-	stub_reader.object_values = hbc->reader.object_values;
-	stub_reader.arrays = hbc->reader.arrays;
-
 	Result r = _hbc_decompile_function (&dec, function_id, NULL, -1, false, false, false);
 	if (r.code == RESULT_SUCCESS) {
 		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
 	}
-
-	/* Free allocated arrays (strings are owned by state, don't free individual strings) */
-	free (stub_reader.strings);
-	free (stub_reader.function_headers);
 
 	_hbc_decompiler_cleanup (&dec);
 	return r;
@@ -913,10 +862,7 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 	dec.options = options;
 	dec.indent_level = 0;
 
-	/* Create a stub HBCReader for internal use */
-	HBCReader stub_reader;
-	memset (&stub_reader, 0, sizeof (stub_reader));
-	dec.hbc_reader = &stub_reader;
+	dec.hbc_reader = &hbc->reader;
 
 	/* Get header from state and populate stub */
 	HBCHeader header;
@@ -925,8 +871,6 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 		_hbc_decompiler_cleanup (&dec);
 		return res;
 	}
-	stub_reader.header = header;
-
 	/* Get function count from state */
 	u32 func_count = header.functionCount;
 	if (func_count == 0) {
@@ -942,49 +886,6 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 		_hbc_decompiler_cleanup (&dec);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
 	}
-
-	/* Allocate function_headers array for the stub */
-	stub_reader.function_headers = (FunctionHeader *)calloc (func_count, sizeof (FunctionHeader));
-	if (!stub_reader.function_headers) {
-		_hbc_decompiler_cleanup (&dec);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function_headers");
-	}
-
-	/* Populate function_headers from state */
-	for (u32 i = 0; i < func_count; i++) {
-		HBCFunc fi;
-		Result fres = hbc_get_function_info (hbc, i, &fi);
-		if (fres.code != RESULT_SUCCESS) {
-			free (stub_reader.function_headers);
-			_hbc_decompiler_cleanup (&dec);
-			return fres;
-		}
-		stub_reader.function_headers[i].offset = fi.offset;
-		stub_reader.function_headers[i].bytecodeSizeInBytes = fi.size;
-		stub_reader.function_headers[i].bytecode = NULL; /* Will be loaded on demand */
-		/* Other fields are not needed for state-based decompilation */
-	}
-
-	/* Populate strings array from state */
-	if (header.stringCount > 0) {
-		stub_reader.strings = (char **)calloc (header.stringCount, sizeof (char *));
-		if (!stub_reader.strings) {
-			free (stub_reader.function_headers);
-			_hbc_decompiler_cleanup (&dec);
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate strings array");
-		}
-		for (u32 i = 0; i < header.stringCount; i++) {
-			const char *str = NULL;
-			Result sres = hbc_get_string (hbc, i, &str);
-			if (sres.code == RESULT_SUCCESS && str) {
-				stub_reader.strings[i] = (char *)str; /* State owns the string, we just reference it */
-			}
-		}
-	}
-
-	stub_reader.object_keys = hbc->reader.object_keys;
-	stub_reader.object_values = hbc->reader.object_values;
-	stub_reader.arrays = hbc->reader.arrays;
 
 	/* File preamble */
 	if (!options.suppress_comments) {
@@ -1019,10 +920,6 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 	}
 
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
-
-	/* Free allocated arrays (strings are owned by state, don't free individual strings) */
-	free (stub_reader.strings);
-	free (stub_reader.function_headers);
 
 	_hbc_decompiler_cleanup (&dec);
 	return SUCCESS_RESULT ();
@@ -1671,17 +1568,125 @@ static u32 jump_target_of(const Token *head) {
 	return ((const JumpNotConditionToken *)head)->target_address;
 }
 
-/* Plan how every jump renders. A forward conditional jump can open a properly
- * nested if-block only if its target does not escape the enclosing open block;
- * otherwise (and for all backward/unconditional jumps) it falls back to a goto.
- * Collects the set of addresses that need a label and flags the statements that
- * must emit a goto. The stack bookkeeping mirrors the emit loop so the two
- * passes agree on which blocks are open at each point.
- * `end_label_addr` is set to the address used for jumps that leave the function
- * (target >= func_sz), or to UINT32_MAX when none are needed. */
-/* Register `target` as needing a label, routing function-leaving targets to the
- * shared end label. */
-static Result plan_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *end_label_addr) {
+typedef struct {
+	u32 try_start;
+	u32 try_end;
+	u32 catch_start;
+	u32 catch_end;
+	int catch_reg;
+	bool catch_open;
+} StructuredCatch;
+
+static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz, StructuredCatch **out, u32 *out_count) {
+	*out = NULL;
+	*out_count = 0;
+	if (!fb->exc_handlers_count) {
+		return SUCCESS_RESULT ();
+	}
+	StructuredCatch *plans = (StructuredCatch *)calloc (fb->exc_handlers_count, sizeof (StructuredCatch));
+	if (!plans) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom structured catches");
+	}
+	for (u32 i = 0; i < fb->exc_handlers_count; i++) {
+		ExceptionHandlerInfo *h = &fb->exc_handlers[i];
+		u32 catch_end = UINT32_MAX;
+		int catch_reg = -1;
+		bool has_try_start = false;
+		for (u32 si = 0; si < fb->statements_count; si++) {
+			if (dce && dce[si]) {
+				continue;
+			}
+			TokenString *st = &fb->statements[si];
+			if (!st->head || !st->assembly) {
+				continue;
+			}
+			u32 pos = st->assembly->original_pos;
+			if (pos == h->start) {
+				has_try_start = true;
+			} else if (pos == h->target && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
+				catch_reg = ((CatchBlockStartToken *)st->head)->arg_register;
+			} else if (pos == h->end &&
+				(st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+				jump_is_unconditional (st->head)) {
+				catch_end = jump_target_of (st->head);
+			}
+		}
+		if (!has_try_start || catch_reg < 0 || catch_end <= h->target || catch_end > func_sz) {
+			continue;
+		}
+		plans[*out_count] = (StructuredCatch){ h->start, h->end, h->target, catch_end, catch_reg, false };
+		(*out_count)++;
+	}
+	if (!*out_count) {
+		free (plans);
+		return SUCCESS_RESULT ();
+	}
+	*out = plans;
+	return SUCCESS_RESULT ();
+}
+
+static StructuredCatch *structured_catch_at(StructuredCatch *plans, u32 count, u32 pos, char kind) {
+	for (u32 i = 0; i < count; i++) {
+		if ((kind == 's' && plans[i].try_start == pos) ||
+			(kind == 'e' && plans[i].try_end == pos) ||
+			(kind == 'c' && plans[i].catch_start == pos) ||
+			(kind == 'm' && plans[i].catch_open && plans[i].catch_end == pos)) {
+			return &plans[i];
+		}
+	}
+	return NULL;
+}
+
+static bool raw_token_is(const Token *tok, const char *text) {
+	if (!tok || tok->type != TOKEN_TYPE_RAW) {
+		return false;
+	}
+	const RawToken *rt = (const RawToken *)tok;
+	return rt->text && !strcmp (rt->text, text);
+}
+
+static Result append_condition_tokens(StringBuffer *out, Token *cond, bool invert) {
+	if (invert && raw_token_is (cond, "!") && cond->next) {
+		cond = cond->next;
+		invert = false;
+	}
+	if (invert) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "!("));
+	}
+	for (Token *t = cond; t; t = t->next) {
+		RETURN_IF_ERROR (_hbc_token_to_string (t, out));
+	}
+	if (invert) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ")"));
+	}
+	return SUCCESS_RESULT ();
+}
+
+static Result append_plain_tokens(StringBuffer *out, Token *tok) {
+	bool first_tok = true;
+	TokenType prev_type = (TokenType) (-1);
+	for (Token *t = tok; t; t = t->next) {
+		bool needs_space = false;
+		if (!first_tok) {
+			needs_space = token_needs_space (prev_type, t->type);
+			if (needs_space && t->type == TOKEN_TYPE_RAW) {
+				RawToken *rt = (RawToken *)t;
+				if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')')) {
+					needs_space = false;
+				}
+			}
+		}
+		if (needs_space) {
+			RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
+		}
+		RETURN_IF_ERROR (_hbc_token_to_string (t, out));
+		first_tok = false;
+		prev_type = t->type;
+	}
+	return SUCCESS_RESULT ();
+}
+
+static Result labels_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *end_label_addr) {
 	if (target >= func_sz) {
 		*end_label_addr = func_sz;
 		return SUCCESS_RESULT ();
@@ -1689,112 +1694,40 @@ static Result plan_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *end_
 	return u32set_add (labels, target);
 }
 
-static Result compute_goto_plan(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz,
-	U32Set *labels, bool *force_goto, u32 *end_label_addr) {
+static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz, U32Set *labels, u32 *end_label_addr, bool *has_catch) {
 	*end_label_addr = UINT32_MAX;
-	/* Catch handlers split the function into regions; an if-block may not span
-	 * across a catch boundary, otherwise it would wrap the handler. Collect the
-	 * (ascending) catch-handler start addresses. */
-	u32 *catch_pos = NULL;
-	u32 catch_count = 0, catch_cap = 0;
-	for (u32 si = 0; si < fb->statements_count; si++) {
-		TokenString *st = &fb->statements[si];
-		if (st->head && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START && st->assembly) {
-			Result r = grow_array (&catch_pos, &catch_cap, catch_count, sizeof (u32), 8);
-			if (r.code != RESULT_SUCCESS) {
-				free (catch_pos);
-				return r;
-			}
-			catch_pos[catch_count++] = st->assembly->original_pos;
-		}
-	}
-	u32 *stack = NULL;
-	u32 sp = 0, cap = 0;
+	*has_catch = false;
 	for (u32 si = 0; si < fb->statements_count; si++) {
 		if (dce && dce[si]) {
 			continue;
 		}
 		TokenString *st = &fb->statements[si];
 		ParsedInstruction *asm_ref = st->assembly;
-		if (!asm_ref) {
-			continue;
-		}
-		u32 pos = asm_ref->original_pos;
-		while (sp > 0 && stack[sp - 1] <= pos) {
-			sp--;
-		}
 		if (!st->head) {
 			continue;
 		}
-		/* Switch case targets and generator resume points are reached by
-		 * computed/implicit control flow, not fallthrough, so each needs a
-		 * label or its body reads as dead code after the preceding return. */
-		if (asm_ref->opcode == OP_SwitchImm) {
+		if (asm_ref && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
+			*has_catch = true;
+			RETURN_IF_ERROR (labels_add_target (labels, asm_ref->original_pos, func_sz, end_label_addr));
+		}
+		if (asm_ref && asm_ref->opcode == OP_SwitchImm) {
 			for (u32 k = 0; k < asm_ref->switch_jump_table_size; k++) {
-				Result r = plan_add_target (labels, asm_ref->switch_jump_table[k], func_sz, end_label_addr);
-				if (r.code != RESULT_SUCCESS) {
-					free (stack);
-					free (catch_pos);
-					return r;
-				}
+				RETURN_IF_ERROR (labels_add_target (labels, asm_ref->switch_jump_table[k], func_sz, end_label_addr));
 			}
 			for (int j = 0; asm_ref->inst && j < 6; j++) {
 				if (_hbc_operand_is_addr (asm_ref->inst, j)) {
-					Result r = plan_add_target (labels, _hbc_compute_target_address (asm_ref, j), func_sz, end_label_addr);
-					if (r.code != RESULT_SUCCESS) {
-						free (stack);
-						free (catch_pos);
-						return r;
-					}
+					RETURN_IF_ERROR (labels_add_target (labels, _hbc_compute_target_address (asm_ref, j), func_sz, end_label_addr));
 				}
 			}
-			continue;
 		}
-		if (asm_ref->opcode == OP_SaveGenerator || asm_ref->opcode == OP_SaveGeneratorLong) {
-			Result r = plan_add_target (labels, _hbc_compute_target_address (asm_ref, 0), func_sz, end_label_addr);
-			if (r.code != RESULT_SUCCESS) {
-				free (stack);
-				free (catch_pos);
-				return r;
-			}
-			continue;
+		if (asm_ref && (asm_ref->opcode == OP_SaveGenerator || asm_ref->opcode == OP_SaveGeneratorLong)) {
+			RETURN_IF_ERROR (labels_add_target (labels, _hbc_compute_target_address (asm_ref, 0), func_sz, end_label_addr));
 		}
 		Token *head = st->head;
-		if (head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) {
-			continue;
-		}
-		u32 target = jump_target_of (head);
-		/* An if-block must not extend past the next catch boundary. */
-		u32 region_end = func_sz;
-		for (u32 c = 0; c < catch_count; c++) {
-			if (catch_pos[c] > pos) {
-				region_end = catch_pos[c];
-				break;
-			}
-		}
-		bool escapes = (sp > 0 && target > stack[sp - 1]) || target > region_end;
-		if (jump_is_unconditional (head) || target <= pos || escapes) {
-			/* unconditional, backward, or block-escaping -> goto + label */
-			Result r = plan_add_target (labels, target, func_sz, end_label_addr);
-			if (r.code != RESULT_SUCCESS) {
-				free (stack);
-				free (catch_pos);
-				return r;
-			}
-			force_goto[si] = true;
-		} else {
-			/* nests cleanly -> open an if-block */
-			Result r = grow_array (&stack, &cap, sp, sizeof (u32), 16);
-			if (r.code != RESULT_SUCCESS) {
-				free (stack);
-				free (catch_pos);
-				return r;
-			}
-			stack[sp++] = target;
+		if (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
+			RETURN_IF_ERROR (labels_add_target (labels, jump_target_of (head), func_sz, end_label_addr));
 		}
 	}
-	free (stack);
-	free (catch_pos);
 	return SUCCESS_RESULT ();
 }
 
@@ -1943,10 +1876,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		return dce_result;
 	}
 
-	/* Plan goto/label fallback for control flow that cannot nest as if-blocks
-	 * (escaping forward jumps, backward jumps, unconditional jumps). Without
-	 * this, non-nestable branches leave reachable code stranded after a
-	 * return/throw, looking like dead code. */
 	u32 plan_func_sz = function_body->function_object? function_body->function_object->bytecodeSizeInBytes: 0;
 	U32Set goto_labels = { 0 };
 	Result lbl_init = u32set_init (&goto_labels, plan_func_sz + 1);
@@ -1955,21 +1884,14 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		free (dce);
 		return lbl_init;
 	}
-	bool *force_goto = (bool *)calloc (function_body->statements_count? function_body->statements_count: 1, sizeof (bool));
-	if (!force_goto) {
-		output_buffers_fini (&ob);
-		free (dce);
-		u32set_free (&goto_labels);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom force_goto");
-	}
 	u32 end_label_addr = UINT32_MAX;
-	Result plan_res = compute_goto_plan (function_body, dce, plan_func_sz, &goto_labels, force_goto, &end_label_addr);
-	if (plan_res.code != RESULT_SUCCESS) {
+	bool has_catch = false;
+	Result labels_res = collect_labels (function_body, dce, plan_func_sz, &goto_labels, &end_label_addr, &has_catch);
+	if (labels_res.code != RESULT_SUCCESS) {
 		output_buffers_fini (&ob);
 		free (dce);
-		free (force_goto);
 		u32set_free (&goto_labels);
-		return plan_res;
+		return labels_res;
 	}
 	/* Emit labels in address order. A target need not land exactly on a
 	 * surviving statement (it may be DCE'd or sit between statements), so a
@@ -1977,23 +1899,14 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	qsort (goto_labels.data, goto_labels.count, sizeof (u32), cmp_u32);
 	u32 label_idx = 0;
 
-	/* Try/catch: Hermes exception handlers (OP_Catch) are trailing regions
-	 * entered only by a thrown exception, never by fallthrough. Wrap the body
-	 * in try { } and render each handler as a catch block so handler code is
-	 * not stranded after the body's return/throw. */
-	bool has_catch = false;
-	for (u32 si = 0; si < function_body->statements_count; si++) {
-		TokenString *cst = &function_body->statements[si];
-		if (cst->head && cst->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
-			has_catch = true;
-			break;
-		}
-	}
-	int try_base_indent = state->indent_level;
-	if (has_catch) {
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "try {\n"));
-		state->indent_level++;
+	StructuredCatch *catch_plans = NULL;
+	u32 catch_plan_count = 0;
+	Result catch_res = build_structured_catches (function_body, dce, plan_func_sz, &catch_plans, &catch_plan_count);
+	if (catch_res.code != RESULT_SUCCESS) {
+		output_buffers_fini (&ob);
+		free (dce);
+		u32set_free (&goto_labels);
+		return catch_res;
 	}
 
 	u32 cur_bb_index = 0;
@@ -2023,6 +1936,14 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 		if (asm_ref) {
 			u32 pos = asm_ref->original_pos;
+			StructuredCatch *catch_end = structured_catch_at (catch_plans, catch_plan_count, pos, 'm');
+			if (catch_end) {
+				catch_end->catch_open = false;
+				state->indent_level--;
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+			}
+
 			/* Close frames */
 			while (frame_end_idx < frame_ends_count && ob.frame_ends[frame_end_idx] == pos) {
 				frame_end_idx++;
@@ -2040,10 +1961,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 			/* Goto target labels for control flow that does not nest as if-blocks */
 			while (label_idx < goto_labels.count && goto_labels.data[label_idx] <= pos) {
+				if (structured_catch_at (catch_plans, catch_plan_count, goto_labels.data[label_idx], 'c')) {
+					label_idx++;
+					continue;
+				}
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 				char lbl[40];
-				snprintf (lbl, sizeof (lbl), "loc_%08llx:\n",
-					(unsigned long long)(state->options.function_base + goto_labels.data[label_idx]));
+				snprintf (lbl, sizeof (lbl), "loc_%08llx:\n", (unsigned long long) (state->options.function_base + goto_labels.data[label_idx]));
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbl));
 				label_idx++;
 			}
@@ -2101,14 +2025,42 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "{\n"));
 				state->indent_level++;
 			}
+			if (structured_catch_at (catch_plans, catch_plan_count, pos, 's')) {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "try {\n"));
+				state->indent_level++;
+			}
 		}
 
 		if (!st->head) {
 			continue;
 		}
 
-		/* Catch handler boundary: close any open if-blocks and the current
-		 * try/catch region, then open this handler as `} catch (rN) {`. */
+		Token *head = st->head;
+		StructuredCatch *try_end = asm_ref? structured_catch_at (catch_plans, catch_plan_count, asm_ref->original_pos, 'e'): NULL;
+		if (try_end && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			jump_is_unconditional (head) && jump_target_of (head) == try_end->catch_end) {
+			continue;
+		}
+
+		StructuredCatch *catch_start = asm_ref? structured_catch_at (catch_plans, catch_plan_count, asm_ref->original_pos, 'c'): NULL;
+		if (catch_start) {
+			while (ob.if_block_stack_count > 0) {
+				ob.if_block_stack_count--;
+				state->indent_level--;
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+			}
+			state->indent_level--;
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			char cbuf[32];
+			snprintf (cbuf, sizeof (cbuf), "} catch (r%d) {\n", catch_start->catch_reg);
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, cbuf));
+			state->indent_level++;
+			catch_start->catch_open = true;
+			continue;
+		}
+
 		if (st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
 			while (ob.if_block_stack_count > 0) {
 				ob.if_block_stack_count--;
@@ -2116,14 +2068,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 			}
-			int catch_reg = ((CatchBlockStartToken *)st->head)->arg_register;
-			state->indent_level = try_base_indent;
-			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			char cbuf[32];
-			snprintf (cbuf, sizeof (cbuf), "} catch (r%d) {\n", catch_reg);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, cbuf));
-			state->indent_level = try_base_indent + 1;
-			continue;
 		}
 
 		/* Calculate absolute address for offset display and comments */
@@ -2153,12 +2097,29 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 
 		bool emitted_continue = false;
-		Token *head = st->head;
-		if (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION || head->type == TOKEN_TYPE_JUMP_CONDITION) {
+		bool emitted_statement = false;
+		if (head->type == TOKEN_TYPE_SAVE_GENERATOR) {
+			u32 ret_si = si + 1;
+			while (ret_si < function_body->statements_count && dce && dce[ret_si]) {
+				ret_si++;
+			}
+			TokenString *ret = (ret_si < function_body->statements_count)? &function_body->statements[ret_si]: NULL;
+			u32 ret_pos = (ret && ret->assembly)? ret->assembly->original_pos: UINT32_MAX;
+			if (ret && ret->head && ret->head->type == TOKEN_TYPE_RETURN_DIRECTIVE && !u32set_contains (&goto_labels, ret_pos)) {
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "yield"));
+				if (ret->head->next) {
+					RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
+					RETURN_IF_ERROR (append_plain_tokens (out, ret->head->next));
+				}
+				si = ret_si;
+				emitted_statement = true;
+			}
+		}
+		if (!emitted_statement && (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION || head->type == TOKEN_TYPE_JUMP_CONDITION)) {
 			u32 target_addr = jump_target_of (head);
 			/* Jumps that leave the function share a single end label. */
 			u32 lbl_rel = (target_addr >= plan_func_sz)? plan_func_sz: target_addr;
-			unsigned long long lbl_abs = (unsigned long long)(state->options.function_base + lbl_rel);
+			unsigned long long lbl_abs = (unsigned long long) (state->options.function_base + lbl_rel);
 
 			if (jump_is_unconditional (head)) {
 				char goto_buf[48];
@@ -2168,23 +2129,22 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			}
 
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "if ("));
-			for (Token *t = head->next; t; t = t->next) {
-				RETURN_IF_ERROR (_hbc_token_to_string (t, out));
-			}
 
-			if (force_goto[si]) {
-				/* backward or block-escaping conditional -> if (cond) goto label */
+			u32 pos = asm_ref? asm_ref->original_pos: 0;
+			bool goto_form = has_catch || target_addr <= pos ||
+				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1]);
+			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+			if (goto_form) {
 				char goto_buf[48];
 				snprintf (goto_buf, sizeof (goto_buf), ") goto loc_%08llx;\n", lbl_abs);
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, goto_buf));
 			} else {
-				/* forward conditional that nests cleanly -> open an if-block */
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
 				RETURN_IF_ERROR (if_block_stack_push (&ob, target_addr));
 				state->indent_level++;
 			}
 			continue;
-		} else {
+		} else if (!emitted_statement) {
 			/* Emit all tokens, handling nested function expressions */
 			bool first_tok = true;
 			TokenType prev_type = (TokenType) (-1);
@@ -2289,7 +2249,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			if (!bb) {
 				output_buffers_fini (&ob);
 				free (dce);
-				free (force_goto);
+				free (catch_plans);
 				u32set_free (&goto_labels);
 				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block during dispatch");
 			}
@@ -2314,19 +2274,11 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
 	}
 
-	/* Close the final try/catch region. */
-	if (has_catch) {
-		state->indent_level = try_base_indent;
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
-	}
-
 	/* Flush any labels whose address sits past the last emitted statement. */
 	while (label_idx < goto_labels.count) {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		char lbl[40];
-		snprintf (lbl, sizeof (lbl), "loc_%08llx:;\n",
-			(unsigned long long)(state->options.function_base + goto_labels.data[label_idx]));
+		snprintf (lbl, sizeof (lbl), "loc_%08llx:;\n", (unsigned long long) (state->options.function_base + goto_labels.data[label_idx]));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbl));
 		label_idx++;
 	}
@@ -2335,8 +2287,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	if (end_label_addr != UINT32_MAX) {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		char lbl[40];
-		snprintf (lbl, sizeof (lbl), "loc_%08llx:;\n",
-			(unsigned long long)(state->options.function_base + end_label_addr));
+		snprintf (lbl, sizeof (lbl), "loc_%08llx:;\n", (unsigned long long) (state->options.function_base + end_label_addr));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbl));
 	}
 
@@ -2360,7 +2311,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 	output_buffers_fini (&ob);
 	free (dce);
-	free (force_goto);
+	free (catch_plans);
 	u32set_free (&goto_labels);
 	return SUCCESS_RESULT ();
 }

@@ -1128,7 +1128,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, create_raw_token ("switch(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_raw_token (") /*tableSize:")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
+			RETURN_IF_ERROR (add (out, num_token_u32 (insn->switch_jump_table_size)));
 			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
 			break;
 		}

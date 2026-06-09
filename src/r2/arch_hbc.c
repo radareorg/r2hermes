@@ -7,7 +7,7 @@
 #include <hbc/bytecode.h>
 #include <hbc/parser.h>
 
-#define MAX_OP_SIZE 16
+#define MAX_OP_SIZE 32
 #define HBC_VADDR_BASE 0x10000000
 #ifndef R_ARCH_SYNTAX_CAMEL
 #define R_ARCH_SYNTAX_CAMEL 6
