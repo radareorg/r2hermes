@@ -99,17 +99,24 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	return SUCCESS_RESULT ();
 }
 
-/* Find function ID at a given offset */
-static int find_function_at_offset(HbcContext *ctx, u32 offset, u32 *out_id) {
+/* Find function ID containing a given r2 vaddr.
+ *
+ * r2 reports vaddrs (HBC_VADDR_BASE + paddr), but HBCFunc::offset is the raw
+ * bytecode paddr. Translate before comparing — otherwise the lookup never
+ * matches and `pd:h` silently falls back to decompiling all functions
+ * (starting at the global one), which trips the AST budget and hides the
+ * function the user actually navigated to. */
+static int find_function_at_offset(HbcContext *ctx, u64 vaddr, u32 *out_id) {
 	if (!out_id || !ctx->hbc) {
 		return -1;
 	}
+	u32 paddr = (vaddr >= HBC_VADDR_BASE)? (u32)(vaddr - HBC_VADDR_BASE): (u32)vaddr;
 	u32 count = hbc_function_count (ctx->hbc);
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc fi;
 		Result res = hbc_get_function_info (ctx->hbc, i, &fi);
 		if (res.code == RESULT_SUCCESS) {
-			if (offset >= fi.offset && offset < (fi.offset + fi.size)) {
+			if (paddr >= fi.offset && paddr < (fi.offset + fi.size)) {
 				*out_id = i;
 				return 0;
 			}
@@ -151,8 +158,7 @@ static void cmd_decompile_current_ex(HbcContext *ctx, RCore *core, bool show_off
 	}
 
 	u32 function_id = 0;
-	/* Get current offset from r2 core */
-	int found = find_function_at_offset (ctx, (u32)core->addr, &function_id);
+	int found = find_function_at_offset (ctx, (u64)core->addr, &function_id);
 
 	if (found == 0) {
 		/* Found function at current offset - get its base address */
@@ -524,7 +530,7 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	const char *as = r_str_trim_head_ro (addr_str);
 	if (*as) {
 		function_id = parse_function_id (addr_str);
-	} else if (find_function_at_offset (ctx, (u32)core->addr, &function_id) != 0) {
+	} else if (find_function_at_offset (ctx, (u64)core->addr, &function_id) != 0) {
 		emit_json_error (core, "No function at current offset");
 		return;
 	}
