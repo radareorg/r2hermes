@@ -914,23 +914,14 @@ static void cmd_help(RCore *core) {
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
 
-/* Main handler for pd:h commands */
-static bool cmd_handler(RCorePluginSession *s, const char *input) {
-	RCore *core = s? s->core: NULL;
+static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
+	(void)ctx;
+	(void)arg;
+	cmd_help (core);
+}
 
-	if (!core || !input) {
-		return false;
-	}
-	if (!r_str_startswith (input, "pd:h")) {
-		return false;
-	}
-	HbcContext *ctx = s->data;
-	if (!ctx) {
-		return false;
-	}
-
-	const char *arg = input + 4;
-
+static void cmd_pdh(RCore *core, HbcContext *ctx, const char *arg) {
+	// PANCAKE all those cmd_* functions taking ctx as first argument.. they should take core first and then ctx.. so swap them all
 	switch (*arg) {
 	case '\0': /* pd:h */
 	case ' ': /* pd:h (with spaces) */
@@ -955,14 +946,9 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 	case 'i': /* pd:hi */
 		cmd_file_info (ctx, core);
 		break;
-	case 'j': { /* pd:hj [id] */
-		const char *addr_str = arg + 1;
-		while (*addr_str && isspace ((unsigned char)*addr_str)) {
-			addr_str++;
-		}
-		cmd_json (ctx, core, addr_str);
+	case 'j': /* pd:hj [id] */
+		cmd_json (ctx, core, r_str_trim_head_ro (arg + 1));
 		break;
-	}
 	case 'o': { /* pd:ho [id] or pd:hoa */
 		const char *sub = arg + 1;
 		if (*sub == 'a') { // "pd:hoa"
@@ -992,8 +978,24 @@ static bool cmd_handler(RCorePluginSession *s, const char *input) {
 		R_LOG_ERROR ("Unknown subcommand. Use pd:h? for help");
 		break;
 	}
+}
 
-	return true;
+/* Main handler for pd:h commands */
+static bool cmd_handler(RCorePluginSession *s, const char *input) {
+	if (s && s->core && input) {
+		HbcContext *ctx = s->data;
+		if (!ctx) {
+			R_LOG_ERROR ("Missing HBC context, not an hermes bin here?")
+		} else if (r_str_startswith (input, "pd:h")) {
+			cmd_pdh (s->core, ctx, input + 4);
+		} else if (r_str_startswith (input, "r2hermes")) {
+			cmd_r2hermes (s->core, ctx, input + 8);
+		} else {
+			return false;
+		}
+		return true;
+	}
+	return false;
 }
 
 static bool cb_inline_buffer_literals(void *user, void *data) {
