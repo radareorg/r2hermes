@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #ifndef LIBHBC_ENCODER_H
 #define LIBHBC_ENCODER_H
 

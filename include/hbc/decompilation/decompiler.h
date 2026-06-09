@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #ifndef LIBHBC_DECOMPILER_H
 #define LIBHBC_DECOMPILER_H
 

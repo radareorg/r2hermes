@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #ifndef LIBHBC_TOKEN_H
 #define LIBHBC_TOKEN_H
 

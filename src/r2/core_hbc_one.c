@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025-2026 - pancache */
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
 
 /* Core HBC plugin with plugin registration enabled for r2one */
 

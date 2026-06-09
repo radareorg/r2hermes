@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/hermes_encoder.h>
 #include <hbc/opcodes.h>
 #include <hbc/bytecode.h>

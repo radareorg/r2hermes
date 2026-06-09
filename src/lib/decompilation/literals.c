@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/decompilation/literals.h>
 #include <ctype.h>
 #include <math.h>

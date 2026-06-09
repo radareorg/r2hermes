@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025-2026 - pancake */
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
 
 #include <r_asm.h>
 
@@ -219,7 +219,7 @@ const RAsmPlugin r_asm_plugin_r2hermes = {
 		.name = "hbc",
 		.desc = "Hermes bytecode pseudo syntax",
 		.author = "pancake",
-		.license = "LGPL-3.0-only",
+		.license = "BSD-3-Clause",
 	},
 	.parse = parse,
 };

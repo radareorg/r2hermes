@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/common.h>
 
 Result _hbc_buffer_reader_init_from_file(BufferReader *reader, const char *filename) {

@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	int opcode = op->type != R_ANAL_OP_TYPE_UNK? -1: -1;
 	/* Note: esil is set by opcode from decode output, not by looking up mnemonic again */

@@ -1,4 +1,4 @@
-/* radare2 - LGPL - Copyright 2025-2026 - pancake */
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
 
 #include <r_bin.h>
 #include <r_bin_dwarf.h>

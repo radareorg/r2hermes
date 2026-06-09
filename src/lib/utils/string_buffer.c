@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/common.h>
 
 Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {

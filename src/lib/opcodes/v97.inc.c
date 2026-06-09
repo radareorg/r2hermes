@@ -1,3 +1,5 @@
+/* radare2 - BSD - Copyright 2025-2026 - pancake */
+
 #include <hbc/opcodes.h>
 
 static const Instruction k_instructions_v97[200] = {
