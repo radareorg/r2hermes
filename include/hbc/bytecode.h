@@ -47,6 +47,13 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 /* Raw value of the i-th operand (0..5); 0 when the index is out of range. */
 u32 hbc_operand_value(const ParsedInstruction *insn, int i);
 
+/* True when operand `idx` (0..5) is a relative jump/branch address. */
+bool _hbc_operand_is_addr(const Instruction *inst, int idx);
+
+/* Absolute (function-relative) branch target of operand `op_index`.
+ * Hermes offsets are relative to the start of the instruction. */
+u32 _hbc_compute_target_address(const ParsedInstruction *insn, int op_index);
+
 /* Bytecode version module getters */
 BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);
 const char **_hbc_get_builtin_functions(BytecodeModule *module, u32 *out_count);

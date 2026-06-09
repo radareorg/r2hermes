@@ -463,6 +463,23 @@ u32 hbc_operand_value(const ParsedInstruction *insn, int i) {
 	}
 }
 
+bool _hbc_operand_is_addr(const Instruction *inst, int idx) {
+	if (!inst || idx < 0 || idx >= 6) {
+		return false;
+	}
+	OperandType t = inst->operands[idx].operand_type;
+	return t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32;
+}
+
+u32 _hbc_compute_target_address(const ParsedInstruction *insn, int op_index) {
+	if (!insn) {
+		return 0;
+	}
+	/* Hermes jump and address offsets are relative to the start of the
+	 * instruction (original_pos), matching the disassembler and the VM. */
+	return insn->original_pos + hbc_operand_value (insn, op_index);
+}
+
 /* Convert instruction to string */
 Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string) {
 	if (!instruction || !out_string || !instruction->inst) {

@@ -157,7 +157,6 @@ static const char *lookup_op_table(const OpTableEntry *table, u8 opcode) {
 static Token *reg_l_safe(const ParsedInstruction *insn, int idx);
 static Token *reg_r_safe(const ParsedInstruction *insn, int idx);
 static Token *num_token_u32(u32 v);
-static u32 compute_target_address(const ParsedInstruction *insn, int op_index);
 
 static Result emit_literal_assign(TokenString *out, const ParsedInstruction *insn, const char *literal) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
@@ -246,7 +245,7 @@ static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *ins
 }
 
 static Result emit_simple_jump(TokenString *out, const ParsedInstruction *insn, bool positive) {
-	u32 target = compute_target_address (insn, 0);
+	u32 target = _hbc_compute_target_address (insn, 0);
 	if (positive) {
 		RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
 		return add (out, create_raw_token ("true"));
@@ -278,23 +277,6 @@ static bool is_operand_register(const Instruction *inst, int idx) {
 	}
 	OperandType t = inst->operands[idx].operand_type;
 	return t == OPERAND_TYPE_REG8 || t == OPERAND_TYPE_REG32;
-}
-
-static bool is_operand_addr(const Instruction *inst, int idx) {
-	if (!inst || idx < 0 || idx >= 6) {
-		return false;
-	}
-	OperandType t = inst->operands[idx].operand_type;
-	return t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32;
-}
-
-static u32 compute_target_address(const ParsedInstruction *insn, int op_index) {
-	u32 v = hbc_operand_value (insn, op_index);
-	u32 base = insn->original_pos;
-	if (_hbc_is_jump_instruction (insn->opcode)) {
-		base += insn->inst->binary_size;
-	}
-	return base + v;
 }
 
 static const char *jump_cmp_operator(u8 op) {
@@ -812,7 +794,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_SaveGenerator:
 	case OP_SaveGeneratorLong:
 		{
-			u32 target = compute_target_address (insn, 0);
+			u32 target = _hbc_compute_target_address (insn, 0);
 			RETURN_IF_ERROR (add (out, create_save_generator_token (target)));
 			break;
 		}
@@ -970,7 +952,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_JmpTrueLong:
 		{
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = compute_target_address (insn, 0);
+			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
 				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
@@ -985,7 +967,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_JmpFalseLong:
 		{
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = compute_target_address (insn, 0);
+			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
@@ -1000,7 +982,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_JmpUndefinedLong:
 		{
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = compute_target_address (insn, 0);
+			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
@@ -1038,7 +1020,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				break;
 			}
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = compute_target_address (insn, 0);
+			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
 				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
@@ -1278,7 +1260,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				break;
 			}
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = compute_target_address (insn, 0);
+			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
 				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
 				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
@@ -1314,9 +1296,9 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 
 			/* Generic compare-jump fallback (covers variants not explicitly handled above). */
 			const char *cmp = jump_cmp_operator (op);
-			if (cmp && is_operand_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
+			if (cmp && _hbc_operand_is_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
 				i32 rel = (i32)hbc_operand_value (insn_c, 0);
-				u32 target = compute_target_address (insn, 0);
+				u32 target = _hbc_compute_target_address (insn, 0);
 				if (rel > 0) {
 					RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
 					RETURN_IF_ERROR (add (out, create_raw_token ("!")));
