@@ -936,7 +936,7 @@ static const char LIT_HELP[] =
 	" r2hermes-Lx [addr]    List as `<vaddr> <xref1> <xref2> ...` (one per literal)\n"
 	"                  With addr: print xrefs for that single literal only\n"
 	" r2hermes-Lp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
-	" r2hermes-Lr           Reset literal cache (does not remove r2 flags/comments)\n"
+	" r2hermes-LR           Reset literal cache (does not remove r2 flags/comments)\n"
 	" r2hermes-Lg <k> <n> <primary> [<sec>]\n"
 	"                  Format a literal from raw params (k=a|o)\n"
 	" r2hermes-Li           Toggle inline literal comments in disasm\n"
@@ -967,7 +967,7 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 			cmd_lit_scan_pool (ctx, core, kind);
 			break;
 		}
-	case 'r':
+	case 'R':
 		cmd_lit_reset (ctx, core);
 		break;
 	case 'g':
