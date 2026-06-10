@@ -25,6 +25,7 @@ typedef struct {
 	u32 original_pos;
 	u32 next_pos;
 	u32 function_offset;
+	u32 frame_size; /* register count of the owning function (for call args) */
 	HBCReader *hbc_reader;
 } ParsedInstruction;
 

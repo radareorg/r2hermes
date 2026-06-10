@@ -170,6 +170,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			instruction.original_pos = original_pos;
 			instruction.next_pos = original_pos + (u32) (remaining > UINT32_MAX? UINT32_MAX: remaining);
 			instruction.function_offset = function_header->offset;
+			instruction.frame_size = function_header->frameSize;
 			instruction.hbc_reader = reader;
 			instruction.switch_jump_table = NULL;
 			instruction.switch_jump_table_size = 0;
@@ -188,6 +189,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 		instruction.opcode = hbc_canonical_opcode_from_name (inst->name);
 		instruction.original_pos = original_pos;
 		instruction.function_offset = function_header->offset;
+		instruction.frame_size = function_header->frameSize;
 		instruction.hbc_reader = reader;
 
 		/* Set the expected next position based on instruction size */

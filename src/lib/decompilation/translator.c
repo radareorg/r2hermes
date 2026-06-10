@@ -232,17 +232,42 @@ static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, i
 	return add (out, create_right_parenthesis_token ());
 }
 
+/* Hermes reserves this many frame-header registers at the very top of a
+ * function's register frame; an outgoing call's `this`+args sit just below. */
+#define HBC_CALL_FRAME_RESERVED 6
+
+/* Variable-arity Call/Construct. Hermes places the call's argument registers at
+ * the top of the caller's frame, below the reserved header: `this` at
+ * frame_size-1-RESERVED, the explicit arguments descending below it.
+ * Reconstruct them as fn.call(this, a1, ...) (or new fn(a1, ...) for construct).
+ * Falls back to an argc note when the frame layout is unknown or too small. */
 static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn, bool is_construct) {
+	const u32 argc = insn->arg3;
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
 	RETURN_IF_ERROR (add (out, create_assignment_token ()));
 	if (is_construct) {
 		RETURN_IF_ERROR (add (out, create_raw_token ("new")));
 	}
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
+	if (!is_construct) {
+		RETURN_IF_ERROR (add (out, create_raw_token (".call")));
+	}
 	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-	char buf2[32];
-	snprintf (buf2, sizeof (buf2), "/*argc:%u*/", (unsigned)insn->arg3);
-	RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
+	const int base = (int)insn->frame_size - 1 - HBC_CALL_FRAME_RESERVED;
+	if (argc == 0 || base < 0 || (int)argc > base + 1) {
+		char buf2[32];
+		snprintf (buf2, sizeof (buf2), "/*argc:%u*/", (unsigned)argc);
+		RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
+		return add (out, create_right_parenthesis_token ());
+	}
+	/* Construct omits the implicit `this` (the freshly created object). */
+	const u32 first = is_construct? 1: 0;
+	for (u32 i = first; i < argc; i++) {
+		if (i > first) {
+			RETURN_IF_ERROR (add (out, create_raw_token (",")));
+		}
+		RETURN_IF_ERROR (add (out, create_right_hand_reg_token (base - (int)i)));
+	}
 	return add (out, create_right_parenthesis_token ());
 }
 
