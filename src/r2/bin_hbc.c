@@ -331,7 +331,7 @@ static RList *symbols(RBinFile *bf) {
 
 	/* SLP pool groups as symbols — one per group discovered by the
 	 * pool-side linear scan. Lets users see `lit.arr.* / lit.obj.*` in `is`
-	 * without needing to run pd:hLs. The scan is linear in pool size and
+	 * without needing to run r2hermes-Ls. The scan is linear in pool size and
 	 * runs at RBin load time. */
 	for (int k = 0; k < 2; k++) {
 		HBCLiteralKind kind = k? HBC_LIT_OBJECT: HBC_LIT_ARRAY;

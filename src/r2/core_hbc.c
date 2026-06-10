@@ -639,7 +639,7 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 }
 
 /* ==========================================================================
- * Literal-buffer commands (pd:hL*)
+ * Literal-buffer commands (r2hermes-L*)
  *
  * Work against the lazy HBC literal cache. Registration in r2 is additive:
  * flags (lit.arr.* / lit.obj.*) and CC comments are created at the literal
@@ -707,7 +707,7 @@ static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 		return;
 	}
 	if (n == 0) {
-		r_cons_println (core->cons, "(cache empty — run pd:hLs to scan)");
+		r_cons_println (core->cons, "(cache empty — run r2hermes-Ls to scan)");
 		return;
 	}
 	if (as_json) {
@@ -812,12 +812,12 @@ static void cmd_lit_get(HbcContext *ctx, RCore *core, const char *args) {
 		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
 		return;
 	}
-	/* Syntax: pd:hLg a <num> <array_id> (array)
-	 *         pd:hLg o <num> <primary> [<sec>] (object)  */
+	/* Syntax: r2hermes-Lg a <num> <array_id> (array)
+	 *         r2hermes-Lg o <num> <primary> [<sec>] (object) */
 	char kindc = 0;
 	u64 num = 0, primary = 0, secondary = 0;
 	if (!args || sscanf (args, " %c %" SCNu64 " %" SCNu64 " %" SCNu64, &kindc, &num, &primary, &secondary) < 3) {
-		R_LOG_ERROR ("usage: pd:hLg {a|o} <num_items> <primary_id> [<secondary_id>]");
+		R_LOG_ERROR ("usage: r2hermes-Lg {a|o} <num_items> <primary_id> [<secondary_id>]");
 		return;
 	}
 	HBCLiteralKind kind = (kindc == 'a')? HBC_LIT_ARRAY: HBC_LIT_OBJECT;
@@ -841,16 +841,17 @@ static void cmd_lit_toggle_inline(RCore *core) {
 }
 
 static const char LIT_HELP[] =
-	"Usage: pd:hL[subcmd]\n"
-	" pd:hL            List cached literals\n"
-	" pd:hLj           List as JSON\n"
-	" pd:hLs           Scan all code; register literals as flags/xrefs/comments\n"
-	" pd:hLp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
-	" pd:hLr           Reset literal cache (does not remove r2 flags/comments)\n"
-	" pd:hLg <k> <n> <primary> [<sec>]\n"
+	"Usage: r2hermes-L[subcmd]\n"
+	" r2hermes-L            List cached literals\n"
+	" r2hermes-Lj           List as JSON\n"
+	" r2hermes-Ls           Scan all code; register literals as flags/xrefs/comments\n"
+	" r2hermes-Lp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
+	" r2hermes-Lr           Reset literal cache (does not remove r2 flags/comments)\n"
+	" r2hermes-Lg <k> <n> <primary> [<sec>]\n"
 	"                  Format a literal from raw params (k=a|o)\n"
-	" pd:hLi           Toggle inline literal comments in disasm\n"
-	" pd:hL?           This help\n";
+	" r2hermes-Li           Toggle inline literal comments in disasm\n"
+	" r2hermes-L?           This help\n"
+	"\nDeprecated alias: pd:hL[subcmd]\n";
 
 static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 	while (*arg && isspace ((unsigned char)*arg)) {
@@ -886,7 +887,7 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 		r_cons_print (core->cons, LIT_HELP);
 		break;
 	default:
-		R_LOG_ERROR ("Unknown subcommand. Use pd:hL? for help");
+		R_LOG_ERROR ("Unknown subcommand. Use r2hermes-L? for help");
 		break;
 	}
 }
@@ -896,14 +897,14 @@ static void r2hermes_help(RCore *core) {
 	const char msg[] =
 		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
 		"r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)\n"
-		"r2hermes-L       - scan and list SLP literals\n"
+		"r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle\n"
 		"r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)\n";
 	r_cons_print (core->cons, msg);
 }
 
 static void cmd_help(RCore *core) {
 	r_cons_print (core->cons,
-		"Usage: pd:h[subcommand] (see r2hermes? for more command)\n"
+		"Usage: pd:h[subcommand] (see r2hermes-? for more commands)\n"
 		"Hermes bytecode decompiler via libhbc\n\n"
 		"Subcommands:\n"
 		"  pd:h           - Decompile function at current offset (or all if not in function)\n"
@@ -916,7 +917,7 @@ static void cmd_help(RCore *core) {
 		"  pd:ho [id]     - Decompile with offsets (addresses) per statement\n"
 		"  pd:hoa         - Decompile all with offsets\n"
 		"  pd:hs [id]     - List source-line information\n"
-		"  pd:hL[?]       - SLP literal cache: list/scan/reset (see r2hermes-L?)\n"
+		"  pd:hL[?]       - Deprecated alias for r2hermes-L[?]\n"
 		"  pd:h?          - Show this help\n"
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
@@ -993,7 +994,8 @@ static void cmd_pdh(RCore *core, HbcContext *ctx, const char *arg) {
 		}
 		break;
 	}
-	case 'L': /* pd:hL* — literal cache / buffer-literal commands */
+	case 'L': /* pd:hL* — deprecated alias for r2hermes-L* */
+		R_LOG_WARN ("pd:hL is deprecated; use r2hermes-L instead");
 		cmd_literals (ctx, core, arg + 1);
 		break;
 	case 's': /* pd:hs [id] */
@@ -1124,7 +1126,7 @@ static bool plugin_init(RCorePluginSession *s) {
 	}
 
 	/* Default off: inlining the SLP literal as a disasm-line comment makes
-	 * arch.decode O (n) in literal size. Use pd:hL* to inspect literals
+	 * arch.decode O (n) in literal size. Use r2hermes-L* to inspect literals
 	 * without impacting disasm speed. */
 	hbc_set_inline_literals (false);
 	node = r_config_set_b_cb (cfg, "hbc.inline_buffer_literals", false, cb_inline_buffer_literals);
