@@ -882,6 +882,77 @@ static void cmd_lit_scan_pool(HbcContext *ctx, RCore *core, HBCLiteralKind kind)
 	free (groups);
 }
 
+/* Print r2 oneliners that register flag + comment + xrefs for one entry.
+ * When va is true addresses are shown as vaddrs (HBC_VADDR_BASE + paddr),
+ * otherwise as paddr. The formatted literal text is embedded in a CC comment;
+ * embedded newlines are squashed into spaces and a single quote is escaped. */
+static void print_r2_for_entry(RCore *core, const HBCLiteralEntry *e, bool va) {
+	ut64 base = va? (ut64)HBC_VADDR_BASE: 0;
+	ut64 vaddr = base + e->paddr;
+	const char *prefix = lit_kind_prefix (e->kind);
+	/* flag at literal vaddr */
+	r_cons_printf (core->cons, "f %s0x%x 1 @ 0x%" PFMT64x "\n",
+		prefix, e->paddr, vaddr);
+	/* embed the formatted text as a comment at the literal vaddr */
+	if (e->formatted && *e->formatted) {
+		char *clean = strdup (e->formatted);
+		if (clean) {
+			for (char *p = clean; *p; p++) {
+				if (*p == '\n' || *p == '\r') {
+					*p = ' ';
+				} else if (*p == '\'') {
+					*p = '"';
+				}
+			}
+			r_cons_printf (core->cons, "\" /* %s */ CC %s @ 0x%" PFMT64x "\n",
+				prefix, clean, vaddr);
+			free (clean);
+		}
+	}
+	/* xref from each call site to the literal */
+	for (u32 j = 0; j < e->xref_count; j++) {
+		ut64 from = base + (ut64)e->xref_addrs[j];
+		r_cons_printf (core->cons, "axd 0x%" PFMT64x " 0x%" PFMT64x "\n", from, vaddr);
+	}
+}
+
+static void cmd_lit_print_r2(HbcContext *ctx, RCore *core, const char *args) {
+	const HBCLiteralEntry *arr = NULL;
+	u32 n = 0;
+	Result r = lit_list_collect (ctx, core, &arr, &n);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	bool va = r_config_get_b (core->config, "io.va");
+	if (args) {
+		while (*args && isspace ((unsigned char)*args)) {
+			args++;
+		}
+	}
+	if (args && *args) {
+		ut64 want = r_num_get (core->num, args);
+		ut64 base = va? (ut64)HBC_VADDR_BASE: 0;
+		ut64 target_paddr = (want >= base)? (want - base): want;
+		const HBCLiteralEntry *match = NULL;
+		for (u32 i = 0; i < n; i++) {
+			if (arr[i].paddr == target_paddr) {
+				match = &arr[i];
+				break;
+			}
+		}
+		if (!match) {
+			R_LOG_ERROR ("no literal at that address");
+			return;
+		}
+		print_r2_for_entry (core, match, va);
+		return;
+	}
+	for (u32 i = 0; i < n; i++) {
+		print_r2_for_entry (core, &arr[i], va);
+	}
+}
+
 static void cmd_lit_reset(HbcContext *ctx, RCore *core) {
 	HBC *hbc = NULL;
 	Result r = ensure_hbc_loaded (ctx, core, &hbc);
@@ -937,6 +1008,8 @@ static const char LIT_HELP[] =
 	"                  With addr: print xrefs for that single literal only\n"
 	" r2hermes-Lp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
 	" r2hermes-LR           Reset literal cache (does not remove r2 flags/comments)\n"
+	" r2hermes-Lr [addr]    Print r2 oneliners (f/CC/axd) to register flag+comment+xrefs\n"
+	"                  With addr: print oneliners for that single literal only\n"
 	" r2hermes-Lg <k> <n> <primary> [<sec>]\n"
 	"                  Format a literal from raw params (k=a|o)\n"
 	" r2hermes-Li           Toggle inline literal comments in disasm\n"
@@ -969,6 +1042,9 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 		}
 	case 'R':
 		cmd_lit_reset (ctx, core);
+		break;
+	case 'r':
+		cmd_lit_print_r2 (ctx, core, arg + 1);
 		break;
 	case 'g':
 		cmd_lit_get (ctx, core, arg + 1);
