@@ -737,9 +737,7 @@ static void cmd_lit_list_quiet(HbcContext *ctx, RCore *core) {
 	}
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
-		r_cons_printf (core->cons, "0x%" PFMT64x " %s\n",
-			(ut64)HBC_VADDR_BASE + e->paddr,
-			e->formatted? e->formatted: "");
+		r_cons_printf (core->cons, "0x%" PFMT64x " %s\n", (ut64)HBC_VADDR_BASE + e->paddr, e->formatted? e->formatted: "");
 	}
 }
 
@@ -891,8 +889,7 @@ static void print_r2_for_entry(RCore *core, const HBCLiteralEntry *e, bool va) {
 	ut64 vaddr = base + e->paddr;
 	const char *prefix = lit_kind_prefix (e->kind);
 	/* flag at literal vaddr */
-	r_cons_printf (core->cons, "f %s0x%x 1 @ 0x%" PFMT64x "\n",
-		prefix, e->paddr, vaddr);
+	r_cons_printf (core->cons, "f %s0x%x 1 @ 0x%" PFMT64x "\n", prefix, e->paddr, vaddr);
 	/* embed the formatted text as a comment at the literal vaddr */
 	if (e->formatted && *e->formatted) {
 		char *clean = strdup (e->formatted);
@@ -904,8 +901,7 @@ static void print_r2_for_entry(RCore *core, const HBCLiteralEntry *e, bool va) {
 					*p = '"';
 				}
 			}
-			r_cons_printf (core->cons, "\" /* %s */ CC %s @ 0x%" PFMT64x "\n",
-				prefix, clean, vaddr);
+			r_cons_printf (core->cons, "\" /* %s */ CC %s @ 0x%" PFMT64x "\n", prefix, clean, vaddr);
 			free (clean);
 		}
 	}

@@ -218,7 +218,7 @@ static Result emit_goto(StringBuffer *out, u64 addr) {
  * is emitted by the caller. */
 static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, const ParsedInstruction *insn) {
 	const u64 fbase = state->options.function_base;
-	const int minval = (int)(int32_t)insn->arg4;
+	const int minval = (int) (int32_t)insn->arg4;
 	const u32 default_target = _hbc_compute_target_address (insn, 2);
 	char hdr[32];
 	snprintf (hdr, sizeof (hdr), "switch (r%u) {\n", (unsigned)insn->arg1);

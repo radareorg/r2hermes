@@ -192,7 +192,7 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					 * contents) so the disassembler caps r2's string read and
 					 * picks the right flag among overlapping, non-null-terminated
 					 * Hermes strings that share this storage offset. */
-					op->ptrsize = meta.isUTF16? (int)(meta.length * 2): (int)meta.length;
+					op->ptrsize = meta.isUTF16? (int) (meta.length * 2): (int)meta.length;
 				}
 			}
 		}

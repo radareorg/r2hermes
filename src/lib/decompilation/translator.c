@@ -239,7 +239,7 @@ static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, i
 /* Variable-arity Call/Construct. Hermes places the call's argument registers at
  * the top of the caller's frame, below the reserved header: `this` at
  * frame_size-1-RESERVED, the explicit arguments descending below it.
- * Reconstruct them as fn.call(this, a1, ...) (or new fn(a1, ...) for construct).
+ * Reconstruct them as fn.call (this, a1, ...) (or new fn (a1, ...) for construct).
  * Falls back to an argc note when the frame layout is unknown or too small. */
 static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn, bool is_construct) {
 	const u32 argc = insn->arg3;
@@ -824,24 +824,17 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_StoreToEnvironment:
 	case OP_StoreToEnvironmentL:
+	/* The NP ("non-pointer") variant has identical operands and decompiled
+	 * semantics; route it through the same closure-var path so it is named
+	 * consistently and not misread as a plain register write by DCE. */
+	case OP_StoreNPToEnvironment:
+	case OP_StoreNPToEnvironmentL:
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 2)) {
 				RETURN_IF_ERROR (add (out, create_store_to_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_store_invalid*/")));
 			}
-			break;
-		}
-	case OP_StoreNPToEnvironment:
-	case OP_StoreNPToEnvironmentL:
-		{
-			/* env[slot] = value (NP variant) */
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_LoadFromEnvironment:
