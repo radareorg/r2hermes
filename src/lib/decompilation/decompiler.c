@@ -224,16 +224,31 @@ static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, cons
 	snprintf (hdr, sizeof (hdr), "switch (r%u) {\n", (unsigned)insn->arg1);
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, hdr));
 	state->indent_level++;
-	for (u32 i = 0; i < insn->switch_jump_table_size; i++) {
+	for (u32 i = 0; i < insn->switch_jump_table_size;) {
 		const u32 tgt = insn->switch_jump_table[i];
 		if (tgt == default_target) {
+			i++;
 			continue;
 		}
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		char cb[32];
-		snprintf (cb, sizeof (cb), "case %d: ", minval + (int)i);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, cb));
-		RETURN_IF_ERROR (emit_goto (out, fbase + tgt));
+		/* Group consecutive case values that share a target into stacked
+		 * fallthrough labels ending in a single goto. */
+		u32 j = i;
+		while (j + 1 < insn->switch_jump_table_size && insn->switch_jump_table[j + 1] == tgt) {
+			j++;
+		}
+		for (u32 k = i; k <= j; k++) {
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			char cb[32];
+			snprintf (cb, sizeof (cb), "case %d:", minval + (int)k);
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, cb));
+			if (k < j) {
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
+			} else {
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " "));
+				RETURN_IF_ERROR (emit_goto (out, fbase + tgt));
+			}
+		}
+		i = j + 1;
 	}
 	RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "default: "));

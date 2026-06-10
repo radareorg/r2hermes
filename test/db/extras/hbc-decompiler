@@ -244,3 +244,35 @@ EXPECT=<<EOF
   r0 = eval (r0);
 EOF
 RUN
+
+NAME=pd:hc for-in loop structuring
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 6~for (,continue
+EOF
+EXPECT=<<EOF
+    for (r6 in r9)
+      if (!r11) continue;
+EOF
+RUN
+
+NAME=pd:hc for-in no back-edge goto or loop-top label
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 6~for (r6 in,goto loc_0003e68d,loc_0003e68d:
+EOF
+EXPECT=<<EOF
+    for (r6 in r9)
+EOF
+RUN
+
+NAME=pd:hc switch fallthrough case grouping
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 562~case 26,case 27
+EOF
+EXPECT=<<EOF
+    case 26:
+    case 27: goto loc_0004d144;
+EOF
+RUN
