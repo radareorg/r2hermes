@@ -1642,10 +1642,35 @@ static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *d
 	if (!plans) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom structured catches");
 	}
+	/* Group handlers by catch target: multiple protected regions can share one
+	 * catch handler. Each group becomes one try/catch whose try spans the union
+	 * of its regions. */
+	u32 ng = 0;
 	for (u32 i = 0; i < fb->exc_handlers_count; i++) {
 		ExceptionHandlerInfo *h = &fb->exc_handlers[i];
-		u32 catch_end = UINT32_MAX;
-		int catch_reg = -1;
+		StructuredCatch *g = NULL;
+		for (u32 k = 0; k < ng; k++) {
+			if (plans[k].catch_start == h->target) {
+				g = &plans[k];
+				break;
+			}
+		}
+		if (g) {
+			if (h->start < g->try_start) {
+				g->try_start = h->start;
+			}
+			if (h->end > g->try_end) {
+				g->try_end = h->end;
+			}
+		} else {
+			plans[ng++] = (StructuredCatch){ h->start, h->end, h->target, UINT32_MAX, -1, false };
+		}
+	}
+	/* Resolve each group: catch register, a surviving try-start statement, and
+	 * the catch-body end (skip-jump target, else the catch region extent). An
+	 * invalid group is flagged with catch_reg = -1. */
+	for (u32 g = 0; g < ng; g++) {
+		StructuredCatch *p = &plans[g];
 		bool has_try_start = false;
 		for (u32 si = 0; si < fb->statements_count; si++) {
 			if (dce && dce[si]) {
@@ -1656,28 +1681,37 @@ static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *d
 				continue;
 			}
 			u32 pos = st->assembly->original_pos;
-			if (pos == h->start) {
+			if (pos == p->try_start) {
 				has_try_start = true;
-			} else if (pos == h->target && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
-				catch_reg = ((CatchBlockStartToken *)st->head)->arg_register;
-			} else if (pos == h->end &&
+			} else if (pos == p->catch_start && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
+				p->catch_reg = ((CatchBlockStartToken *)st->head)->arg_register;
+			} else if (pos == p->try_end &&
 				(st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 				jump_is_unconditional (st->head)) {
-				catch_end = jump_target_of (st->head);
+				p->catch_end = jump_target_of (st->head);
 			}
 		}
-		/* When the try body has no skip-jump over the catch (it returns/throws),
-		 * derive the catch end from the extent of the catch region itself. Only
-		 * for single-handler functions, to avoid nested-handler ambiguity. */
-		if (catch_end == UINT32_MAX && has_try_start && catch_reg >= 0
-				&& fb->exc_handlers_count == 1 && h->target < func_sz) {
-			catch_end = catch_region_end (fb, dce, h->target, func_sz);
+		if (p->catch_end == UINT32_MAX && has_try_start && p->catch_reg >= 0 && p->catch_start < func_sz) {
+			p->catch_end = catch_region_end (fb, dce, p->catch_start, func_sz);
 		}
-		if (!has_try_start || catch_reg < 0 || catch_end <= h->target || catch_end > func_sz) {
+		if (!has_try_start || p->catch_reg < 0 || p->catch_end <= p->catch_start || p->catch_end > func_sz) {
+			p->catch_reg = -1;
+		}
+	}
+	/* Nested/overlapping catches need ordered frame open/close we do not yet
+	 * emit. Greedily keep each valid group whose full [try_start, catch_end)
+	 * span is disjoint from every already-kept one; the rest stay bare. */
+	for (u32 g = 0; g < ng; g++) {
+		if (plans[g].catch_reg < 0) {
 			continue;
 		}
-		plans[*out_count] = (StructuredCatch){ h->start, h->end, h->target, catch_end, catch_reg, false };
-		(*out_count)++;
+		bool overlaps = false;
+		for (u32 k = 0; k < *out_count && !overlaps; k++) {
+			overlaps = !(plans[g].catch_end <= plans[k].try_start || plans[k].catch_end <= plans[g].try_start);
+		}
+		if (!overlaps) {
+			plans[(*out_count)++] = plans[g];
+		}
 	}
 	if (!*out_count) {
 		free (plans);

@@ -317,3 +317,15 @@ EXPECT=<<EOF
   } catch (r0) {
 EOF
 RUN
+
+NAME=pd:hc multiple independent try/catch blocks structured
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 344~} catch
+EOF
+EXPECT=<<EOF
+  } catch (r0) {
+  } catch (r1) {
+  } catch (r1) {
+EOF
+RUN
