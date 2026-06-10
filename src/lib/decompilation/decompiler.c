@@ -1950,7 +1950,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				state->truncation_marker_emitted = true;
 				append_indent (out, state->indent_level);
 				_hbc_string_buffer_append (out,
-					"// [output truncated: raise 'hbc.max_ast'/'hbc.max_bytes' (0=unlimited) for full output]\n");
+					"// [output truncated: raise 'r2hermes.max_ast'/'r2hermes.max_bytes' (0=unlimited) for full output]\n");
 			}
 			break;
 		}

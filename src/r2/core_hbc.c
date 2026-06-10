@@ -128,23 +128,23 @@ static int find_function_at_offset(HbcContext *ctx, u64 vaddr, u32 *out_id) {
 /* Create decompile options from radare2 settings */
 static HBCDecompOptions make_decompile_options(RCore *core, bool show_offsets, u64 function_base) {
 	HBCDecompOptions opts = {
-		.pretty_literals = r_config_get_b (core->config, "hbc.pretty_literals"),
-		.suppress_comments = r_config_get_b (core->config, "hbc.suppress_comments"),
-		.show_offsets = show_offsets || r_config_get_b (core->config, "hbc.show_offsets"),
+		.pretty_literals = r_config_get_b (core->config, "r2hermes.pretty_literals"),
+		.suppress_comments = r_config_get_b (core->config, "r2hermes.suppress_comments"),
+		.show_offsets = show_offsets || r_config_get_b (core->config, "r2hermes.show_offsets"),
 		.function_base = function_base,
 		.comment_callback = r2_comment_callback,
 		.comment_context = core,
 		.flag_callback = r2_flag_callback,
 		.flag_context = core,
-		.skip_pass1_metadata = r_config_get_b (core->config, "hbc.skip_pass1"),
-		.skip_pass2_transform = r_config_get_b (core->config, "hbc.skip_pass2"),
-		.skip_pass3_forin = r_config_get_b (core->config, "hbc.skip_pass3"),
-		.skip_pass4_closure = r_config_get_b (core->config, "hbc.skip_pass4"),
-		.force_dispatch = r_config_get_b (core->config, "hbc.force_dispatch"),
-		.inline_closures = r_config_get_b (core->config, "hbc.inline_closures"),
-		.inline_threshold = r_config_get_i (core->config, "hbc.inline_threshold"),
-		.max_ast_statements = r_config_get_i (core->config, "hbc.max_ast"),
-		.max_output_bytes = r_config_get_i (core->config, "hbc.max_bytes")
+		.skip_pass1_metadata = r_config_get_b (core->config, "r2hermes.skip_pass1"),
+		.skip_pass2_transform = r_config_get_b (core->config, "r2hermes.skip_pass2"),
+		.skip_pass3_forin = r_config_get_b (core->config, "r2hermes.skip_pass3"),
+		.skip_pass4_closure = r_config_get_b (core->config, "r2hermes.skip_pass4"),
+		.force_dispatch = r_config_get_b (core->config, "r2hermes.force_dispatch"),
+		.inline_closures = r_config_get_b (core->config, "r2hermes.inline_closures"),
+		.inline_threshold = r_config_get_i (core->config, "r2hermes.inline_threshold"),
+		.max_ast_statements = r_config_get_i (core->config, "r2hermes.max_ast"),
+		.max_output_bytes = r_config_get_i (core->config, "r2hermes.max_bytes")
 	};
 	return opts;
 }
@@ -836,7 +836,7 @@ static void cmd_lit_toggle_inline(RCore *core) {
 	bool cur = hbc_get_inline_literals ();
 	bool next = !cur;
 	hbc_set_inline_literals (next);
-	r_config_set_b (core->config, "hbc.inline_buffer_literals", next);
+	r_config_set_b (core->config, "r2hermes.inline_buffer_literals", next);
 	r_cons_printf (core->cons, "inline buffer literals: %s\n", next? "on": "off");
 }
 
@@ -1063,64 +1063,64 @@ static bool plugin_init(RCorePluginSession *s) {
 
 	r_config_lock (cfg, false);
 
-	RConfigNode *node = r_config_set (cfg, "hbc.pretty_literals", "true");
+	RConfigNode *node = r_config_set (cfg, "r2hermes.pretty_literals", "true");
 	if (node) {
 		r_config_node_desc (node, "Format literals nicely (objects, arrays, etc)");
 	}
 
-	node = r_config_set (cfg, "hbc.suppress_comments", "false");
+	node = r_config_set (cfg, "r2hermes.suppress_comments", "false");
 	if (node) {
 		r_config_node_desc (node, "Omit comments in decompiled output");
 	}
 
-	node = r_config_set (cfg, "hbc.show_offsets", "false");
+	node = r_config_set (cfg, "r2hermes.show_offsets", "false");
 	if (node) {
 		r_config_node_desc (node, "Show bytecode offsets for each statement");
 	}
 
 	/* Optimization/transformation pass control */
-	node = r_config_set (cfg, "hbc.skip_pass1", "false");
+	node = r_config_set (cfg, "r2hermes.skip_pass1", "false");
 	if (node) {
 		r_config_node_desc (node, "Skip pass 1: metadata collection (closure/generator/async flags)");
 	}
 
-	node = r_config_set (cfg, "hbc.skip_pass2", "false");
+	node = r_config_set (cfg, "r2hermes.skip_pass2", "false");
 	if (node) {
 		r_config_node_desc (node, "Skip pass 2: code transformation to tokens and statements");
 	}
 
-	node = r_config_set (cfg, "hbc.skip_pass3", "false");
+	node = r_config_set (cfg, "r2hermes.skip_pass3", "false");
 	if (node) {
 		r_config_node_desc (node, "Skip pass 3: for-in loop parsing (structural recovery via CFG)");
 	}
 
-	node = r_config_set (cfg, "hbc.skip_pass4", "false");
+	node = r_config_set (cfg, "r2hermes.skip_pass4", "false");
 	if (node) {
 		r_config_node_desc (node, "Skip pass 4: closure variable naming and environment resolution");
 	}
 
 	/* Control flow rendering options */
-	node = r_config_set (cfg, "hbc.force_dispatch", "false");
+	node = r_config_set (cfg, "r2hermes.force_dispatch", "false");
 	if (node) {
 		r_config_node_desc (node, "Force switch/case dispatch loop even for linear multi-block functions");
 	}
 
-	node = r_config_set (cfg, "hbc.inline_closures", "true");
+	node = r_config_set (cfg, "r2hermes.inline_closures", "true");
 	if (node) {
 		r_config_node_desc (node, "Inline closure definitions into parent function (true/false)");
 	}
 
-	node = r_config_set (cfg, "hbc.inline_threshold", "0");
+	node = r_config_set (cfg, "r2hermes.inline_threshold", "0");
 	if (node) {
 		r_config_node_desc (node, "Max bytecode size (bytes) for closure inlining (0=no limit, -1=never inline)");
 	}
 
-	node = r_config_set_i (cfg, "hbc.max_ast", 5000);
+	node = r_config_set_i (cfg, "r2hermes.max_ast", 5000);
 	if (node) {
 		r_config_node_desc (node, "Abort AST build once N statements per function (0=unlimited)");
 	}
 
-	node = r_config_set_i (cfg, "hbc.max_bytes", 262144);
+	node = r_config_set_i (cfg, "r2hermes.max_bytes", 262144);
 	if (node) {
 		r_config_node_desc (node, "Stop decompilation once total output reaches N bytes (0=unlimited)");
 	}
@@ -1129,7 +1129,7 @@ static bool plugin_init(RCorePluginSession *s) {
 	 * arch.decode O (n) in literal size. Use r2hermes-L* to inspect literals
 	 * without impacting disasm speed. */
 	hbc_set_inline_literals (false);
-	node = r_config_set_b_cb (cfg, "hbc.inline_buffer_literals", false, cb_inline_buffer_literals);
+	node = r_config_set_b_cb (cfg, "r2hermes.inline_buffer_literals", false, cb_inline_buffer_literals);
 	if (node) {
 		r_config_node_desc (node, "Inline SLP buffer literals as comments in disasm (slow; default off)");
 	}

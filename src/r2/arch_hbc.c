@@ -251,7 +251,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 };
 	/* Inlining of buffer-literal contents into the disasm line is opt-in —
 	 * it makes arch.decode O (n) in literal size and breaks r2's O(1) per-op
-	 * disasm assumption. Toggle via `e hbc.inline_buffer_literals=true`
+	 * disasm assumption. Toggle via `e r2hermes.inline_buffer_literals=true`
 	 *(core plugin updates a process-wide flag). */
 	if ((mask & R_ARCH_OP_MASK_DISASM) && hbc_get_inline_literals ()) {
 		ctx.build_objects = true;

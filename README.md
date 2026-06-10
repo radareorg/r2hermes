@@ -116,19 +116,19 @@ r2 -wqc '.(fix-hbc)' file.hbc
 
 ```bash
 # Pretty-print literals (objects, arrays)
-e hbc.pretty_literals=true
+e r2hermes.pretty_literals=true
 
 # Suppress comments in output
-e hbc.suppress_comments=false
+e r2hermes.suppress_comments=false
 
 # Show bytecode offsets per statement
-e hbc.show_offsets=false
+e r2hermes.show_offsets=false
 
 # Skip decompiler passes (for debugging)
-e hbc.skip_pass1=false  # Metadata collection
-e hbc.skip_pass2=false  # Code transformation
-e hbc.skip_pass3=false  # For-in loop parsing
-e hbc.skip_pass4=false  # Closure variable naming
+e r2hermes.skip_pass1=false  # Metadata collection
+e r2hermes.skip_pass2=false  # Code transformation
+e r2hermes.skip_pass3=false  # For-in loop parsing
+e r2hermes.skip_pass4=false  # Closure variable naming
 ```
 
 ## Dependencies
