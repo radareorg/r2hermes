@@ -18,13 +18,13 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:h help eval command
+NAME=r2hermes-? help eval command
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:h?~pd:he
+r2hermes-?~r2hermes-E
 EOF
 EXPECT=<<EOF
-  pd:he          - List functions containing eval instructions
+  r2hermes-E       - List functions containing eval instructions
 EOF
 RUN
 
@@ -136,20 +136,20 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:he list eval sites
+NAME=r2hermes-E list eval sites
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:he
+r2hermes-E
 EOF
 EXPECT=<<EOF
 0x100000b4 f=0 +0x4 func=0x100000b0 name=global
 EOF
 RUN
 
-NAME=pd:he list eval sites large
+NAME=r2hermes-E list eval sites large
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
-pd:he
+r2hermes-E
 EOF
 EXPECT=<<EOF
 0x100d166b f=4953 +0x28 func=0x100d1643 name=onPress

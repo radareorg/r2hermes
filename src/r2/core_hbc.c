@@ -1062,6 +1062,7 @@ static void r2hermes_help(RCore *core) {
 	const char msg[] =
 		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
 		"r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)\n"
+		"r2hermes-E       - List functions containing eval instructions\n"
 		"r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle\n"
 		"r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)\n";
 	r_cons_print (core->cons, msg);
@@ -1075,7 +1076,6 @@ static void cmd_help(RCore *core) {
 		"  pd:h           - Decompile function at current offset (or all if not in function)\n"
 		"  pd:hc [id]     - Decompile function by id\n"
 		"  pd:ha          - Decompile all functions\n"
-		"  pd:he          - List functions containing eval instructions\n"
 		"  pd:hf          - List all functions\n"
 		"  pd:hi          - Show file information\n"
 		"  pd:hj [id]     - JSON output for function\n"
@@ -1093,6 +1093,9 @@ static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 	arg = r_str_trim_head_ro (arg);
 	if (*arg == '-') {
 		switch (arg[1]) {
+		case 'E':
+			cmd_list_eval_functions (ctx, core);
+			break;
 		case 'L':
 			cmd_literals (ctx, core, arg + 2);
 			break;
@@ -1130,9 +1133,6 @@ static void cmd_pdh(RCore *core, HbcContext *ctx, const char *arg) {
 		break;
 	case 'c': /* pd:hc [id] */
 		cmd_decompile_function_ex (ctx, core, arg + 1, false);
-		break;
-	case 'e': /* pd:he */
-		cmd_list_eval_functions (ctx, core);
 		break;
 	case 'f': /* pd:hf */
 		cmd_list_functions (ctx, core);
