@@ -211,6 +211,38 @@ static Result emit_goto(StringBuffer *out, u64 addr) {
 	return _hbc_string_buffer_append (out, buf);
 }
 
+/* Reconstruct a SwitchImm jump table as a real switch dispatch. The table maps
+ * each value in [minVal, minVal+size) to a function-relative target; entries
+ * equal to the default target are gaps and fold into `default:`. The case bodies
+ * remain as the loc_* labels emitted at those targets. The header line's indent
+ * is emitted by the caller. */
+static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, const ParsedInstruction *insn) {
+	const u64 fbase = state->options.function_base;
+	const int minval = (int)(int32_t)insn->arg4;
+	const u32 default_target = _hbc_compute_target_address (insn, 2);
+	char hdr[32];
+	snprintf (hdr, sizeof (hdr), "switch (r%u) {\n", (unsigned)insn->arg1);
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, hdr));
+	state->indent_level++;
+	for (u32 i = 0; i < insn->switch_jump_table_size; i++) {
+		const u32 tgt = insn->switch_jump_table[i];
+		if (tgt == default_target) {
+			continue;
+		}
+		RETURN_IF_ERROR (append_indent (out, state->indent_level));
+		char cb[32];
+		snprintf (cb, sizeof (cb), "case %d: ", minval + (int)i);
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, cb));
+		RETURN_IF_ERROR (emit_goto (out, fbase + tgt));
+	}
+	RETURN_IF_ERROR (append_indent (out, state->indent_level));
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "default: "));
+	RETURN_IF_ERROR (emit_goto (out, fbase + default_target));
+	state->indent_level--;
+	RETURN_IF_ERROR (append_indent (out, state->indent_level));
+	return _hbc_string_buffer_append (out, "}\n");
+}
+
 static Result token_string_clear_tokens(TokenString *ts) {
 	if (!ts) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_clear_tokens: ts NULL");
@@ -1856,6 +1888,12 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		} else {
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+		}
+
+		/* SwitchImm: emit a real case dispatch instead of the bare token */
+		if (asm_ref && asm_ref->opcode == OP_SwitchImm && asm_ref->switch_jump_table && asm_ref->switch_jump_table_size > 0) {
+			RETURN_IF_ERROR (emit_switch_block (state, out, asm_ref));
+			continue;
 		}
 
 		/* Detect `for (` header used as a block statement */
