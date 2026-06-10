@@ -707,20 +707,48 @@ static bool ensure_lit_cache_populated(RCore *core, HBC *hbc) {
 	return true;
 }
 
-static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
+/* Shared setup for lit list commands. Returns the entries and count on
+ * success; writes a non-NULL *out_arr only when *out_count > 0. */
+static Result lit_list_collect(HbcContext *ctx, RCore *core, const HBCLiteralEntry **out_arr, u32 *out_n) {
+	*out_arr = NULL;
+	*out_n = 0;
 	HBC *hbc = NULL;
 	Result r = ensure_hbc_loaded (ctx, core, &hbc);
+	if (r.code != RESULT_SUCCESS) {
+		return r;
+	}
+	if (!ensure_lit_cache_populated (core, hbc)) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "literal cache not populated");
+	}
+	r = hbc_literals_list (hbc, out_arr, out_n);
+	if (r.code != RESULT_SUCCESS) {
+		return r;
+	}
+	return SUCCESS_RESULT ();
+}
+
+static void cmd_lit_list_quiet(HbcContext *ctx, RCore *core) {
+	const HBCLiteralEntry *arr = NULL;
+	u32 n = 0;
+	Result r = lit_list_collect (ctx, core, &arr, &n);
 	if (r.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
 		return;
 	}
-	if (!ensure_lit_cache_populated (core, hbc)) {
-		return;
+	for (u32 i = 0; i < n; i++) {
+		const HBCLiteralEntry *e = &arr[i];
+		r_cons_printf (core->cons, "0x%" PFMT64x " %s\n",
+			(ut64)HBC_VADDR_BASE + e->paddr,
+			e->formatted? e->formatted: "");
 	}
+}
+
+static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 	const HBCLiteralEntry *arr = NULL;
 	u32 n = 0;
-	if (hbc_literals_list (hbc, &arr, &n).code != RESULT_SUCCESS) {
-		R_LOG_ERROR ("list failed");
+	Result r = lit_list_collect (ctx, core, &arr, &n);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
 		return;
 	}
 	if (n == 0) {
@@ -844,6 +872,7 @@ static const char LIT_HELP[] =
 	"Usage: r2hermes-L[subcmd]\n"
 	" r2hermes-L            List cached literals (auto-scans code if cache is empty)\n"
 	" r2hermes-Lj           List as JSON (auto-scans if needed)\n"
+	" r2hermes-Lq           List as `<vaddr> <formatted>` per line (one per literal)\n"
 	" r2hermes-Lp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
 	" r2hermes-Lr           Reset literal cache (does not remove r2 flags/comments)\n"
 	" r2hermes-Lg <k> <n> <primary> [<sec>]\n"
@@ -862,6 +891,9 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 		break;
 	case 'j':
 		cmd_lit_list (ctx, core, true);
+		break;
+	case 'q':
+		cmd_lit_list_quiet (ctx, core);
 		break;
 	case 'p':
 		{
