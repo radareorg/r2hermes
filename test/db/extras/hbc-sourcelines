@@ -48,30 +48,30 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:hi debug info present
+NAME=r2hermes-H debug info present
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~Debug Info Present
+r2hermes-H~Debug Info Present
 EOF
 EXPECT=<<EOF
   Debug Info Present: yes
 EOF
 RUN
 
-NAME=pd:hi source locations size
+NAME=r2hermes-H source locations size
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~Source Locations
+r2hermes-H~Source Locations
 EOF
 EXPECT=<<EOF
   Source Locations: 13 bytes
 EOF
 RUN
 
-NAME=pd:hi debug files count
+NAME=r2hermes-H debug files count
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~Debug Files
+r2hermes-H~Debug Files
 EOF
 EXPECT=<<EOF
   Debug Files: 1 (6 bytes)

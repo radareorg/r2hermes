@@ -24,34 +24,34 @@ CMDS=<<EOF
 r2hermes-?~r2hermes-E
 EOF
 EXPECT=<<EOF
-  r2hermes-E       - List functions containing eval instructions
+r2hermes-E       - List functions containing eval instructions
 EOF
 RUN
 
-NAME=pd:hi file info small
+NAME=r2hermes-H file info small
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~Version
+r2hermes-H~Version
 EOF
 EXPECT=<<EOF
   Version: 96
 EOF
 RUN
 
-NAME=pd:hi file length small
+NAME=r2hermes-H file length small
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~File Length
+r2hermes-H~File Length
 EOF
 EXPECT=<<EOF
   File Length: 292 bytes
 EOF
 RUN
 
-NAME=pd:hi function count small
+NAME=r2hermes-H function count small
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~Functions
+r2hermes-H~Functions
 EOF
 EXPECT=<<EOF
   Functions: 1
@@ -59,10 +59,10 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:hi string count small
+NAME=r2hermes-H string count small
 FILE=bins/hbc/bespoke_eval.hbc
 CMDS=<<EOF
-pd:hi~Strings
+r2hermes-H~Strings
 EOF
 EXPECT=<<EOF
   Strings: 2
@@ -70,10 +70,10 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:hi file info large
+NAME=r2hermes-H file info large
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
-pd:hi~Functions
+r2hermes-H~Functions
 EOF
 EXPECT=<<EOF
   Functions: 5388
@@ -81,10 +81,10 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:hi strings large
+NAME=r2hermes-H strings large
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
-pd:hi~Strings
+r2hermes-H~Strings
 EOF
 EXPECT=<<EOF
   Strings: 6170
@@ -92,10 +92,10 @@ EXPECT=<<EOF
 EOF
 RUN
 
-NAME=pd:hi identifiers large
+NAME=r2hermes-H identifiers large
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
-pd:hi~Identifiers
+r2hermes-H~Identifiers
 EOF
 EXPECT=<<EOF
   Identifiers: 3449

@@ -70,7 +70,6 @@ Usage: pd:h[subcommand]
   pd:hc [id]     - Decompile function by id
   pd:ha          - Decompile all functions
   pd:hf          - List all functions
-  pd:hi          - Show file information and hash status
   pd:hj [id]     - JSON output for function
   pd:ho [id]     - Decompile with offsets (addresses) per statement
   pd:hoa         - Decompile all with offsets
@@ -83,6 +82,7 @@ Usage: pd:h[subcommand]
 Usage: r2hermes[-arg]  # see also pd:h for decompilation
   r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)
   r2hermes-E       - List functions containing eval instructions
+  r2hermes-H       - Show file information and hash status
   r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle
   r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)
 ```
@@ -103,7 +103,7 @@ Usage: r2hermes[-arg]  # see also pd:h for decompilation
 [0x00000000]> pd:hf
 
 # Show file info and hash status
-[0x00000000]> pd:hi
+[0x00000000]> r2hermes-H
 
 # Fix footer hash (for binary patching)
 [0x00000000]> .(fix-hbc)
@@ -115,7 +115,7 @@ Hermes validates a SHA1 footer hash at runtime. When patching binaries:
 
 ```bash
 # Check hash status
-r2 file.hbc -qc 'pd:hi'
+r2 file.hbc -qc 'r2hermes-H'
 
 # Fix/add footer hash (works with or without existing footer)
 r2 -wqc '.(fix-hbc)' file.hbc
