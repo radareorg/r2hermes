@@ -118,16 +118,10 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 	/* Initialize instruction list */
 	RETURN_IF_ERROR (_hbc_parsed_instruction_list_init (out_instructions, 32)); /* Start with space for 32 instructions */
 
-	/* Create a fresh bytecode buffer similar to the Python BytesIO approach */
-	BufferReader bytecode_buffer;
-	Result result = _hbc_buffer_reader_init_from_memory (&bytecode_buffer,
-		function_header->bytecode,
-		function_header->bytecodeSizeInBytes);
-
-	if (result.code != RESULT_SUCCESS) {
-		_hbc_parsed_instruction_list_free (out_instructions);
-		return result;
-	}
+	/* Read directly from the function bytecode: the parser never writes and
+	 * the header-owned buffer outlives the parse, so no owning copy is needed */
+	BufferReader bytecode_buffer = { function_header->bytecode, function_header->bytecodeSizeInBytes, 0 };
+	Result result;
 
 	/* Parse instructions in a loop similar to Python's implementation */
 	while (bytecode_buffer.position < bytecode_buffer.size) {

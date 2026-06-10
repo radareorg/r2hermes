@@ -4,7 +4,6 @@
 #include <hbc/opcodes.h>
 #include <hbc/parser.h>
 #include <stdbool.h>
-#include <ctype.h>
 #include <string.h>
 #include <hbc/decompilation/literals.h>
 
@@ -425,6 +424,54 @@ static Token *unquoted_string(HBCReader *r, u32 sid) {
 	return create_raw_token ("unknown");
 }
 
+/* Emit `.name` when the property is a valid identifier, `["name"]` otherwise */
+static Result emit_property_access(TokenString *out, const ParsedInstruction *insn, u32 sid) {
+	HBCReader *r = insn->hbc_reader;
+	const char *s = (r && r->strings && sid < r->header.stringCount)? r->strings[sid]: NULL;
+	if (s && _hbc_is_js_identifier (s)) {
+		RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
+		return add (out, create_raw_token (s));
+	}
+	RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+	RETURN_IF_ERROR (add (out, quoted_string (r, sid)));
+	return add (out, create_raw_token ("]"));
+}
+
+/* Emit a compare-and-jump as `if (rA cmp rB)` or its negated goto form */
+static Result emit_cmp_jump(TokenString *out, const ParsedInstruction *insn_c, const char *cmp) {
+	i32 rel = (i32)hbc_operand_value (insn_c, 0);
+	u32 target = _hbc_compute_target_address (insn_c, 0);
+	if (rel > 0) {
+		RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+		RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+		RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	} else {
+		RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+	}
+	RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
+	RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
+	RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
+	if (rel > 0) {
+		RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+	}
+	return SUCCESS_RESULT ();
+}
+
+/* Emit `rD = <function table entry>` with environment and closure kind flags */
+static Result emit_closure_token(TokenString *out, const ParsedInstruction *insn_c, bool is_closure, bool is_generator, bool is_async) {
+	RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
+	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
+	if (!t) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
+	}
+	t->environment_id = (int)hbc_operand_value (insn_c, 1);
+	t->is_closure = is_closure;
+	t->is_generator = is_generator;
+	t->is_async = is_async;
+	return add (out, (Token *)t);
+}
+
 Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenString *out) {
 	if (!insn_c || !out || !insn_c->inst) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "translate: bad args");
@@ -558,47 +605,16 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		}
 	case OP_CreateClosure:
 	case OP_CreateClosureLongIndex:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
-			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
-			}
-			t->environment_id = (int)hbc_operand_value (insn_c, 1);
-			t->is_closure = true;
-			RETURN_IF_ERROR (add (out, (Token *)t));
-			break;
-		}
+		RETURN_IF_ERROR (emit_closure_token (out, insn_c, true, false, false));
+		break;
 	case OP_CreateGeneratorClosure:
 	case OP_CreateGeneratorClosureLongIndex:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
-			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
-			}
-			t->environment_id = (int)hbc_operand_value (insn_c, 1);
-			t->is_closure = true;
-			t->is_generator = true;
-			RETURN_IF_ERROR (add (out, (Token *)t));
-			break;
-		}
+		RETURN_IF_ERROR (emit_closure_token (out, insn_c, true, true, false));
+		break;
 	case OP_CreateGenerator:
 	case OP_CreateGeneratorLongIndex:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
-			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
-			}
-			t->environment_id = (int)hbc_operand_value (insn_c, 1);
-			t->is_generator = true;
-			RETURN_IF_ERROR (add (out, (Token *)t));
-			break;
-		}
+		RETURN_IF_ERROR (emit_closure_token (out, insn_c, false, true, false));
+		break;
 	case OP_NewArray:
 		{
 			/* rD = new Array (count) */
@@ -616,30 +632,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			u32 sid = insn->arg4;
-			const char *s = NULL;
-			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
-				s = insn->hbc_reader->strings[sid];
-			}
-			bool ident = true;
-			if (!s || !*s) {
-				ident = false;
-			} else {
-				if (! (isalpha ((unsigned char)*s) || *s == '_' || *s == '$')) {
-					ident = false;
-				}
-				for (const char *p = s + 1; ident && *p; p++) {
-					ident = (isalnum ((unsigned char)*p) || *p == '_' || *p == '$');
-				}
-			}
-			if (ident) {
-				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
-				RETURN_IF_ERROR (add (out, create_raw_token (s)));
-			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			}
+			RETURN_IF_ERROR (emit_property_access (out, insn_c, insn->arg4));
 			break;
 		}
 	case OP_GetByVal:
@@ -677,20 +670,15 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutNewOwnByIdShort:
 	case OP_PutNewOwnById:
 	case OP_PutNewOwnByIdLong:
+	case OP_TryPutById:
+	case OP_TryPutByIdLong:
+	case OP_PutNewOwnNEById:
+	case OP_PutNewOwnNEByIdLong:
 		{
 			/* obj.name = value (prefer dot accessor) */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			u32 sid = (op == OP_PutNewOwnByIdShort)? insn->arg3: (op == OP_PutNewOwnById)? insn->arg3
-												: insn->arg4;
-			const char *s = (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount)? insn->hbc_reader->strings[sid]: NULL;
-			if (s && _hbc_is_js_identifier (s)) {
-				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
-				RETURN_IF_ERROR (add (out, create_raw_token (s)));
-			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			}
+			u32 sid = (op == OP_PutNewOwnByIdLong || op == OP_PutNewOwnNEByIdLong)? insn->arg4: insn->arg3;
+			RETURN_IF_ERROR (emit_property_access (out, insn_c, sid));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
@@ -1013,27 +1001,30 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_JStrictEqualLong:
 	case OP_JStrictNotEqual:
 	case OP_JStrictNotEqualLong:
+	/* Conditional jump instructions (N variants) */
+	case OP_JLessN:
+	case OP_JLessNLong:
+	case OP_JNotLessN:
+	case OP_JNotLessNLong:
+	case OP_JGreaterN:
+	case OP_JGreaterNLong:
+	case OP_JNotGreaterN:
+	case OP_JNotGreaterNLong:
+	case OP_JLessEqualN:
+	case OP_JLessEqualNLong:
+	case OP_JNotLessEqualN:
+	case OP_JNotLessEqualNLong:
+	case OP_JGreaterEqualN:
+	case OP_JGreaterEqualNLong:
+	case OP_JNotGreaterEqualN:
+	case OP_JNotGreaterEqualNLong:
 		{
 			const char *cmp = jump_cmp_operator (op);
 			if (!cmp) {
 				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
 				break;
 			}
-			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = _hbc_compute_target_address (insn, 0);
-			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
-				RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			} else {
-				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
-			}
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			}
+			RETURN_IF_ERROR (emit_cmp_jump (out, insn_c, cmp));
 			break;
 		}
 	/* Built-in calls */
@@ -1132,49 +1123,6 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
 			break;
 		}
-	/* Property operations (variants) */
-	case OP_TryPutById:
-	case OP_TryPutByIdLong:
-		{
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			u32 sid = insn->arg3;
-			const char *s = NULL;
-			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
-				s = insn->hbc_reader->strings[sid];
-			}
-			if (s && _hbc_is_js_identifier (s)) {
-				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
-				RETURN_IF_ERROR (add (out, create_raw_token (s)));
-			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			}
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			break;
-		}
-	case OP_PutNewOwnNEById:
-	case OP_PutNewOwnNEByIdLong:
-		{
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			u32 sid = (op == OP_PutNewOwnNEById)? insn->arg3: insn->arg4;
-			const char *s = NULL;
-			if (insn->hbc_reader && insn->hbc_reader->strings && sid < insn->hbc_reader->header.stringCount) {
-				s = insn->hbc_reader->strings[sid];
-			}
-			if (s && _hbc_is_js_identifier (s)) {
-				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
-				RETURN_IF_ERROR (add (out, create_raw_token (s)));
-			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			}
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			break;
-		}
 	case OP_PutOwnByVal:
 		{
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
@@ -1223,59 +1171,8 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	/* Async closures */
 	case OP_CreateAsyncClosure:
 	case OP_CreateAsyncClosureLongIndex:
-		{
-			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
-			if (!t) {
-				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
-			}
-			t->environment_id = (int)hbc_operand_value (insn_c, 1);
-			t->is_async = true;
-			t->is_closure = true;
-			RETURN_IF_ERROR (add (out, (Token *)t));
-			break;
-		}
-	/* Conditional jump instructions (N variants) */
-	case OP_JLessN:
-	case OP_JLessNLong:
-	case OP_JNotLessN:
-	case OP_JNotLessNLong:
-	case OP_JGreaterN:
-	case OP_JGreaterNLong:
-	case OP_JNotGreaterN:
-	case OP_JNotGreaterNLong:
-	case OP_JLessEqualN:
-	case OP_JLessEqualNLong:
-	case OP_JNotLessEqualN:
-	case OP_JNotLessEqualNLong:
-	case OP_JGreaterEqualN:
-	case OP_JGreaterEqualNLong:
-	case OP_JNotGreaterEqualN:
-	case OP_JNotGreaterEqualNLong:
-		{
-			const char *cmp = jump_cmp_operator (op);
-			if (!cmp) {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
-				break;
-			}
-			i32 rel = (i32)hbc_operand_value (insn_c, 0);
-			u32 target = _hbc_compute_target_address (insn, 0);
-			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
-				RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			} else {
-				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
-			}
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
-			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-			}
-			break;
-		}
+		RETURN_IF_ERROR (emit_closure_token (out, insn_c, true, false, true));
+		break;
 	default:
 		{
 			if (!insn->inst->name || strcmp (insn->inst->name, "Unknown") == 0) {
@@ -1297,21 +1194,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			/* Generic compare-jump fallback (covers variants not explicitly handled above). */
 			const char *cmp = jump_cmp_operator (op);
 			if (cmp && _hbc_operand_is_addr (insn->inst, 0) && is_operand_register (insn->inst, 1) && is_operand_register (insn->inst, 2)) {
-				i32 rel = (i32)hbc_operand_value (insn_c, 0);
-				u32 target = _hbc_compute_target_address (insn, 0);
-				if (rel > 0) {
-					RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-					RETURN_IF_ERROR (add (out, create_raw_token ("!")));
-					RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-				} else {
-					RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
-				}
-				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-				RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
-				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-				if (rel > 0) {
-					RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
-				}
+				RETURN_IF_ERROR (emit_cmp_jump (out, insn_c, cmp));
 				break;
 			}
 

@@ -294,6 +294,21 @@ static Result owned_env_push(DecompiledFunctionBody *fb, Environment *env) {
 	return SUCCESS_RESULT ();
 }
 
+/* Allocate an Environment owned by fb, chained under parent */
+static Environment *env_new(DecompiledFunctionBody *fb, Environment *parent) {
+	Environment *env = (Environment *)calloc (1, sizeof (Environment));
+	if (!env) {
+		return NULL;
+	}
+	env->parent_environment = parent;
+	env->nesting_quantity = parent? (parent->nesting_quantity + 1): 0;
+	if (owned_env_push (fb, env).code != RESULT_SUCCESS) {
+		free (env);
+		return NULL;
+	}
+	return env;
+}
+
 static Result environment_slot_set(Environment *env, int slot_index, const char *name) {
 	if (!env || slot_index < 0 || !name) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "environment_slot_set args");
@@ -332,12 +347,25 @@ static const char *environment_slot_get(Environment *env, int slot_index) {
 	return env->slot_index_to_varname? env->slot_index_to_varname[slot_index]: NULL;
 }
 
+/* Resolve the variable name of an environment slot, naming it on first use */
+static Result env_slot_resolve(Environment *env, int slot_index, const char **name, bool *first) {
+	*name = environment_slot_get (env, slot_index);
+	if (first) {
+		*first = (*name == NULL);
+	}
+	if (!*name) {
+		char namebuf[64];
+		snprintf (namebuf, sizeof (namebuf), "_closure%d_slot%d", env->nesting_quantity, slot_index);
+		RETURN_IF_ERROR (environment_slot_set (env, slot_index, namebuf));
+		*name = environment_slot_get (env, slot_index);
+	}
+	return SUCCESS_RESULT ();
+}
+
 /* Output code helper struct and cleanup */
 typedef struct {
 	u32 *frame_starts;
 	u32 *frame_ends;
-	u32 *bb_starts;
-	u32 *bb_ends;
 	u32 *if_block_stack;
 	u32 if_block_stack_count;
 	u32 if_block_stack_cap;
@@ -346,8 +374,6 @@ typedef struct {
 static inline void output_buffers_fini(OutputBuffers *ob) {
 	free (ob->frame_starts);
 	free (ob->frame_ends);
-	free (ob->bb_starts);
-	free (ob->bb_ends);
 	free (ob->if_block_stack);
 }
 
@@ -411,23 +437,20 @@ Result _hbc_function_body_init(DecompiledFunctionBody *body, u32 function_id, Fu
 	body->is_global = is_global;
 	body->function_id = function_id;
 	body->function_object = function_object;
-	body->function_name = NULL;
-	body->statements = NULL;
-	body->statements_count = body->statements_capacity = 0;
-	body->basic_blocks = NULL;
-	body->basic_blocks_count = body->basic_blocks_capacity = 0;
-	body->nested_frames = NULL;
-	body->nested_frames_count = body->nested_frames_capacity = 0;
-	body->jump_targets = NULL;
-	body->jump_targets_count = body->jump_targets_capacity = 0;
-	body->local_items = NULL;
-	body->local_items_count = body->local_items_capacity = 0;
-	body->owned_environments = NULL;
-	body->owned_environments_count = body->owned_environments_capacity = 0;
-	body->instructions.instructions = NULL;
-	body->instructions.count = body->instructions.capacity = 0;
-	/* Exception handlers */
 	return SUCCESS_RESULT ();
+}
+
+static void address_labels_free(AddressLabels *arr, u32 count) {
+	if (!arr) {
+		return;
+	}
+	for (u32 i = 0; i < count; i++) {
+		for (u32 k = 0; k < arr[i].label_count; k++) {
+			free (arr[i].labels[k]);
+		}
+		free (arr[i].labels);
+	}
+	free (arr);
 }
 
 void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
@@ -435,33 +458,9 @@ void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 		return;
 	}
 	free (body->function_name);
-	if (body->try_starts) {
-		for (u32 i = 0; i < body->try_starts_count; i++) {
-			for (u32 k = 0; k < body->try_starts[i].label_count; k++) {
-				free (body->try_starts[i].labels[k]);
-			}
-			free (body->try_starts[i].labels);
-		}
-		free (body->try_starts);
-	}
-	if (body->try_ends) {
-		for (u32 i = 0; i < body->try_ends_count; i++) {
-			for (u32 k = 0; k < body->try_ends[i].label_count; k++) {
-				free (body->try_ends[i].labels[k]);
-			}
-			free (body->try_ends[i].labels);
-		}
-		free (body->try_ends);
-	}
-	if (body->catch_targets) {
-		for (u32 i = 0; i < body->catch_targets_count; i++) {
-			for (u32 k = 0; k < body->catch_targets[i].label_count; k++) {
-				free (body->catch_targets[i].labels[k]);
-			}
-			free (body->catch_targets[i].labels);
-		}
-		free (body->catch_targets);
-	}
+	address_labels_free (body->try_starts, body->try_starts_count);
+	address_labels_free (body->try_ends, body->try_ends_count);
+	address_labels_free (body->catch_targets, body->catch_targets_count);
 	free (body->jump_anchors);
 	free (body->ret_anchors);
 	free (body->throw_anchors);
@@ -685,30 +684,15 @@ Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Null decompiler pointer");
 	}
 
-	// Free calldirect function ids array
-	if (decompiler->calldirect_function_ids) {
-		free (decompiler->calldirect_function_ids);
-		decompiler->calldirect_function_ids = NULL;
-	}
-
-	// Free decompiled functions tracker
-	if (decompiler->decompiled_functions) {
-		free (decompiler->decompiled_functions);
-		decompiler->decompiled_functions = NULL;
-	}
-	if (decompiler->function_in_progress) {
-		free (decompiler->function_in_progress);
-		decompiler->function_in_progress = NULL;
-	}
-
-	// Free data state if owned by decompiler
-	/* Note: We don't free the state here because it may be owned by caller.
-	 * The state lifecycle is managed externally, not by decompiler. */
+	free (decompiler->calldirect_function_ids);
+	decompiler->calldirect_function_ids = NULL;
+	free (decompiler->decompiled_functions);
+	decompiler->decompiled_functions = NULL;
+	free (decompiler->function_in_progress);
+	decompiler->function_in_progress = NULL;
+	/* The hbc state may be owned by the caller; never freed here */
 	decompiler->hbc = NULL;
-
-	// Cleanup string buffer
 	_hbc_string_buffer_free (&decompiler->output);
-
 	return SUCCESS_RESULT ();
 }
 
@@ -776,6 +760,47 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 	return SUCCESS_RESULT ();
 }
 
+/* Shared tail for the public decompile entry points: run one function
+ * (single) or all of them, flush dec->output into out and cleanup dec. */
+static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version, bool single, u32 fid, StringBuffer *out) {
+	Result r = SUCCESS_RESULT ();
+	if (single) {
+		if (fid >= func_count) {
+			r = ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
+		} else {
+			r = _hbc_decompile_function (dec, fid, NULL, -1, false, false, false);
+		}
+		if (r.code == RESULT_SUCCESS) {
+			r = _hbc_string_buffer_append (&dec->output, "\n\n");
+		}
+	} else {
+		/* Tracking array to skip functions already decompiled as nested ones */
+		dec->decompiled_functions = (bool *)calloc (func_count? func_count: 1, sizeof (bool));
+		if (!dec->decompiled_functions) {
+			r = ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
+		}
+		if (r.code == RESULT_SUCCESS && !dec->options.suppress_comments) {
+			char vbuf[64];
+			snprintf (vbuf, sizeof (vbuf), "// Decompiled Hermes bytecode\n// Version: %u\n\n", version);
+			r = _hbc_string_buffer_append (&dec->output, vbuf);
+		}
+		for (u32 i = 0; r.code == RESULT_SUCCESS && i < func_count && !dec->output_truncated; i++) {
+			if (dec->decompiled_functions[i]) {
+				continue;
+			}
+			r = _hbc_decompile_function (dec, i, NULL, -1, false, false, false);
+			if (r.code == RESULT_SUCCESS) {
+				r = _hbc_string_buffer_append (&dec->output, "\n\n");
+			}
+		}
+	}
+	if (r.code == RESULT_SUCCESS) {
+		r = _hbc_string_buffer_append (out, dec->output.data? dec->output.data: "");
+	}
+	_hbc_decompiler_cleanup (dec);
+	return r;
+}
+
 Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
 	if (!reader || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_to_buffer args");
@@ -784,14 +809,7 @@ Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBC
 	RETURN_IF_ERROR (_hbc_decompiler_init (&dec));
 	dec.hbc_reader = reader;
 	dec.options = options;
-	dec.indent_level = 0;
-	Result r = _hbc_decompile_function (&dec, function_id, NULL, -1, false, false, false);
-	if (r.code == RESULT_SUCCESS) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
-	}
-	_hbc_decompiler_cleanup (&dec);
-	return r;
+	return decompile_emit (&dec, reader->header.functionCount, reader->header.version, true, function_id, out);
 }
 
 Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options, StringBuffer *out) {
@@ -802,84 +820,24 @@ Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options,
 	RETURN_IF_ERROR (_hbc_decompiler_init (&dec));
 	dec.hbc_reader = reader;
 	dec.options = options;
-	dec.indent_level = 0;
-
-	/* Allocate tracking array for decompiled functions */
-	dec.decompiled_functions = (bool *)calloc (reader->header.functionCount, sizeof (bool));
-	if (!dec.decompiled_functions) {
-		_hbc_decompiler_cleanup (&dec);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
-	}
-
-	/* File preamble */
-	if (!options.suppress_comments) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Version: "));
-		char vbuf[32];
-		snprintf (vbuf, sizeof (vbuf), "%u", reader->header.version);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, vbuf));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
-	}
-
-	for (u32 i = 0; i < reader->header.functionCount; i++) {
-		/* Skip if already decompiled as a nested function */
-		if (dec.decompiled_functions[i]) {
-			continue;
-		}
-		if (dec.output_truncated) {
-			break;
-		}
-		Result r = _hbc_decompile_function (&dec, i, NULL, -1, false, false, false);
-		if (r.code != RESULT_SUCCESS) {
-			_hbc_decompiler_cleanup (&dec);
-			return r;
-		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
-	}
-
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
-	_hbc_decompiler_cleanup (&dec);
-	return SUCCESS_RESULT ();
+	return decompile_emit (&dec, reader->header.functionCount, reader->header.version, false, 0, out);
 }
 
 Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOptions options, StringBuffer *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_decompile_function_with_state args");
 	}
-
-	/* For now, leverage existing _hbc_decompile_function_to_buffer by extracting reader.
-	 * In Phase 2, we delegate to the state API. This is a bridge.
-	 * TODO: Refactor _hbc_decompile_function to work directly with state data */
-
-	/* Try to use existing _hbc_decompile_function_to_buffer if we can extract HBCReader */
 	HermesDecompiler dec;
 	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hbc));
-	dec.options = options;
-	dec.indent_level = 0;
-
 	dec.hbc_reader = &hbc->reader;
-
-	/* Get header from state and populate stub */
+	dec.options = options;
 	HBCHeader header;
 	Result hres = hbc_get_header (hbc, &header);
 	if (hres.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return hres;
 	}
-	/* Validate function_id */
-	if (function_id >= header.functionCount) {
-		_hbc_decompiler_cleanup (&dec);
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
-	}
-
-	Result r = _hbc_decompile_function (&dec, function_id, NULL, -1, false, false, false);
-	if (r.code == RESULT_SUCCESS) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
-	}
-
-	_hbc_decompiler_cleanup (&dec);
-	return r;
+	return decompile_emit (&dec, header.functionCount, header.version, true, function_id, out);
 }
 
 Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringBuffer *out) {
@@ -888,70 +846,15 @@ Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringB
 	}
 	HermesDecompiler dec;
 	RETURN_IF_ERROR (_hbc_decompiler_init_with_state (&dec, hbc));
-	dec.options = options;
-	dec.indent_level = 0;
-
 	dec.hbc_reader = &hbc->reader;
-
-	/* Get header from state and populate stub */
+	dec.options = options;
 	HBCHeader header;
 	Result res = hbc_get_header (hbc, &header);
 	if (res.code != RESULT_SUCCESS) {
 		_hbc_decompiler_cleanup (&dec);
 		return res;
 	}
-	/* Get function count from state */
-	u32 func_count = header.functionCount;
-	if (func_count == 0) {
-		/* No functions to decompile */
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ""));
-		_hbc_decompiler_cleanup (&dec);
-		return SUCCESS_RESULT ();
-	}
-
-	/* Allocate tracking array for decompiled functions */
-	dec.decompiled_functions = (bool *)calloc (func_count, sizeof (bool));
-	if (!dec.decompiled_functions) {
-		_hbc_decompiler_cleanup (&dec);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
-	}
-
-	/* File preamble */
-	if (!options.suppress_comments) {
-		HBCHeader header;
-		res = hbc_get_header (hbc, &header);
-		if (res.code != RESULT_SUCCESS) {
-			_hbc_decompiler_cleanup (&dec);
-			return res;
-		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Decompiled Hermes bytecode\n"));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "// Version: "));
-		char vbuf[32];
-		snprintf (vbuf, sizeof (vbuf), "%u", header.version);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, vbuf));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
-	}
-
-	for (u32 i = 0; i < func_count; i++) {
-		/* Skip if already decompiled as a nested function */
-		if (dec.decompiled_functions[i]) {
-			continue;
-		}
-		if (dec.output_truncated) {
-			break;
-		}
-		Result r = _hbc_decompile_function (&dec, i, NULL, -1, false, false, false);
-		if (r.code != RESULT_SUCCESS) {
-			_hbc_decompiler_cleanup (&dec);
-			return r;
-		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&dec.output, "\n\n"));
-	}
-
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, dec.output.data? dec.output.data: ""));
-
-	_hbc_decompiler_cleanup (&dec);
-	return SUCCESS_RESULT ();
+	return decompile_emit (&dec, header.functionCount, header.version, false, 0, out);
 }
 
 static Result address_labels_add(AddressLabels **arr, u32 *count, u32 address, const char *label) {
@@ -1003,26 +906,23 @@ static bool bbvec_contains(BasicBlock **arr, u32 count, BasicBlock *bb) {
 	return false;
 }
 
+static Result bbvec_push_unique(BasicBlock ***arr, u32 *count, u32 *cap, BasicBlock *bb) {
+	if (bbvec_contains (*arr, *count, bb)) {
+		return SUCCESS_RESULT ();
+	}
+	return bbvec_push (arr, count, cap, bb);
+}
+
 static bool token_needs_space(TokenType prev, TokenType cur) {
 	if (cur == TOKEN_TYPE_LEFT_PARENTHESIS) {
-		if (prev == TOKEN_TYPE_RIGHT_HAND_REG || prev == TOKEN_TYPE_LEFT_HAND_REG) {
-			return false; /* r1 (args) not r1 (args) */
-		}
-		return true;
+		/* No space in calls like r1(args) */
+		return prev != TOKEN_TYPE_RIGHT_HAND_REG && prev != TOKEN_TYPE_LEFT_HAND_REG;
 	}
-	/* No space before other punctuation */
+	/* No space before other punctuation nor after '(' or '.' */
 	if (cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR) {
 		return false;
 	}
-	/* No space after '(' or after '.' */
-	if (prev == TOKEN_TYPE_LEFT_PARENTHESIS || prev == TOKEN_TYPE_DOT_ACCESSOR) {
-		return false;
-	}
-	/* Always space around '=' */
-	if (prev == TOKEN_TYPE_ASSIGNMENT || cur == TOKEN_TYPE_ASSIGNMENT) {
-		return true;
-	}
-	return true;
+	return prev != TOKEN_TYPE_LEFT_PARENTHESIS && prev != TOKEN_TYPE_DOT_ACCESSOR;
 }
 
 Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
@@ -1183,20 +1083,11 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 			/* Collect targets for this anchor */
 			U32Set tset = { 0 };
 			RETURN_IF_ERROR (u32set_init (&tset, func_sz + 1));
-			for (int j = 0; j < 6; j++) {
-				if (_hbc_operand_is_addr (op->inst, j)) {
-					u32 taddr = _hbc_compute_target_address (op, j);
-					if (taddr <= func_sz) {
-						u32set_add (&tset, taddr);
-					}
-				}
-			}
-			if (op->switch_jump_table && op->switch_jump_table_size) {
-				for (u32 k = 0; k < op->switch_jump_table_size; k++) {
-					if (op->switch_jump_table[k] <= func_sz) {
-						u32set_add (&tset, op->switch_jump_table[k]);
-					}
-				}
+			Result tres = for_each_branch_target (op, func_sz, false, add_target_to_set, &tset);
+			if (tres.code != RESULT_SUCCESS) {
+				u32set_free (&tset);
+				u32set_free (&boundaries);
+				return tres;
 			}
 			qsort (tset.data, tset.count, sizeof (u32), cmp_u32);
 			if (tset.count) {
@@ -1238,12 +1129,8 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 			if (!child) {
 				continue;
 			}
-			if (!bbvec_contains (bb->child_nodes, bb->child_nodes_count, child)) {
-				RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, child));
-			}
-			if (!bbvec_contains (child->parent_nodes, child->parent_nodes_count, bb)) {
-				RETURN_IF_ERROR (bbvec_push (&child->parent_nodes, &child->parent_nodes_count, &child->parent_nodes_capacity, bb));
-			}
+			RETURN_IF_ERROR (bbvec_push_unique (&bb->child_nodes, &bb->child_nodes_count, &bb->child_nodes_capacity, child));
+			RETURN_IF_ERROR (bbvec_push_unique (&child->parent_nodes, &child->parent_nodes_count, &child->parent_nodes_capacity, bb));
 		}
 		/* Error-handling edges */
 		for (u32 h = 0; h < function_body->exc_handlers_count; h++) {
@@ -1257,12 +1144,8 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 			if (!handler_bb) {
 				continue;
 			}
-			if (!bbvec_contains (bb->error_handling_child_nodes, bb->error_handling_child_nodes_count, handler_bb)) {
-				RETURN_IF_ERROR (bbvec_push (&bb->error_handling_child_nodes, &bb->error_handling_child_nodes_count, &bb->error_handling_child_nodes_capacity, handler_bb));
-			}
-			if (!bbvec_contains (handler_bb->error_handling_parent_nodes, handler_bb->error_handling_parent_nodes_count, bb)) {
-				RETURN_IF_ERROR (bbvec_push (&handler_bb->error_handling_parent_nodes, &handler_bb->error_handling_parent_nodes_count, &handler_bb->error_handling_parent_nodes_capacity, bb));
-			}
+			RETURN_IF_ERROR (bbvec_push_unique (&bb->error_handling_child_nodes, &bb->error_handling_child_nodes_count, &bb->error_handling_child_nodes_capacity, handler_bb));
+			RETURN_IF_ERROR (bbvec_push_unique (&handler_bb->error_handling_parent_nodes, &handler_bb->error_handling_parent_nodes_count, &handler_bb->error_handling_parent_nodes_capacity, bb));
 		}
 	}
 
@@ -1380,16 +1263,10 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 		for (Token *tok = line->head; tok; tok = tok->next) {
 			if (tok->type == TOKEN_TYPE_NEW_ENVIRONMENT) {
 				NewEnvironmentToken *t = (NewEnvironmentToken *)tok;
-				Environment *env = (Environment *)calloc (1, sizeof (Environment));
+				Environment *env = env_new (function_body, parent_environment);
 				if (!env) {
 					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom environment");
 				}
-				env->parent_environment = parent_environment;
-				env->nesting_quantity = parent_environment? (parent_environment->nesting_quantity + 1): 0;
-				env->slot_index_to_varname = NULL;
-				env->var_count = 0;
-				env->slot_capacity = 0;
-				RETURN_IF_ERROR (owned_env_push (function_body, env));
 				RETURN_IF_ERROR (envmap_set (function_body, t->reg_num, env));
 				RETURN_IF_ERROR (token_string_clear_tokens (line));
 				break;
@@ -1399,16 +1276,10 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				if (!outer) {
 					continue;
 				}
-				Environment *env = (Environment *)calloc (1, sizeof (Environment));
+				Environment *env = env_new (function_body, outer);
 				if (!env) {
 					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom environment");
 				}
-				env->parent_environment = outer;
-				env->nesting_quantity = outer->nesting_quantity + 1;
-				env->slot_index_to_varname = NULL;
-				env->var_count = 0;
-				env->slot_capacity = 0;
-				RETURN_IF_ERROR (owned_env_push (function_body, env));
 				RETURN_IF_ERROR (envmap_set (function_body, t->dest_register, env));
 			} else if (tok->type == TOKEN_TYPE_GET_ENVIRONMENT) {
 				GetEnvironmentToken *t = (GetEnvironmentToken *)tok;
@@ -1437,14 +1308,9 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				if (!env) {
 					continue;
 				}
-				char namebuf[64];
-				snprintf (namebuf, sizeof (namebuf), "_closure%d_slot%d", env->nesting_quantity, t->slot_index);
-				const char *existing = environment_slot_get (env, t->slot_index);
-				bool first = (existing == NULL);
-				if (first) {
-					RETURN_IF_ERROR (environment_slot_set (env, t->slot_index, namebuf));
-					existing = environment_slot_get (env, t->slot_index);
-				}
+				const char *existing;
+				bool first;
+				RETURN_IF_ERROR (env_slot_resolve (env, t->slot_index, &existing, &first));
 				if (!existing) {
 					continue;
 				}
@@ -1462,13 +1328,8 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				if (!env) {
 					continue;
 				}
-				char namebuf[64];
-				snprintf (namebuf, sizeof (namebuf), "_closure%d_slot%d", env->nesting_quantity, t->slot_index);
-				const char *existing = environment_slot_get (env, t->slot_index);
-				if (!existing) {
-					RETURN_IF_ERROR (environment_slot_set (env, t->slot_index, namebuf));
-					existing = environment_slot_get (env, t->slot_index);
-				}
+				const char *existing;
+				RETURN_IF_ERROR (env_slot_resolve (env, t->slot_index, &existing, NULL));
 				if (!existing) {
 					continue;
 				}
@@ -1691,28 +1552,44 @@ static Result append_condition_tokens(StringBuffer *out, Token *cond, bool inver
 	return SUCCESS_RESULT ();
 }
 
+/* Emit one token, preceded by a space when the token pair requires it */
+static Result append_token_spaced(StringBuffer *out, Token *t, bool first, TokenType prev) {
+	bool needs_space = !first && token_needs_space (prev, t->type);
+	if (needs_space && t->type == TOKEN_TYPE_RAW) {
+		const RawToken *rt = (const RawToken *)t;
+		if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')')) {
+			needs_space = false;
+		}
+	}
+	if (needs_space) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
+	}
+	return _hbc_token_to_string (t, out);
+}
+
 static Result append_plain_tokens(StringBuffer *out, Token *tok) {
-	bool first_tok = true;
 	TokenType prev_type = (TokenType) (-1);
 	for (Token *t = tok; t; t = t->next) {
-		bool needs_space = false;
-		if (!first_tok) {
-			needs_space = token_needs_space (prev_type, t->type);
-			if (needs_space && t->type == TOKEN_TYPE_RAW) {
-				RawToken *rt = (RawToken *)t;
-				if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')')) {
-					needs_space = false;
-				}
-			}
-		}
-		if (needs_space) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
-		}
-		RETURN_IF_ERROR (_hbc_token_to_string (t, out));
-		first_tok = false;
+		RETURN_IF_ERROR (append_token_spaced (out, t, t == tok, prev_type));
 		prev_type = t->type;
 	}
 	return SUCCESS_RESULT ();
+}
+
+/* Decide whether a closure reference gets inlined as a function expression.
+ * inline_threshold: negative = never inline, 0 = no limit, >0 = max bytes */
+static bool should_inline_closure(const HermesDecompiler *state, const FunctionTableIndexToken *fti) {
+	if (!state->options.inline_closures || state->options.inline_threshold < 0) {
+		return false;
+	}
+	if (!state->hbc_reader || fti->function_id >= state->hbc_reader->header.functionCount) {
+		return false;
+	}
+	int threshold = state->options.inline_threshold;
+	if (threshold > 0 && state->hbc_reader->function_headers[fti->function_id].bytecodeSizeInBytes > (u32)threshold) {
+		return false;
+	}
+	return !(state->function_in_progress && state->function_in_progress[fti->function_id]);
 }
 
 static Result labels_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *end_label_addr) {
@@ -1766,95 +1643,56 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	}
 	StringBuffer *out = &state->output;
 
-	/* Function header (always output, even for global) */
-	if (!state->inlining_function) {
-		if (function_body->is_async) {
-			if (state->options.show_offsets) {
-				char addr_buf[24];
-				snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
-			} else {
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			}
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "async "));
-		} else if (!function_body->is_global) {
-			if (state->options.show_offsets) {
-				char addr_buf[24];
-				snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
-			} else {
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			}
-		}
-	}
-	if (function_body->is_async && state->inlining_function) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "async "));
-	}
+	/* Function header line prefix: offset in pd:ho mode, indentation otherwise */
 	if (state->options.show_offsets) {
 		char addr_buf[24];
 		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
+	} else if (!state->inlining_function && !function_body->is_global) {
+		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	}
-	if (!function_body->is_global) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function"));
-		if (function_body->is_generator) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "*"));
-		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, " "));
+	if (function_body->is_async) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "async "));
+	}
+	if (function_body->is_global) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function global() {"));
+	} else {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->is_generator? "function* ": "function "));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "("));
 		u32 pcnt = function_body->function_object? function_body->function_object->paramCount: 0;
 		for (u32 i = 0; i < pcnt; i++) {
-			if (i) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", "));
-			}
 			char pbuf[16];
-			snprintf (pbuf, sizeof (pbuf), "a%u", i);
+			snprintf (pbuf, sizeof (pbuf), i? ", a%u": "a%u", i);
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, pbuf));
 		}
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {"));
-		/* First priority: check for r2 comment at function start */
-		char *r2_comment = NULL;
-		if (state->options.comment_callback) {
-			r2_comment = state->options.comment_callback (state->options.comment_context, state->options.function_base);
-		}
-		if (r2_comment) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
-			free (r2_comment);
-		} else if (!state->options.suppress_comments && (function_body->is_closure || function_body->is_generator)) {
-			/* Fallback to original name/environment comments */
-			if (function_body->function_name && *function_body->function_name) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Original name: "));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name));
-				if (function_body->environment_id >= 0) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", environment: r"));
-					RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
-				}
-			} else if (function_body->environment_id >= 0) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Environment: r"));
+	}
+	/* First priority: r2 comment at function start, then name/env fallback */
+	char *r2_comment = state->options.comment_callback?
+		state->options.comment_callback (state->options.comment_context, state->options.function_base): NULL;
+	if (r2_comment) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
+		free (r2_comment);
+	} else if (!function_body->is_global && !state->options.suppress_comments &&
+		(function_body->is_closure || function_body->is_generator)) {
+		if (function_body->function_name && *function_body->function_name) {
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Original name: "));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name));
+			if (function_body->environment_id >= 0) {
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", environment: r"));
 				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
 			}
+		} else if (function_body->environment_id >= 0) {
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Environment: r"));
+			RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
 		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
-	} else {
-		/* Global function */
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function global() {"));
-		/* Check for r2 comment at function start for global function */
-		char *r2_comment = NULL;
-		if (state->options.comment_callback) {
-			r2_comment = state->options.comment_callback (state->options.comment_context, state->options.function_base);
-		}
-		if (r2_comment) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
-			free (r2_comment);
-		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 	}
+	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 	state->indent_level++;
 
-	/* Collect frame start/end and basic block lists */
+	/* Collect sorted nested-frame start/end address lists */
 	OutputBuffers ob = { 0 };
 	u32 nf = function_body->nested_frames_count;
 	ob.frame_starts = (nf? (u32 *)malloc (nf * sizeof (u32)): NULL);
@@ -1869,32 +1707,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	}
 	qsort (ob.frame_starts, nf, sizeof (u32), cmp_u32);
 	qsort (ob.frame_ends, nf, sizeof (u32), cmp_u32);
-	u32 frame_starts_count = nf;
-	u32 frame_ends_count = nf;
 	u32 frame_start_idx = 0;
 	u32 frame_end_idx = 0;
-
-	u32 bbcount = function_body->basic_blocks_count;
-	ob.bb_starts = (bbcount? (u32 *)malloc (bbcount * sizeof (u32)): NULL);
-	ob.bb_ends = (bbcount? (u32 *)malloc (bbcount * sizeof (u32)): NULL);
-	if ((bbcount && (!ob.bb_starts || !ob.bb_ends))) {
-		output_buffers_fini (&ob);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom bb lists");
-	}
-	for (u32 i = 0; i < bbcount; i++) {
-		BasicBlock *bb = function_body->basic_blocks[i];
-		if (!bb) {
-			output_buffers_fini (&ob);
-			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block entry");
-		}
-		ob.bb_starts[i] = bb->start_address;
-		ob.bb_ends[i] = bb->end_address;
-	}
-	qsort (ob.bb_starts, bbcount, sizeof (u32), cmp_u32);
-	qsort (ob.bb_ends, bbcount, sizeof (u32), cmp_u32);
-
-	/* Dispatch loops are disabled - always output linear code */
-	bool use_dispatch = false;
 
 	/* Dead Code Elimination: identify statements with unused register assignments */
 	bool *dce = NULL;
@@ -1938,7 +1752,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		return catch_res;
 	}
 
-	u32 cur_bb_index = 0;
 	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, stmt_count=%u\n",
 		(unsigned long long)state->options.function_base,
 		function_body->statements_count);
@@ -1972,7 +1785,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			}
 
 			/* Close frames */
-			while (frame_end_idx < frame_ends_count && ob.frame_ends[frame_end_idx] == pos) {
+			while (frame_end_idx < nf && ob.frame_ends[frame_end_idx] == pos) {
 				frame_end_idx++;
 				RETURN_IF_ERROR (emit_close_brace (state, out));
 			}
@@ -1987,54 +1800,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				label_idx++;
 			}
 
-			/* Basic block case label */
-			if (use_dispatch) {
-				bool is_bb_start = (bsearch (&pos, ob.bb_starts, bbcount, sizeof (u32), cmp_u32) != NULL);
-				if (is_bb_start) {
-					RETURN_IF_ERROR (append_indent (out, state->indent_level));
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "case "));
-					RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)pos));
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ":"));
-					if (!state->options.suppress_comments) {
-						for (u32 li = 0; li < function_body->try_starts_count; li++) {
-							if (function_body->try_starts[li].address == pos) {
-								for (u32 k = 0; k < function_body->try_starts[li].label_count; k++) {
-									RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-									RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->try_starts[li].labels[k]));
-								}
-							}
-						}
-						for (u32 li = 0; li < function_body->try_ends_count; li++) {
-							if (function_body->try_ends[li].address == pos) {
-								for (u32 k = 0; k < function_body->try_ends[li].label_count; k++) {
-									RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-									RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->try_ends[li].labels[k]));
-								}
-							}
-						}
-						for (u32 li = 0; li < function_body->catch_targets_count; li++) {
-							if (function_body->catch_targets[li].address == pos) {
-								for (u32 k = 0; k < function_body->catch_targets[li].label_count; k++) {
-									RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-									RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->catch_targets[li].labels[k]));
-								}
-							}
-						}
-					}
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
-					/* track current basic block */
-					while (cur_bb_index < bbcount) {
-						BasicBlock *cur_bb = function_body->basic_blocks[cur_bb_index];
-						if (cur_bb && cur_bb->start_address == pos) {
-							break;
-						}
-						cur_bb_index++;
-					}
-				}
-			}
-
 			/* Open frames */
-			while (frame_start_idx < frame_starts_count && ob.frame_starts[frame_start_idx] == pos) {
+			while (frame_start_idx < nf && ob.frame_starts[frame_start_idx] == pos) {
 				frame_start_idx++;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "{\n"));
@@ -2101,7 +1868,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			}
 		}
 
-		bool emitted_continue = false;
 		bool emitted_statement = false;
 		if (head->type == TOKEN_TYPE_SAVE_GENERATOR) {
 			u32 ret_si = si + 1;
@@ -2154,74 +1920,26 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				if (t->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
 					FunctionTableIndexToken *fti = (FunctionTableIndexToken *)t;
 					if ((fti->is_closure || fti->is_generator) && !fti->is_builtin) {
-						/* Determine if we should inline this closure */
-						bool should_inline = state->options.inline_closures;
-
-						/* Check threshold: negative = never inline, 0 = no limit, >0 = max bytes */
-						if (should_inline && state->options.inline_threshold < 0) {
-							/* Negative threshold = never inline */
-							should_inline = false;
-						} else if (should_inline && state->options.inline_threshold > 0) {
-							/* Positive threshold: check bytecode size */
-							if (fti->function_id < state->hbc_reader->header.functionCount) {
-								FunctionHeader *fh = &state->hbc_reader->function_headers[fti->function_id];
-								u32 bytecode_size = fh->bytecodeSizeInBytes;
-								if (bytecode_size > (u32)state->options.inline_threshold) {
-									should_inline = false;
-								}
-							}
+						if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
+							RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
 						}
-						if (should_inline) {
-							if (!state->hbc_reader || fti->function_id >= state->hbc_reader->header.functionCount) {
-								should_inline = false;
-							}
-						}
-						if (should_inline && state->function_in_progress && state->hbc_reader) {
-							if (fti->function_id < state->hbc_reader->header.functionCount &&
-								state->function_in_progress[fti->function_id]) {
-								should_inline = false;
-							}
-						}
-
-						if (should_inline) {
-							/* Inline the closure */
-							if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
-								RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
-							}
+						if (should_inline_closure (state, fti)) {
 							int saved_indent = state->indent_level;
 							state->inlining_function = true;
 							RETURN_IF_ERROR (_hbc_decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
 							state->inlining_function = false;
 							state->indent_level = saved_indent;
-							first_tok = false;
-							prev_type = TOKEN_TYPE_RAW;
 						} else {
-							/* Reference closure by function ID instead of inlining */
-							if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
-								RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
-							}
+							/* Reference the closure by function ID instead of inlining */
 							RETURN_IF_ERROR (_hbc_string_buffer_append (out, "fn_"));
 							RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)fti->function_id));
-							first_tok = false;
-							prev_type = TOKEN_TYPE_RAW;
 						}
+						first_tok = false;
+						prev_type = TOKEN_TYPE_RAW;
 						continue;
 					}
 				}
-				bool needs_space = false;
-				if (!first_tok) {
-					needs_space = token_needs_space (prev_type, t->type);
-					if (needs_space && t->type == TOKEN_TYPE_RAW) {
-						RawToken *rt = (RawToken *)t;
-						if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')')) {
-							needs_space = false;
-						}
-					}
-				}
-				if (needs_space) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
-				}
-				RETURN_IF_ERROR (_hbc_token_to_string (t, out));
+				RETURN_IF_ERROR (append_token_spaced (out, t, first_tok, prev_type));
 				first_tok = false;
 				prev_type = t->type;
 			}
@@ -2245,28 +1963,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 		}
 
-		/* Insert fallthrough ip update at end of basic block */
-		if (use_dispatch && asm_ref && cur_bb_index < bbcount) {
-			BasicBlock *bb = function_body->basic_blocks[cur_bb_index];
-			if (!bb) {
-				output_buffers_fini (&ob);
-				free (dce);
-				free (catch_plans);
-				u32set_free (&goto_labels);
-				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "null basic block during dispatch");
-			}
-			bool is_last_in_block = (asm_ref->next_pos == bb->end_address);
-			if (is_last_in_block && !emitted_continue && !bb->is_unconditional_jump_anchor && !bb->is_unconditional_return_end && !bb->is_unconditional_throw_anchor) {
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "_fun"));
-				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)function_body->function_id));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "_ip = "));
-				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)bb->end_address));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "; continue _fun"));
-				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)function_body->function_id));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
-			}
-		}
 	}
 
 	RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
@@ -2282,10 +1978,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		RETURN_IF_ERROR (emit_label (out, state->options.function_base + end_label_addr, true));
 	}
 
-	/* Close switch loop */
-	if (use_dispatch) {
-		RETURN_IF_ERROR (emit_close_brace (state, out));
-	}
 	/* Closing brace for all functions (global and non-global) */
 	state->indent_level--;
 	if (state->options.show_offsets) {
