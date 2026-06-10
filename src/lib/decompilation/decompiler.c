@@ -1654,18 +1654,67 @@ static bool raw_token_is(const Token *tok, const char *text) {
 	return rt->text && !strcmp (rt->text, text);
 }
 
+/* Negated form of a JS comparison operator, or NULL when not invertible. */
+static const char *negate_cmp_op(const char *op) {
+	static const char *const pairs[][2] = {
+		{ "===", "!==" }, { "!==", "===" }, { "==", "!=" }, { "!=", "==" },
+		{ "<", ">=" }, { ">=", "<" }, { "<=", ">" }, { ">", "<=" },
+	};
+	if (op) {
+		for (size_t i = 0; i < sizeof (pairs) / sizeof (pairs[0]); i++) {
+			if (!strcmp (op, pairs[i][0])) {
+				return pairs[i][1];
+			}
+		}
+	}
+	return NULL;
+}
+
+/* Render a jump condition, folding the requested negation into the expression
+ * so a comparison flips its operator (`a === b` <-> `a !== b`) and a plain term
+ * negates with `!` — no `!(a === b)` double-negative artifacts. The condition
+ * tokens are one of: `t`, `! t`, `a op b`, or `! ( a op b )`. */
 static Result append_condition_tokens(StringBuffer *out, Token *cond, bool invert) {
-	if (invert && raw_token_is (cond, "!") && cond->next) {
-		cond = cond->next;
-		invert = false;
+	Token *c = cond;
+	bool neg = raw_token_is (c, "!") && c->next;
+	if (neg) {
+		c = c->next;
 	}
-	if (invert) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "!("));
+	bool had_paren = c && c->type == TOKEN_TYPE_LEFT_PARENTHESIS;
+	Token *inner = had_paren? c->next: c;
+
+	/* Locate a comparison operator among the inner tokens. */
+	Token *op_tok = NULL;
+	for (Token *t = inner; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
+		if (t->type == TOKEN_TYPE_RAW && negate_cmp_op (((RawToken *)t)->text)) {
+			op_tok = t;
+			break;
+		}
 	}
-	for (Token *t = cond; t; t = t->next) {
+	const bool effective_neg = invert ^ neg;
+
+	if (op_tok) {
+		const char *op_text = ((RawToken *)op_tok)->text;
+		const char *use_op = effective_neg? negate_cmp_op (op_text): op_text;
+		for (Token *t = inner; t && t != op_tok; t = t->next) {
+			RETURN_IF_ERROR (_hbc_token_to_string (t, out));
+		}
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, use_op));
+		for (Token *t = op_tok->next; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
+			RETURN_IF_ERROR (_hbc_token_to_string (t, out));
+		}
+		return SUCCESS_RESULT ();
+	}
+
+	/* Single boolean term: negate with a bare `!` (wrap only if multi-token). */
+	bool multi = inner && inner->next && inner->next->type != TOKEN_TYPE_RIGHT_PARENTHESIS;
+	if (effective_neg) {
+		RETURN_IF_ERROR (_hbc_string_buffer_append (out, multi? "!(": "!"));
+	}
+	for (Token *t = inner; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
 		RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 	}
-	if (invert) {
+	if (effective_neg && multi) {
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ")"));
 	}
 	return SUCCESS_RESULT ();

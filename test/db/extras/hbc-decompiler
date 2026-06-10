@@ -276,3 +276,23 @@ EXPECT=<<EOF
     case 27: goto loc_0004d144;
 EOF
 RUN
+
+NAME=pd:hc comparison condition goto-form no double parens
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 5~if (r3!==r1)
+EOF
+EXPECT=<<EOF
+    if (r3!==r1) goto loc_0003e637;
+EOF
+RUN
+
+NAME=pd:hc comparison condition structured-if negated operator
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 46~if (r5!==r0)
+EOF
+EXPECT=<<EOF
+  if (r5!==r0) {
+EOF
+RUN
