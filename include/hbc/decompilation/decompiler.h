@@ -128,6 +128,12 @@ struct DecompiledFunctionBody {
 	u32 nested_frames_count;
 	u32 nested_frames_capacity;
 
+	/* for-in loop top addresses: a jump here is a `continue`, not a `goto`,
+	 * and the address gets no label (the loop body brace stands in). */
+	u32 *forin_continue_targets;
+	u32 forin_continue_targets_count;
+	u32 forin_continue_targets_capacity;
+
 	/* Generated code */
 	TokenString *statements;
 	u32 statements_count;

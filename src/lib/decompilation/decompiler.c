@@ -277,6 +277,24 @@ static Result nested_frames_push(DecompiledFunctionBody *fb, u32 start, u32 end)
 	return SUCCESS_RESULT ();
 }
 
+static Result forin_continue_target_push(DecompiledFunctionBody *fb, u32 addr) {
+	RETURN_IF_ERROR (grow_array (&fb->forin_continue_targets, &fb->forin_continue_targets_capacity, fb->forin_continue_targets_count, sizeof (u32), 8));
+	fb->forin_continue_targets[fb->forin_continue_targets_count++] = addr;
+	return SUCCESS_RESULT ();
+}
+
+static bool forin_is_continue_target(const DecompiledFunctionBody *fb, u32 addr) {
+	for (u32 i = 0; i < fb->forin_continue_targets_count; i++) {
+		if (fb->forin_continue_targets[i] == addr) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool jump_is_unconditional(const Token *head);
+static u32 jump_target_of(const Token *head);
+
 static Environment *envmap_get(const DecompiledFunctionBody *fb, int reg) {
 	if (!fb || reg < 0) {
 		return NULL;
@@ -535,6 +553,7 @@ void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 		free (body->basic_blocks);
 	}
 	free (body->nested_frames);
+	free (body->forin_continue_targets);
 	if (body->owned_environments) {
 		for (u32 i = 0; i < body->owned_environments_count; i++) {
 			Environment *env = body->owned_environments[i];
@@ -1301,6 +1320,29 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 		RETURN_IF_ERROR (token_string_clear_tokens (j1));
 		RETURN_IF_ERROR (token_string_clear_tokens (&function_body->statements[other]));
 		RETURN_IF_ERROR (token_string_clear_tokens (j2));
+
+		/* The loop top is a `continue` target (no label, jumps render as
+		 * continue); silence the unconditional back-edge so the body reads as
+		 * a plain loop. */
+		RETURN_IF_ERROR (forin_continue_target_push (function_body, begin_address));
+		u32 back_edge = UINT32_MAX;
+		for (u32 k = i + 1; k < function_body->statements_count; k++) {
+			TokenString *st = &function_body->statements[k];
+			if (!st->head || !st->assembly) {
+				continue;
+			}
+			u32 pos = st->assembly->original_pos;
+			if (pos < begin_address || pos >= end_address) {
+				continue;
+			}
+			if ((st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+				jump_is_unconditional (st->head) && jump_target_of (st->head) == begin_address) {
+				back_edge = k;
+			}
+		}
+		if (back_edge != UINT32_MAX) {
+			RETURN_IF_ERROR (token_string_clear_tokens (&function_body->statements[back_edge]));
+		}
 	}
 	return SUCCESS_RESULT ();
 }
@@ -1693,7 +1735,11 @@ static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 fu
 		}
 		Token *head = st->head;
 		if (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
-			RETURN_IF_ERROR (labels_add_target (labels, jump_target_of (head), func_sz, end_label_addr));
+			u32 tgt = jump_target_of (head);
+			/* for-in loop tops get no label: those jumps become `continue`. */
+			if (!forin_is_continue_target (fb, tgt)) {
+				RETURN_IF_ERROR (labels_add_target (labels, tgt, func_sz, end_label_addr));
+			}
 		}
 	}
 	return SUCCESS_RESULT ();
@@ -1959,18 +2005,25 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			u32 lbl_rel = (target_addr >= plan_func_sz)? plan_func_sz: target_addr;
 			unsigned long long lbl_abs = (unsigned long long) (state->options.function_base + lbl_rel);
 
+			bool is_continue = forin_is_continue_target (function_body, target_addr);
+
 			if (jump_is_unconditional (head)) {
-				RETURN_IF_ERROR (emit_goto (out, lbl_abs));
+				/* A bare jump to a for-in loop top is a `continue` (the
+				 * structural back-edge was already silenced in pass3). */
+				RETURN_IF_ERROR (is_continue?
+					_hbc_string_buffer_append (out, "continue;\n"): emit_goto (out, lbl_abs));
 				continue;
 			}
 
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "if ("));
 
 			u32 pos = asm_ref? asm_ref->original_pos: 0;
-			bool goto_form = has_catch || target_addr <= pos ||
+			bool goto_form = is_continue || has_catch || target_addr <= pos ||
 				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1]);
 			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
-			if (goto_form) {
+			if (is_continue) {
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") continue;\n"));
+			} else if (goto_form) {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") "));
 				RETURN_IF_ERROR (emit_goto (out, lbl_abs));
 			} else {
