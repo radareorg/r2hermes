@@ -296,3 +296,13 @@ EXPECT=<<EOF
   if (r5!==r0) {
 EOF
 RUN
+
+NAME=pd:hc if-blocks structured in catch-containing function
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 12~if (r7) {
+EOF
+EXPECT=<<EOF
+      if (r7) {
+EOF
+RUN

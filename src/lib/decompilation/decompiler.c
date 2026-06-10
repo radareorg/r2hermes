@@ -1768,9 +1768,8 @@ static Result labels_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *en
 	return u32set_add (labels, target);
 }
 
-static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz, U32Set *labels, u32 *end_label_addr, bool *has_catch) {
+static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz, U32Set *labels, u32 *end_label_addr) {
 	*end_label_addr = UINT32_MAX;
-	*has_catch = false;
 	for (u32 si = 0; si < fb->statements_count; si++) {
 		if (dce && dce[si]) {
 			continue;
@@ -1781,7 +1780,6 @@ static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 fu
 			continue;
 		}
 		if (asm_ref && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
-			*has_catch = true;
 			RETURN_IF_ERROR (labels_add_target (labels, asm_ref->original_pos, func_sz, end_label_addr));
 		}
 		if (asm_ref && asm_ref->opcode == OP_SwitchImm) {
@@ -1899,8 +1897,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		return lbl_init;
 	}
 	u32 end_label_addr = UINT32_MAX;
-	bool has_catch = false;
-	Result labels_res = collect_labels (function_body, dce, plan_func_sz, &goto_labels, &end_label_addr, &has_catch);
+	Result labels_res = collect_labels (function_body, dce, plan_func_sz, &goto_labels, &end_label_addr);
 	if (labels_res.code != RESULT_SUCCESS) {
 		output_buffers_fini (&ob);
 		free (dce);
@@ -2082,7 +2079,17 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "if ("));
 
 			u32 pos = asm_ref? asm_ref->original_pos: 0;
-			bool goto_form = is_continue || has_catch || target_addr <= pos ||
+			/* Force goto-form when an if-block would cross a structured
+			 * try/catch boundary (open/close brace mismatch); otherwise allow
+			 * structured if-blocks even in functions that contain catches. */
+			bool crosses_catch = false;
+			for (u32 ci = 0; ci < catch_plan_count && !crosses_catch; ci++) {
+				const StructuredCatch *p = &catch_plans[ci];
+				crosses_catch = (pos < p->try_start && p->try_start <= target_addr) ||
+					(pos < p->catch_start && p->catch_start <= target_addr) ||
+					(pos < p->catch_end && p->catch_end <= target_addr);
+			}
+			bool goto_form = is_continue || crosses_catch || target_addr <= pos ||
 				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1]);
 			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
 			if (is_continue) {
