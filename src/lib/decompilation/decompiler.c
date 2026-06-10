@@ -334,9 +334,27 @@ static Environment *env_new(DecompiledFunctionBody *fb, Environment *parent) {
 	}
 	env->parent_environment = parent;
 	env->nesting_quantity = parent? (parent->nesting_quantity + 1): 0;
+	env->captured_level = -1;
 	if (owned_env_push (fb, env).code != RESULT_SUCCESS) {
 		free (env);
 		return NULL;
+	}
+	return env;
+}
+
+/* Get or create a stable synthetic environment standing in for the captured
+ * scope `level` hops up the lexical chain. Reused across get_environment sites
+ * so the same captured scope yields consistent slot names within a function. */
+static Environment *env_for_captured_level(DecompiledFunctionBody *fb, int level) {
+	for (u32 i = 0; i < fb->owned_environments_count; i++) {
+		Environment *e = fb->owned_environments[i];
+		if (e && e->captured_level == level) {
+			return e;
+		}
+	}
+	Environment *env = env_new (fb, NULL);
+	if (env) {
+		env->captured_level = level;
 	}
 	return env;
 }
@@ -387,7 +405,11 @@ static Result env_slot_resolve(Environment *env, int slot_index, const char **na
 	}
 	if (!*name) {
 		char namebuf[64];
-		snprintf (namebuf, sizeof (namebuf), "_closure%d_slot%d", env->nesting_quantity, slot_index);
+		if (env->captured_level >= 0) {
+			snprintf (namebuf, sizeof (namebuf), "_env%d_slot%d", env->captured_level, slot_index);
+		} else {
+			snprintf (namebuf, sizeof (namebuf), "_closure%d_slot%d", env->nesting_quantity, slot_index);
+		}
 		RETURN_IF_ERROR (environment_slot_set (env, slot_index, namebuf));
 		*name = environment_slot_get (env, slot_index);
 	}
@@ -1319,6 +1341,12 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				for (int n = 0; env && n < t->nesting_level; n++) {
 					env = env->parent_environment;
 				}
+				if (!env) {
+					/* Standalone decompilation: the real parent chain is
+					 * unknown. Stand in a synthetic captured-scope env so the
+					 * slot accesses still get consistent names. */
+					env = env_for_captured_level (function_body, t->nesting_level);
+				}
 				if (env) {
 					RETURN_IF_ERROR (envmap_set (function_body, t->reg_num, env));
 				}
@@ -1347,7 +1375,9 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 					continue;
 				}
 				RETURN_IF_ERROR (token_string_clear_tokens (line));
-				if (first) {
+				/* Only the function's own created env declares new vars; a write
+				 * to a captured parent scope is a plain assignment. */
+				if (first && env->captured_level < 0) {
 					RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("var")));
 				}
 				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token (existing)));

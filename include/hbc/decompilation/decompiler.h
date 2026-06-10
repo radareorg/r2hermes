@@ -56,6 +56,10 @@ struct Environment {
 	char **slot_index_to_varname;
 	int var_count;
 	int slot_capacity;
+	/* >=0: synthetic stand-in for a get_environment captured scope at this
+	 * nesting level (used when the real parent chain is unknown, i.e. the
+	 * function is decompiled standalone). -1: a real created environment. */
+	int captured_level;
 };
 
 /* Address to strings mapping */
