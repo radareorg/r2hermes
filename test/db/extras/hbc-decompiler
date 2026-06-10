@@ -306,3 +306,14 @@ EXPECT=<<EOF
       if (r7) {
 EOF
 RUN
+
+NAME=pd:hc structured try/catch for return-terminated try
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 189~try {,} catch (r0) {
+EOF
+EXPECT=<<EOF
+  try {
+  } catch (r0) {
+EOF
+RUN

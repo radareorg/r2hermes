@@ -1586,6 +1586,52 @@ typedef struct {
 	bool catch_open;
 } StructuredCatch;
 
+/* Extent of the catch region starting at `catch_start`: walk surviving
+ * statements in address order, following fall-through and forward branches, and
+ * close the region at the first address that control can no longer reach within
+ * it (after a terminator and with no pending forward edge). Returns func_sz when
+ * the catch runs to the end of the function. */
+static u32 catch_region_end(DecompiledFunctionBody *fb, const bool *dce, u32 catch_start, u32 func_sz) {
+	u32 reach = catch_start;
+	bool prev_terminal = false;
+	for (u32 si = 0; si < fb->statements_count; si++) {
+		if (dce && dce[si]) {
+			continue;
+		}
+		TokenString *st = &fb->statements[si];
+		if (!st->head || !st->assembly) {
+			continue;
+		}
+		u32 pos = st->assembly->original_pos;
+		if (pos < catch_start) {
+			continue;
+		}
+		if (pos >= reach && prev_terminal) {
+			return pos;
+		}
+		ParsedInstruction *a = st->assembly;
+		if (a->next_pos > reach && a->next_pos <= func_sz) {
+			reach = a->next_pos;
+		}
+		bool uncond = false;
+		if (st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
+			u32 t = jump_target_of (st->head);
+			if (t > reach && t <= func_sz) {
+				reach = t;
+			}
+			uncond = jump_is_unconditional (st->head);
+		} else if (a->opcode == OP_SwitchImm) {
+			for (u32 k = 0; k < a->switch_jump_table_size; k++) {
+				if (a->switch_jump_table[k] > reach && a->switch_jump_table[k] <= func_sz) {
+					reach = a->switch_jump_table[k];
+				}
+			}
+		}
+		prev_terminal = uncond || a->opcode == OP_Ret || a->opcode == OP_Throw;
+	}
+	return func_sz;
+}
+
 static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz, StructuredCatch **out, u32 *out_count) {
 	*out = NULL;
 	*out_count = 0;
@@ -1619,6 +1665,13 @@ static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *d
 				jump_is_unconditional (st->head)) {
 				catch_end = jump_target_of (st->head);
 			}
+		}
+		/* When the try body has no skip-jump over the catch (it returns/throws),
+		 * derive the catch end from the extent of the catch region itself. Only
+		 * for single-handler functions, to avoid nested-handler ambiguity. */
+		if (catch_end == UINT32_MAX && has_try_start && catch_reg >= 0
+				&& fb->exc_handlers_count == 1 && h->target < func_sz) {
+			catch_end = catch_region_end (fb, dce, h->target, func_sz);
 		}
 		if (!has_try_start || catch_reg < 0 || catch_end <= h->target || catch_end > func_sz) {
 			continue;
@@ -2156,6 +2209,15 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	}
 
 	RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
+
+	/* Close any catch whose body runs to the end of the function (its catch_end
+	 * is func_sz, so no statement triggers the normal close). */
+	for (u32 ci = catch_plan_count; ci-- > 0;) {
+		if (catch_plans[ci].catch_open) {
+			catch_plans[ci].catch_open = false;
+			RETURN_IF_ERROR (emit_close_brace (state, out));
+		}
+	}
 
 	/* Flush any labels whose address sits past the last emitted statement. */
 	while (label_idx < goto_labels.count) {
