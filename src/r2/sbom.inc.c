@@ -8,13 +8,13 @@
  *     text mentions "typescript" — that catches the package.json-style
  *     dependency maps (dependencies / devDependencies / peerDependencies).
  *   - The literal formatter prints valid JS identifiers as bare keys
- *     ({foo: "1.2.3"}), which is not strict JSON. We rewrite bare keys
+ *({foo: "1.2.3"}), which is not strict JSON. We rewrite bare keys
  *     into quoted ones, then parse with r_json so we don't hand-roll a
  *     key/value parser.
  *   - For each name -> string-version pair, emit a CycloneDX component.
  *
  * Output formats:
- *   r2hermes-S    plaintext  (one "name version" per line)
+ *   r2hermes-S    plaintext (one "name version" per line)
  *   r2hermes-Sj   CycloneDX JSON (built via PJ)
  */
 
@@ -92,7 +92,7 @@ static char *jsobj_to_json(const char *src) {
 			if (*p == '"') {
 				p++;
 			}
-			r_strbuf_append_n (sb, start, (int)(p - start));
+			r_strbuf_append_n (sb, start, (int) (p - start));
 			continue;
 		}
 		unsigned char c = (unsigned char)*p;
@@ -101,15 +101,13 @@ static char *jsobj_to_json(const char *src) {
 			while (*p && (isalnum ((unsigned char)*p) || *p == '_' || *p == '$')) {
 				p++;
 			}
-			int len = (int)(p - start);
+			int len = (int) (p - start);
 			const char *q = p;
 			while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') {
 				q++;
 			}
 			bool is_key = (*q == ':');
-			bool is_literal = (len == 4 && !memcmp (start, "true", 4))
-				|| (len == 5 && !memcmp (start, "false", 5))
-				|| (len == 4 && !memcmp (start, "null", 4));
+			bool is_literal = (len == 4 && !memcmp (start, "true", 4)) || (len == 5 && !memcmp (start, "false", 5)) || (len == 4 && !memcmp (start, "null", 4));
 			if (is_key && !is_literal) {
 				r_strbuf_append (sb, "\"");
 				r_strbuf_append_n (sb, start, len);

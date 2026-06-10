@@ -70,7 +70,9 @@ static Result buffer_reader_check(const BufferReader *reader, size_t need) {
 	}
 	if (reader->position + need > reader->size) {
 		hbc_debug_printf ("Warning: Buffer overflow prevented reading %zu bytes at position %zu of %zu\n",
-			need, reader->position, reader->size);
+			need,
+			reader->position,
+			reader->size);
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow");
 	}
 	return SUCCESS_RESULT ();
@@ -92,13 +94,13 @@ static Result buffer_reader_read_le(BufferReader *reader, size_t n, u64 *out) {
 
 /* Define the fixed-width little-endian readers; all share buffer_reader_read_le. */
 #define HBC_DEFINE_READ(bits) \
-	Result _hbc_buffer_reader_read_u##bits(BufferReader *reader, u##bits *out_value) { \
+	Result _hbc_buffer_reader_read_u ## bits (BufferReader *reader, u ## bits *out_value) { \
 		if (!out_value) { \
 			return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "read out_value is NULL"); \
 		} \
 		u64 v; \
-		Result r = buffer_reader_read_le (reader, sizeof (u##bits), &v); \
-		*out_value = (u##bits)v; \
+		Result r = buffer_reader_read_le (reader, sizeof (u ## bits), &v); \
+		*out_value = (u ## bits)v; \
 		return r; \
 	}
 HBC_DEFINE_READ(8)

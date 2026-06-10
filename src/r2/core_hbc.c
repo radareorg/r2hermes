@@ -104,13 +104,13 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
  * r2 reports vaddrs (HBC_VADDR_BASE + paddr), but HBCFunc::offset is the raw
  * bytecode paddr. Translate before comparing — otherwise the lookup never
  * matches and `pd:h` silently falls back to decompiling all functions
- * (starting at the global one), which trips the AST budget and hides the
+ *(starting at the global one), which trips the AST budget and hides the
  * function the user actually navigated to. */
 static int find_function_at_offset(HbcContext *ctx, u64 vaddr, u32 *out_id) {
 	if (!out_id || !ctx->hbc) {
 		return -1;
 	}
-	u32 paddr = (vaddr >= HBC_VADDR_BASE)? (u32)(vaddr - HBC_VADDR_BASE): (u32)vaddr;
+	u32 paddr = (vaddr >= HBC_VADDR_BASE)? (u32) (vaddr - HBC_VADDR_BASE): (u32)vaddr;
 	u32 count = hbc_function_count (ctx->hbc);
 	for (u32 i = 0; i < count; i++) {
 		HBCFunc fi;
@@ -693,11 +693,28 @@ static Result ensure_hbc_loaded(HbcContext *ctx, RCore *core, HBC **out) {
 	return res;
 }
 
+/* Populate the literal cache on demand by scanning function code. */
+static bool ensure_lit_cache_populated(RCore *core, HBC *hbc) {
+	if (hbc_literals_count (hbc) > 0) {
+		return true;
+	}
+	Result r = hbc_literals_scan_code (hbc, NULL);
+	if (r.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("scan failed: %s", safe_errmsg (r.error_message));
+		return false;
+	}
+	register_all_artifacts (core, hbc);
+	return true;
+}
+
 static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 	HBC *hbc = NULL;
 	Result r = ensure_hbc_loaded (ctx, core, &hbc);
 	if (r.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
+		return;
+	}
+	if (!ensure_lit_cache_populated (core, hbc)) {
 		return;
 	}
 	const HBCLiteralEntry *arr = NULL;
@@ -707,7 +724,7 @@ static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 		return;
 	}
 	if (n == 0) {
-		r_cons_println (core->cons, "(cache empty — run r2hermes-Ls to scan)");
+		R_LOG_INFO ("No SLP literals found");
 		return;
 	}
 	if (as_json) {
@@ -749,23 +766,6 @@ static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 			e->xref_count,
 			e->formatted? e->formatted: "");
 	}
-}
-
-static void cmd_lit_scan_code(HbcContext *ctx, RCore *core) {
-	HBC *hbc = NULL;
-	Result r = ensure_hbc_loaded (ctx, core, &hbc);
-	if (r.code != RESULT_SUCCESS) {
-		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
-		return;
-	}
-	u32 n = 0;
-	r = hbc_literals_scan_code (hbc, &n);
-	if (r.code != RESULT_SUCCESS) {
-		R_LOG_ERROR ("scan failed: %s", safe_errmsg (r.error_message));
-		return;
-	}
-	register_all_artifacts (core, hbc);
-	r_cons_printf (core->cons, "scanned code, %u distinct literals (flags + xrefs registered)\n", n);
 }
 
 static void cmd_lit_scan_pool(HbcContext *ctx, RCore *core, HBCLiteralKind kind) {
@@ -842,9 +842,8 @@ static void cmd_lit_toggle_inline(RCore *core) {
 
 static const char LIT_HELP[] =
 	"Usage: r2hermes-L[subcmd]\n"
-	" r2hermes-L            List cached literals\n"
-	" r2hermes-Lj           List as JSON\n"
-	" r2hermes-Ls           Scan all code; register literals as flags/xrefs/comments\n"
+	" r2hermes-L            List cached literals (auto-scans code if cache is empty)\n"
+	" r2hermes-Lj           List as JSON (auto-scans if needed)\n"
 	" r2hermes-Lp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
 	" r2hermes-Lr           Reset literal cache (does not remove r2 flags/comments)\n"
 	" r2hermes-Lg <k> <n> <primary> [<sec>]\n"
@@ -863,9 +862,6 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 		break;
 	case 'j':
 		cmd_lit_list (ctx, core, true);
-		break;
-	case 's':
-		cmd_lit_scan_code (ctx, core);
 		break;
 	case 'p':
 		{

@@ -761,7 +761,7 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 }
 
 /* Shared tail for the public decompile entry points: run one function
- * (single) or all of them, flush dec->output into out and cleanup dec. */
+ *(single) or all of them, flush dec->output into out and cleanup dec. */
 static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version, bool single, u32 fid, StringBuffer *out) {
 	Result r = SUCCESS_RESULT ();
 	if (single) {
@@ -915,7 +915,7 @@ static Result bbvec_push_unique(BasicBlock ***arr, u32 *count, u32 *cap, BasicBl
 
 static bool token_needs_space(TokenType prev, TokenType cur) {
 	if (cur == TOKEN_TYPE_LEFT_PARENTHESIS) {
-		/* No space in calls like r1(args) */
+		/* No space in calls like r1 (args) */
 		return prev != TOKEN_TYPE_RIGHT_HAND_REG && prev != TOKEN_TYPE_LEFT_HAND_REG;
 	}
 	/* No space before other punctuation nor after '(' or '.' */
@@ -1589,7 +1589,7 @@ static bool should_inline_closure(const HermesDecompiler *state, const FunctionT
 	if (threshold > 0 && state->hbc_reader->function_headers[fti->function_id].bytecodeSizeInBytes > (u32)threshold) {
 		return false;
 	}
-	return !(state->function_in_progress && state->function_in_progress[fti->function_id]);
+	return ! (state->function_in_progress && state->function_in_progress[fti->function_id]);
 }
 
 static Result labels_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *end_label_addr) {
@@ -1669,8 +1669,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {"));
 	}
 	/* First priority: r2 comment at function start, then name/env fallback */
-	char *r2_comment = state->options.comment_callback?
-		state->options.comment_callback (state->options.comment_context, state->options.function_base): NULL;
+	char *r2_comment = state->options.comment_callback? state->options.comment_callback (state->options.comment_context, state->options.function_base): NULL;
 	if (r2_comment) {
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
@@ -1962,7 +1961,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		} else {
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
 		}
-
 	}
 
 	RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));

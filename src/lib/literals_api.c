@@ -308,7 +308,7 @@ static bool decode_buffer_op(u8 op, u32 version, const u8 *code, u32 size, u32 p
 			/* reg8 + u16 shape_id + u16 values_id */
 			*primary = rd_u16le (code + pc + 2);
 			*secondary = rd_u16le (code + pc + 4);
-			*num_items = 0; /* resolved via shape table by the formatter */
+			 *num_items = 0; /* resolved via shape table by the formatter */
 		} else {
 			/* reg8 + u16 prealloc + u16 num + u16 keys + u16 vals */
 			*num_items = rd_u16le (code + pc + 4);

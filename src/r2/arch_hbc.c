@@ -680,8 +680,7 @@ const RArchPlugin r_arch_plugin_r2hermes = {
 	},
 	.arch = "hbc",
 	.bits = R_SYS_BITS_PACK1 (64),
-	.cpus =
-		"v51,v58,v59,v61,v62,v68,v69,v70,v72,v73,v76,"
+	.cpus = "v51,v58,v59,v61,v62,v68,v69,v70,v72,v73,v76,"
 		"v80,v81,v82,v83,v84,v85,v86,v87,v88,v89,"
 		"v90,v91,v92,v93,v94,v95,v96,v97,v98,v99",
 	.decode = &decode,
