@@ -555,10 +555,12 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_LoadParam:
 	case OP_LoadParamLong:
 		{
+			/* LoadParam index maps directly to args[i]: index 0 is `this`,
+			 * matching the a0..aN-1 names emitted in the function signature. */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			char buf[32];
-			snprintf (buf, sizeof (buf), "args[%u]", insn->arg2 > 0? insn->arg2 - 1: 0);
+			snprintf (buf, sizeof (buf), "args[%u]", insn->arg2);
 			RETURN_IF_ERROR (add (out, create_raw_token (buf)));
 			break;
 		}
