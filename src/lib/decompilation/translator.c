@@ -232,9 +232,12 @@ static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, i
 	return add (out, create_right_parenthesis_token ());
 }
 
-static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn) {
+static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn, bool is_construct) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
 	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	if (is_construct) {
+		RETURN_IF_ERROR (add (out, create_raw_token ("new")));
+	}
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
 	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
 	char buf2[32];
@@ -711,12 +714,9 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_PutById:
 	case OP_PutByIdLong:
 		{
-			/* rObj["name"] = rVal */
+			/* rObj.name = rVal (prefer dot accessor, matching GetById) */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
-			u32 sid = insn->arg4;
-			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			RETURN_IF_ERROR (emit_property_access (out, insn_c, insn->arg4));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
@@ -880,9 +880,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		return emit_call_fixed (out, insn_c, 6); /* dest, callee, arg1, arg2, arg3, arg4 */
 	case OP_Call:
 	case OP_CallLong:
+		return emit_call_with_argc (out, insn_c, false);
 	case OP_Construct:
 	case OP_ConstructLong:
-		return emit_call_with_argc (out, insn_c);
+		return emit_call_with_argc (out, insn_c, true);
 	/* Delete operations */
 	case OP_DelById:
 	case OP_DelByIdLong:
