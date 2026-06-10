@@ -191,6 +191,26 @@ static Result append_indent(StringBuffer *sb, int level) {
 	return SUCCESS_RESULT ();
 }
 
+static Result emit_close_brace(HermesDecompiler *state, StringBuffer *out) {
+	state->indent_level--;
+	RETURN_IF_ERROR (append_indent (out, state->indent_level));
+	return _hbc_string_buffer_append (out, "}\n");
+}
+
+/* Labels always start at column 0. empty_stmt adds a ';' so the label can
+ * legally precede a closing brace. */
+static Result emit_label(StringBuffer *out, u64 addr, bool empty_stmt) {
+	char lbl[40];
+	snprintf (lbl, sizeof (lbl), empty_stmt? "loc_%08llx:;\n": "loc_%08llx:\n", (unsigned long long)addr);
+	return _hbc_string_buffer_append (out, lbl);
+}
+
+static Result emit_goto(StringBuffer *out, u64 addr) {
+	char buf[48];
+	snprintf (buf, sizeof (buf), "goto loc_%08llx;\n", (unsigned long long)addr);
+	return _hbc_string_buffer_append (out, buf);
+}
+
 static Result token_string_clear_tokens(TokenString *ts) {
 	if (!ts) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_clear_tokens: ts NULL");
@@ -334,6 +354,15 @@ static inline void output_buffers_fini(OutputBuffers *ob) {
 static inline Result if_block_stack_push(OutputBuffers *ob, u32 target_addr) {
 	RETURN_IF_ERROR (grow_array (&ob->if_block_stack, &ob->if_block_stack_cap, ob->if_block_stack_count, sizeof (u32), 16));
 	ob->if_block_stack[ob->if_block_stack_count++] = target_addr;
+	return SUCCESS_RESULT ();
+}
+
+/* Pop if-blocks whose end address is at or before pos; UINT32_MAX pops all. */
+static Result close_if_blocks(HermesDecompiler *state, StringBuffer *out, OutputBuffers *ob, u32 pos) {
+	while (ob->if_block_stack_count > 0 && ob->if_block_stack[ob->if_block_stack_count - 1] <= pos) {
+		ob->if_block_stack_count--;
+		RETURN_IF_ERROR (emit_close_brace (state, out));
+	}
 	return SUCCESS_RESULT ();
 }
 
@@ -1939,36 +1968,22 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			StructuredCatch *catch_end = structured_catch_at (catch_plans, catch_plan_count, pos, 'm');
 			if (catch_end) {
 				catch_end->catch_open = false;
-				state->indent_level--;
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+				RETURN_IF_ERROR (emit_close_brace (state, out));
 			}
 
 			/* Close frames */
 			while (frame_end_idx < frame_ends_count && ob.frame_ends[frame_end_idx] == pos) {
 				frame_end_idx++;
-				state->indent_level--;
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+				RETURN_IF_ERROR (emit_close_brace (state, out));
 			}
 
-			while (ob.if_block_stack_count > 0 && ob.if_block_stack[ob.if_block_stack_count - 1] <= pos) {
-				ob.if_block_stack_count--;
-				state->indent_level--;
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
-			}
+			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, pos));
 
 			/* Goto target labels for control flow that does not nest as if-blocks */
 			while (label_idx < goto_labels.count && goto_labels.data[label_idx] <= pos) {
-				if (structured_catch_at (catch_plans, catch_plan_count, goto_labels.data[label_idx], 'c')) {
-					label_idx++;
-					continue;
+				if (!structured_catch_at (catch_plans, catch_plan_count, goto_labels.data[label_idx], 'c')) {
+					RETURN_IF_ERROR (emit_label (out, state->options.function_base + goto_labels.data[label_idx], false));
 				}
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				char lbl[40];
-				snprintf (lbl, sizeof (lbl), "loc_%08llx:\n", (unsigned long long) (state->options.function_base + goto_labels.data[label_idx]));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbl));
 				label_idx++;
 			}
 
@@ -2045,12 +2060,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		StructuredCatch *catch_start = asm_ref? structured_catch_at (catch_plans, catch_plan_count, asm_ref->original_pos, 'c'): NULL;
 		if (catch_start) {
-			while (ob.if_block_stack_count > 0) {
-				ob.if_block_stack_count--;
-				state->indent_level--;
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
-			}
+			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 			state->indent_level--;
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 			char cbuf[32];
@@ -2062,12 +2072,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 
 		if (st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
-			while (ob.if_block_stack_count > 0) {
-				ob.if_block_stack_count--;
-				state->indent_level--;
-				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
-			}
+			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 		}
 
 		/* Calculate absolute address for offset display and comments */
@@ -2122,9 +2127,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			unsigned long long lbl_abs = (unsigned long long) (state->options.function_base + lbl_rel);
 
 			if (jump_is_unconditional (head)) {
-				char goto_buf[48];
-				snprintf (goto_buf, sizeof (goto_buf), "goto loc_%08llx;\n", lbl_abs);
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, goto_buf));
+				RETURN_IF_ERROR (emit_goto (out, lbl_abs));
 				continue;
 			}
 
@@ -2135,9 +2138,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1]);
 			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
 			if (goto_form) {
-				char goto_buf[48];
-				snprintf (goto_buf, sizeof (goto_buf), ") goto loc_%08llx;\n", lbl_abs);
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, goto_buf));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") "));
+				RETURN_IF_ERROR (emit_goto (out, lbl_abs));
 			} else {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
 				RETURN_IF_ERROR (if_block_stack_push (&ob, target_addr));
@@ -2267,35 +2269,22 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 	}
 
-	while (ob.if_block_stack_count > 0) {
-		ob.if_block_stack_count--;
-		state->indent_level--;
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
-	}
+	RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 
 	/* Flush any labels whose address sits past the last emitted statement. */
 	while (label_idx < goto_labels.count) {
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		char lbl[40];
-		snprintf (lbl, sizeof (lbl), "loc_%08llx:;\n", (unsigned long long) (state->options.function_base + goto_labels.data[label_idx]));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbl));
+		RETURN_IF_ERROR (emit_label (out, state->options.function_base + goto_labels.data[label_idx], true));
 		label_idx++;
 	}
 
 	/* Landing label for jumps that exit the function (target >= func_sz). */
 	if (end_label_addr != UINT32_MAX) {
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		char lbl[40];
-		snprintf (lbl, sizeof (lbl), "loc_%08llx:;\n", (unsigned long long) (state->options.function_base + end_label_addr));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, lbl));
+		RETURN_IF_ERROR (emit_label (out, state->options.function_base + end_label_addr, true));
 	}
 
 	/* Close switch loop */
 	if (use_dispatch) {
-		state->indent_level--;
-		RETURN_IF_ERROR (append_indent (out, state->indent_level));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+		RETURN_IF_ERROR (emit_close_brace (state, out));
 	}
 	/* Closing brace for all functions (global and non-global) */
 	state->indent_level--;
