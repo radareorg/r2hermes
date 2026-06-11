@@ -333,11 +333,21 @@ RUN
 NAME=pd:hc do-while loop structuring with no back-edge goto or loop-top label
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
-pd:hc 199~do {,while (r2,goto,loc_00041f5
+pd:hc 513~do {,while (r1,goto
 EOF
 EXPECT=<<EOF
-    do {
-    } while (r2<r1);
+  do {
+  } while (r1>r2);
+EOF
+RUN
+
+NAME=pd:hc materialized guard folds into a while loop
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 199~while (r2,do {,goto
+EOF
+EXPECT=<<EOF
+  while (r2<r1) {
 EOF
 RUN
 

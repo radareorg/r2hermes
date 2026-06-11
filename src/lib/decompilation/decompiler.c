@@ -314,6 +314,8 @@ static Result dowhile_loop_push(DecompiledFunctionBody *fb, u32 top, u32 back_ed
 	fb->dowhile_loops[fb->dowhile_loops_count].guard_pos = UINT32_MAX;
 	fb->dowhile_loops[fb->dowhile_loops_count].exit_addr = 0;
 	fb->dowhile_loops[fb->dowhile_loops_count].promoted = false;
+	fb->dowhile_loops[fb->dowhile_loops_count].while_cond = NULL;
+	fb->dowhile_loops[fb->dowhile_loops_count].while_cond_invert = false;
 	fb->dowhile_loops_count++;
 	return SUCCESS_RESULT ();
 }
@@ -2046,6 +2048,33 @@ static Result detect_dowhile_loops(DecompiledFunctionBody *fb, const bool *dce) 
 	return SUCCESS_RESULT ();
 }
 
+/* Equal ignoring ASCII spaces (a materialized compare renders ` < ` where the
+ * fused compare-jump renders `<`). */
+static bool streq_nospace(const char *a, const char *b) {
+	while (*a && *b) {
+		if (*a == ' ') {
+			a++;
+			continue;
+		}
+		if (*b == ' ') {
+			b++;
+			continue;
+		}
+		if (*a != *b) {
+			return false;
+		}
+		a++;
+		b++;
+	}
+	while (*a == ' ') {
+		a++;
+	}
+	while (*b == ' ') {
+		b++;
+	}
+	return *a == *b;
+}
+
 /* True if two conditions render to the same text (used to match a loop entry
  * guard against the back-edge test). */
 static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
@@ -2057,26 +2086,58 @@ static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
 		append_condition_tokens (&ba, a, inv_a).code == RESULT_SUCCESS &&
 		append_condition_tokens (&bb, b, inv_b).code == RESULT_SUCCESS &&
 		ba.data && bb.data) {
-		ok = strcmp (ba.data, bb.data) == 0;
+		ok = streq_nospace (ba.data, bb.data);
 	}
 	_hbc_string_buffer_free (&ba);
 	_hbc_string_buffer_free (&bb);
 	return ok;
 }
 
+/* Render `cond` (a condition token chain) to a freshly allocated string, or
+ * NULL on failure. Caller frees. */
+static char *render_cond_string(Token *cond, bool invert) {
+	StringBuffer b = { 0 };
+	if (_hbc_string_buffer_init (&b, 32).code != RESULT_SUCCESS) {
+		_hbc_string_buffer_free (&b);
+		return NULL;
+	}
+	if (append_condition_tokens (&b, cond, invert).code != RESULT_SUCCESS || !b.data) {
+		_hbc_string_buffer_free (&b);
+		return NULL;
+	}
+	return b.data; /* ownership transferred */
+}
+
 /* Promote do-while loops wrapped by a matching entry guard to `while` loops:
  * `if (C) { do { body } while (C); }` becomes `while (C) { body }`. The guard is
  * the conditional jump immediately before the loop top that skips to the loop
  * exit when its test (equal to the back-edge test) is false. */
+/* True when `s` is a plain register/slot identifier (no operators), e.g. `r4`
+ * or `_env0_slot3` — the shape a materialized comparison is stored under. */
+static bool is_simple_ident(const char *s) {
+	if (!s || !*s) {
+		return false;
+	}
+	for (const char *p = s; *p; p++) {
+		if (!(*p == '_' || (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9'))) {
+			return false;
+		}
+	}
+	return true;
+}
+
 static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
 		u32 top = fb->dowhile_loops[i].top;
 		u32 back_edge = fb->dowhile_loops[i].back_edge;
-		/* loop exit = first surviving statement after the back-edge */
+		/* loop exit = first surviving statement after the back-edge; guard =
+		 * statement just before the top; def = statement just before the guard. */
 		u32 exit_addr = UINT32_MAX;
 		Token *be_head = NULL;
 		u32 guard_pos = 0;
 		Token *ghead = NULL;
+		u32 def_pos = 0;
+		Token *dhead = NULL;
 		for (u32 sj = 0; sj < fb->statements_count; sj++) {
 			if (dce && dce[sj]) {
 				continue;
@@ -2092,9 +2153,16 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 			if (p > back_edge && p < exit_addr) {
 				exit_addr = p;
 			}
-			if (p < top && (!ghead || p > guard_pos)) {
-				guard_pos = p;
-				ghead = s->head;
+			if (p < top) {
+				if (!ghead || p > guard_pos) {
+					def_pos = guard_pos;
+					dhead = ghead;
+					guard_pos = p;
+					ghead = s->head;
+				} else if (!dhead || p > def_pos) {
+					def_pos = p;
+					dhead = s->head;
+				}
 			}
 		}
 		if (exit_addr == UINT32_MAX) {
@@ -2105,16 +2173,36 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 		if (!be_head || !ghead) {
 			continue;
 		}
-		/* guard must be a conditional jump to the loop exit, testing the same
-		 * condition as the back-edge (in the polarity each would render). */
+		/* guard must be a conditional jump to the loop exit */
 		if ((ghead->type != TOKEN_TYPE_JUMP_CONDITION && ghead->type != TOKEN_TYPE_JUMP_NOT_CONDITION) ||
 			jump_is_unconditional (ghead) || jump_target_of (ghead) != exit_addr) {
 			continue;
 		}
-		if (!conditions_match (ghead->next, false, be_head->next, be_head->type == TOKEN_TYPE_JUMP_NOT_CONDITION)) {
+		bool be_inv = be_head->type == TOKEN_TYPE_JUMP_NOT_CONDITION;
+		/* fused guard: the jump already spells the same test as the back-edge */
+		if (conditions_match (ghead->next, false, be_head->next, be_inv)) {
+			fb->dowhile_loops[i].guard_pos = guard_pos;
 			continue;
 		}
-		fb->dowhile_loops[i].guard_pos = guard_pos;
+		/* materialized guard: `R = cmp; if (R)` where the def's `cmp` equals the
+		 * back-edge test. Render the while header from the back-edge condition. */
+		if (!dhead || !dhead->next || dhead->next->type != TOKEN_TYPE_ASSIGNMENT) {
+			continue;
+		}
+		char *gstr = render_cond_string (ghead->next, false);
+		if (gstr && is_simple_ident (gstr)) {
+			StringBuffer lhs = { 0 };
+			if (_hbc_string_buffer_init (&lhs, 16).code == RESULT_SUCCESS &&
+				_hbc_token_to_string (dhead, &lhs).code == RESULT_SUCCESS && lhs.data &&
+				streq_nospace (lhs.data, gstr) &&
+				conditions_match (dhead->next->next, false, be_head->next, be_inv)) {
+				fb->dowhile_loops[i].guard_pos = guard_pos;
+				fb->dowhile_loops[i].while_cond = be_head->next;
+				fb->dowhile_loops[i].while_cond_invert = be_inv;
+			}
+			_hbc_string_buffer_free (&lhs);
+		}
+		free (gstr);
 	}
 	return SUCCESS_RESULT ();
 }
@@ -2728,7 +2816,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				function_body->dowhile_loops[wl].promoted = true;
 			}
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, wl >= 0? "while (": "if ("));
-			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+			/* A materialized guard (`R=cmp; if(R)`) renders the real test from
+			 * the back-edge condition instead of the bare register. */
+			if (wl >= 0 && function_body->dowhile_loops[wl].while_cond) {
+				RETURN_IF_ERROR (append_condition_tokens (out, (Token *)function_body->dowhile_loops[wl].while_cond, function_body->dowhile_loops[wl].while_cond_invert));
+			} else {
+				RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+			}
 			if (is_continue) {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") continue;\n"));
 			} else if (goto_form) {

@@ -144,6 +144,11 @@ struct DecompiledFunctionBody {
 		u32 guard_pos;
 		u32 exit_addr;
 		bool promoted;
+		/* For a materialized guard (`r=cmp; if(r){do}while(cmp)`), the while
+		 * header renders this condition instead of the guard register. NULL when
+		 * the guard already spells the condition (fused compare-jump). */
+		void *while_cond;
+		bool while_cond_invert;
 	} *dowhile_loops;
 	u32 dowhile_loops_count;
 	u32 dowhile_loops_capacity;
