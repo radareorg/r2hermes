@@ -329,3 +329,14 @@ EXPECT=<<EOF
   } catch (r1) {
 EOF
 RUN
+
+NAME=pd:hc do-while loop structuring with no back-edge goto or loop-top label
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 199~do {,while (r2,goto,loc_00041f5
+EOF
+EXPECT=<<EOF
+    do {
+    } while (r2<r1);
+EOF
+RUN

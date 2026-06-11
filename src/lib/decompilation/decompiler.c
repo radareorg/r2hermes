@@ -307,6 +307,36 @@ static bool forin_is_continue_target(const DecompiledFunctionBody *fb, u32 addr)
 	return false;
 }
 
+static Result dowhile_loop_push(DecompiledFunctionBody *fb, u32 top, u32 back_edge) {
+	RETURN_IF_ERROR (grow_array (&fb->dowhile_loops, &fb->dowhile_loops_capacity, fb->dowhile_loops_count, sizeof (fb->dowhile_loops[0]), 8));
+	fb->dowhile_loops[fb->dowhile_loops_count].top = top;
+	fb->dowhile_loops[fb->dowhile_loops_count].back_edge = back_edge;
+	fb->dowhile_loops_count++;
+	return SUCCESS_RESULT ();
+}
+
+static bool dowhile_is_top(const DecompiledFunctionBody *fb, u32 addr) {
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		if (fb->dowhile_loops[i].top == addr) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* True when the statement at `pos` is a do-while back-edge; that jump renders
+ * as `} while (cond);` instead of a goto. Back-edge positions are unique per
+ * loop, so position alone identifies it (the raw jump target may have been
+ * DCE'd and snapped to a later surviving statement as the loop top). */
+static bool dowhile_is_back_edge(const DecompiledFunctionBody *fb, u32 pos) {
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		if (fb->dowhile_loops[i].back_edge == pos) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool jump_is_unconditional(const Token *head);
 static u32 jump_target_of(const Token *head);
 
@@ -569,6 +599,7 @@ void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 	}
 	free (body->nested_frames);
 	free (body->forin_continue_targets);
+	free (body->dowhile_loops);
 	if (body->owned_environments) {
 		for (u32 i = 0; i < body->owned_environments_count; i++) {
 			Environment *env = body->owned_environments[i];
@@ -1894,6 +1925,71 @@ static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 fu
 	return SUCCESS_RESULT ();
 }
 
+/* First surviving (non-DCE) statement position at or after `addr`, or
+ * UINT32_MAX if none. Mirrors where a goto label would land for `addr`. */
+static u32 dowhile_snap_target(const DecompiledFunctionBody *fb, const bool *dce, u32 addr) {
+	u32 best = UINT32_MAX;
+	for (u32 q = 0; q < fb->statements_count; q++) {
+		if (dce && dce[q]) {
+			continue;
+		}
+		const TokenString *qs = &fb->statements[q];
+		if (qs->assembly && qs->assembly->original_pos >= addr && qs->assembly->original_pos < best) {
+			best = qs->assembly->original_pos;
+		}
+	}
+	return best;
+}
+
+/* Detect do-while loops: a backward conditional jump `if (cond) goto T` (T<pos)
+ * is a loop back-edge. The loop top is the first surviving statement at or after
+ * T (the raw target may be a dead assignment); it becomes a `do {` and continue
+ * target, and the largest-position back-edge per top closes the loop. for-in
+ * tops are already handled, so they are skipped. */
+static Result detect_dowhile_loops(DecompiledFunctionBody *fb, const bool *dce) {
+	for (u32 si = 0; si < fb->statements_count; si++) {
+		if (dce && dce[si]) {
+			continue;
+		}
+		TokenString *st = &fb->statements[si];
+		if (!st->head || !st->assembly) {
+			continue;
+		}
+		Token *head = st->head;
+		if ((head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || jump_is_unconditional (head)) {
+			continue;
+		}
+		u32 pos = st->assembly->original_pos;
+		u32 raw_target = jump_target_of (head);
+		if (raw_target >= pos || forin_is_continue_target (fb, raw_target)) {
+			continue;
+		}
+		u32 top = dowhile_snap_target (fb, dce, raw_target);
+		if (top == UINT32_MAX || top >= pos) {
+			continue;
+		}
+		bool found = false;
+		for (u32 k = 0; k < fb->dowhile_loops_count; k++) {
+			if (fb->dowhile_loops[k].top == top) {
+				if (pos > fb->dowhile_loops[k].back_edge) {
+					fb->dowhile_loops[k].back_edge = pos;
+				}
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			RETURN_IF_ERROR (dowhile_loop_push (fb, top, pos));
+			RETURN_IF_ERROR (forin_continue_target_push (fb, top));
+		}
+		/* mid-body `goto raw_target` continues still target the dead address */
+		if (raw_target != top && !forin_is_continue_target (fb, raw_target)) {
+			RETURN_IF_ERROR (forin_continue_target_push (fb, raw_target));
+		}
+	}
+	return SUCCESS_RESULT ();
+}
+
 Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !function_body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_output_code args");
@@ -1973,6 +2069,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		output_buffers_fini (&ob);
 		free (dce);
 		return dce_result;
+	}
+
+	Result dw_result = detect_dowhile_loops (function_body, dce);
+	if (dw_result.code != RESULT_SUCCESS) {
+		output_buffers_fini (&ob);
+		free (dce);
+		return dw_result;
 	}
 
 	u32 plan_func_sz = function_body->function_object? function_body->function_object->bytecodeSizeInBytes: 0;
@@ -2067,6 +2170,12 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "try {\n"));
 				state->indent_level++;
 			}
+			/* do-while loop top: the back-edge below closes it as `} while`. */
+			if (dowhile_is_top (function_body, pos)) {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "do {\n"));
+				state->indent_level++;
+			}
 		}
 
 		if (!st->head) {
@@ -2095,6 +2204,19 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		if (st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
+		}
+
+		/* do-while back-edge: render the closing `} while (cond);` in place of
+		 * the backward conditional `if (cond) goto top`. */
+		if (asm_ref && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			!jump_is_unconditional (head) &&
+			dowhile_is_back_edge (function_body, asm_ref->original_pos)) {
+			state->indent_level--;
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} while ("));
+			RETURN_IF_ERROR (append_condition_tokens (out, head->next, head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ");\n"));
+			continue;
 		}
 
 		/* Calculate absolute address for offset display and comments */
@@ -2176,7 +2298,14 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 					(pos < p->catch_start && p->catch_start <= target_addr) ||
 					(pos < p->catch_end && p->catch_end <= target_addr);
 			}
-			bool goto_form = is_continue || crosses_catch || target_addr <= pos ||
+			/* An if-block inside a do-while body whose target jumps past the
+			 * back-edge would close after `} while`; keep it as a goto. */
+			bool crosses_loop = false;
+			for (u32 li = 0; li < function_body->dowhile_loops_count && !crosses_loop; li++) {
+				u32 be = function_body->dowhile_loops[li].back_edge;
+				crosses_loop = (pos >= function_body->dowhile_loops[li].top && pos < be && target_addr > be);
+			}
+			bool goto_form = is_continue || crosses_catch || crosses_loop || target_addr <= pos ||
 				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1]);
 			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
 			if (is_continue) {
