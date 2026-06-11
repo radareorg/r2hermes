@@ -313,9 +313,11 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 }
 
 Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
-	/* Apply policy */
-	bool pretty = (policy == LITERALS_PRETTY_ALWAYS) || (policy == LITERALS_PRETTY_AUTO && (value_count > 0));
-	bool multiline = pretty && (value_count > 0);
+	/* Apply policy. AUTO renders arrays inline (`[1, 2, 3]`): these are data
+	 * (e.g. module dependency lists) often hundreds long, and one-element-per-
+	 * line dominates the output while its embedded newlines ignore the statement
+	 * indent. Only ALWAYS expands them vertically. */
+	bool multiline = (policy == LITERALS_PRETTY_ALWAYS) && (value_count > 0);
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out, multiline? "[\n": "["));
 	if (!r || !r->arrays || value_count == 0) {
 		if (suppress_comments) {
