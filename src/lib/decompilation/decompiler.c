@@ -2559,24 +2559,53 @@ static int count_rhr(const Token *head, int reg) {
 }
 
 /* Classify a single-token rhs for forward substitution. Returns true and sets
- * *input_reg to the source register for a register copy (`rN = rM`), or -1 for a
- * side-effect-free literal/closure (no input dependency). Multi-token rhs and
- * call-like raw tokens are rejected. */
-static bool classify_single_rhs(const Token *rhs, int *input_reg) {
+ * *input_reg to the source register a register copy / `try_get(rN…)` reads (-1
+ * for a side-effect-free literal/closure), and *is_getter when the rhs is a
+ * property read whose getter must not be moved across a side effect. Multi-token
+ * and other call-like raw tokens are rejected. */
+static bool classify_single_rhs(const Token *rhs, int *input_reg, bool *is_getter) {
 	*input_reg = -1;
+	*is_getter = false;
 	if (!rhs || rhs->next) {
 		return false;
 	}
 	if (rhs->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
 		return true;
 	}
-	if (rhs->type == TOKEN_TYPE_RAW) {
-		const char *t = ((const RawToken *)rhs)->text;
-		return t && !strchr (t, '(');
-	}
 	if (rhs->type == TOKEN_TYPE_RIGHT_HAND_REG) {
 		*input_reg = ((const RightHandRegToken *)rhs)->reg_num;
 		return true;
+	}
+	if (rhs->type == TOKEN_TYPE_RAW) {
+		const char *t = ((const RawToken *)rhs)->text;
+		if (!t) {
+			return false;
+		}
+		if (!strchr (t, '(')) {
+			return true; /* literal: number, string, array, `{}`, identifier */
+		}
+		/* `try_get(rN.prop)` — a single-token property read; fold it, tracking
+		 * the object register (parsed after the prefix) as a getter input. */
+		if (strncmp (t, "try_get(r", 9) == 0 && t[9] >= '0' && t[9] <= '9') {
+			*input_reg = atoi (t + 9);
+			*is_getter = true;
+			return true;
+		}
+		return false; /* other parenthesised raw token: a call/construct */
+	}
+	return false;
+}
+
+/* True if the statement contains a call/construct (`(`) or a property access
+ * (dot accessor) — a getter rhs must not be forward-substituted across one. */
+static bool stmt_side_effecting(const Token *head) {
+	for (const Token *t = head; t; t = t->next) {
+		if (t->type == TOKEN_TYPE_DOT_ACCESSOR) {
+			return true;
+		}
+		if (t->type == TOKEN_TYPE_RAW && ((const RawToken *)t)->text && strchr (((const RawToken *)t)->text, '(')) {
+			return true;
+		}
 	}
 	return false;
 }
@@ -2699,7 +2728,8 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 		}
 		Token *rhs = head->next->next;
 		int input_reg = -1;
-		if (!classify_single_rhs (rhs, &input_reg)) {
+		bool is_getter = false;
+		if (!classify_single_rhs (rhs, &input_reg, &is_getter)) {
 			continue;
 		}
 		int rN = ((LeftHandRegToken *)head)->reg_num;
@@ -2745,11 +2775,17 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 					use_si = (int)sj;
 				}
 			}
-			/* a register copy can only be folded if its source is unchanged up to
-			 * the use (a statement before the use writing it would be read instead) */
-			else if (input_reg >= 0 && use_si < 0 && stmt_writes_reg (jh, input_reg)) {
-				bail = true;
-				break;
+			else if (use_si < 0) {
+				/* a register copy needs its source unchanged up to the use; a
+				 * getter must not move across a call or property access. */
+				if (input_reg >= 0 && stmt_writes_reg (jh, input_reg)) {
+					bail = true;
+					break;
+				}
+				if (is_getter && stmt_side_effecting (jh)) {
+					bail = true;
+					break;
+				}
 			}
 			if (stmt_writes_reg (jh, rN)) {
 				/* rN redefined before the block ends: its value is contained, so
