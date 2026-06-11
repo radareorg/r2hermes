@@ -2558,10 +2558,12 @@ static int count_rhr(const Token *head, int reg) {
 	return n;
 }
 
-/* A single pure rhs token that can be forward-substituted with no input-register
- * dependency: a closure reference, or a constant/literal raw token (excluding
- * anything call-like). Register copies and multi-token rhs are left alone. */
-static bool is_pure_single_rhs(const Token *rhs) {
+/* Classify a single-token rhs for forward substitution. Returns true and sets
+ * *input_reg to the source register for a register copy (`rN = rM`), or -1 for a
+ * side-effect-free literal/closure (no input dependency). Multi-token rhs and
+ * call-like raw tokens are rejected. */
+static bool classify_single_rhs(const Token *rhs, int *input_reg) {
+	*input_reg = -1;
 	if (!rhs || rhs->next) {
 		return false;
 	}
@@ -2572,14 +2574,119 @@ static bool is_pure_single_rhs(const Token *rhs) {
 		const char *t = ((const RawToken *)rhs)->text;
 		return t && !strchr (t, '(');
 	}
+	if (rhs->type == TOKEN_TYPE_RIGHT_HAND_REG) {
+		*input_reg = ((const RightHandRegToken *)rhs)->reg_num;
+		return true;
+	}
 	return false;
 }
 
-/* Forward-substitute single-use pure temporaries into their consumer:
- * `rN = <literal/closure/array>; … f(…, rN, …)` splices the value into the use
- * and drops the def. Bounded to single-def / single-use within one basic block
- * (no label or jump between) and to non-jump uses, so nothing is reordered. */
+static bool stmt_writes_reg(const Token *head, int reg) {
+	return head && head->type == TOKEN_TYPE_LEFT_HAND_REG && ((const LeftHandRegToken *)head)->reg_num == reg;
+}
+
+/* True if every token in the statement exposes its register operands as plain
+ * left/right-hand reg tokens. Special tokens (for-in, switch, environment,
+ * generator, catch) carry registers in int fields that the read counter cannot
+ * see, so substituting across them could silently fold a multi-use register. */
+static bool stmt_is_simple(const Token *head) {
+	for (const Token *t = head; t; t = t->next) {
+		switch (t->type) {
+		case TOKEN_TYPE_RAW:
+		case TOKEN_TYPE_LEFT_HAND_REG:
+		case TOKEN_TYPE_RIGHT_HAND_REG:
+		case TOKEN_TYPE_ASSIGNMENT:
+		case TOKEN_TYPE_LEFT_PARENTHESIS:
+		case TOKEN_TYPE_RIGHT_PARENTHESIS:
+		case TOKEN_TYPE_DOT_ACCESSOR:
+		case TOKEN_TYPE_BIND:
+		case TOKEN_TYPE_RETURN_DIRECTIVE:
+		case TOKEN_TYPE_THROW_DIRECTIVE:
+		case TOKEN_TYPE_FUNCTION_TABLE_INDEX:
+			break;
+		default:
+			return false;
+		}
+	}
+	return true;
+}
+
+/* Collect the registers a special token references through int fields (invisible
+ * to the right-hand-reg counter). Returns the count, filling regs[0..ret). */
+static int special_token_regs(const Token *t, int regs[5]) {
+	int n = 0;
+	switch (t->type) {
+	case TOKEN_TYPE_GET_ENVIRONMENT: regs[n++] = ((const GetEnvironmentToken *)t)->reg_num; break;
+	case TOKEN_TYPE_LOAD_FROM_ENVIRONMENT: regs[n++] = ((const LoadFromEnvironmentToken *)t)->reg_num; break;
+	case TOKEN_TYPE_NEW_ENVIRONMENT: regs[n++] = ((const NewEnvironmentToken *)t)->reg_num; break;
+	case TOKEN_TYPE_NEW_INNER_ENVIRONMENT: {
+		const NewInnerEnvironmentToken *e = (const NewInnerEnvironmentToken *)t;
+		regs[n++] = e->dest_register; regs[n++] = e->parent_register; break; }
+	case TOKEN_TYPE_SWITCH_IMM: regs[n++] = ((const SwitchImmToken *)t)->value_reg; break;
+	case TOKEN_TYPE_STORE_TO_ENVIRONMENT: {
+		const StoreToEnvironmentToken *e = (const StoreToEnvironmentToken *)t;
+		regs[n++] = e->env_register; regs[n++] = e->value_register; break; }
+	case TOKEN_TYPE_FOR_IN_LOOP_INIT: {
+		const ForInLoopInitToken *e = (const ForInLoopInitToken *)t;
+		regs[n++] = e->obj_props_register; regs[n++] = e->obj_register;
+		regs[n++] = e->iter_index_register; regs[n++] = e->iter_size_register; break; }
+	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER: {
+		const ForInLoopNextIterToken *e = (const ForInLoopNextIterToken *)t;
+		regs[n++] = e->next_value_register; regs[n++] = e->obj_props_register;
+		regs[n++] = e->obj_register; regs[n++] = e->iter_index_register;
+		regs[n++] = e->iter_size_register; break; }
+	case TOKEN_TYPE_RESUME_GENERATOR: {
+		const ResumeGeneratorToken *e = (const ResumeGeneratorToken *)t;
+		regs[n++] = e->result_out_reg; regs[n++] = e->return_bool_out_reg; break; }
+	case TOKEN_TYPE_CATCH_BLOCK_START: regs[n++] = ((const CatchBlockStartToken *)t)->arg_register; break;
+	default: break;
+	}
+	return n;
+}
+
+/* Forward-substitute single-use temporaries into their consumer:
+ * `rN = <literal/closure/array/rM>; … f(…, rN, …)` splices the value into the use
+ * and drops the def. A fold is allowed only when rN's value cannot be read after
+ * this def except at the use — either it is redefined within the same basic block
+ * (`contained`), or it is read exactly once function-wide and never through a
+ * special token's hidden register field. Bounded to straight-line, non-jump uses;
+ * register-copy sources must be unmodified up to the use. */
 static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U32Set *labels) {
+	u32 cap = fb->function_object? fb->function_object->frameSize: 0;
+	if (cap == 0) {
+		return SUCCESS_RESULT ();
+	}
+	/* Function-wide tallies (folding only moves a read, so these stay valid):
+	 * reads_fw[r] = right-hand-reg read count; field_use[r] = referenced by a
+	 * special token via an int field the read counter can't see. */
+	int *reads_fw = (int *)calloc (cap, sizeof (int));
+	bool *field_use = (bool *)calloc (cap, sizeof (bool));
+	if (!reads_fw || !field_use) {
+		free (reads_fw);
+		free (field_use);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "forward_substitute alloc");
+	}
+	for (u32 si = 0; si < fb->statements_count; si++) {
+		if (dce && dce[si]) {
+			continue;
+		}
+		for (const Token *t = fb->statements[si].head; t; t = t->next) {
+			if (t->type == TOKEN_TYPE_RIGHT_HAND_REG) {
+				int r = ((const RightHandRegToken *)t)->reg_num;
+				if (r >= 0 && (u32)r < cap) {
+					reads_fw[r]++;
+				}
+			} else {
+				int regs[5];
+				int n = special_token_regs (t, regs);
+				for (int i = 0; i < n; i++) {
+					if (regs[i] >= 0 && (u32)regs[i] < cap) {
+						field_use[regs[i]] = true;
+					}
+				}
+			}
+		}
+	}
 	for (u32 si = 0; si < fb->statements_count; si++) {
 		if (dce && dce[si]) {
 			continue;
@@ -2591,10 +2698,14 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 			continue;
 		}
 		Token *rhs = head->next->next;
-		if (!is_pure_single_rhs (rhs)) {
+		int input_reg = -1;
+		if (!classify_single_rhs (rhs, &input_reg)) {
 			continue;
 		}
 		int rN = ((LeftHandRegToken *)head)->reg_num;
+		if (input_reg == rN || (u32)rN >= cap) {
+			continue; /* `rN = rN` no-op, or out of range */
+		}
 		/* the def must not be a branch target (straight-line into the use) */
 		if (u32set_contains (labels, st->assembly->original_pos)) {
 			continue;
@@ -2602,6 +2713,7 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 		int use_si = -1;
 		int reads = 0;
 		bool bail = false;
+		bool contained = false;
 		for (u32 sj = si + 1; sj < fb->statements_count && !bail; sj++) {
 			if (dce && dce[sj]) {
 				continue;
@@ -2611,11 +2723,18 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 				continue;
 			}
 			if (u32set_contains (labels, sj_st->assembly->original_pos)) {
-				break; /* basic-block boundary before the use */
+				break; /* basic-block boundary: rN's value escapes */
 			}
 			Token *jh = sj_st->head;
-			int r = count_rhr (jh, rN);
 			bool is_jump = jh->type == TOKEN_TYPE_JUMP_CONDITION || jh->type == TOKEN_TYPE_JUMP_NOT_CONDITION;
+			/* Bail on statements whose registers aren't fully visible (for-in,
+			 * switch, env, …): the read count below would be unreliable. Jumps
+			 * are handled separately as basic-block terminators. */
+			if (!is_jump && !stmt_is_simple (jh)) {
+				bail = true;
+				break;
+			}
+			int r = count_rhr (jh, rN);
 			if (r > 0) {
 				if (is_jump) {
 					bail = true; /* don't fold into conditions (loop matching) */
@@ -2626,14 +2745,26 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 					use_si = (int)sj;
 				}
 			}
-			if (jh->type == TOKEN_TYPE_LEFT_HAND_REG && ((LeftHandRegToken *)jh)->reg_num == rN) {
-				break; /* rN redefined: its def lifetime ends here */
+			/* a register copy can only be folded if its source is unchanged up to
+			 * the use (a statement before the use writing it would be read instead) */
+			else if (input_reg >= 0 && use_si < 0 && stmt_writes_reg (jh, input_reg)) {
+				bail = true;
+				break;
+			}
+			if (stmt_writes_reg (jh, rN)) {
+				/* rN redefined before the block ends: its value is contained, so
+				 * no later block can read this def — safe to substitute. */
+				contained = true;
+				break;
 			}
 			if (is_jump) {
-				break; /* basic-block terminator */
+				break; /* basic-block terminator: rN's value escapes */
 			}
 		}
-		if (bail || use_si < 0 || reads != 1) {
+		/* value safety: contained in this block, or read exactly once across the
+		 * whole function with no hidden field reference. */
+		bool safe = contained || (reads_fw[rN] == 1 && !field_use[rN]);
+		if (bail || use_si < 0 || reads != 1 || !safe) {
 			continue;
 		}
 		/* splice the rhs in place of the single RHR(rN) in the use */
@@ -2658,6 +2789,8 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 		 * position, so a folded def that is a loop/frame anchor still opens its
 		 * block. (Not DCE'd, which would skip the structural emission too.) */
 	}
+	free (reads_fw);
+	free (field_use);
 	return SUCCESS_RESULT ();
 }
 

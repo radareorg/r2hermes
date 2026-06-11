@@ -251,7 +251,7 @@ CMDS=<<EOF
 pd:hc 6~for (,continue
 EOF
 EXPECT=<<EOF
-    for (r6 in r9)
+    for (r6 in r5)
       if (!r11) continue;
 EOF
 RUN
@@ -262,7 +262,7 @@ CMDS=<<EOF
 pd:hc 6~for (r6 in,goto loc_0003e68d,loc_0003e68d:
 EOF
 EXPECT=<<EOF
-    for (r6 in r9)
+    for (r6 in r5)
 EOF
 RUN
 
