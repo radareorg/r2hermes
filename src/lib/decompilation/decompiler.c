@@ -2097,7 +2097,12 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 				ghead = s->head;
 			}
 		}
-		if (!be_head || !ghead || exit_addr == UINT32_MAX) {
+		if (exit_addr == UINT32_MAX) {
+			continue;
+		}
+		/* record the exit for every loop (used for `break` reconstruction) */
+		fb->dowhile_loops[i].exit_addr = exit_addr;
+		if (!be_head || !ghead) {
 			continue;
 		}
 		/* guard must be a conditional jump to the loop exit, testing the same
@@ -2110,9 +2115,38 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 			continue;
 		}
 		fb->dowhile_loops[i].guard_pos = guard_pos;
-		fb->dowhile_loops[i].exit_addr = exit_addr;
 	}
 	return SUCCESS_RESULT ();
+}
+
+/* True when a goto at `pos` targeting `target` should render as `break;`:
+ * `target` is the exit of the innermost do-while/while loop whose body contains
+ * `pos`. for(;;) loops are excluded — their exit-if is kept structured and the
+ * loop closes with its own `break;`, so converting jumps there would double it. */
+static bool is_break_target(const DecompiledFunctionBody *fb, u32 pos, u32 target) {
+	u32 best_span = UINT32_MAX;
+	u32 best_exit = UINT32_MAX;
+	bool found = false;
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		u32 top = fb->dowhile_loops[i].top;
+		u32 be = fb->dowhile_loops[i].back_edge;
+		u32 ex = fb->dowhile_loops[i].exit_addr;
+		if (ex != 0 && pos >= top && pos < be && be - top < best_span) {
+			best_span = be - top;
+			best_exit = ex;
+			found = true;
+		}
+	}
+	/* a for(;;) body containing pos blocks an outer do-while break (it would be
+	 * a labeled break out of the inner loop, not expressible) */
+	for (u32 i = 0; i < fb->forever_loops_count; i++) {
+		u32 top = fb->forever_loops[i].top;
+		u32 ex = fb->forever_loops[i].exit;
+		if (pos >= top && pos < ex && ex - top < best_span) {
+			return false;
+		}
+	}
+	return found && target == best_exit;
 }
 
 static int while_guard_index(const DecompiledFunctionBody *fb, u32 pos, u32 target) {
@@ -2488,8 +2522,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, pos));
 
-			/* Infinite-loop exit: the enclosing if has closed, so the
-			 * fall-through here `break;`s out and the `for (;;)` closes. */
+			/* Infinite-loop exit: the enclosing if (kept structured) has closed,
+			 * so the fall-through here `break;`s out and the `for (;;)` closes. */
 			for (u32 fl = 0; fl < function_body->forever_loops_count; fl++) {
 				if (function_body->forever_loops[fl].exit == pos) {
 					RETURN_IF_ERROR (append_indent (out, state->indent_level));
@@ -2650,16 +2684,17 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			unsigned long long lbl_abs = (unsigned long long) (state->options.function_base + lbl_rel);
 
 			bool is_continue = forin_is_continue_target (function_body, target_addr);
+			u32 pos = asm_ref? asm_ref->original_pos: 0;
+			bool is_break = !is_continue && is_break_target (function_body, pos, target_addr);
 
 			if (jump_is_unconditional (head)) {
-				/* A bare jump to a for-in loop top is a `continue` (the
-				 * structural back-edge was already silenced in pass3). */
-				RETURN_IF_ERROR (is_continue?
-					_hbc_string_buffer_append (out, "continue;\n"): emit_goto (out, lbl_abs));
+				/* A bare jump to a loop top is a `continue`, to a loop exit a
+				 * `break`; otherwise a plain goto. */
+				RETURN_IF_ERROR (is_continue? _hbc_string_buffer_append (out, "continue;\n"):
+					is_break? _hbc_string_buffer_append (out, "break;\n"): emit_goto (out, lbl_abs));
 				continue;
 			}
 
-			u32 pos = asm_ref? asm_ref->original_pos: 0;
 			/* Force goto-form when an if-block would cross a structured
 			 * try/catch boundary (open/close brace mismatch); otherwise allow
 			 * structured if-blocks even in functions that contain catches. */
@@ -2684,7 +2719,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				u32 fexit = function_body->forever_loops[fl].exit;
 				crosses_forever = (pos >= function_body->forever_loops[fl].top && pos < fexit && target_addr > fexit);
 			}
-			bool goto_form = is_continue || crosses_catch || crosses_loop || crosses_forever || target_addr <= pos ||
+			bool goto_form = is_continue || is_break || crosses_catch || crosses_loop || crosses_forever || target_addr <= pos ||
 				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1].end);
 			/* A matching entry guard opens its loop as `while (cond) {` (the
 			 * inner do/while is suppressed); otherwise a plain `if (cond)`. */
@@ -2733,8 +2768,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 					si = sj;
 					sj++;
 				}
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") "));
-				RETURN_IF_ERROR (emit_goto (out, lbl_abs));
+				/* A conditional jump to a loop exit is a guarded `break`. */
+				if (is_break) {
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") break;\n"));
+				} else {
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") "));
+					RETURN_IF_ERROR (emit_goto (out, lbl_abs));
+				}
 			} else {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
 				/* Recover an if/else: if the then-branch ends in `goto END` and

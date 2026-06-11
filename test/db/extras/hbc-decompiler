@@ -383,3 +383,14 @@ EXPECT=<<EOF
     break;
 EOF
 RUN
+
+NAME=pd:hc break reconstruction renders loop-exit goto as break
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 3406~while (r0,break,goto loc
+EOF
+EXPECT=<<EOF
+  while (r0<r2) {
+    if (r6>=r5) break;
+EOF
+RUN
