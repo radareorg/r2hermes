@@ -340,3 +340,46 @@ EXPECT=<<EOF
     } while (r2<r1);
 EOF
 RUN
+
+NAME=pd:hc if-else reconstruction with no trailing goto or join label
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 311~if (!r0) {,} else {,goto,loc_
+EOF
+EXPECT=<<EOF
+  if (!r0) {
+  } else {
+EOF
+RUN
+
+NAME=pd:hc short-circuit OR merges consecutive same-target conditional gotos
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 730~ || r2===r20 ||
+EOF
+EXPECT=<<EOF
+    if (r1===r20 || r2===r20 || r3===r20 || r4===r20) goto loc_00055f28;
+EOF
+RUN
+
+NAME=pd:hc while loop folds entry guard and do-while into a while header
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 2303~while (r2,do {,goto
+EOF
+EXPECT=<<EOF
+  while (r2!=r1) {
+EOF
+RUN
+
+NAME=pd:hc infinite loop structures as for(;;) with continue and break
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 3896~for (,continue,break
+EOF
+EXPECT=<<EOF
+  for (;;) {
+      continue;
+    break;
+EOF
+RUN

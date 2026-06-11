@@ -311,17 +311,33 @@ static Result dowhile_loop_push(DecompiledFunctionBody *fb, u32 top, u32 back_ed
 	RETURN_IF_ERROR (grow_array (&fb->dowhile_loops, &fb->dowhile_loops_capacity, fb->dowhile_loops_count, sizeof (fb->dowhile_loops[0]), 8));
 	fb->dowhile_loops[fb->dowhile_loops_count].top = top;
 	fb->dowhile_loops[fb->dowhile_loops_count].back_edge = back_edge;
+	fb->dowhile_loops[fb->dowhile_loops_count].guard_pos = UINT32_MAX;
+	fb->dowhile_loops[fb->dowhile_loops_count].exit_addr = 0;
+	fb->dowhile_loops[fb->dowhile_loops_count].promoted = false;
 	fb->dowhile_loops_count++;
 	return SUCCESS_RESULT ();
 }
 
-static bool dowhile_is_top(const DecompiledFunctionBody *fb, u32 addr) {
+static int dowhile_loop_at_top(const DecompiledFunctionBody *fb, u32 addr) {
 	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
 		if (fb->dowhile_loops[i].top == addr) {
-			return true;
+			return (int)i;
 		}
 	}
-	return false;
+	return -1;
+}
+
+static bool dowhile_is_top(const DecompiledFunctionBody *fb, u32 addr) {
+	return dowhile_loop_at_top (fb, addr) >= 0;
+}
+
+static int dowhile_loop_at_backedge(const DecompiledFunctionBody *fb, u32 pos) {
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		if (fb->dowhile_loops[i].back_edge == pos) {
+			return (int)i;
+		}
+	}
+	return -1;
 }
 
 /* True when the statement at `pos` is a do-while back-edge; that jump renders
@@ -479,30 +495,69 @@ static Result env_slot_resolve(Environment *env, int slot_index, const char **na
 	return SUCCESS_RESULT ();
 }
 
+/* An open if-block. `end` is where it closes (`}`). When `else_end` is nonzero
+ * the then-branch ended in `goto end_addr`, so the close becomes `} else {` and
+ * the block stays open (with end=else_end) until the join at `else_end`.
+ * `goto_pos` is the trailing then-goto to suppress. */
+typedef struct {
+	u32 end;
+	u32 else_end;
+	u32 goto_pos;
+} IfFrame;
+
+/* An if/else region recovered from `if (c) { then; goto END; } <else> END:`. */
+typedef struct {
+	u32 cond_pos;  /* the if-condition jump */
+	u32 else_addr; /* if-block close / else entry */
+	u32 end_addr;  /* else-block close (join) */
+	u32 goto_pos;  /* trailing then-goto, suppressed */
+	bool active;   /* set once the if is opened as a structured block */
+} IfElseRegion;
+
 /* Output code helper struct and cleanup */
 typedef struct {
 	u32 *frame_starts;
 	u32 *frame_ends;
-	u32 *if_block_stack;
+	IfFrame *if_block_stack;
 	u32 if_block_stack_count;
 	u32 if_block_stack_cap;
+	IfElseRegion *ifelse;
+	u32 ifelse_count;
+	u32 ifelse_cap;
 } OutputBuffers;
 
 static inline void output_buffers_fini(OutputBuffers *ob) {
 	free (ob->frame_starts);
 	free (ob->frame_ends);
 	free (ob->if_block_stack);
+	free (ob->ifelse);
 }
 
-static inline Result if_block_stack_push(OutputBuffers *ob, u32 target_addr) {
-	RETURN_IF_ERROR (grow_array (&ob->if_block_stack, &ob->if_block_stack_cap, ob->if_block_stack_count, sizeof (u32), 16));
-	ob->if_block_stack[ob->if_block_stack_count++] = target_addr;
+static inline Result if_block_stack_push(OutputBuffers *ob, u32 end_addr, u32 else_end, u32 goto_pos) {
+	RETURN_IF_ERROR (grow_array (&ob->if_block_stack, &ob->if_block_stack_cap, ob->if_block_stack_count, sizeof (IfFrame), 16));
+	ob->if_block_stack[ob->if_block_stack_count++] = (IfFrame){ .end = end_addr, .else_end = else_end, .goto_pos = goto_pos };
 	return SUCCESS_RESULT ();
 }
 
-/* Pop if-blocks whose end address is at or before pos; UINT32_MAX pops all. */
+/* Close (or convert to `} else {`) if-blocks whose end is at or before pos;
+ * UINT32_MAX pops all. */
 static Result close_if_blocks(HermesDecompiler *state, StringBuffer *out, OutputBuffers *ob, u32 pos) {
-	while (ob->if_block_stack_count > 0 && ob->if_block_stack[ob->if_block_stack_count - 1] <= pos) {
+	while (ob->if_block_stack_count > 0) {
+		IfFrame *top = &ob->if_block_stack[ob->if_block_stack_count - 1];
+		if (top->end > pos) {
+			break;
+		}
+		if (top->else_end != 0 && top->else_end > pos && pos != UINT32_MAX) {
+			/* then-branch closed at the else entry: open the else clause */
+			state->indent_level--;
+			RETURN_IF_ERROR (append_indent (out, state->indent_level));
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} else {\n"));
+			state->indent_level++;
+			top->end = top->else_end;
+			top->else_end = 0;
+			top->goto_pos = 0;
+			continue;
+		}
 		ob->if_block_stack_count--;
 		RETURN_IF_ERROR (emit_close_brace (state, out));
 	}
@@ -600,6 +655,7 @@ void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 	free (body->nested_frames);
 	free (body->forin_continue_targets);
 	free (body->dowhile_loops);
+	free (body->forever_loops);
 	if (body->owned_environments) {
 		for (u32 i = 0; i < body->owned_environments_count; i++) {
 			Environment *env = body->owned_environments[i];
@@ -1990,6 +2046,267 @@ static Result detect_dowhile_loops(DecompiledFunctionBody *fb, const bool *dce) 
 	return SUCCESS_RESULT ();
 }
 
+/* True if two conditions render to the same text (used to match a loop entry
+ * guard against the back-edge test). */
+static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
+	StringBuffer ba = { 0 };
+	StringBuffer bb = { 0 };
+	bool ok = false;
+	if (_hbc_string_buffer_init (&ba, 32).code == RESULT_SUCCESS &&
+		_hbc_string_buffer_init (&bb, 32).code == RESULT_SUCCESS &&
+		append_condition_tokens (&ba, a, inv_a).code == RESULT_SUCCESS &&
+		append_condition_tokens (&bb, b, inv_b).code == RESULT_SUCCESS &&
+		ba.data && bb.data) {
+		ok = strcmp (ba.data, bb.data) == 0;
+	}
+	_hbc_string_buffer_free (&ba);
+	_hbc_string_buffer_free (&bb);
+	return ok;
+}
+
+/* Promote do-while loops wrapped by a matching entry guard to `while` loops:
+ * `if (C) { do { body } while (C); }` becomes `while (C) { body }`. The guard is
+ * the conditional jump immediately before the loop top that skips to the loop
+ * exit when its test (equal to the back-edge test) is false. */
+static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		u32 top = fb->dowhile_loops[i].top;
+		u32 back_edge = fb->dowhile_loops[i].back_edge;
+		/* loop exit = first surviving statement after the back-edge */
+		u32 exit_addr = UINT32_MAX;
+		Token *be_head = NULL;
+		u32 guard_pos = 0;
+		Token *ghead = NULL;
+		for (u32 sj = 0; sj < fb->statements_count; sj++) {
+			if (dce && dce[sj]) {
+				continue;
+			}
+			const TokenString *s = &fb->statements[sj];
+			if (!s->assembly || !s->head) {
+				continue;
+			}
+			u32 p = s->assembly->original_pos;
+			if (p == back_edge) {
+				be_head = s->head;
+			}
+			if (p > back_edge && p < exit_addr) {
+				exit_addr = p;
+			}
+			if (p < top && (!ghead || p > guard_pos)) {
+				guard_pos = p;
+				ghead = s->head;
+			}
+		}
+		if (!be_head || !ghead || exit_addr == UINT32_MAX) {
+			continue;
+		}
+		/* guard must be a conditional jump to the loop exit, testing the same
+		 * condition as the back-edge (in the polarity each would render). */
+		if ((ghead->type != TOKEN_TYPE_JUMP_CONDITION && ghead->type != TOKEN_TYPE_JUMP_NOT_CONDITION) ||
+			jump_is_unconditional (ghead) || jump_target_of (ghead) != exit_addr) {
+			continue;
+		}
+		if (!conditions_match (ghead->next, false, be_head->next, be_head->type == TOKEN_TYPE_JUMP_NOT_CONDITION)) {
+			continue;
+		}
+		fb->dowhile_loops[i].guard_pos = guard_pos;
+		fb->dowhile_loops[i].exit_addr = exit_addr;
+	}
+	return SUCCESS_RESULT ();
+}
+
+static int while_guard_index(const DecompiledFunctionBody *fb, u32 pos, u32 target) {
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		if (fb->dowhile_loops[i].guard_pos == pos && fb->dowhile_loops[i].exit_addr == target) {
+			return (int)i;
+		}
+	}
+	return -1;
+}
+
+static Result forever_loop_push(DecompiledFunctionBody *fb, u32 top, u32 exit) {
+	RETURN_IF_ERROR (grow_array (&fb->forever_loops, &fb->forever_loops_capacity, fb->forever_loops_count, sizeof (fb->forever_loops[0]), 8));
+	fb->forever_loops[fb->forever_loops_count].top = top;
+	fb->forever_loops[fb->forever_loops_count].exit = exit;
+	fb->forever_loops_count++;
+	return SUCCESS_RESULT ();
+}
+
+static bool forever_is_top(const DecompiledFunctionBody *fb, u32 addr) {
+	for (u32 i = 0; i < fb->forever_loops_count; i++) {
+		if (fb->forever_loops[i].top == addr) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Detect infinite loops: a backward unconditional `goto top` whose loop body
+ * ends in `if (cond) { ...; goto top; }`, so the if's false path exits the loop.
+ * Renders as `for (;;) { ... break; }`. */
+static Result detect_forever_loops(DecompiledFunctionBody *fb, const bool *dce) {
+	for (u32 si = 0; si < fb->statements_count; si++) {
+		if (dce && dce[si]) {
+			continue;
+		}
+		const TokenString *st = &fb->statements[si];
+		if (!st->head || !st->assembly) {
+			continue;
+		}
+		Token *head = st->head;
+		if ((head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || !jump_is_unconditional (head)) {
+			continue;
+		}
+		u32 back_edge = st->assembly->original_pos;
+		u32 raw_target = jump_target_of (head);
+		if (raw_target >= back_edge) {
+			continue;
+		}
+		u32 top = dowhile_snap_target (fb, dce, raw_target);
+		if (top == UINT32_MAX || top >= back_edge || forin_is_continue_target (fb, top) || forever_is_top (fb, top)) {
+			continue;
+		}
+		/* loop exit = first surviving statement after the back-edge */
+		u32 exit = dowhile_snap_target (fb, dce, back_edge + 1);
+		if (exit == UINT32_MAX) {
+			continue;
+		}
+		/* require an enclosing if whose false path is the exit: a conditional
+		 * jump in [top, back_edge) targeting exit. */
+		bool has_exit_if = false;
+		for (u32 sj = 0; sj < fb->statements_count && !has_exit_if; sj++) {
+			if (dce && dce[sj]) {
+				continue;
+			}
+			const TokenString *s2 = &fb->statements[sj];
+			if (!s2->head || !s2->assembly) {
+				continue;
+			}
+			u32 p = s2->assembly->original_pos;
+			has_exit_if = p >= top && p < back_edge &&
+				(s2->head->type == TOKEN_TYPE_JUMP_CONDITION || s2->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+				!jump_is_unconditional (s2->head) && jump_target_of (s2->head) == exit;
+		}
+		if (!has_exit_if) {
+			continue;
+		}
+		RETURN_IF_ERROR (forever_loop_push (fb, top, exit));
+		RETURN_IF_ERROR (forin_continue_target_push (fb, top));
+	}
+	return SUCCESS_RESULT ();
+}
+
+/* Number of surviving jump statements that target `addr`. */
+static u32 label_ref_count(const DecompiledFunctionBody *fb, const bool *dce, u32 addr) {
+	u32 n = 0;
+	for (u32 i = 0; i < fb->statements_count; i++) {
+		if (dce && dce[i]) {
+			continue;
+		}
+		const TokenString *st = &fb->statements[i];
+		if (st->head && (st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			jump_target_of (st->head) == addr) {
+			n++;
+		}
+	}
+	return n;
+}
+
+/* Detect if/else regions: `if (cond) goto ELSE; <then>; goto END; ELSE: <else>;
+ * END:` where the then-branch (the fall-through of the conditional) ends in an
+ * unconditional `goto END` past the else entry. */
+static Result detect_if_else(DecompiledFunctionBody *fb, const bool *dce, OutputBuffers *ob) {
+	for (u32 si = 0; si < fb->statements_count; si++) {
+		if (dce && dce[si]) {
+			continue;
+		}
+		const TokenString *st = &fb->statements[si];
+		if (!st->head || !st->assembly) {
+			continue;
+		}
+		Token *head = st->head;
+		if ((head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || jump_is_unconditional (head)) {
+			continue;
+		}
+		u32 cond_pos = st->assembly->original_pos;
+		u32 else_addr = jump_target_of (head);
+		if (else_addr <= cond_pos) {
+			continue;
+		}
+		/* last surviving statement strictly before else_addr */
+		u32 goto_pos = UINT32_MAX;
+		Token *ghead = NULL;
+		for (u32 sj = si + 1; sj < fb->statements_count; sj++) {
+			if (dce && dce[sj]) {
+				continue;
+			}
+			const TokenString *s2 = &fb->statements[sj];
+			if (!s2->assembly) {
+				continue;
+			}
+			if (s2->assembly->original_pos >= else_addr) {
+				break;
+			}
+			goto_pos = s2->assembly->original_pos;
+			ghead = s2->head;
+		}
+		if (!ghead || (ghead->type != TOKEN_TYPE_JUMP_CONDITION && ghead->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || !jump_is_unconditional (ghead)) {
+			continue;
+		}
+		u32 end_addr = jump_target_of (ghead);
+		if (end_addr <= else_addr) {
+			continue;
+		}
+		RETURN_IF_ERROR (grow_array (&ob->ifelse, &ob->ifelse_cap, ob->ifelse_count, sizeof (IfElseRegion), 16));
+		ob->ifelse[ob->ifelse_count++] = (IfElseRegion){ .cond_pos = cond_pos, .else_addr = else_addr, .end_addr = end_addr, .goto_pos = goto_pos, .active = false };
+	}
+	return SUCCESS_RESULT ();
+}
+
+static IfElseRegion *ifelse_region_at(OutputBuffers *ob, u32 cond_pos, u32 else_addr) {
+	for (u32 i = 0; i < ob->ifelse_count; i++) {
+		if (ob->ifelse[i].cond_pos == cond_pos && ob->ifelse[i].else_addr == else_addr) {
+			return &ob->ifelse[i];
+		}
+	}
+	return NULL;
+}
+
+/* True if the else region [cond_pos, end_addr] would cross a structured catch
+ * boundary or exit a do-while body (its `}` would then mis-nest). */
+static bool ifelse_region_crosses(const DecompiledFunctionBody *fb, const StructuredCatch *plans, u32 nplans, u32 cond_pos, u32 end_addr) {
+	for (u32 ci = 0; ci < nplans; ci++) {
+		const StructuredCatch *p = &plans[ci];
+		if ((cond_pos < p->try_start && p->try_start <= end_addr) ||
+			(cond_pos < p->catch_start && p->catch_start <= end_addr) ||
+			(cond_pos < p->catch_end && p->catch_end <= end_addr)) {
+			return true;
+		}
+	}
+	for (u32 li = 0; li < fb->dowhile_loops_count; li++) {
+		u32 be = fb->dowhile_loops[li].back_edge;
+		if (cond_pos >= fb->dowhile_loops[li].top && cond_pos < be && end_addr > be) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Suppress a join label that an active if/else folded away (its only referrer
+ * was the structured if-condition jump or the suppressed then-goto). */
+static bool ifelse_label_suppressed(const OutputBuffers *ob, const DecompiledFunctionBody *fb, const bool *dce, u32 addr) {
+	for (u32 i = 0; i < ob->ifelse_count; i++) {
+		const IfElseRegion *r = &ob->ifelse[i];
+		if (!r->active) {
+			continue;
+		}
+		if ((addr == r->else_addr || addr == r->end_addr) && label_ref_count (fb, dce, addr) == 1) {
+			return true;
+		}
+	}
+	return false;
+}
+
 Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !function_body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_output_code args");
@@ -2077,6 +2394,18 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		free (dce);
 		return dw_result;
 	}
+	Result wl_result = detect_while_loops (function_body, dce);
+	if (wl_result.code != RESULT_SUCCESS) {
+		output_buffers_fini (&ob);
+		free (dce);
+		return wl_result;
+	}
+	Result fl_result = detect_forever_loops (function_body, dce);
+	if (fl_result.code != RESULT_SUCCESS) {
+		output_buffers_fini (&ob);
+		free (dce);
+		return fl_result;
+	}
 
 	u32 plan_func_sz = function_body->function_object? function_body->function_object->bytecodeSizeInBytes: 0;
 	U32Set goto_labels = { 0 };
@@ -2108,6 +2437,15 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		free (dce);
 		u32set_free (&goto_labels);
 		return catch_res;
+	}
+
+	Result ie_res = detect_if_else (function_body, dce, &ob);
+	if (ie_res.code != RESULT_SUCCESS) {
+		output_buffers_fini (&ob);
+		free (dce);
+		u32set_free (&goto_labels);
+		free (catch_plans);
+		return ie_res;
 	}
 
 	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, stmt_count=%u\n",
@@ -2150,10 +2488,22 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, pos));
 
+			/* Infinite-loop exit: the enclosing if has closed, so the
+			 * fall-through here `break;`s out and the `for (;;)` closes. */
+			for (u32 fl = 0; fl < function_body->forever_loops_count; fl++) {
+				if (function_body->forever_loops[fl].exit == pos) {
+					RETURN_IF_ERROR (append_indent (out, state->indent_level));
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "break;\n"));
+					RETURN_IF_ERROR (emit_close_brace (state, out));
+				}
+			}
+
 			/* Goto target labels for control flow that does not nest as if-blocks */
 			while (label_idx < goto_labels.count && goto_labels.data[label_idx] <= pos) {
-				if (!structured_catch_at (catch_plans, catch_plan_count, goto_labels.data[label_idx], 'c')) {
-					RETURN_IF_ERROR (emit_label (out, state->options.function_base + goto_labels.data[label_idx], false));
+				u32 la = goto_labels.data[label_idx];
+				if (!structured_catch_at (catch_plans, catch_plan_count, la, 'c') &&
+					!ifelse_label_suppressed (&ob, function_body, dce, la)) {
+					RETURN_IF_ERROR (emit_label (out, state->options.function_base + la, false));
 				}
 				label_idx++;
 			}
@@ -2170,10 +2520,19 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "try {\n"));
 				state->indent_level++;
 			}
-			/* do-while loop top: the back-edge below closes it as `} while`. */
-			if (dowhile_is_top (function_body, pos)) {
+			/* do-while loop top: the back-edge below closes it as `} while`.
+			 * A promoted loop opens as `while (cond) {` at its guard instead. */
+			int dw_top = dowhile_loop_at_top (function_body, pos);
+			if (dw_top >= 0 && !function_body->dowhile_loops[dw_top].promoted) {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "do {\n"));
+				state->indent_level++;
+			}
+			/* infinite loop top: `for (;;) {`; the backward goto becomes a
+			 * `continue` and the exit emits `break;` then the close. */
+			if (forever_is_top (function_body, pos)) {
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "for (;;) {\n"));
 				state->indent_level++;
 			}
 		}
@@ -2206,17 +2565,32 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 		}
 
-		/* do-while back-edge: render the closing `} while (cond);` in place of
-		 * the backward conditional `if (cond) goto top`. */
-		if (asm_ref && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
-			!jump_is_unconditional (head) &&
-			dowhile_is_back_edge (function_body, asm_ref->original_pos)) {
-			state->indent_level--;
-			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} while ("));
-			RETURN_IF_ERROR (append_condition_tokens (out, head->next, head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ");\n"));
+		/* Suppress the trailing then-goto of a recovered if/else; the `} else {`
+		 * at the join replaces it. */
+		if (asm_ref && ob.if_block_stack_count > 0 &&
+			ob.if_block_stack[ob.if_block_stack_count - 1].goto_pos == asm_ref->original_pos &&
+			(head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			jump_is_unconditional (head)) {
 			continue;
+		}
+
+		/* do-while back-edge: render the closing `} while (cond);` in place of
+		 * the backward conditional `if (cond) goto top`. For a promoted while
+		 * loop the back-edge is implicit in the `while` header, so drop it. */
+		if (asm_ref && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			!jump_is_unconditional (head)) {
+			int dw_be = dowhile_loop_at_backedge (function_body, asm_ref->original_pos);
+			if (dw_be >= 0) {
+				if (function_body->dowhile_loops[dw_be].promoted) {
+					continue;
+				}
+				state->indent_level--;
+				RETURN_IF_ERROR (append_indent (out, state->indent_level));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} while ("));
+				RETURN_IF_ERROR (append_condition_tokens (out, head->next, head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ");\n"));
+				continue;
+			}
 		}
 
 		/* Calculate absolute address for offset display and comments */
@@ -2285,8 +2659,6 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				continue;
 			}
 
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "if ("));
-
 			u32 pos = asm_ref? asm_ref->original_pos: 0;
 			/* Force goto-form when an if-block would cross a structured
 			 * try/catch boundary (open/close brace mismatch); otherwise allow
@@ -2305,17 +2677,80 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				u32 be = function_body->dowhile_loops[li].back_edge;
 				crosses_loop = (pos >= function_body->dowhile_loops[li].top && pos < be && target_addr > be);
 			}
-			bool goto_form = is_continue || crosses_catch || crosses_loop || target_addr <= pos ||
-				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1]);
+			/* An if-block inside a for(;;) body whose target jumps past the loop
+			 * exit would close after the loop; keep it as a goto (break). */
+			bool crosses_forever = false;
+			for (u32 fl = 0; fl < function_body->forever_loops_count && !crosses_forever; fl++) {
+				u32 fexit = function_body->forever_loops[fl].exit;
+				crosses_forever = (pos >= function_body->forever_loops[fl].top && pos < fexit && target_addr > fexit);
+			}
+			bool goto_form = is_continue || crosses_catch || crosses_loop || crosses_forever || target_addr <= pos ||
+				(ob.if_block_stack_count > 0 && target_addr > ob.if_block_stack[ob.if_block_stack_count - 1].end);
+			/* A matching entry guard opens its loop as `while (cond) {` (the
+			 * inner do/while is suppressed); otherwise a plain `if (cond)`. */
+			int wl = (!goto_form && !is_continue)? while_guard_index (function_body, pos, target_addr): -1;
+			if (wl >= 0) {
+				function_body->dowhile_loops[wl].promoted = true;
+			}
+			RETURN_IF_ERROR (_hbc_string_buffer_append (out, wl >= 0? "while (": "if ("));
 			RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
 			if (is_continue) {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") continue;\n"));
 			} else if (goto_form) {
+				/* Short-circuit OR: fold consecutive same-target conditional
+				 * gotos into one `if (c1 || c2 || ...) goto T`. Only across
+				 * statements whose skip drops no label or block boundary. */
+				u32 sj = si + 1;
+				while (sj < function_body->statements_count) {
+					if (dce && dce[sj]) {
+						sj++;
+						continue;
+					}
+					TokenString *ns = &function_body->statements[sj];
+					if (!ns->head || !ns->assembly) {
+						break;
+					}
+					if ((ns->head->type != TOKEN_TYPE_JUMP_CONDITION && ns->head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) ||
+						jump_is_unconditional (ns->head) || jump_target_of (ns->head) != target_addr) {
+						break;
+					}
+					u32 np = ns->assembly->original_pos;
+					bool boundary = u32set_contains (&goto_labels, np) ||
+						dowhile_is_top (function_body, np) || dowhile_is_back_edge (function_body, np) ||
+						forin_is_continue_target (function_body, np);
+					for (u32 ci = 0; ci < catch_plan_count && !boundary; ci++) {
+						const StructuredCatch *p = &catch_plans[ci];
+						boundary = p->try_start == np || p->try_end == np || p->catch_start == np || p->catch_end == np;
+					}
+					for (u32 fi = 0; fi < nf && !boundary; fi++) {
+						boundary = ob.frame_starts[fi] == np || ob.frame_ends[fi] == np;
+					}
+					if (boundary) {
+						break;
+					}
+					RETURN_IF_ERROR (_hbc_string_buffer_append (out, " || "));
+					RETURN_IF_ERROR (append_condition_tokens (out, ns->head->next, ns->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+					si = sj;
+					sj++;
+				}
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") "));
 				RETURN_IF_ERROR (emit_goto (out, lbl_abs));
 			} else {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
-				RETURN_IF_ERROR (if_block_stack_push (&ob, target_addr));
+				/* Recover an if/else: if the then-branch ends in `goto END` and
+				 * the else region [target_addr, END) stays within the enclosing
+				 * block, fold it into `} else { ... }`. */
+				IfElseRegion *ie = ifelse_region_at (&ob, pos, target_addr);
+				u32 else_end = 0, goto_pos = 0;
+				if (ie) {
+					u32 outer_end = ob.if_block_stack_count > 0? ob.if_block_stack[ob.if_block_stack_count - 1].end: UINT32_MAX;
+					if (ie->end_addr <= outer_end && !ifelse_region_crosses (function_body, catch_plans, catch_plan_count, pos, ie->end_addr)) {
+						ie->active = true;
+						else_end = ie->end_addr;
+						goto_pos = ie->goto_pos;
+					}
+				}
+				RETURN_IF_ERROR (if_block_stack_push (&ob, target_addr, else_end, goto_pos));
 				state->indent_level++;
 			}
 			continue;

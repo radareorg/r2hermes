@@ -135,10 +135,25 @@ struct DecompiledFunctionBody {
 	u32 forin_continue_targets_capacity;
 
 	/* do-while loops: `do {` opens at `top`, `} while (cond);` replaces the
-	 * back-edge conditional jump at `back_edge`. */
-	struct { u32 top; u32 back_edge; } *dowhile_loops;
+	 * back-edge conditional jump at `back_edge`. When an entry guard at
+	 * `guard_pos` (jumping to `exit_addr`) tests the same condition, the loop is
+	 * `promoted` to `while (cond) {` (guard + do/while folded into one header). */
+	struct {
+		u32 top;
+		u32 back_edge;
+		u32 guard_pos;
+		u32 exit_addr;
+		bool promoted;
+	} *dowhile_loops;
 	u32 dowhile_loops_count;
 	u32 dowhile_loops_capacity;
+
+	/* Infinite loops: a backward unconditional `goto top` is the back-edge of a
+	 * `for (;;) {` opened at `top`; the enclosing if's false path exits at
+	 * `exit`, where a `break;` and the loop close are emitted. */
+	struct { u32 top; u32 exit; } *forever_loops;
+	u32 forever_loops_count;
+	u32 forever_loops_capacity;
 
 	/* Generated code */
 	TokenString *statements;
