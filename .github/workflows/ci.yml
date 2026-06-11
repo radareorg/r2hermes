@@ -25,7 +25,7 @@ jobs:
         run: make
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v1
+        uses: radareorg/github-actions@v2
       - name: Build r2 plugin
         run: make r2
       - name: Run testsuite
@@ -61,7 +61,7 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v1
+        uses: radareorg/github-actions@v2
 
       - name: Build Debian package
         run: make -C dist/debian SUDO=
