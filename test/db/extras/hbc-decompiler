@@ -372,6 +372,16 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=pd:hc forward substitution folds single-use temp into call
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 199~.call (undefined
+EOF
+EXPECT=<<EOF
+  r0 = r2 .call (undefined, r1);
+EOF
+RUN
+
 NAME=pd:hc if-else reconstruction with no trailing goto or join label
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF

@@ -2546,6 +2546,121 @@ static bool ifelse_label_suppressed(const OutputBuffers *ob, const DecompiledFun
 	return false;
 }
 
+/* Count how many times register `reg` is read (right-hand reg token) in a
+ * statement's token chain. */
+static int count_rhr(const Token *head, int reg) {
+	int n = 0;
+	for (const Token *t = head; t; t = t->next) {
+		if (t->type == TOKEN_TYPE_RIGHT_HAND_REG && ((const RightHandRegToken *)t)->reg_num == reg) {
+			n++;
+		}
+	}
+	return n;
+}
+
+/* A single pure rhs token that can be forward-substituted with no input-register
+ * dependency: a closure reference, or a constant/literal raw token (excluding
+ * anything call-like). Register copies and multi-token rhs are left alone. */
+static bool is_pure_single_rhs(const Token *rhs) {
+	if (!rhs || rhs->next) {
+		return false;
+	}
+	if (rhs->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
+		return true;
+	}
+	if (rhs->type == TOKEN_TYPE_RAW) {
+		const char *t = ((const RawToken *)rhs)->text;
+		return t && !strchr (t, '(');
+	}
+	return false;
+}
+
+/* Forward-substitute single-use pure temporaries into their consumer:
+ * `rN = <literal/closure/array>; … f(…, rN, …)` splices the value into the use
+ * and drops the def. Bounded to single-def / single-use within one basic block
+ * (no label or jump between) and to non-jump uses, so nothing is reordered. */
+static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U32Set *labels) {
+	for (u32 si = 0; si < fb->statements_count; si++) {
+		if (dce && dce[si]) {
+			continue;
+		}
+		TokenString *st = &fb->statements[si];
+		Token *head = st->head;
+		if (!head || !st->assembly || head->type != TOKEN_TYPE_LEFT_HAND_REG ||
+			!head->next || head->next->type != TOKEN_TYPE_ASSIGNMENT) {
+			continue;
+		}
+		Token *rhs = head->next->next;
+		if (!is_pure_single_rhs (rhs)) {
+			continue;
+		}
+		int rN = ((LeftHandRegToken *)head)->reg_num;
+		/* the def must not be a branch target (straight-line into the use) */
+		if (u32set_contains (labels, st->assembly->original_pos)) {
+			continue;
+		}
+		int use_si = -1;
+		int reads = 0;
+		bool bail = false;
+		for (u32 sj = si + 1; sj < fb->statements_count && !bail; sj++) {
+			if (dce && dce[sj]) {
+				continue;
+			}
+			TokenString *sj_st = &fb->statements[sj];
+			if (!sj_st->head || !sj_st->assembly) {
+				continue;
+			}
+			if (u32set_contains (labels, sj_st->assembly->original_pos)) {
+				break; /* basic-block boundary before the use */
+			}
+			Token *jh = sj_st->head;
+			int r = count_rhr (jh, rN);
+			bool is_jump = jh->type == TOKEN_TYPE_JUMP_CONDITION || jh->type == TOKEN_TYPE_JUMP_NOT_CONDITION;
+			if (r > 0) {
+				if (is_jump) {
+					bail = true; /* don't fold into conditions (loop matching) */
+					break;
+				}
+				reads += r;
+				if (use_si < 0) {
+					use_si = (int)sj;
+				}
+			}
+			if (jh->type == TOKEN_TYPE_LEFT_HAND_REG && ((LeftHandRegToken *)jh)->reg_num == rN) {
+				break; /* rN redefined: its def lifetime ends here */
+			}
+			if (is_jump) {
+				break; /* basic-block terminator */
+			}
+		}
+		if (bail || use_si < 0 || reads != 1) {
+			continue;
+		}
+		/* splice the rhs in place of the single RHR(rN) in the use */
+		TokenString *use = &fb->statements[use_si];
+		Token *prev = NULL;
+		Token *target = NULL;
+		for (Token *t = use->head; t; prev = t, t = t->next) {
+			if (t->type == TOKEN_TYPE_RIGHT_HAND_REG && ((RightHandRegToken *)t)->reg_num == rN) {
+				target = t;
+				break;
+			}
+		}
+		if (!target || !prev) {
+			continue;
+		}
+		head->next->next = NULL; /* detach rhs; leaves the def as `rN =` */
+		rhs->next = target->next;
+		prev->next = rhs;
+		_hbc_token_free (target);
+		/* The def is left as an empty `rN =` (head + assignment, no rhs); the
+		 * output loop skips its body AFTER running structural emission for its
+		 * position, so a folded def that is a loop/frame anchor still opens its
+		 * block. (Not DCE'd, which would skip the structural emission too.) */
+	}
+	return SUCCESS_RESULT ();
+}
+
 Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
 	if (!state || !function_body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_output_code args");
@@ -2687,6 +2802,15 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		return ie_res;
 	}
 
+	Result fs_res = forward_substitute (function_body, dce, &goto_labels);
+	if (fs_res.code != RESULT_SUCCESS) {
+		output_buffers_fini (&ob);
+		free (dce);
+		u32set_free (&goto_labels);
+		free (catch_plans);
+		return fs_res;
+	}
+
 	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, stmt_count=%u\n",
 		(unsigned long long)state->options.function_base,
 		function_body->statements_count);
@@ -2781,6 +2905,13 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 
 		Token *head = st->head;
+		/* A def emptied by forward substitution (`rN =` with no rhs) is dropped
+		 * here — after the structural block above ran for its position, so a
+		 * folded def that anchors a loop/frame still opened its block. */
+		if (head->type == TOKEN_TYPE_LEFT_HAND_REG && head->next &&
+			head->next->type == TOKEN_TYPE_ASSIGNMENT && !head->next->next) {
+			continue;
+		}
 		StructuredCatch *try_end = asm_ref? structured_catch_at (catch_plans, catch_plan_count, asm_ref->original_pos, 'e'): NULL;
 		if (try_end && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 			jump_is_unconditional (head) && jump_target_of (head) == try_end->catch_end) {
