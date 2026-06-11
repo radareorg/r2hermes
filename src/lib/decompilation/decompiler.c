@@ -1899,9 +1899,18 @@ static Result append_condition_tokens(StringBuffer *out, Token *cond, bool inver
 /* Emit one token, preceded by a space when the token pair requires it */
 static Result append_token_spaced(StringBuffer *out, Token *t, bool first, TokenType prev) {
 	bool needs_space = !first && token_needs_space (prev, t->type);
+	/* Don't double up: many raw tokens already carry their own padding (`(`,
+	 * `, `, or operator patterns like ` >>> `), so skip the inserted space when
+	 * the previous output ends in `(`/space or this token starts with one. */
+	if (needs_space && out->length > 0) {
+		char last = out->data[out->length - 1];
+		if (last == '(' || last == ' ') {
+			needs_space = false;
+		}
+	}
 	if (needs_space && t->type == TOKEN_TYPE_RAW) {
 		const RawToken *rt = (const RawToken *)t;
-		if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')')) {
+		if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')' || rt->text[0] == ' ')) {
 			needs_space = false;
 		}
 	}
@@ -2850,6 +2859,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 
 		bool emitted_statement = false;
+		bool tail_inline_closure = false;
 		if (head->type == TOKEN_TYPE_SAVE_GENERATOR) {
 			u32 ret_si = si + 1;
 			while (ret_si < function_body->statements_count && dce && dce[ret_si]) {
@@ -3003,14 +3013,17 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 						}
 						if (should_inline_closure (state, fti)) {
 							int saved_indent = state->indent_level;
+							bool saved_inlining = state->inlining_function;
 							state->inlining_function = true;
 							RETURN_IF_ERROR (_hbc_decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
-							state->inlining_function = false;
+							state->inlining_function = saved_inlining;
 							state->indent_level = saved_indent;
+							tail_inline_closure = true;
 						} else {
 							/* Reference the closure by function ID instead of inlining */
 							RETURN_IF_ERROR (_hbc_string_buffer_append (out, "fn_"));
 							RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)fti->function_id));
+							tail_inline_closure = false;
 						}
 						first_tok = false;
 						prev_type = TOKEN_TYPE_RAW;
@@ -3020,13 +3033,22 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (append_token_spaced (out, t, first_tok, prev_type));
 				first_tok = false;
 				prev_type = t->type;
+				tail_inline_closure = false;
 			}
+		}
+
+		/* A statement ending in an inlined closure left a trailing `}\n`; drop
+		 * the newline so the `;` terminator joins it as `};` (and skip the
+		 * trailing comment, which would otherwise swallow the `;`). */
+		if (tail_inline_closure && out->length > 0 && out->data[out->length - 1] == '\n') {
+			out->length--;
+			out->data[out->length] = 0;
 		}
 
 		/* Append r2 comment if available via callback
 		 * Only check comments for statements that have assembly references,
 		 * as we need the bytecode offset for the lookup. */
-		if (state->options.comment_callback && asm_ref) {
+		if (state->options.comment_callback && asm_ref && !tail_inline_closure) {
 			char *comment = state->options.comment_callback (state->options.comment_context, abs_addr);
 			if (comment) {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
@@ -3053,15 +3075,19 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		}
 	}
 
-	/* Flush any labels whose address sits past the last emitted statement. */
-	while (label_idx < goto_labels.count) {
-		RETURN_IF_ERROR (emit_label (out, state->options.function_base + goto_labels.data[label_idx], true));
-		label_idx++;
-	}
+	/* Flush any labels whose address sits past the last emitted statement.
+	 * Skip them once output was truncated — the labels' statements were never
+	 * emitted, so a wall of `loc_XXXX:;` would just be noise after the marker. */
+	if (!state->output_truncated) {
+		while (label_idx < goto_labels.count) {
+			RETURN_IF_ERROR (emit_label (out, state->options.function_base + goto_labels.data[label_idx], true));
+			label_idx++;
+		}
 
-	/* Landing label for jumps that exit the function (target >= func_sz). */
-	if (end_label_addr != UINT32_MAX) {
-		RETURN_IF_ERROR (emit_label (out, state->options.function_base + end_label_addr, true));
+		/* Landing label for jumps that exit the function (target >= func_sz). */
+		if (end_label_addr != UINT32_MAX) {
+			RETURN_IF_ERROR (emit_label (out, state->options.function_base + end_label_addr, true));
+		}
 	}
 
 	/* Closing brace for all functions (global and non-global) */

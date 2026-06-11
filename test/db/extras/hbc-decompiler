@@ -351,6 +351,27 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=pd:hc new Array call has no stray space after the parenthesis
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 513~new Array(0
+EOF
+EXPECT=<<EOF
+  r0 = new Array(0);
+EOF
+RUN
+
+NAME=pd:hc select_object args have single spacing
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+pd:hc 310~select_object(r
+EOF
+EXPECT=<<EOF
+    r2 = select_object(r3, r2);
+    r1 = select_object(r2, r1);
+EOF
+RUN
+
 NAME=pd:hc if-else reconstruction with no trailing goto or join label
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
