@@ -2108,6 +2108,94 @@ static char *render_cond_string(Token *cond, bool invert) {
 	return b.data; /* ownership transferred */
 }
 
+/* True if token `t` renders to register/identifier `reg`. */
+static bool token_is_reg(Token *t, const char *reg) {
+	StringBuffer b = { 0 };
+	bool eq = false;
+	if (_hbc_string_buffer_init (&b, 16).code == RESULT_SUCCESS &&
+		_hbc_token_to_string (t, &b).code == RESULT_SUCCESS && b.data) {
+		eq = streq_nospace (b.data, reg);
+	}
+	_hbc_string_buffer_free (&b);
+	return eq;
+}
+
+static bool stmt_refs_reg(Token *head, const char *reg) {
+	for (Token *t = head; t; t = t->next) {
+		if (token_is_reg (t, reg)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* True if `head` is exactly `reg = <rhs>` with reg not read in the rhs. */
+static bool stmt_is_pure_write(Token *head, const char *reg) {
+	if (!head || !head->next || head->next->type != TOKEN_TYPE_ASSIGNMENT || !token_is_reg (head, reg)) {
+		return false;
+	}
+	for (Token *t = head->next->next; t; t = t->next) {
+		if (token_is_reg (t, reg)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/* The materialized guard's `R = cmp` is dead once the loop is a `while`: R is
+ * overwritten at the loop top before any read and never read after the loop. */
+static bool materialized_def_is_dead(const DecompiledFunctionBody *fb, const bool *dce, u32 top, u32 exit, const char *reg) {
+	Token *top_head = NULL;
+	for (u32 sj = 0; sj < fb->statements_count; sj++) {
+		if (dce && dce[sj]) {
+			continue;
+		}
+		const TokenString *s = &fb->statements[sj];
+		if (!s->assembly || !s->head) {
+			continue;
+		}
+		u32 p = s->assembly->original_pos;
+		if (p == top) {
+			top_head = s->head;
+		}
+		if (p >= exit && stmt_refs_reg (s->head, reg)) {
+			return false; /* read (or rewritten) after the loop */
+		}
+	}
+	return top_head && stmt_is_pure_write (top_head, reg);
+}
+
+/* True if [a, b) overlaps any exception-handler region (so the guard might be
+ * forced to goto-form across a catch boundary, blocking promotion). */
+static bool range_hits_exc(const DecompiledFunctionBody *fb, u32 a, u32 b) {
+	for (u32 i = 0; i < fb->exc_handlers_count; i++) {
+		const ExceptionHandlerInfo *h = &fb->exc_handlers[i];
+		if (h->start < b && a < h->end) {
+			return true;
+		}
+		if (h->target >= a && h->target < b) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* True if `pos` sits inside another loop's body (nested), which can block
+ * promotion or make the def-liveness reasoning unsound. */
+static bool pos_inside_other_loop(const DecompiledFunctionBody *fb, u32 pos, u32 self_top) {
+	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
+		if (fb->dowhile_loops[i].top != self_top && pos >= fb->dowhile_loops[i].top && pos < fb->dowhile_loops[i].back_edge) {
+			return true;
+		}
+	}
+	for (u32 i = 0; i < fb->forever_loops_count; i++) {
+		if (pos >= fb->forever_loops[i].top && pos < fb->forever_loops[i].exit) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* Promote do-while loops wrapped by a matching entry guard to `while` loops:
  * `if (C) { do { body } while (C); }` becomes `while (C) { body }`. The guard is
  * the conditional jump immediately before the loop top that skips to the loop
@@ -2126,7 +2214,7 @@ static bool is_simple_ident(const char *s) {
 	return true;
 }
 
-static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
+static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 	for (u32 i = 0; i < fb->dowhile_loops_count; i++) {
 		u32 top = fb->dowhile_loops[i].top;
 		u32 back_edge = fb->dowhile_loops[i].back_edge;
@@ -2138,6 +2226,8 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 		Token *ghead = NULL;
 		u32 def_pos = 0;
 		Token *dhead = NULL;
+		u32 def_si = UINT32_MAX;
+		u32 guard_si = UINT32_MAX;
 		for (u32 sj = 0; sj < fb->statements_count; sj++) {
 			if (dce && dce[sj]) {
 				continue;
@@ -2157,11 +2247,14 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 				if (!ghead || p > guard_pos) {
 					def_pos = guard_pos;
 					dhead = ghead;
+					def_si = guard_si;
 					guard_pos = p;
 					ghead = s->head;
+					guard_si = sj;
 				} else if (!dhead || p > def_pos) {
 					def_pos = p;
 					dhead = s->head;
+					def_si = sj;
 				}
 			}
 		}
@@ -2199,6 +2292,15 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, const bool *dce) {
 				fb->dowhile_loops[i].guard_pos = guard_pos;
 				fb->dowhile_loops[i].while_cond = be_head->next;
 				fb->dowhile_loops[i].while_cond_invert = be_inv;
+				/* Drop the now-dead `R = cmp` materialization when the loop is
+				 * sure to promote (no catch boundary / outer loop in the way)
+				 * and R is overwritten at the loop top and unused after it. */
+				if (def_si != UINT32_MAX && dce &&
+					!range_hits_exc (fb, guard_pos, exit_addr) &&
+					!pos_inside_other_loop (fb, guard_pos, top) &&
+					materialized_def_is_dead (fb, dce, top, exit_addr, gstr)) {
+					dce[def_si] = true;
+				}
 			}
 			_hbc_string_buffer_free (&lhs);
 		}
