@@ -143,6 +143,7 @@ static HBCDecompOptions make_decompile_options(RCore *core, bool show_offsets, u
 		.force_dispatch = r_config_get_b (core->config, "r2hermes.force_dispatch"),
 		.inline_closures = r_config_get_b (core->config, "r2hermes.inline_closures"),
 		.inline_threshold = r_config_get_i (core->config, "r2hermes.inline_threshold"),
+		.inline_max_depth = r_config_get_i (core->config, "r2hermes.inline_depth"),
 		.max_ast_statements = r_config_get_i (core->config, "r2hermes.max_ast"),
 		.max_output_bytes = r_config_get_i (core->config, "r2hermes.max_bytes")
 	};
@@ -1275,9 +1276,14 @@ static bool plugin_init(RCorePluginSession *s) {
 		r_config_node_desc (node, "Inline closure definitions into parent function (true/false)");
 	}
 
-	node = r_config_set (cfg, "r2hermes.inline_threshold", "0");
+	node = r_config_set (cfg, "r2hermes.inline_threshold", "256");
 	if (node) {
 		r_config_node_desc (node, "Max bytecode size (bytes) for closure inlining (0=no limit, -1=never inline)");
+	}
+
+	node = r_config_set_i (cfg, "r2hermes.inline_depth", 3);
+	if (node) {
+		r_config_node_desc (node, "Max nested inline depth for closures (0=no limit); bounds module-graph explosion");
 	}
 
 	node = r_config_set_i (cfg, "r2hermes.max_ast", 5000);

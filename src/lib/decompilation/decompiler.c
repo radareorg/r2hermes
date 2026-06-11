@@ -827,6 +827,7 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->function_in_progress = NULL;
 	decompiler->indent_level = 0;
 	decompiler->inlining_function = false;
+	decompiler->inline_depth = 0;
 	decompiler->output_truncated = false;
 	decompiler->truncation_marker_emitted = false;
 	decompiler->hbc = NULL; /* Will be set if using state-based API */
@@ -1942,6 +1943,11 @@ static bool should_inline_closure(const HermesDecompiler *state, const FunctionT
 	if (threshold > 0 && state->hbc_reader->function_headers[fti->function_id].bytecodeSizeInBytes > (u32)threshold) {
 		return false;
 	}
+	/* Bound recursive expansion: a module-registry function would otherwise
+	 * inline the whole closure graph (hundreds of levels deep). */
+	if (state->options.inline_max_depth > 0 && state->inline_depth >= state->options.inline_max_depth) {
+		return false;
+	}
 	return ! (state->function_in_progress && state->function_in_progress[fti->function_id]);
 }
 
@@ -3015,7 +3021,9 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 							int saved_indent = state->indent_level;
 							bool saved_inlining = state->inlining_function;
 							state->inlining_function = true;
+							state->inline_depth++;
 							RETURN_IF_ERROR (_hbc_decompile_function (state, fti->function_id, fti->parent_environment, fti->environment_id, fti->is_closure, fti->is_generator, fti->is_async));
+							state->inline_depth--;
 							state->inlining_function = saved_inlining;
 							state->indent_level = saved_indent;
 							tail_inline_closure = true;

@@ -182,6 +182,7 @@ typedef struct HermesDecompiler {
 	bool *function_in_progress; /* Track functions currently on the emit stack */
 	int indent_level;
 	bool inlining_function; /* True when outputting a nested function inline */
+	int inline_depth; /* Current nesting depth of inlined closures */
 	bool output_truncated; /* Sticky flag: budget exceeded; stop emitting new content */
 	bool truncation_marker_emitted; /* Sticky flag: the truncation comment was already written */
 	HBCDecompOptions options;
