@@ -4,14 +4,13 @@
  *
  * Strategy:
  *   - Force a code scan so the SLP literal cache is populated.
- *   - Walk every cached object literal; keep the ones whose formatted JS
- *     text mentions "typescript" — that catches the package.json-style
- *     dependency maps (dependencies / devDependencies / peerDependencies).
+ *   - Walk every cached object literal; keep package.json-style metadata
+ *     objects ({name,version}) and dependency maps ({package: version}).
  *   - The literal formatter prints valid JS identifiers as bare keys
  *({foo: "1.2.3"}), which is not strict JSON. We rewrite bare keys
  *     into quoted ones, then parse with r_json so we don't hand-roll a
  *     key/value parser.
- *   - For each name -> string-version pair, emit a CycloneDX component.
+ *   - Emit each recovered package name and version as a CycloneDX component.
  *
  * Output formats:
  *   r2hermes-S    plaintext (one "name version" per line)
@@ -117,6 +116,24 @@ static char *jsobj_to_json(const char *src) {
 			}
 			continue;
 		}
+		if (isdigit (c)) {
+			const char *start = p;
+			while (*p && (isdigit ((unsigned char)*p) || *p == '.')) {
+				p++;
+			}
+			const char *q = p;
+			while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') {
+				q++;
+			}
+			if (*q == ':') {
+				r_strbuf_append (sb, "\"");
+				r_strbuf_append_n (sb, start, (int) (p - start));
+				r_strbuf_append (sb, "\"");
+			} else {
+				r_strbuf_append_n (sb, start, (int) (p - start));
+			}
+			continue;
+		}
 		char one[2] = { *p, 0 };
 		r_strbuf_append (sb, one);
 		p++;
@@ -124,25 +141,137 @@ static char *jsobj_to_json(const char *src) {
 	return r_strbuf_drain (sb);
 }
 
-/* Extract every name -> string-version pair from one candidate literal. */
-static void sbom_harvest(const char *formatted, SbomCompList *out) {
+static bool sbom_is_npm_name(const char *s) {
+	if (R_STR_ISEMPTY (s) || !strcmp (s, "name") || !strcmp (s, "version")) {
+		return false;
+	}
+	bool scoped = *s == '@';
+	bool slash = false;
+	const char *p = scoped? s + 1: s;
+	while (*p) {
+		unsigned char c = (unsigned char)*p;
+		if (c == '/') {
+			if (!scoped || slash || p == s + 1 || !p[1]) {
+				return false;
+			}
+			slash = true;
+		} else if (!islower (c) && !isdigit (c) && !strchr ("-_.~", c)) {
+			return false;
+		}
+		p++;
+	}
+	return !scoped || slash;
+}
+
+static bool sbom_is_dep_name(const char *s) {
+	if (!sbom_is_npm_name (s)) {
+		return false;
+	}
+	return strchr (s, '/') || strchr (s, '-') || !strcmp (s, "react") || !strcmp (s, "semver") ||
+		!strcmp (s, "eslint") || !strcmp (s, "jest") || !strcmp (s, "knip") || !strcmp (s, "madge") ||
+		!strcmp (s, "prettier") || !strcmp (s, "typescript") || !strcmp (s, "coveralls") ||
+		!strcmp (s, "mocha") || !strcmp (s, "nyc") || !strcmp (s, "rollup");
+}
+
+static bool sbom_is_version_spec(const char *version) {
+	if (R_STR_ISEMPTY (version)) {
+		return false;
+	}
+	static const char *prefixes[] = {
+		"catalog:",
+		"file:",
+		"github:",
+		"link:",
+		"npm:",
+		"patch:",
+		"portal:",
+		"workspace:",
+	};
+	for (size_t i = 0; i < sizeof (prefixes) / sizeof (prefixes[0]); i++) {
+		if (r_str_startswith (version, prefixes[i])) {
+			return true;
+		}
+	}
+	if (!strcmp (version, "latest") || !strcmp (version, "next") || !strcmp (version, "canary")) {
+		return true;
+	}
+	const char *v = version;
+	while (*v && isspace ((unsigned char)*v)) {
+		v++;
+	}
+	if (*v == '^' || *v == '~' || *v == '=' || *v == '<' || *v == '>') {
+		v++;
+		if (*v == '=' || (*v == '>' && v[-1] == '<')) {
+			v++;
+		}
+	}
+	if (!isdigit ((unsigned char)*v) && *v != '*') {
+		return false;
+	}
+	bool digit = false;
+	bool mark = false;
+	bool wildcard = false;
+	for (const char *p = version; *p; p++) {
+		unsigned char c = (unsigned char)*p;
+		if (isdigit (c)) {
+			digit = true;
+		} else if (c == '*') {
+			wildcard = true;
+		} else if (strchr (".xX~^<>=", c)) {
+			mark = true;
+		} else if (!isalpha (c) && !strchr ("-_+|, ", c) && !isspace (c)) {
+			return false;
+		}
+	}
+	return wildcard || (digit && mark);
+}
+
+static bool sbom_is_manifest_key(const char *key) {
+	return !strcmp (key, "description") || !strcmp (key, "license") || !strcmp (key, "main") ||
+		!strcmp (key, "module") || !strcmp (key, "repository") || !strcmp (key, "dependencies") ||
+		!strcmp (key, "devDependencies") || !strcmp (key, "peerDependencies");
+}
+
+/* Extract name/version metadata and dependency-map entries from one literal. */
+static size_t sbom_harvest(const char *formatted, SbomCompList *out) {
+	size_t before = out->count;
 	char *jsonstr = jsobj_to_json (formatted);
 	if (!jsonstr) {
-		return;
+		return 0;
 	}
 	RJson *js = r_json_parsedup (jsonstr);
 	free (jsonstr);
 	if (!js) {
-		return;
+		return 0;
 	}
 	if (js->type == R_JSON_OBJECT) {
+		const char *name = NULL;
+		const char *version = NULL;
+		bool manifest = false;
 		for (RJson *kid = js->children.first; kid; kid = kid->next) {
-			if (kid->type == R_JSON_STRING && kid->key && kid->str_value) {
-				sbom_push (out, kid->key, kid->str_value);
+			if (!kid->key) {
+				continue;
 			}
+			if (sbom_is_manifest_key (kid->key)) {
+				manifest = true;
+			}
+			if (kid->type != R_JSON_STRING || !kid->str_value) {
+				continue;
+			}
+			if (!strcmp (kid->key, "name")) {
+				name = kid->str_value;
+			} else if (!strcmp (kid->key, "version")) {
+				version = kid->str_value;
+			} else if (sbom_is_dep_name (kid->key) && sbom_is_version_spec (kid->str_value)) {
+				(void)sbom_push (out, kid->key, kid->str_value);
+			}
+		}
+		if (manifest && sbom_is_npm_name (name) && sbom_is_version_spec (version)) {
+			(void)sbom_push (out, name, version);
 		}
 	}
 	r_json_free (js);
+	return out->count - before;
 }
 
 static int sbom_comp_cmp(const void *a, const void *b) {
@@ -171,7 +300,7 @@ static void sbom_dedup(SbomCompList *list) {
 
 static void sbom_emit_text(RCore *core, const SbomCompList *list) {
 	if (list->count == 0) {
-		r_cons_println (core->cons, "(no SBOM candidates: no SLP object literal mentions \"typescript\")");
+		r_cons_println (core->cons, "(no SBOM candidates)");
 		return;
 	}
 	r_cons_printf (core->cons, "# SBOM (%zu components)\n", list->count);
@@ -268,20 +397,21 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 		if (e->kind != HBC_LIT_OBJECT || !e->formatted) {
 			continue;
 		}
-		if (!strstr (e->formatted, "typescript")) {
-			continue;
-		}
-		matched++;
 		if (fmt == SBOM_FMT_RAW) {
-			r_cons_printf (core->cons, "# paddr=0x%08x xrefs=%u\n%s\n", e->paddr, e->xref_count, e->formatted);
+			SbomCompList tmp = { 0 };
+			if (sbom_harvest (e->formatted, &tmp) > 0) {
+				matched++;
+				r_cons_printf (core->cons, "# paddr=0x%08x xrefs=%u\n%s\n", e->paddr, e->xref_count, e->formatted);
+			}
+			sbom_free (&tmp);
 		} else {
-			sbom_harvest (e->formatted, &comps);
+			matched += sbom_harvest (e->formatted, &comps) > 0;
 		}
 	}
 
 	if (fmt == SBOM_FMT_RAW) {
 		if (matched == 0) {
-			r_cons_println (core->cons, "(no SLP object literal mentions \"typescript\")");
+			r_cons_println (core->cons, "(no SBOM candidates)");
 		}
 		return;
 	}
