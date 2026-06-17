@@ -31,6 +31,46 @@ typedef enum {
 	OPERAND_MEANING_OBJ_VAL_ID
 } OperandMeaning;
 
+#ifdef SHORT_OPERAND_TYPES
+// Operand Type
+#undef NONE
+#undef R8
+#undef R32
+#undef U8
+#undef U16
+#undef U32
+#undef A8
+#undef A32
+#undef I32
+#undef DBL
+#define NONE (0)
+#define R8 (OPERAND_TYPE_REG8)
+#define R32 (OPERAND_TYPE_REG32)
+#define U8 (OPERAND_TYPE_UINT8)
+#define U16 (OPERAND_TYPE_UINT16)
+#define U32 (OPERAND_TYPE_UINT32)
+#define A8 (OPERAND_TYPE_ADDR8)
+#define A32 (OPERAND_TYPE_ADDR32)
+#define I32 (OPERAND_TYPE_IMM32)
+#define DBL (OPERAND_TYPE_DOUBLE)
+
+// Operand Meanings
+#undef STRN
+#undef BINT
+#undef FUNC
+#undef BLTN
+#undef ARAY
+#undef OBJK
+#undef OBJV
+#define STRN (OPERAND_MEANING_STRING_ID)
+#define BINT (OPERAND_MEANING_BIGINT_ID)
+#define FUNC (OPERAND_MEANING_FUNCTION_ID)
+#define BLTN (OPERAND_MEANING_BUILTIN_ID)
+#define ARAY (OPERAND_MEANING_ARRAY_ID)
+#define OBJK (OPERAND_MEANING_OBJ_KEY_ID)
+#define OBJV (OPERAND_MEANING_OBJ_VAL_ID)
+#endif
+
 /* Instruction operand */
 typedef struct {
 	OperandType operand_type;
