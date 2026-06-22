@@ -218,6 +218,92 @@ static Result require_counted_table(const HBCReader *reader, u32 count, size_t e
 	return require_remaining_bytes (reader, *out, what);
 }
 
+typedef struct {
+	u32 function_source_count;
+	u32 debug_info_offset;
+	u8 flags;
+	size_t end;
+} HeaderTail;
+
+static bool read_u32_at(const BufferReader *reader, size_t pos, u32 *out) {
+	if (!reader || pos > reader->size || sizeof (u32) > reader->size - pos) {
+		return false;
+	}
+	u32 v = 0;
+	for (size_t i = 0; i < sizeof (u32); i++) {
+		v |= (u32)reader->data[pos + i] << (8 * i);
+	}
+	*out = v;
+	return true;
+}
+
+static bool read_u8_at(const BufferReader *reader, size_t pos, u8 *out) {
+	if (!reader || pos >= reader->size) {
+		return false;
+	}
+	*out = reader->data[pos];
+	return true;
+}
+
+static bool header_tail_valid(const HBCReader *reader, const HeaderTail *tail) {
+	if ((tail->flags & ~0x7u) || tail->function_source_count > reader->header.functionCount) {
+		return false;
+	}
+	if (tail->debug_info_offset == 0) {
+		return true;
+	}
+	size_t off = tail->debug_info_offset;
+	return off >= tail->end && off <= reader->file_buffer.size;
+}
+
+static bool read_header_tail_candidate(
+	const HBCReader *reader, size_t start, bool has_function_sources, HeaderTail *tail) {
+	size_t pos = start;
+	memset (tail, 0, sizeof (*tail));
+	if (has_function_sources) {
+		if (!read_u32_at (&reader->file_buffer, pos, &tail->function_source_count)) {
+			return false;
+		}
+		pos += sizeof (u32);
+	}
+	if (!read_u32_at (&reader->file_buffer, pos, &tail->debug_info_offset)) {
+		return false;
+	}
+	pos += sizeof (u32);
+	if (!read_u8_at (&reader->file_buffer, pos, &tail->flags)) {
+		return false;
+	}
+	tail->end = pos + sizeof (u8);
+	return true;
+}
+
+static Result read_header_tail(HBCReader *reader, u32 version) {
+	HeaderTail tail = { 0 };
+	size_t start = reader->file_buffer.position;
+	if (version >= 84) {
+		if (!read_header_tail_candidate (reader, start, true, &tail)) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Invalid Hermes bytecode header tail");
+		}
+		if (!header_tail_valid (reader, &tail)) {
+			HeaderTail compact = { 0 };
+			if (tail.debug_info_offset >= tail.end ||
+				!read_header_tail_candidate (reader, start, false, &compact) ||
+				!header_tail_valid (reader, &compact)) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Invalid Hermes bytecode header tail");
+			}
+			tail = compact;
+		}
+	} else if (!read_header_tail_candidate (reader, start, false, &tail) || !header_tail_valid (reader, &tail)) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Invalid Hermes bytecode header tail");
+	}
+	reader->header.functionSourceCount = tail.function_source_count;
+	reader->header.debugInfoOffset = tail.debug_info_offset;
+	reader->header.staticBuiltins = (tail.flags & 0x01) != 0;
+	reader->header.cjsModulesStaticallyResolved = (tail.flags & 0x02) != 0;
+	reader->header.hasAsync = (tail.flags & 0x04) != 0;
+	return _hbc_buffer_reader_seek (&reader->file_buffer, tail.end);
+}
+
 static Result read_exception_handlers_current(HBCReader *reader, u32 function_id, u32 bytecode_size) {
 	u32 count = 0;
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &count));
@@ -412,23 +498,7 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 	/* Read the CJS module count */
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.cjsModuleCount));
 
-	/* Read the function source count if present (version >= 84) */
-	if (version >= 84) {
-		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.functionSourceCount));
-	} else {
-		reader->header.functionSourceCount = 0;
-	}
-
-	/* Read the debug info offset */
-	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.debugInfoOffset));
-
-	/* Read the option flags */
-	u8 flags;
-	RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags));
-
-	reader->header.staticBuiltins = (flags & 0x01) != 0;
-	reader->header.cjsModulesStaticallyResolved = (flags & 0x02) != 0;
-	reader->header.hasAsync = (flags & 0x04) != 0;
+	RETURN_IF_ERROR (read_header_tail (reader, version));
 
 	/* Skip padding bytes */
 	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 32));

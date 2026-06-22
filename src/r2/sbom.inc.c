@@ -3,9 +3,10 @@
 /* CycloneDX SBOM generation for Hermes bytecode.
  *
  * Strategy:
- *   - Force a code scan so the SLP literal cache is populated.
- *   - Walk every cached object literal; keep package.json-style metadata
- *     objects ({name,version}) and dependency maps ({package: version}).
+ *   - Use string-table package path/name evidence when present.
+ *   - Otherwise scan SLP literals and keep adjacent package/version array
+ *     entries, package.json-style metadata objects ({name,version}), and
+ *     dependency maps ({package: version}).
  *   - The literal formatter prints valid JS identifiers as bare keys
  *({foo: "1.2.3"}), which is not strict JSON. We rewrite bare keys
  *     into quoted ones, then parse with r_json so we don't hand-roll a
@@ -17,6 +18,7 @@
  *   r2hermes-Sj   CycloneDX JSON (built via PJ)
  */
 
+#include <hbc/hbc.h>
 #include <hbc/literals.h>
 
 typedef struct {
@@ -31,8 +33,24 @@ typedef struct {
 } SbomCompList;
 
 static bool sbom_push(SbomCompList *list, const char *name, const char *version) {
-	if (!name || !version) {
+	if (!name) {
 		return false;
+	}
+	for (size_t i = 0; i < list->count; i++) {
+		SbomComp *it = &list->items[i];
+		if (strcmp (it->name, name)) {
+			continue;
+		}
+		if (!version) {
+			return true;
+		}
+		if (!it->version) {
+			it->version = strdup (version);
+			return it->version != NULL;
+		}
+		if (!strcmp (it->version, version)) {
+			return true;
+		}
 	}
 	if (list->count == list->cap) {
 		size_t ncap = list->cap? list->cap * 2: 16;
@@ -44,8 +62,8 @@ static bool sbom_push(SbomCompList *list, const char *name, const char *version)
 		list->cap = ncap;
 	}
 	list->items[list->count].name = strdup (name);
-	list->items[list->count].version = strdup (version);
-	if (!list->items[list->count].name || !list->items[list->count].version) {
+	list->items[list->count].version = version? strdup (version): NULL;
+	if (!list->items[list->count].name || (version && !list->items[list->count].version)) {
 		free (list->items[list->count].name);
 		free (list->items[list->count].version);
 		return false;
@@ -163,14 +181,157 @@ static bool sbom_is_npm_name(const char *s) {
 	return !scoped || slash;
 }
 
+static bool sbom_is_manifest_key(const char *key) {
+	return !strcmp (key, "description") || !strcmp (key, "license") || !strcmp (key, "main") ||
+		!strcmp (key, "module") || !strcmp (key, "repository") || !strcmp (key, "dependencies") ||
+		!strcmp (key, "devDependencies") || !strcmp (key, "peerDependencies");
+}
+
 static bool sbom_is_dep_name(const char *s) {
-	if (!sbom_is_npm_name (s)) {
-		return false;
+	return sbom_is_npm_name (s) && !sbom_is_manifest_key (s);
+}
+
+static bool sbom_pkg_name_char(unsigned char c) {
+	return c && (islower (c) || isdigit (c) || strchr ("-_.~", c));
+}
+
+static char *sbom_parse_pkg_at(const char *s) {
+	if (R_STR_ISEMPTY (s)) {
+		return NULL;
 	}
-	return strchr (s, '/') || strchr (s, '-') || !strcmp (s, "react") || !strcmp (s, "semver") ||
-		!strcmp (s, "eslint") || !strcmp (s, "jest") || !strcmp (s, "knip") || !strcmp (s, "madge") ||
-		!strcmp (s, "prettier") || !strcmp (s, "typescript") || !strcmp (s, "coveralls") ||
-		!strcmp (s, "mocha") || !strcmp (s, "nyc") || !strcmp (s, "rollup");
+	const char *p = s;
+	if (*p == '@') {
+		p++;
+		if (!islower ((unsigned char)*p) && !isdigit ((unsigned char)*p)) {
+			return NULL;
+		}
+		while (sbom_pkg_name_char ((unsigned char)*p)) {
+			p++;
+		}
+		if (*p != '/' || (!islower ((unsigned char)p[1]) && !isdigit ((unsigned char)p[1]))) {
+			return NULL;
+		}
+		p++;
+		while (sbom_pkg_name_char ((unsigned char)*p)) {
+			p++;
+		}
+	} else {
+		if (!islower ((unsigned char)*p) && !isdigit ((unsigned char)*p)) {
+			return NULL;
+		}
+		while (sbom_pkg_name_char ((unsigned char)*p)) {
+			p++;
+		}
+	}
+	if (p == s) {
+		return NULL;
+	}
+	char *name = r_str_ndup (s, (int) (p - s));
+	if (!name) {
+		return NULL;
+	}
+	if (!sbom_is_npm_name (name)) {
+		free (name);
+		return NULL;
+	}
+	return name;
+}
+
+static char *sbom_pkg_from_ref(const char *s) {
+	if (R_STR_ISEMPTY (s)) {
+		return NULL;
+	}
+	if (sbom_is_dep_name (s)) {
+		return strdup (s);
+	}
+	const char *slash = strchr (s, '/');
+	if (!slash || *s == '@') {
+		return NULL;
+	}
+	char *name = r_str_ndup (s, (int)(slash - s));
+	if (!name) {
+		return NULL;
+	}
+	if (!sbom_is_dep_name (name)) {
+		free (name);
+		return NULL;
+	}
+	return name;
+}
+
+static size_t sbom_harvest_quoted_package_refs(const char *s, SbomCompList *out) {
+	size_t before = out->count;
+	if (!strstr (s, "package") || !strchr (s, '"')) {
+		return 0;
+	}
+	const char *p = s;
+	while ((p = strchr (p, '"'))) {
+		p++;
+		const char *end = strchr (p, '"');
+		if (!end) {
+			break;
+		}
+		const char *after = end + 1;
+		while (isspace ((unsigned char)*after)) {
+			after++;
+		}
+		if (r_str_startswith (after, "package")) {
+			char *ref = r_str_ndup (p, (int)(end - p));
+			if (ref) {
+				char *pkg = sbom_pkg_from_ref (ref);
+				if (pkg) {
+					(void)sbom_push (out, pkg, NULL);
+					free (pkg);
+				}
+				free (ref);
+			}
+		}
+		p = end + 1;
+	}
+	return out->count - before;
+}
+
+static size_t sbom_harvest_package_path_refs(const char *s, SbomCompList *out) {
+	size_t before = out->count;
+	if (R_STR_ISEMPTY (s)) {
+		return 0;
+	}
+	const char *needle = "node_modules/";
+	const size_t needle_len = strlen (needle);
+	for (const char *p = strstr (s, needle); p; p = strstr (p, needle)) {
+		p += needle_len;
+		char *pkg = sbom_parse_pkg_at (p);
+		if (pkg) {
+			(void)sbom_push (out, pkg, NULL);
+			free (pkg);
+		}
+	}
+	if (*s == '@') {
+		char *pkg = sbom_parse_pkg_at (s);
+		if (pkg) {
+			if (!strcmp (pkg, s)) {
+				(void)sbom_push (out, pkg, NULL);
+			}
+			free (pkg);
+		}
+	}
+	return out->count - before;
+}
+
+static size_t sbom_harvest_strings(HBC *hbc, SbomCompList *out) {
+	if (!hbc) {
+		return 0;
+	}
+	size_t path_evidence = 0;
+	u32 n = hbc_string_count (hbc);
+	for (u32 i = 0; i < n; i++) {
+		const char *s = NULL;
+		if (hbc_get_string (hbc, i, &s).code == RESULT_SUCCESS && s) {
+			path_evidence += sbom_harvest_package_path_refs (s, out);
+			(void)sbom_harvest_quoted_package_refs (s, out);
+		}
+	}
+	return path_evidence;
 }
 
 static bool sbom_is_version_spec(const char *version) {
@@ -226,14 +387,198 @@ static bool sbom_is_version_spec(const char *version) {
 	return wildcard || (digit && mark);
 }
 
-static bool sbom_is_manifest_key(const char *key) {
-	return !strcmp (key, "description") || !strcmp (key, "license") || !strcmp (key, "main") ||
-		!strcmp (key, "module") || !strcmp (key, "repository") || !strcmp (key, "dependencies") ||
-		!strcmp (key, "devDependencies") || !strcmp (key, "peerDependencies");
+static bool sbom_is_array_version_spec(const char *version) {
+	if (R_STR_ISEMPTY (version)) {
+		return false;
+	}
+	const char *p = version;
+	while (isspace ((unsigned char)*p)) {
+		p++;
+	}
+	if (*p == 'v') {
+		p++;
+	}
+	int segments = 0;
+	bool dot = false;
+	for (;;) {
+		if (!isdigit ((unsigned char)*p)) {
+			return false;
+		}
+		do {
+			p++;
+		} while (isdigit ((unsigned char)*p));
+		segments++;
+		if (*p != '.') {
+			break;
+		}
+		dot = true;
+		p++;
+	}
+	if (!dot || segments < 2) {
+		return false;
+	}
+	if (*p == '-' || *p == '+') {
+		p++;
+		if (!isalnum ((unsigned char)*p)) {
+			return false;
+		}
+		while (*p && (isalnum ((unsigned char)*p) || strchr ("-.+", *p))) {
+			p++;
+		}
+	}
+	while (isspace ((unsigned char)*p)) {
+		p++;
+	}
+	return *p == 0;
+}
+
+static bool sbom_is_strong_npm_name(const char *name) {
+	return sbom_is_dep_name (name) && (*name == '@' || strchr (name, '/') || strchr (name, '-'));
+}
+
+static bool sbom_is_module_evidence(const HBCModule *module) {
+	if (!module || !module->kind || !module->name) {
+		return false;
+	}
+	if (!strcmp (module->kind, "package")) {
+		return sbom_is_dep_name (module->name);
+	}
+	return !strcmp (module->kind, "native") && sbom_is_strong_npm_name (module->name);
+}
+
+static size_t sbom_harvest_modules(HBC *hbc, SbomCompList *out) {
+	size_t before = out->count;
+	HBCModules modules = { 0 };
+	if (hbc_list_modules (hbc, &modules).code != RESULT_SUCCESS) {
+		return 0;
+	}
+	for (u32 i = 0; i < modules.count; i++) {
+		const HBCModule *m = &modules.modules[i];
+		if (sbom_is_module_evidence (m)) {
+			(void)sbom_push (out, m->name, m->version);
+		}
+	}
+	hbc_free_modules (&modules);
+	return out->count - before;
+}
+
+static char *sbom_read_json_string(const char **cursor) {
+	const char *p = *cursor;
+	if (*p != '"') {
+		return NULL;
+	}
+	p++;
+	const char *start = p;
+	RStrBuf *sb = NULL;
+	while (*p && *p != '"') {
+		if (*p != '\\') {
+			p++;
+			continue;
+		}
+		if (!sb) {
+			sb = r_strbuf_new ("");
+			if (!sb) {
+				return NULL;
+			}
+		}
+		r_strbuf_append_n (sb, start, (int)(p - start));
+		p++;
+		if (!*p) {
+			r_strbuf_free (sb);
+			return NULL;
+		}
+		switch (*p) {
+		case '"':
+		case '\\':
+		case '/':
+			r_strbuf_append_n (sb, p, 1);
+			break;
+		case 'b':
+			r_strbuf_append_n (sb, "\b", 1);
+			break;
+		case 'f':
+			r_strbuf_append_n (sb, "\f", 1);
+			break;
+		case 'n':
+			r_strbuf_append_n (sb, "\n", 1);
+			break;
+		case 'r':
+			r_strbuf_append_n (sb, "\r", 1);
+			break;
+		case 't':
+			r_strbuf_append_n (sb, "\t", 1);
+			break;
+		default:
+			r_strbuf_append_n (sb, p, 1);
+			break;
+		}
+		p++;
+		start = p;
+	}
+	if (*p != '"') {
+		if (sb) {
+			r_strbuf_free (sb);
+		}
+		return NULL;
+	}
+	char *out = sb? r_strbuf_drain (sb): r_str_ndup (start, (int)(p - start));
+	*cursor = p + 1;
+	return out;
+}
+
+typedef struct {
+	char *text;
+	bool is_name;
+	bool is_version;
+} SbomArrayToken;
+
+static void sbom_array_token_fini(SbomArrayToken *tok) {
+	free (tok->text);
+	tok->text = NULL;
+	tok->is_name = false;
+	tok->is_version = false;
+}
+
+static void sbom_array_pair_push(SbomCompList *out, const SbomArrayToken *a, const SbomArrayToken *b) {
+	if (a->is_name && b->is_version && sbom_is_strong_npm_name (a->text)) {
+		(void)sbom_push (out, a->text, b->text);
+	} else if (a->is_version && b->is_name) {
+		(void)sbom_push (out, b->text, a->text);
+	}
+}
+
+static size_t sbom_harvest_array(const char *formatted, SbomCompList *out) {
+	size_t before = out->count;
+	if (R_STR_ISEMPTY (formatted) || *formatted != '[') {
+		return 0;
+	}
+	SbomArrayToken prev = { 0 };
+	const char *p = formatted;
+	while (*p) {
+		if (*p != '"') {
+			p++;
+			continue;
+		}
+		char *text = sbom_read_json_string (&p);
+		if (!text) {
+			break;
+		}
+		bool is_version = sbom_is_array_version_spec (text);
+		SbomArrayToken cur = {
+			.text = text,
+			.is_name = !is_version && sbom_is_dep_name (text),
+			.is_version = is_version,
+		};
+		sbom_array_pair_push (out, &prev, &cur);
+		sbom_array_token_fini (&prev);
+		prev = cur;
+	}
+	sbom_array_token_fini (&prev);
+	return out->count - before;
 }
 
 /* Extract name/version metadata and dependency-map entries from one literal. */
-static size_t sbom_harvest(const char *formatted, SbomCompList *out) {
+static size_t sbom_harvest_object(const char *formatted, SbomCompList *out) {
 	size_t before = out->count;
 	char *jsonstr = jsobj_to_json (formatted);
 	if (!jsonstr) {
@@ -266,7 +611,7 @@ static size_t sbom_harvest(const char *formatted, SbomCompList *out) {
 				(void)sbom_push (out, kid->key, kid->str_value);
 			}
 		}
-		if (manifest && sbom_is_npm_name (name) && sbom_is_version_spec (version)) {
+		if (manifest && sbom_is_npm_name (name) && (!version || sbom_is_version_spec (version))) {
 			(void)sbom_push (out, name, version);
 		}
 	}
@@ -274,11 +619,26 @@ static size_t sbom_harvest(const char *formatted, SbomCompList *out) {
 	return out->count - before;
 }
 
+static size_t sbom_harvest_literal(const HBCLiteralEntry *e, SbomCompList *out) {
+	if (!e || !e->formatted) {
+		return 0;
+	}
+	if (e->kind == HBC_LIT_ARRAY) {
+		return sbom_harvest_array (e->formatted, out);
+	}
+	if (e->kind == HBC_LIT_OBJECT) {
+		return sbom_harvest_object (e->formatted, out);
+	}
+	return 0;
+}
+
 static int sbom_comp_cmp(const void *a, const void *b) {
 	const SbomComp *ca = a;
 	const SbomComp *cb = b;
 	int r = strcmp (ca->name, cb->name);
-	return r? r: strcmp (ca->version, cb->version);
+	const char *va = ca->version? ca->version: "";
+	const char *vb = cb->version? cb->version: "";
+	return r? r: strcmp (va, vb);
 }
 
 /* Drop duplicate (name,version) pairs in-place. List must be sorted. */
@@ -305,7 +665,11 @@ static void sbom_emit_text(RCore *core, const SbomCompList *list) {
 	}
 	r_cons_printf (core->cons, "# SBOM (%zu components)\n", list->count);
 	for (size_t i = 0; i < list->count; i++) {
-		r_cons_printf (core->cons, "%s %s\n", list->items[i].name, list->items[i].version);
+		if (list->items[i].version) {
+			r_cons_printf (core->cons, "%s %s\n", list->items[i].name, list->items[i].version);
+		} else {
+			r_cons_println (core->cons, list->items[i].name);
+		}
 	}
 }
 
@@ -324,8 +688,10 @@ static void sbom_emit_json(RCore *core, const SbomCompList *list) {
 		pj_o (pj);
 		pj_ks (pj, "type", "library");
 		pj_ks (pj, "name", c->name);
-		pj_ks (pj, "version", c->version);
-		char *purl = r_str_newf ("pkg:npm/%s@%s", c->name, c->version);
+		if (c->version) {
+			pj_ks (pj, "version", c->version);
+		}
+		char *purl = c->version? r_str_newf ("pkg:npm/%s@%s", c->name, c->version): r_str_newf ("pkg:npm/%s", c->name);
 		if (purl) {
 			pj_ks (pj, "purl", purl);
 			free (purl);
@@ -343,7 +709,7 @@ static void sbom_emit_json(RCore *core, const SbomCompList *list) {
 
 static const char SBOM_HELP[] =
 	"Usage: r2hermes-S[jr?]\n"
-	" r2hermes-S       Emit SBOM as plaintext (name + version per line)\n"
+	" r2hermes-S       Emit SBOM as plaintext (name + version, or name only when version is unknown)\n"
 	" r2hermes-Sj      Emit CycloneDX 1.5 SBOM as JSON\n"
 	" r2hermes-Sr      Dump the raw matched SLP literal text (pre-JSON)\n"
 	" r2hermes-S?      Show this help\n";
@@ -376,10 +742,30 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 		return;
 	}
 
+	SbomCompList comps = { 0 };
+	if (fmt != SBOM_FMT_RAW) {
+		size_t path_evidence = sbom_harvest_strings (hbc, &comps);
+		(void)sbom_harvest_modules (hbc, &comps);
+		if (path_evidence > 0) {
+			if (comps.count > 1) {
+				qsort (comps.items, comps.count, sizeof (SbomComp), sbom_comp_cmp);
+				sbom_dedup (&comps);
+			}
+			if (fmt == SBOM_FMT_JSON) {
+				sbom_emit_json (core, &comps);
+			} else {
+				sbom_emit_text (core, &comps);
+			}
+			sbom_free (&comps);
+			return;
+		}
+	}
+
 	u32 nscanned = 0;
 	r = hbc_literals_scan_code (hbc, &nscanned);
 	if (r.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("literal scan failed: %s", safe_errmsg (r.error_message));
+		sbom_free (&comps);
 		return;
 	}
 
@@ -387,25 +773,25 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	u32 n = 0;
 	if (hbc_literals_list (hbc, &arr, &n).code != RESULT_SUCCESS || !arr) {
 		R_LOG_ERROR ("literal list unavailable");
+		sbom_free (&comps);
 		return;
 	}
 
-	SbomCompList comps = { 0 };
 	u32 matched = 0;
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
-		if (e->kind != HBC_LIT_OBJECT || !e->formatted) {
+		if (!e->formatted) {
 			continue;
 		}
 		if (fmt == SBOM_FMT_RAW) {
 			SbomCompList tmp = { 0 };
-			if (sbom_harvest (e->formatted, &tmp) > 0) {
+			if (sbom_harvest_literal (e, &tmp) > 0) {
 				matched++;
 				r_cons_printf (core->cons, "# paddr=0x%08x xrefs=%u\n%s\n", e->paddr, e->xref_count, e->formatted);
 			}
 			sbom_free (&tmp);
 		} else {
-			matched += sbom_harvest (e->formatted, &comps) > 0;
+			matched += sbom_harvest_literal (e, &comps) > 0;
 		}
 	}
 
