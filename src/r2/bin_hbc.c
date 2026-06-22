@@ -787,7 +787,7 @@ static char *header(RBinFile *bf, int mode) {
 		hbc_header_print_u32 (sb, off, "objValueBufferSize", hh.objValueBufferSize);
 		off += 4;
 	}
-	if (hh.version >= 99) {
+	if (hh.version >= 98) {
 		hbc_header_print_u32 (sb, off, "numStringSwitchImms", hh.numStringSwitchImms);
 		off += 4;
 	}
@@ -851,7 +851,7 @@ static RList *fields(RBinFile *bf) {
 	} else {
 		hbc_fields_append_u32 (ret, &off, "objValueBufferSize", hh.objValueBufferSize);
 	}
-	if (hh.version >= 99) {
+	if (hh.version >= 98) {
 		hbc_fields_append_u32 (ret, &off, "numStringSwitchImms", hh.numStringSwitchImms);
 	}
 	hbc_fields_append_u32 (ret, &off, "segmentID", hh.segmentID);

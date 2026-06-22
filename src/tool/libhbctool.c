@@ -423,7 +423,7 @@ static Result cmd_h(const CliContext *ctx, int argc, char **argv) {
 	} else {
 		fprintf (out, "  Object Value Buffer Size: %u bytes\n", hh.objValueBufferSize);
 	}
-	if (hh.version >= 99) {
+	if (hh.version >= 98) {
 		fprintf (out, "  String Switch Instruction Count: %u\n", hh.numStringSwitchImms);
 	}
 	fprintf (out, "  %s: %u\n  CJS Module Count: %u\n", hh.version < 78? "CJS Module Offset": "Segment ID", hh.segmentID, hh.cjsModuleCount);
