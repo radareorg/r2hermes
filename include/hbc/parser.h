@@ -300,7 +300,6 @@ Result _hbc_reader_init(HBCReader *reader);
 Result _hbc_reader_cleanup(HBCReader *reader);
 Result _hbc_reader_read_file(HBCReader *reader, const char *filename);
 Result _hbc_reader_read_header(HBCReader *reader);
-Result _hbc_reader_read_functions(HBCReader *reader);
 Result _hbc_reader_read_functions_robust(HBCReader *reader);
 Result _hbc_reader_read_string_kinds(HBCReader *reader);
 Result _hbc_reader_read_identifier_hashes(HBCReader *reader);

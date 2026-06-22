@@ -217,7 +217,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			case OPERAND_TYPE_DOUBLE: need = 8; break;
 			default: need = 0; break;
 			}
-			if (need && (bytecode_buffer.position + need > bytecode_buffer.size)) {
+			if (need && (bytecode_buffer.position > bytecode_buffer.size || need > bytecode_buffer.size - bytecode_buffer.position)) {
 				parsing_failed = true;
 				break;
 			}

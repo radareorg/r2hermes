@@ -187,6 +187,37 @@ static Result align_over_padding(BufferReader *reader, size_t padding_amount) {
 	return SUCCESS_RESULT ();
 }
 
+static size_t remaining_bytes(const BufferReader *reader) {
+	if (!reader || reader->position > reader->size) {
+		return 0;
+	}
+	return reader->size - reader->position;
+}
+
+static bool has_remaining_bytes(const BufferReader *reader, size_t bytes) {
+	return reader && reader->position <= reader->size && bytes <= reader->size - reader->position;
+}
+
+static Result checked_count_size(u32 count, size_t elem_size, size_t *out, const char *what) {
+	if (elem_size && (size_t)count > SIZE_MAX / elem_size) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, what);
+	}
+	*out = (size_t)count * elem_size;
+	return SUCCESS_RESULT ();
+}
+
+static Result require_remaining_bytes(const HBCReader *reader, size_t bytes, const char *what) {
+	if (!has_remaining_bytes (&reader->file_buffer, bytes)) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, what);
+	}
+	return SUCCESS_RESULT ();
+}
+
+static Result require_counted_table(const HBCReader *reader, u32 count, size_t elem_size, size_t *out, const char *what) {
+	RETURN_IF_ERROR (checked_count_size (count, elem_size, out, what));
+	return require_remaining_bytes (reader, *out, what);
+}
+
 static Result read_exception_handlers_current(HBCReader *reader, u32 function_id, u32 bytecode_size) {
 	u32 count = 0;
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &count));
@@ -196,7 +227,9 @@ static Result read_exception_handlers_current(HBCReader *reader, u32 function_id
 	}
 	ExceptionHandlerInfo *handlers = NULL;
 	if (count) {
-		handlers = (ExceptionHandlerInfo *)malloc (count * sizeof (ExceptionHandlerInfo));
+		size_t handlers_size = 0;
+		RETURN_IF_ERROR (checked_count_size (count, sizeof (ExceptionHandlerInfo), &handlers_size, "Exception handler table is too large"));
+		handlers = (ExceptionHandlerInfo *)malloc (handlers_size);
 		if (!handlers) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate exception handlers");
 		}
@@ -555,258 +588,6 @@ static Result hbc_reader_read_functions_modern_common(HBCReader *reader, bool lo
 	return SUCCESS_RESULT ();
 }
 
-/* Read function headers */
-Result _hbc_reader_read_functions(HBCReader *reader) {
-	if (!reader) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
-	}
-	if (reader->header.version >= 97) {
-		return hbc_reader_read_functions_modern_common (reader, true);
-	}
-
-	/* Check if the function count is reasonable to prevent memory exhaustion */
-	if (reader->header.functionCount > MAX_FUNCTIONS) {
-		hbc_debug_printf ("Warning: Large number of functions detected (%u). This may require significant memory.\n",
-			reader->header.functionCount);
-	}
-
-	/* Add detailed debugging about file position */
-	hbc_debug_printf ("Reading functions at position %zu of %zu bytes.\n",
-		reader->file_buffer.position,
-		reader->file_buffer.size);
-
-	/* Validate if we have enough data to read function headers */
-	size_t min_bytes_needed = 16 * reader->header.functionCount; /* Each function header is at least 16 bytes */
-	if (reader->file_buffer.position + min_bytes_needed > reader->file_buffer.size) {
-		hbc_debug_printf ("Warning: File might be truncated. Need ~%zu more bytes for function headers.\n",
-			min_bytes_needed);
-		/* Continue anyway to handle whatever data is available */
-	}
-
-	/* Check for a special case - if we can't even read the first function header */
-	if (reader->file_buffer.position + 16 > reader->file_buffer.size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED,
-			"File too small to contain even a single function header");
-	}
-
-	/* Align buffer */
-	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
-
-	/* Calculate memory requirements */
-	size_t function_headers_size = reader->header.functionCount * sizeof (FunctionHeader);
-	size_t exc_handlers_size = reader->header.functionCount * sizeof (ExceptionHandlerList);
-	size_t debug_offsets_size = reader->header.functionCount * sizeof (DebugOffsets);
-
-	/* Warn if memory allocation might be very large */
-	size_t total_memory = function_headers_size + exc_handlers_size + debug_offsets_size;
-	if (total_memory > 1024 * 1024 * 1024) { /* > 1GB */
-		hbc_debug_printf ("Warning: Attempting to allocate %.2f GB for function data.\n",
-			(double)total_memory / (1024 * 1024 * 1024));
-	}
-
-	/* Allocate function headers */
-	reader->function_headers = (FunctionHeader *)calloc (reader->header.functionCount, sizeof (FunctionHeader));
-	if (!reader->function_headers) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function headers");
-	}
-
-	/* Allocate exception handler lists */
-	reader->function_id_to_exc_handlers = (ExceptionHandlerList *)calloc (reader->header.functionCount, sizeof (ExceptionHandlerList));
-	if (!reader->function_id_to_exc_handlers) {
-		free (reader->function_headers);
-		reader->function_headers = NULL;
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate exception handler lists");
-	}
-
-	/* Allocate debug offsets */
-	reader->function_id_to_debug_offsets = (DebugOffsets *)calloc (reader->header.functionCount, sizeof (DebugOffsets));
-	if (!reader->function_id_to_debug_offsets) {
-		free (reader->function_headers);
-		free (reader->function_id_to_exc_handlers);
-		reader->function_headers = NULL;
-		reader->function_id_to_exc_handlers = NULL;
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate debug offsets");
-	}
-
-	/* Read each function header */
-	/* Track initial position */
-	hbc_debug_printf ("Function section start position: %zu\n", reader->file_buffer.position);
-
-	/* Set a reasonable safety limit on function count for memory protection */
-	u32 max_functions_to_read = reader->header.functionCount;
-	const u32 ABSOLUTE_MAX_FUNCTIONS = 50000; /* Absolute safety limit */
-
-	if (max_functions_to_read > ABSOLUTE_MAX_FUNCTIONS) {
-		hbc_debug_printf ("Warning: Function count extremely high (%u), limiting to %u for safety\n",
-			reader->header.functionCount,
-			ABSOLUTE_MAX_FUNCTIONS);
-		max_functions_to_read = ABSOLUTE_MAX_FUNCTIONS;
-	}
-
-	/* Detect file format issues early */
-	if (reader->file_buffer.position + 16 > reader->file_buffer.size) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Not enough data to read function headers");
-	}
-
-	/* Validate expected function section size - make sure there's enough data */
-	const size_t BYTES_PER_FUNCTION_HEADER = 16;
-	if (reader->file_buffer.position + (max_functions_to_read * BYTES_PER_FUNCTION_HEADER) > reader->file_buffer.size) {
-		hbc_debug_printf ("Warning: File appears too small for %u functions, may only read partial data\n",
-			max_functions_to_read);
-	}
-
-	for (u32 i = 0; i < max_functions_to_read; i++) {
-		/* Ensure we have enough buffer for this function header */
-		if (reader->file_buffer.position + 16 > reader->file_buffer.size) {
-			hbc_debug_printf ("Warning: Reached end of file after reading %u of %u functions\n",
-				i,
-				reader->header.functionCount);
-
-			/* Adjust the actual function count to what we were able to read */
-			reader->header.functionCount = i;
-			break;
-		}
-
-		/* Read small function header */
-		SmallFunctionHeader small_header;
-		u32 raw_data[4]; /* 4 words for the small function header */
-
-		/* Read the raw data with explicit error handling */
-		bool read_error = false;
-		for (int j = 0; j < 4; j++) {
-			Result res = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &raw_data[j]);
-			if (res.code != RESULT_SUCCESS) {
-				hbc_debug_printf ("Error reading function %u header word %d: %s\n",
-					i,
-					j,
-					res.error_message);
-				read_error = true;
-				break;
-			}
-		}
-
-		/* Handle read errors */
-		if (read_error) {
-			hbc_debug_printf ("Warning: Error while reading function headers, truncating to %u functions\n", i);
-			reader->header.functionCount = i;
-			break;
-		}
-
-		/* Extract fields from the bit patterns */
-		small_header.offset = raw_data[0] & 0x1FFFFFF; /* 25 bits */
-		small_header.paramCount = (raw_data[0] >> 25) & 0x7F; /* 7 bits */
-
-		small_header.bytecodeSizeInBytes = raw_data[1] & 0x7FFF; /* 15 bits */
-		small_header.functionName = (raw_data[1] >> 15) & 0x1FFFF; /* 17 bits */
-
-		small_header.infoOffset = raw_data[2] & 0x1FFFFFF; /* 25 bits */
-		small_header.frameSize = (raw_data[2] >> 25) & 0x7F; /* 7 bits */
-
-		small_header.environmentSize = (u8) (raw_data[3] & 0xFF);
-		small_header.highestReadCacheIndex = (u8) ((raw_data[3] >> 8) & 0xFF);
-		small_header.highestWriteCacheIndex = (u8) ((raw_data[3] >> 16) & 0xFF);
-
-		/* Store the function header */
-		FunctionHeader *header = &reader->function_headers[i];
-		header->offset = small_header.offset;
-		header->paramCount = small_header.paramCount;
-		header->bytecodeSizeInBytes = small_header.bytecodeSizeInBytes;
-		header->functionName = small_header.functionName;
-		header->infoOffset = small_header.infoOffset;
-		header->frameSize = small_header.frameSize;
-		header->environmentSize = small_header.environmentSize;
-		header->highestReadCacheIndex = small_header.highestReadCacheIndex;
-		header->highestWriteCacheIndex = small_header.highestWriteCacheIndex;
-		unpack_function_flags (header, (u8) (raw_data[3] >> 24));
-
-		/* Save current position */
-		size_t current_pos = reader->file_buffer.position;
-
-		/* Handle overflowed header */
-		if (header->overflowed) {
-			/* Calculate the absolute offset of the large header */
-			u32 large_header_offset = (small_header.infoOffset << 16) | small_header.offset;
-
-			/* Seek to the large header */
-			RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, large_header_offset));
-
-			/* Read large function header */
-			LargeFunctionHeader large_header;
-
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.offset));
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.paramCount));
-
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.bytecodeSizeInBytes));
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.functionName));
-
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.infoOffset));
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.frameSize));
-
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &large_header.environmentSize));
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestReadCacheIndex));
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &large_header.highestWriteCacheIndex));
-
-			/* Read flags byte */
-			u8 flags;
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u8 (&reader->file_buffer, &flags));
-
-			/* Copy to the combined header */
-			header->offset = large_header.offset;
-			header->paramCount = large_header.paramCount;
-			header->bytecodeSizeInBytes = large_header.bytecodeSizeInBytes;
-			header->functionName = large_header.functionName;
-			header->infoOffset = large_header.infoOffset;
-			header->frameSize = large_header.frameSize;
-			header->environmentSize = (u8)large_header.environmentSize; /* Cast from u32 to u8 */
-			header->highestReadCacheIndex = large_header.highestReadCacheIndex;
-			header->highestWriteCacheIndex = large_header.highestWriteCacheIndex;
-			unpack_function_flags (header, flags);
-		}
-
-		/* Read the function bytecode */
-		u8 *bytecode = (u8 *)malloc (header->bytecodeSizeInBytes);
-		if (!bytecode) {
-			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
-		}
-
-		/* Save the current position */
-		// size_t saved_pos = reader->file_buffer.position;
-
-		/* Seek to the function bytecode */
-		RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, header->offset));
-
-		/* Read the bytecode */
-		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, bytecode, header->bytecodeSizeInBytes));
-
-		/* Store the bytecode pointer */
-		header->bytecode = bytecode;
-
-		if (header->hasExceptionHandler) {
-			RETURN_IF_ERROR (read_exception_handlers (reader, i, header->infoOffset));
-		}
-
-		/* Read debug information if present */
-		if (header->hasDebugInfo) {
-			/* Align buffer */
-			RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
-
-			/* Read debug offsets */
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].source_locations));
-			RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].scope_desc_data));
-
-			/* Read textified callees if present (version >= 91) */
-			if (reader->header.version >= 91) {
-				RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->function_id_to_debug_offsets[i].textified_callees));
-			}
-		}
-
-		/* Restore position for next function header */
-		RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, current_pos));
-	}
-
-	return SUCCESS_RESULT ();
-}
-
 /* Read string kinds */
 Result _hbc_reader_read_string_kinds(HBCReader *reader) {
 	if (!reader) {
@@ -816,10 +597,23 @@ Result _hbc_reader_read_string_kinds(HBCReader *reader) {
 	/* Align buffer */
 	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
 
+	size_t string_kind_entries_size = 0;
+	RETURN_IF_ERROR (require_counted_table (reader, reader->header.stringKindCount, sizeof (u32), &string_kind_entries_size, "String kind table is out of bounds"));
+
+	size_t small_string_table_size = 0;
+	RETURN_IF_ERROR (checked_count_size (reader->header.stringCount, sizeof (u32), &small_string_table_size, "String table is too large"));
+	if (small_string_table_size > reader->file_buffer.size) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "String count exceeds file bounds");
+	}
+
 	/* Allocate string kinds */
-	reader->string_kinds = (StringKind *)malloc (reader->header.stringCount * sizeof (StringKind));
-	if (!reader->string_kinds) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string kinds");
+	if (reader->header.stringCount > 0) {
+		size_t string_kinds_size = 0;
+		RETURN_IF_ERROR (checked_count_size (reader->header.stringCount, sizeof (StringKind), &string_kinds_size, "String kind array is too large"));
+		reader->string_kinds = (StringKind *)malloc (string_kinds_size);
+		if (!reader->string_kinds) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate string kinds");
+		}
 	}
 
 	/* Initialize all string kinds to STRING_KIND_STRING */
@@ -869,12 +663,15 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	}
 
 	/* Check if we have enough data in the buffer */
-	size_t bytes_needed = reader->header.identifierCount * sizeof (u32);
-	if (reader->file_buffer.position + bytes_needed > reader->file_buffer.size) {
+	RETURN_IF_ERROR (align_over_padding (&reader->file_buffer, 4));
+
+	size_t bytes_needed = 0;
+	RETURN_IF_ERROR (checked_count_size (reader->header.identifierCount, sizeof (u32), &bytes_needed, "Identifier hash table is too large"));
+	if (!has_remaining_bytes (&reader->file_buffer, bytes_needed)) {
 		R_LOG_WARN ("File too small for %u identifiers, truncating",
 			reader->header.identifierCount);
 		/* Adjust the identifier count to what we can safely read */
-		u32 max_identifiers = (reader->file_buffer.size - reader->file_buffer.position) / sizeof (u32);
+		u32 max_identifiers = remaining_bytes (&reader->file_buffer) / sizeof (u32);
 		reader->header.identifierCount = max_identifiers;
 	}
 
@@ -885,15 +682,10 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 		return SUCCESS_RESULT ();
 	}
 
-	/* Align buffer */
-	Result result = align_over_padding (&reader->file_buffer, 4);
-	if (result.code != RESULT_SUCCESS) {
-		hbc_debug_printf ("Error aligning buffer for identifier hashes: %s\n", result.error_message);
-		return result;
-	}
-
 	/* Allocate identifier hashes */
-	reader->identifier_hashes = (u32 *)malloc (reader->header.identifierCount * sizeof (u32));
+	size_t identifier_hashes_size = 0;
+	RETURN_IF_ERROR (checked_count_size (reader->header.identifierCount, sizeof (u32), &identifier_hashes_size, "Identifier hash table is too large"));
+	reader->identifier_hashes = (u32 *)malloc (identifier_hashes_size);
 	if (!reader->identifier_hashes) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate identifier hashes");
 	}
@@ -902,7 +694,7 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	u32 successful_reads = 0;
 	for (u32 i = 0; i < reader->header.identifierCount; i++) {
 		/* Check if we have enough buffer */
-		if (reader->file_buffer.position + sizeof (u32) > reader->file_buffer.size) {
+		if (!has_remaining_bytes (&reader->file_buffer, sizeof (u32))) {
 			hbc_debug_printf ("Reached end of file after reading %u of %u identifier hashes\n",
 				i,
 				reader->header.identifierCount);
@@ -939,16 +731,6 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			reader->header.stringCount);
 	}
 
-	/* Check if we have enough data in the buffer (4 bytes per entry on disk) */
-	size_t min_bytes_needed = reader->header.stringCount * sizeof (u32);
-	if (reader->file_buffer.position + min_bytes_needed > reader->file_buffer.size) {
-		fprintf (stderr, "Warning: File too small for %u strings, truncating\n", reader->header.stringCount);
-		/* Adjust the string count to what we can safely read */
-		u32 max_strings = (reader->file_buffer.size - reader->file_buffer.position) / sizeof (StringTableEntry);
-		max_strings = (max_strings < MAX_STRINGS)? max_strings: MAX_STRINGS;
-		reader->header.stringCount = max_strings;
-	}
-
 	/* Handle case with no strings */
 	if (reader->header.stringCount == 0) {
 		fprintf (stderr, "No strings to read\n");
@@ -964,8 +746,25 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 		return result;
 	}
 
+	size_t min_bytes_needed = 0;
+	RETURN_IF_ERROR (checked_count_size (reader->header.stringCount, sizeof (u32), &min_bytes_needed, "Small string table is too large"));
+	if (!has_remaining_bytes (&reader->file_buffer, min_bytes_needed)) {
+		fprintf (stderr, "Warning: File too small for %u strings, truncating\n", reader->header.stringCount);
+		u32 max_strings = remaining_bytes (&reader->file_buffer) / sizeof (u32);
+		max_strings = (max_strings < MAX_STRINGS)? max_strings: MAX_STRINGS;
+		reader->header.stringCount = max_strings;
+	}
+	if (reader->header.stringCount == 0) {
+		fprintf (stderr, "No strings to read\n");
+		reader->strings = NULL;
+		reader->small_string_table = NULL;
+		return SUCCESS_RESULT ();
+	}
+
 	/* Allocate small string table */
-	reader->small_string_table = (StringTableEntry *)calloc (reader->header.stringCount, sizeof (StringTableEntry));
+	size_t small_string_alloc_size = 0;
+	RETURN_IF_ERROR (checked_count_size (reader->header.stringCount, sizeof (StringTableEntry), &small_string_alloc_size, "Small string table is too large"));
+	reader->small_string_table = (StringTableEntry *)calloc (1, small_string_alloc_size);
 	if (!reader->small_string_table) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate small string table");
 	}
@@ -994,8 +793,9 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 
 	/* Allocate overflow string table if needed */
 	if (reader->header.overflowStringCount > 0) {
-		reader->overflow_string_table = (OffsetLengthPair *)malloc (
-			reader->header.overflowStringCount * sizeof (OffsetLengthPair));
+		size_t overflow_table_size = 0;
+		RETURN_IF_ERROR (require_counted_table (reader, reader->header.overflowStringCount, sizeof (OffsetLengthPair), &overflow_table_size, "Overflow string table is out of bounds"));
+		reader->overflow_string_table = (OffsetLengthPair *)malloc (overflow_table_size);
 		if (!reader->overflow_string_table) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate overflow string table");
 		}
@@ -1035,7 +835,9 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 	reader->string_table_storage_size = string_storage_size;
 
 	/* Allocate string array */
-	reader->strings = (char **)calloc (reader->header.stringCount, sizeof (char *));
+	size_t strings_size = 0;
+	RETURN_IF_ERROR (checked_count_size (reader->header.stringCount, sizeof (char *), &strings_size, "String array is too large"));
+	reader->strings = (char **)calloc (1, strings_size);
 	if (!reader->strings) {
 		free (string_storage);
 		reader->string_table_storage = NULL;
@@ -1148,11 +950,11 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 	}
 
 	/* Check if we have enough data for arrays */
-	if (reader->file_buffer.position + reader->header.arrayBufferSize > reader->file_buffer.size) {
+	if (!has_remaining_bytes (&reader->file_buffer, reader->header.arrayBufferSize)) {
 		hbc_debug_printf ("Warning: Not enough data for array buffer (need %u bytes, have %zu)\n",
 			reader->header.arrayBufferSize,
-			reader->file_buffer.size - reader->file_buffer.position);
-		reader->header.arrayBufferSize = reader->file_buffer.size - reader->file_buffer.position;
+			remaining_bytes (&reader->file_buffer));
+		reader->header.arrayBufferSize = remaining_bytes (&reader->file_buffer);
 
 		/* If there's nothing to read, return */
 		if (reader->header.arrayBufferSize <= 0) {
@@ -1191,7 +993,7 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 		if (key_align_result.code != RESULT_SUCCESS) {
 			fprintf (stderr, "Error aligning buffer for object keys: %s\n", key_align_result.error_message);
 			reader->header.objKeyBufferSize = 0;
-		} else if (reader->file_buffer.position + reader->header.objKeyBufferSize > reader->file_buffer.size) {
+		} else if (!has_remaining_bytes (&reader->file_buffer, reader->header.objKeyBufferSize)) {
 			fprintf (stderr, "Warning: Not enough data for object key buffer (need %u bytes)\n", reader->header.objKeyBufferSize);
 			reader->header.objKeyBufferSize = 0;
 		} else {
@@ -1220,8 +1022,8 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 			fprintf (stderr, "Error aligning buffer for object shapes: %s\n", shape_align_result.error_message);
 			reader->header.objShapeTableCount = 0;
 		} else {
-			size_t shape_table_size = (size_t)reader->header.objShapeTableCount * sizeof (ShapeTableEntry);
-			if (reader->file_buffer.position + shape_table_size > reader->file_buffer.size) {
+			size_t shape_table_size = 0;
+			if (require_counted_table (reader, reader->header.objShapeTableCount, sizeof (ShapeTableEntry), &shape_table_size, "Object shape table is out of bounds").code != RESULT_SUCCESS) {
 				fprintf (stderr, "Warning: Not enough data for object shape table (need %zu bytes)\n", shape_table_size);
 				reader->header.objShapeTableCount = 0;
 			} else {
@@ -1249,7 +1051,7 @@ Result _hbc_reader_read_arrays(HBCReader *reader) {
 		if (val_align_result.code != RESULT_SUCCESS) {
 			fprintf (stderr, "Error aligning buffer for object values: %s\n", val_align_result.error_message);
 			reader->header.objValueBufferSize = 0;
-		} else if (reader->file_buffer.position + reader->header.objValueBufferSize > reader->file_buffer.size) {
+		} else if (!has_remaining_bytes (&reader->file_buffer, reader->header.objValueBufferSize)) {
 			fprintf (stderr, "Warning: Not enough data for object value buffer (need %u bytes)\n", reader->header.objValueBufferSize);
 			reader->header.objValueBufferSize = 0;
 		} else {
@@ -1316,8 +1118,8 @@ Result _hbc_reader_read_bigints(HBCReader *reader) {
 	}
 
 	/* Check if there's enough data for the BigInt table */
-	size_t bigint_table_size = reader->header.bigIntCount * sizeof (OffsetLengthPair);
-	if (reader->file_buffer.position + bigint_table_size > reader->file_buffer.size) {
+	size_t bigint_table_size = 0;
+	if (require_counted_table (reader, reader->header.bigIntCount, sizeof (OffsetLengthPair), &bigint_table_size, "BigInt table is out of bounds").code != RESULT_SUCCESS) {
 		hbc_debug_printf ("Warning: Not enough data for BigInt table (need %zu bytes)\n", bigint_table_size);
 		reader->header.bigIntCount = 0;
 		reader->header.bigIntStorageSize = 0;
@@ -1339,7 +1141,7 @@ Result _hbc_reader_read_bigints(HBCReader *reader) {
 		bool read_error = false;
 		for (u32 i = 0; i < reader->header.bigIntCount; i++) {
 			/* Ensure there's enough buffer for two u32s */
-			if (reader->file_buffer.position + 8 > reader->file_buffer.size) {
+			if (!has_remaining_bytes (&reader->file_buffer, 8)) {
 				fprintf (stderr, "Reached end of buffer while reading BigInt table entry %u\n", i);
 				reader->header.bigIntCount = i; /* Truncate to what we've read */
 				read_error = true;
@@ -1374,7 +1176,7 @@ Result _hbc_reader_read_bigints(HBCReader *reader) {
 	}
 
 	/* Check if there's enough data for BigInt storage */
-	if (reader->file_buffer.position + reader->header.bigIntStorageSize > reader->file_buffer.size) {
+	if (!has_remaining_bytes (&reader->file_buffer, reader->header.bigIntStorageSize)) {
 		fprintf (stderr, "Warning: Not enough data for BigInt storage (need %u bytes)\n", reader->header.bigIntStorageSize);
 		free (bigint_table);
 		reader->header.bigIntCount = 0;
@@ -1501,8 +1303,8 @@ Result _hbc_reader_read_regexp(HBCReader *reader) {
 	}
 
 	/* Check if we have enough data for the table */
-	size_t table_size = reader->header.regExpCount * sizeof (OffsetLengthPair);
-	if (reader->file_buffer.position + table_size > reader->file_buffer.size) {
+	size_t table_size = 0;
+	if (require_counted_table (reader, reader->header.regExpCount, sizeof (OffsetLengthPair), &table_size, "RegExp table is out of bounds").code != RESULT_SUCCESS) {
 		hbc_debug_printf ("Warning: Not enough data for RegExp table (need %zu bytes)\n", table_size);
 		reader->header.regExpCount = 0;
 		reader->header.regExpStorageSize = 0;
@@ -1523,7 +1325,7 @@ Result _hbc_reader_read_regexp(HBCReader *reader) {
 		bool read_error = false;
 		for (u32 i = 0; i < reader->header.regExpCount; i++) {
 			/* Make sure there's enough data */
-			if (reader->file_buffer.position + 8 > reader->file_buffer.size) {
+			if (!has_remaining_bytes (&reader->file_buffer, 8)) {
 				hbc_debug_printf ("Reached end of file while reading RegExp table entry %u\n", i);
 				reader->header.regExpCount = i;
 				read_error = true;
@@ -1556,10 +1358,10 @@ Result _hbc_reader_read_regexp(HBCReader *reader) {
 	}
 
 	/* Check if enough data for storage */
-	if (reader->file_buffer.position + reader->header.regExpStorageSize > reader->file_buffer.size) {
+	if (!has_remaining_bytes (&reader->file_buffer, reader->header.regExpStorageSize)) {
 		hbc_debug_printf ("Warning: Not enough data for RegExp storage (need %u bytes)\n",
 			reader->header.regExpStorageSize);
-		reader->header.regExpStorageSize = reader->file_buffer.size - reader->file_buffer.position;
+		reader->header.regExpStorageSize = remaining_bytes (&reader->file_buffer);
 		if (reader->header.regExpStorageSize <= 0) {
 			reader->header.regExpStorageSize = 0;
 			return SUCCESS_RESULT ();
@@ -1607,7 +1409,9 @@ Result _hbc_reader_read_cjs_modules(HBCReader *reader) {
 	if (reader->header.cjsModuleCount > 0) {
 		if (reader->header.cjsModulesStaticallyResolved && reader->header.version < 77) {
 			/* Old format: just module IDs */
-			reader->cjs_module_ids = (u32 *)malloc (reader->header.cjsModuleCount * sizeof (u32));
+			size_t table_size = 0;
+			RETURN_IF_ERROR (require_counted_table (reader, reader->header.cjsModuleCount, sizeof (u32), &table_size, "CJS module table is out of bounds"));
+			reader->cjs_module_ids = (u32 *)malloc (table_size);
 			if (!reader->cjs_module_ids) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate CJS module IDs");
 			}
@@ -1617,7 +1421,9 @@ Result _hbc_reader_read_cjs_modules(HBCReader *reader) {
 			}
 		} else {
 			/* New format: symbol-offset pairs */
-			reader->cjs_modules = (SymbolOffsetPair *)malloc (reader->header.cjsModuleCount * sizeof (SymbolOffsetPair));
+			size_t table_size = 0;
+			RETURN_IF_ERROR (require_counted_table (reader, reader->header.cjsModuleCount, sizeof (SymbolOffsetPair), &table_size, "CJS module table is out of bounds"));
+			reader->cjs_modules = (SymbolOffsetPair *)malloc (table_size);
 			if (!reader->cjs_modules) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate CJS modules");
 			}
@@ -1648,7 +1454,9 @@ Result _hbc_reader_read_function_sources(HBCReader *reader) {
 
 	/* Allocate function sources */
 	if (reader->header.functionSourceCount > 0) {
-		reader->function_sources = (FunctionSourceEntry *)malloc (reader->header.functionSourceCount * sizeof (FunctionSourceEntry));
+		size_t table_size = 0;
+		RETURN_IF_ERROR (require_counted_table (reader, reader->header.functionSourceCount, sizeof (FunctionSourceEntry), &table_size, "Function source table is out of bounds"));
+		reader->function_sources = (FunctionSourceEntry *)malloc (table_size);
 		if (!reader->function_sources) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate function sources");
 		}
@@ -1688,6 +1496,11 @@ Result _hbc_reader_read_debug_info_header(HBCReader *reader) {
 		return SUCCESS_RESULT ();
 	}
 
+	u32 header_size = debug_info_header_bytes (reader->header.version);
+	if ((size_t)reader->header.debugInfoOffset > reader->file_buffer.size ||
+		header_size > reader->file_buffer.size - reader->header.debugInfoOffset) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Debug info header is out of bounds");
+	}
 	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, reader->header.debugInfoOffset));
 
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->debug_info_header.filename_count));
@@ -1723,13 +1536,14 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 	}
 
 	/* Seek past the already-parsed header to the start of the body. */
-	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer,
-		reader->header.debugInfoOffset + debug_info_header_bytes (reader->header.version)));
+	const size_t debug_body_pos = (size_t)reader->header.debugInfoOffset + debug_info_header_bytes (reader->header.version);
+	RETURN_IF_ERROR (_hbc_buffer_reader_seek (&reader->file_buffer, debug_body_pos));
 
 	/* Allocate debug string table */
 	if (reader->debug_info_header.filename_count > 0) {
-		reader->debug_string_table = (OffsetLengthPair *)malloc (
-			reader->debug_info_header.filename_count * sizeof (OffsetLengthPair));
+		size_t table_size = 0;
+		RETURN_IF_ERROR (require_counted_table (reader, reader->debug_info_header.filename_count, sizeof (OffsetLengthPair), &table_size, "Debug string table is out of bounds"));
+		reader->debug_string_table = (OffsetLengthPair *)malloc (table_size);
 		if (!reader->debug_string_table) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate debug string table");
 		}
@@ -1743,6 +1557,7 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 
 	/* Read debug string storage */
 	if (reader->debug_info_header.filename_storage_size > 0) {
+		RETURN_IF_ERROR (require_remaining_bytes (reader, reader->debug_info_header.filename_storage_size, "Debug string storage is out of bounds"));
 		reader->debug_string_storage = (u8 *)malloc (reader->debug_info_header.filename_storage_size);
 		if (!reader->debug_string_storage) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate debug string storage");
@@ -1754,8 +1569,9 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 
 	/* Read debug file regions */
 	if (reader->debug_info_header.file_region_count > 0) {
-		reader->debug_file_regions = (DebugFileRegion *)malloc (
-			reader->debug_info_header.file_region_count * sizeof (DebugFileRegion));
+		size_t table_size = 0;
+		RETURN_IF_ERROR (require_counted_table (reader, reader->debug_info_header.file_region_count, sizeof (DebugFileRegion), &table_size, "Debug file region table is out of bounds"));
+		reader->debug_file_regions = (DebugFileRegion *)malloc (table_size);
 		if (!reader->debug_file_regions) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate debug file regions");
 		}
@@ -1772,6 +1588,10 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 
 	/* Read sources data */
 	if (reader->header.version < 91) {
+		if (reader->debug_info_header.scope_desc_data_offset > reader->debug_info_header.debug_data_size) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Debug info offsets are out of order");
+		}
+		RETURN_IF_ERROR (require_remaining_bytes (reader, reader->debug_info_header.debug_data_size, "Debug data is out of bounds"));
 		size_t sources_data_size = reader->debug_info_header.scope_desc_data_offset;
 		reader->sources_data_storage = (u8 *)malloc (sources_data_size);
 		if (!reader->sources_data_storage) {
@@ -1790,6 +1610,12 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 		RETURN_IF_ERROR (_hbc_buffer_reader_read_bytes (&reader->file_buffer, reader->scope_desc_data_storage, scope_desc_data_size));
 		reader->scope_desc_data_storage_size = scope_desc_data_size;
 	} else {
+		if (reader->debug_info_header.scope_desc_data_offset > reader->debug_info_header.textified_data_offset ||
+			reader->debug_info_header.textified_data_offset > reader->debug_info_header.string_table_offset ||
+			reader->debug_info_header.string_table_offset > reader->debug_info_header.debug_data_size) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Debug info offsets are out of order");
+		}
+		RETURN_IF_ERROR (require_remaining_bytes (reader, reader->debug_info_header.debug_data_size, "Debug data is out of bounds"));
 		size_t sources_data_size = reader->debug_info_header.scope_desc_data_offset;
 		reader->sources_data_storage = (u8 *)malloc (sources_data_size);
 		if (!reader->sources_data_storage) {
@@ -1894,7 +1720,7 @@ Result _hbc_reader_read_functions_robust(HBCReader *reader) {
 	/* Read each function header */
 	for (u32 i = 0; i < max_functions_to_read; i++) {
 		/* Safety check - ensure we have enough buffer for a function header (16 bytes) */
-		if (reader->file_buffer.position + 16 > reader->file_buffer.size) {
+		if (!has_remaining_bytes (&reader->file_buffer, 16)) {
 			hbc_debug_printf ("Reached end of file after reading %u of %u functions\n",
 				i,
 				reader->header.functionCount);

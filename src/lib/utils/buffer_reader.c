@@ -68,7 +68,7 @@ static Result buffer_reader_check(const BufferReader *reader, size_t need) {
 	if (!reader || !reader->data) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer reader");
 	}
-	if (reader->position + need > reader->size) {
+	if (reader->position > reader->size || need > reader->size - reader->position) {
 		hbc_debug_printf ("Warning: Buffer overflow prevented reading %zu bytes at position %zu of %zu\n",
 			need,
 			reader->position,
@@ -153,7 +153,7 @@ Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment) {
 	size_t remainder = reader->position % alignment;
 	if (remainder != 0) {
 		size_t padding = alignment - remainder;
-		if (reader->position + padding > reader->size) {
+		if (reader->position > reader->size || padding > reader->size - reader->position) {
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in align");
 		}
 		reader->position += padding;
