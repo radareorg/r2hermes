@@ -460,25 +460,22 @@ static Result hbc_reader_alloc_function_tables(HBCReader *reader) {
 }
 
 static void decode_modern_small_function_header(const HBCReader *reader, FunctionHeader *header, u32 raw1, u32 raw2, u32 raw3) {
-	const bool version99 = reader->header.version >= 99;
+	const bool compact = reader->header.version >= 98;
 	header->offset = raw1 & 0x1FFFFFFu;
-	header->paramCount = version99? ((raw1 >> 25) & 0x1Fu): ((raw1 >> 25) & 0x7Fu);
-	header->bytecodeSizeInBytes = version99? (raw2 & 0x3FFFu): (raw2 & 0x7FFFu);
-	header->functionName = version99? ((raw2 >> 14) & 0xFFu): ((raw2 >> 15) & 0x1FFFFu);
+	header->paramCount = compact? ((raw1 >> 25) & 0x1Fu): ((raw1 >> 25) & 0x7Fu);
+	header->bytecodeSizeInBytes = compact? (raw2 & 0x3FFFu): (raw2 & 0x7FFFu);
+	header->functionName = compact? ((raw2 >> 14) & 0xFFu): ((raw2 >> 15) & 0x1FFFFu);
 	header->frameSize = raw3 & 0xFFu;
 	header->highestReadCacheIndex = (raw3 >> 8) & 0xFFu;
-	header->highestWriteCacheIndex = version99? ((raw3 >> 16) & 0x7Fu): ((raw3 >> 16) & 0xFFu);
-	header->environmentSize = version99? ((raw3 >> 23) & 0x1u): 0;
+	header->highestWriteCacheIndex = compact? ((raw3 >> 16) & 0x7Fu): ((raw3 >> 16) & 0xFFu);
+	header->environmentSize = compact? ((raw3 >> 23) & 0x1u): 0;
 	unpack_function_flags (header, (raw3 >> 24) & 0xFFu);
 	header->infoOffset = 0;
 	header->bytecode = NULL;
 }
 
 static u32 modern_large_header_offset(const HBCReader *reader, const FunctionHeader *header) {
-	if (reader->header.version == 98) {
-		return (header->functionName << 25) | header->offset;
-	}
-	if (reader->header.version >= 99) {
+	if (reader->header.version >= 98) {
 		return (header->functionName << 24) | (header->offset & 0xFFFFFFu);
 	}
 	return (header->functionName << 16) | (header->offset & 0xFFFFu);
