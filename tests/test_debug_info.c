@@ -97,9 +97,42 @@ static int test_function_bytecode_bounds(const char *root) {
 	return 0;
 }
 
+static int test_decode_rejects_bad_overflow_string_index(void) {
+	StringTableEntry small[1] = { 0 };
+	OffsetLengthPair overflow[1] = { 0 };
+	small[0].length = 0xff;
+	small[0].offset = 1;
+	overflow[0].offset = 0x40;
+	overflow[0].length = 8;
+
+	HBCStrs tables = {
+		.string_count = 1,
+		.overflow_string_count = 1,
+		.small_string_table = small,
+		.overflow_string_table = overflow,
+		.string_storage_offset = 0x1000
+	};
+	const u8 bytes[] = { 115, 0, 0, 0 };
+	HBCDecodeCtx ctx = {
+		.bytes = bytes,
+		.len = sizeof (bytes),
+		.bytecode_version = 96,
+		.asm_syntax = true,
+		.resolve_string_ids = true,
+		.string_tables = &tables
+	};
+	HBCInsnInfo info = { 0 };
+	CHECK (hbc_dec (&ctx, &info).code == RESULT_SUCCESS);
+	CHECK (info.text);
+	CHECK (strstr (info.text, "0x0"));
+	CHECK (!strstr (info.text, "0x1040"));
+	free (info.text);
+	return 0;
+}
+
 int main(int argc, char **argv) {
 	const char *root = argc > 1? argv[1]: ".";
-	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_function_bytecode_bounds (root)) {
+	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index ()) {
 		return 1;
 	}
 	return 0;

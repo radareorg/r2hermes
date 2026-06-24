@@ -116,7 +116,7 @@ static int find_function_at_offset(HbcContext *ctx, u64 vaddr, u32 *out_id) {
 		HBCFunc fi;
 		Result res = hbc_get_function_info (ctx->hbc, i, &fi);
 		if (res.code == RESULT_SUCCESS) {
-			if (paddr >= fi.offset && paddr < (fi.offset + fi.size)) {
+			if (paddr >= fi.offset && paddr - fi.offset < fi.size) {
 				*out_id = i;
 				return 0;
 			}
@@ -883,8 +883,7 @@ static void cmd_lit_scan_pool(HbcContext *ctx, RCore *core, HBCLiteralKind kind)
 
 /* Print r2 oneliners that register flag + comment + xrefs for one entry.
  * When va is true addresses are shown as vaddrs (HBC_VADDR_BASE + paddr),
- * otherwise as paddr. The formatted literal text is embedded in a CC comment;
- * embedded newlines are squashed into spaces and a single quote is escaped. */
+ * otherwise as paddr. */
 static void print_r2_for_entry(RCore *core, const HBCLiteralEntry *e, bool va) {
 	ut64 base = va? (ut64)HBC_VADDR_BASE: 0;
 	ut64 vaddr = base + e->paddr;
@@ -893,15 +892,10 @@ static void print_r2_for_entry(RCore *core, const HBCLiteralEntry *e, bool va) {
 	r_cons_printf (core->cons, "f %s0x%x 1 @ 0x%" PFMT64x "\n", prefix, e->paddr, vaddr);
 	/* embed the formatted text as a comment at the literal vaddr */
 	if (e->formatted && *e->formatted) {
-		char *clean = strdup (e->formatted);
+		char *clean = r_str_sanitize_r2 (e->formatted);
 		if (clean) {
-			for (char *p = clean; *p; p++) {
-				if (*p == '\n' || *p == '\r') {
-					*p = ' ';
-				} else if (*p == '\'') {
-					*p = '"';
-				}
-			}
+			r_str_replace_char (clean, '\n', ' ');
+			r_str_replace_char (clean, '\r', ' ');
 			r_cons_printf (core->cons, "\" /* %s */ CC %s @ 0x%" PFMT64x "\n", prefix, clean, vaddr);
 			free (clean);
 		}

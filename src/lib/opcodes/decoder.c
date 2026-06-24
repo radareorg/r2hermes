@@ -444,7 +444,7 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		}
 
 		/* Verify we can read the full bytecode from the file */
-		if (function_header->offset + function_header->bytecodeSizeInBytes > reader->file_buffer.size) {
+		if (function_header->bytecodeSizeInBytes > reader->file_buffer.size - function_header->offset) {
 			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output,
 				"[Bytecode extends beyond file size, truncating]\n"));
 			function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;

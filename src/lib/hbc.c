@@ -179,7 +179,7 @@ Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	const FunctionHeader *fh = &hbc->reader.function_headers[function_id];
 	/* Get function name from string table */
 	const char *name = NULL;
-	if (fh->functionName < hbc->reader.header.stringCount) {
+	if (fh->functionName < hbc->reader.header.stringCount && hbc->reader.strings) {
 		name = hbc->reader.strings[fh->functionName];
 	}
 	out->name = name;
@@ -239,6 +239,7 @@ Result hbc_get_string_tables(HBC *hbc, HBCStrs *out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 	out->string_count = hbc->reader.header.stringCount;
+	out->overflow_string_count = hbc->reader.header.overflowStringCount;
 	out->small_string_table = hbc->reader.small_string_table;
 	out->overflow_string_table = hbc->reader.overflow_string_table;
 	out->string_storage_offset = hbc->reader.string_storage_file_offset;
@@ -709,31 +710,42 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 			} else if (operand_meaning == OPERAND_MEANING_STRING_ID) {
 				/* For string IDs, output the string storage offset (not the ID)
 				 * so r2 can replace it with flags */
-				if (ctx->resolve_string_ids && ctx->string_tables && ctx->string_tables->string_storage_offset != 0) {
-					u32 str_offset = 0;
+				if (ctx->resolve_string_ids && (ctx->hbc || (ctx->string_tables && ctx->string_tables->string_storage_offset != 0))) {
+					u64 file_offset = 0;
 					bool found = false;
 
-					/* Cast to proper types for access */
-					const StringTableEntry *small_table = (const StringTableEntry *)ctx->string_tables->small_string_table;
-					const OffsetLengthPair *overflow_table = (const OffsetLengthPair *)ctx->string_tables->overflow_string_table;
+					if (ctx->hbc) {
+						HBCStringMeta meta;
+						if (hbc_get_string_meta (ctx->hbc, val, &meta).code == RESULT_SUCCESS) {
+							file_offset = meta.offset;
+							found = true;
+						}
+					} else if (ctx->string_tables) {
+						/* Cast to proper types for access */
+						const StringTableEntry *small_table = (const StringTableEntry *)ctx->string_tables->small_string_table;
+						const OffsetLengthPair *overflow_table = (const OffsetLengthPair *)ctx->string_tables->overflow_string_table;
 
-					/* Look up string storage offset from string tables */
-					if (val < ctx->string_tables->string_count && small_table) {
-						if (small_table[val].length == 0xFF && overflow_table) {
-							/* Overflow string */
-							u32 overflow_idx = small_table[val].offset;
-							str_offset = overflow_table[overflow_idx].offset;
-							found = true;
-						} else {
-							str_offset = small_table[val].offset;
-							found = true;
+						/* Look up string storage offset from string tables */
+						if (val < ctx->string_tables->string_count && small_table) {
+							u32 str_offset = 0;
+							if (small_table[val].length == 0xFF) {
+								/* Overflow string */
+								u32 overflow_idx = small_table[val].offset;
+								if (overflow_table && overflow_idx < ctx->string_tables->overflow_string_count) {
+									str_offset = overflow_table[overflow_idx].offset;
+									found = true;
+								}
+							} else {
+								str_offset = small_table[val].offset;
+								found = true;
+							}
+							file_offset = ctx->string_tables->string_storage_offset + str_offset;
 						}
 					}
 
 					if (found) {
 						/* Output the file-absolute string offset in hex - r2 will replace this with the string flag */
-						u32 file_offset = ctx->string_tables->string_storage_offset + str_offset;
-						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", file_offset);
+						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%llx", (unsigned long long)file_offset);
 					} else {
 						/* Fallback: just show the ID */
 						offset += snprintf (buf + offset, sizeof (buf) - offset, "0x%x", val);
