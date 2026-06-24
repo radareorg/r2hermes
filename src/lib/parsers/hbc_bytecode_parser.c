@@ -489,12 +489,8 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 			"Invalid arguments for _hbc_instruction_to_string");
 	}
 
-	/* Format offset */
-	char offset_str[16];
-	snprintf (offset_str, sizeof (offset_str), "%08x", instruction->function_offset + instruction->original_pos);
-
 	/* Add address */
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, offset_str));
+	RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string, "%08x", instruction->function_offset + instruction->original_pos));
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ": <"));
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, instruction->inst->name));
 	RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ">: <"));
@@ -522,9 +518,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ": "));
 
 		/* Format value based on operand type */
-		char value_str[32];
-		snprintf (value_str, sizeof (value_str), "%u", value);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, value_str));
+		RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string, "%u", value));
 	}
 
 	/* Close operands bracket */
@@ -555,9 +549,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 			case OPERAND_MEANING_BIGINT_ID:
 				if (value < reader->bigint_count) {
 					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # BigInt: "));
-					char bigint_str[32];
-					snprintf (bigint_str, sizeof (bigint_str), "%lld", (long long)reader->bigint_values[value]);
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, bigint_str));
+					RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string, "%lld", (long long)reader->bigint_values[value]));
 				}
 				break;
 
@@ -569,18 +561,17 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 						func_name = reader->strings[func->functionName];
 					}
 
-					char func_info[256];
-					snprintf (func_info, sizeof (func_info), "  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x", value, func_name, func->bytecodeSizeInBytes, func->paramCount, func->offset);
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, func_info));
+					RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string,
+						"  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x",
+						value, func_name, func->bytecodeSizeInBytes,
+						func->paramCount, func->offset));
 				}
 				break;
 
 			case OPERAND_MEANING_BUILTIN_ID:
 				/* Add support for builtin functions when available */
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "  # Built-in function: "));
-				char builtin_id_str[16];
-				snprintf (builtin_id_str, sizeof (builtin_id_str), "#%u", value);
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, builtin_id_str));
+				RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string, "#%u", value));
 				break;
 
 			default:
@@ -600,9 +591,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 			/* For addresses, calculate absolute target address */
 			u32 absolute_address = instruction->function_offset + instruction->original_pos + value;
 
-			char addr_comment[32];
-			snprintf (addr_comment, sizeof (addr_comment), "  # Address: %08x", absolute_address);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, addr_comment));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string, "  # Address: %08x", absolute_address));
 		}
 
 		/* Add jump table for switch instructions */
@@ -616,9 +605,7 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 					RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, ", "));
 				}
 
-				char table_entry[16];
-				snprintf (table_entry, sizeof (table_entry), "%08x", instruction->function_offset + instruction->switch_jump_table[i]);
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, table_entry));
+				RETURN_IF_ERROR (_hbc_string_buffer_appendf (out_string, "%08x", instruction->function_offset + instruction->switch_jump_table[i]));
 			}
 
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out_string, "]"));

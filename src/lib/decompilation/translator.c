@@ -427,9 +427,7 @@ static Token *quoted_string(HBCReader *r, u32 sid) {
 				_hbc_string_buffer_append_char (&sb, '\\');
 			}
 			if ((unsigned char)c < 0x20) {
-				char tmp[8];
-				snprintf (tmp, sizeof (tmp), "\\x%02x", (unsigned char)c);
-				_hbc_string_buffer_append (&sb, tmp);
+				_hbc_string_buffer_appendf (&sb, "\\x%02x", (unsigned char)c);
 			} else {
 				_hbc_string_buffer_append_char (&sb, c);
 			}
@@ -684,9 +682,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			StringBuffer sb;
 			RETURN_IF_ERROR (_hbc_string_buffer_init (&sb, 48));
 			_hbc_string_buffer_append (&sb, "try_get(");
-			char nb[16];
-			snprintf (nb, sizeof (nb), "r%u", (unsigned)insn->arg2);
-			_hbc_string_buffer_append (&sb, nb);
+			_hbc_string_buffer_appendf (&sb, "r%u", (unsigned)insn->arg2);
 			_hbc_format_property_from_string_id (insn->hbc_reader, insn->arg4, &sb);
 			_hbc_string_buffer_append (&sb, ")");
 			Token *t = create_raw_token (sb.data? sb.data: "try_get(r0)");
@@ -1222,9 +1218,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			/* Fallback: emit a comment-like raw token with mnemonic */
 			StringBuffer sb;
 			RETURN_IF_ERROR (_hbc_string_buffer_init (&sb, 64));
-			_hbc_string_buffer_append (&sb, "/* ");
-			_hbc_string_buffer_append (&sb, insn->inst->name);
-			_hbc_string_buffer_append (&sb, " */");
+			_hbc_string_buffer_appendf (&sb, "/* %s */", insn->inst->name);
 			Token *t = create_raw_token (sb.data? sb.data: "/* insn */");
 			_hbc_string_buffer_free (&sb);
 			if (!t) {

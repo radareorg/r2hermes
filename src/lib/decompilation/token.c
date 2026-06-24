@@ -285,9 +285,7 @@ void _hbc_token_free(Token *tok) {
 }
 
 static Result append_reg(StringBuffer *b, int r) {
-	char buf[32];
-	snprintf (buf, sizeof (buf), "r%d", r);
-	return _hbc_string_buffer_append (b, buf);
+	return _hbc_string_buffer_appendf (b, "r%d", r);
 }
 
 /* Very simple token to string printer, good enough for M1 */
@@ -336,23 +334,17 @@ Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 					return SUCCESS_RESULT ();
 				}
 			}
-			char buf[32];
-			snprintf (buf, sizeof (buf), "fn_%u", t->function_id);
-			return _hbc_string_buffer_append (buffer, buf);
+			return _hbc_string_buffer_appendf (buffer, "fn_%u", t->function_id);
 		}
 	case TOKEN_TYPE_JUMP_CONDITION:
 		{
 			JumpConditionToken *t = (JumpConditionToken *)token;
-			char buf[64];
-			snprintf (buf, sizeof (buf), "/* jump -> 0x%08x */", t->target_address);
-			return _hbc_string_buffer_append (buffer, buf);
+			return _hbc_string_buffer_appendf (buffer, "/* jump -> 0x%08x */", t->target_address);
 		}
 	case TOKEN_TYPE_JUMP_NOT_CONDITION:
 		{
 			JumpNotConditionToken *t = (JumpNotConditionToken *)token;
-			char buf[64];
-			snprintf (buf, sizeof (buf), "/* jump_if_not -> 0x%08x */", t->target_address);
-			return _hbc_string_buffer_append (buffer, buf);
+			return _hbc_string_buffer_appendf (buffer, "/* jump_if_not -> 0x%08x */", t->target_address);
 		}
 	case TOKEN_TYPE_GET_ENVIRONMENT:
 		{
@@ -360,9 +352,7 @@ Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, "get_env("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
 			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, ", "));
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%d", t->nesting_level);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, nb));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (buffer, "%d", t->nesting_level));
 			return _hbc_string_buffer_append (buffer, ")");
 		}
 	case TOKEN_TYPE_LOAD_FROM_ENVIRONMENT:
@@ -371,9 +361,7 @@ Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, "env_load("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
 			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, ", "));
-			char nb[16];
-			snprintf (nb, sizeof (nb), "%d", t->slot_index);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (buffer, nb));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (buffer, "%d", t->slot_index));
 			return _hbc_string_buffer_append (buffer, ")");
 		}
 	case TOKEN_TYPE_NEW_ENVIRONMENT:
@@ -386,59 +374,56 @@ Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 	case TOKEN_TYPE_NEW_INNER_ENVIRONMENT:
 		{
 			NewInnerEnvironmentToken *t = (NewInnerEnvironmentToken *)token;
-			char nb[64];
-			snprintf (nb, sizeof (nb), "new_inner_env(r%d, r%d, %d)", t->dest_register, t->parent_register, t->number_of_slots);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer,
+				"new_inner_env(r%d, r%d, %d)",
+				t->dest_register, t->parent_register, t->number_of_slots);
 		}
 	case TOKEN_TYPE_SWITCH_IMM:
 		{
 			SwitchImmToken *t = (SwitchImmToken *)token;
-			char nb[128];
-			snprintf (nb, sizeof (nb), "switch(r%d /*%u..%u*/)", t->value_reg, t->unsigned_min_value, t->unsigned_max_value);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer,
+				"switch(r%d /*%u..%u*/)",
+				t->value_reg, t->unsigned_min_value, t->unsigned_max_value);
 		}
 	case TOKEN_TYPE_STORE_TO_ENVIRONMENT:
 		{
 			StoreToEnvironmentToken *t = (StoreToEnvironmentToken *)token;
-			char nb[64];
-			snprintf (nb, sizeof (nb), "env_store(r%d, %d, r%d)", t->env_register, t->slot_index, t->value_register);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer,
+				"env_store(r%d, %d, r%d)",
+				t->env_register, t->slot_index, t->value_register);
 		}
 	case TOKEN_TYPE_FOR_IN_LOOP_INIT:
 		{
 			ForInLoopInitToken *t = (ForInLoopInitToken *)token;
-			char nb[128];
-			snprintf (nb, sizeof (nb), "forin_init(r%d, r%d, r%d, r%d)", t->obj_props_register, t->obj_register, t->iter_index_register, t->iter_size_register);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer,
+				"forin_init(r%d, r%d, r%d, r%d)",
+				t->obj_props_register, t->obj_register,
+				t->iter_index_register, t->iter_size_register);
 		}
 	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
 		{
 			ForInLoopNextIterToken *t = (ForInLoopNextIterToken *)token;
-			char nb[160];
-			snprintf (nb, sizeof (nb), "forin_next(r%d, r%d, r%d, r%d, r%d)", t->next_value_register, t->obj_props_register, t->obj_register, t->iter_index_register, t->iter_size_register);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer,
+				"forin_next(r%d, r%d, r%d, r%d, r%d)",
+				t->next_value_register, t->obj_props_register,
+				t->obj_register, t->iter_index_register,
+				t->iter_size_register);
 		}
 	case TOKEN_TYPE_RESUME_GENERATOR:
 		{
 			ResumeGeneratorToken *t = (ResumeGeneratorToken *)token;
-			char nb[64];
-			snprintf (nb, sizeof (nb), "resume_gen(r%d, r%d)", t->result_out_reg, t->return_bool_out_reg);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer, "resume_gen(r%d, r%d)", t->result_out_reg, t->return_bool_out_reg);
 		}
 	case TOKEN_TYPE_SAVE_GENERATOR:
 		{
 			SaveGeneratorToken *t = (SaveGeneratorToken *)token;
-			char nb[64];
-			snprintf (nb, sizeof (nb), "save_gen(0x%08x)", t->address);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer, "save_gen(0x%08x)", t->address);
 		}
 	case TOKEN_TYPE_START_GENERATOR: return _hbc_string_buffer_append (buffer, "start_generator()");
 	case TOKEN_TYPE_CATCH_BLOCK_START:
 		{
 			CatchBlockStartToken *t = (CatchBlockStartToken *)token;
-			char nb[32];
-			snprintf (nb, sizeof (nb), "catch(r%d)", t->arg_register);
-			return _hbc_string_buffer_append (buffer, nb);
+			return _hbc_string_buffer_appendf (buffer, "catch(r%d)", t->arg_register);
 		}
 	default:
 		return _hbc_string_buffer_append (buffer, "/*token*/");

@@ -89,6 +89,7 @@ typedef struct HBCReader HBCReader;
 /* StringBuffer functions */
 Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity);
 Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str);
+Result _hbc_string_buffer_appendf(StringBuffer *buffer, const char *fmt, ...);
 Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c);
 Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value);
 void _hbc_string_buffer_free(StringBuffer *buffer);

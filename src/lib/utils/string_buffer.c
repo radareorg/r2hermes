@@ -67,6 +67,38 @@ Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
 	return SUCCESS_RESULT ();
 }
 
+Result _hbc_string_buffer_appendf(StringBuffer *buffer, const char *fmt, ...) {
+	if (!buffer || !fmt) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer or format is NULL");
+	}
+
+	char stack[1024];
+	va_list ap, ap2;
+	va_start (ap, fmt);
+	va_copy (ap2, ap);
+	int len = vsnprintf (stack, sizeof (stack), fmt, ap);
+	va_end (ap);
+	if (len < 0) {
+		va_end (ap2);
+		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Failed to format string buffer append");
+	}
+	if ((size_t)len < sizeof (stack)) {
+		va_end (ap2);
+		return _hbc_string_buffer_append (buffer, stack);
+	}
+
+	char *heap = (char *)malloc ((size_t)len + 1);
+	if (!heap) {
+		va_end (ap2);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate formatted string");
+	}
+	vsnprintf (heap, (size_t)len + 1, fmt, ap2);
+	va_end (ap2);
+	Result result = _hbc_string_buffer_append (buffer, heap);
+	free (heap);
+	return result;
+}
+
 Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
@@ -88,10 +120,7 @@ Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
 
-	char temp[32]; /* Enough for any integer */
-	snprintf (temp, sizeof (temp), "%d", value);
-
-	return _hbc_string_buffer_append (buffer, temp);
+	return _hbc_string_buffer_appendf (buffer, "%d", value);
 }
 
 void _hbc_string_buffer_free(StringBuffer *buffer) {

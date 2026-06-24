@@ -213,15 +213,11 @@ static Result emit_close_brace(HermesDecompiler *state, StringBuffer *out) {
 /* Labels always start at column 0. empty_stmt adds a ';' so the label can
  * legally precede a closing brace. */
 static Result emit_label(StringBuffer *out, u64 addr, bool empty_stmt) {
-	char lbl[40];
-	snprintf (lbl, sizeof (lbl), empty_stmt? "loc_%08llx:;\n": "loc_%08llx:\n", (unsigned long long)addr);
-	return _hbc_string_buffer_append (out, lbl);
+	return _hbc_string_buffer_appendf (out, empty_stmt? "loc_%08llx:;\n": "loc_%08llx:\n", (unsigned long long)addr);
 }
 
 static Result emit_goto(StringBuffer *out, u64 addr) {
-	char buf[48];
-	snprintf (buf, sizeof (buf), "goto loc_%08llx;\n", (unsigned long long)addr);
-	return _hbc_string_buffer_append (out, buf);
+	return _hbc_string_buffer_appendf (out, "goto loc_%08llx;\n", (unsigned long long)addr);
 }
 
 /* Reconstruct a SwitchImm jump table as a real switch dispatch. The table maps
@@ -233,9 +229,7 @@ static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, cons
 	const u64 fbase = state->options.function_base;
 	const int minval = (int) (int32_t)insn->arg4;
 	const u32 default_target = _hbc_compute_target_address (insn, 2);
-	char hdr[32];
-	snprintf (hdr, sizeof (hdr), "switch (r%u) {\n", (unsigned)insn->arg1);
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, hdr));
+	RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "switch (r%u) {\n", (unsigned)insn->arg1));
 	state->indent_level++;
 	for (u32 i = 0; i < insn->switch_jump_table_size;) {
 		const u32 tgt = insn->switch_jump_table[i];
@@ -251,9 +245,7 @@ static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, cons
 		}
 		for (u32 k = i; k <= j; k++) {
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			char cb[32];
-			snprintf (cb, sizeof (cb), "case %d:", minval + (int)k);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, cb));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "case %d:", minval + (int)k));
 			if (k < j) {
 				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
 			} else {
@@ -971,9 +963,7 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 			r = ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
 		}
 		if (r.code == RESULT_SUCCESS && !dec->options.suppress_comments) {
-			char vbuf[64];
-			snprintf (vbuf, sizeof (vbuf), "// Decompiled Hermes bytecode\n// Version: %u\n\n", version);
-			r = _hbc_string_buffer_append (&dec->output, vbuf);
+			r = _hbc_string_buffer_appendf (&dec->output, "// Decompiled Hermes bytecode\n// Version: %u\n\n", version);
 		}
 		for (u32 i = 0; r.code == RESULT_SUCCESS && i < func_count && !dec->output_truncated; i++) {
 			if (dec->decompiled_functions[i]) {
@@ -987,10 +977,8 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 				 * bundle: emit a stub marker and keep decompiling the
 				 * remaining functions. A genuine memory/IO failure on the
 				 * append itself still terminates the run. */
-				char buf[160];
-				snprintf (buf, sizeof (buf), "// Function %u: skipped (%s)\n\n",
+				r = _hbc_string_buffer_appendf (&dec->output, "// Function %u: skipped (%s)\n\n",
 					i, fr.error_message[0] != '\0'? fr.error_message: "unknown error");
-				r = _hbc_string_buffer_append (&dec->output, buf);
 			}
 		}
 	}
@@ -2860,9 +2848,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 	/* Function header line prefix: offset in pd:ho mode, indentation otherwise */
 	if (state->options.show_offsets) {
-		char addr_buf[24];
-		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
+		RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08llx: ", (unsigned long long)state->options.function_base));
 	} else if (!state->inlining_function && !function_body->is_global) {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	}
@@ -2877,9 +2863,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "("));
 		u32 pcnt = function_body->function_object? function_body->function_object->paramCount: 0;
 		for (u32 i = 0; i < pcnt; i++) {
-			char pbuf[16];
-			snprintf (pbuf, sizeof (pbuf), i? ", a%u": "a%u", i);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, pbuf));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, i? ", a%u": "a%u", i));
 		}
 		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {"));
 	}
@@ -3114,9 +3098,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 			state->indent_level--;
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			char cbuf[32];
-			snprintf (cbuf, sizeof (cbuf), "} catch (r%d) {\n", catch_start->catch_reg);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, cbuf));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "} catch (r%d) {\n", catch_start->catch_reg));
 			state->indent_level++;
 			catch_start->catch_open = true;
 			continue;
@@ -3162,9 +3144,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		/* Show offset if requested (pd:ho mode) */
 		if (state->options.show_offsets && asm_ref) {
-			char addr_buf[24];
-			snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)abs_addr);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08llx: ", (unsigned long long)abs_addr));
 			/* Add indentation after offset */
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		} else {
@@ -3424,9 +3404,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	state->indent_level--;
 	if (state->options.show_offsets) {
 		/* In pd:ho mode, closing brace must start with an offset */
-		char addr_buf[24];
-		snprintf (addr_buf, sizeof (addr_buf), "0x%08llx: ", (unsigned long long)state->options.function_base);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, addr_buf));
+		RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08llx: ", (unsigned long long)state->options.function_base));
 	} else {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	}

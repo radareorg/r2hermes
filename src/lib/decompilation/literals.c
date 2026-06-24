@@ -29,9 +29,7 @@ static Result append_quoted(StringBuffer *out, const char *s) {
 			RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, '\\'));
 			RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, (char)c));
 		} else if (c < 0x20) {
-			char tmp[8];
-			snprintf (tmp, sizeof (tmp), "\\x%02x", c);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, tmp));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "\\x%02x", c));
 		} else {
 			RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, (char)c));
 		}
@@ -203,16 +201,12 @@ static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key,
 	case SLP_FalseTag: return _hbc_string_buffer_append (out, "false");
 	case SLP_IntegerTag:
 		{
-			char nb[32];
-			snprintf (nb, sizeof (nb), "%u", (unsigned)v->v.intv);
-			return _hbc_string_buffer_append (out, nb);
+			return _hbc_string_buffer_appendf (out, "%u", (unsigned)v->v.intv);
 		}
 	case SLP_NumberTag:
 		{
-			char db[64];
 			/* Use %.17g to preserve precision while avoiding trailing noise */
-			snprintf (db, sizeof (db), "%.17g", v->v.num);
-			return _hbc_string_buffer_append (out, db);
+			return _hbc_string_buffer_appendf (out, "%.17g", v->v.num);
 		}
 	case SLP_LongStringTag:
 	case SLP_ShortStringTag:
@@ -239,9 +233,7 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 			if (suppress_comments) {
 				return _hbc_string_buffer_append (out, "}");
 			}
-			char tmp[96];
-			snprintf (tmp, sizeof (tmp), " /*shape:%u vals:%u*/ }", key_count, value_count);
-			return _hbc_string_buffer_append (out, tmp);
+			return _hbc_string_buffer_appendf (out, " /*shape:%u vals:%u*/ }", key_count, value_count);
 		}
 		const ShapeTableEntry *shape = &r->object_shapes[key_count];
 		key_count = shape->prop_count;
@@ -258,9 +250,7 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 		if (suppress_comments) {
 			return _hbc_string_buffer_append (out, "}");
 		}
-		char tmp[96];
-		snprintf (tmp, sizeof (tmp), " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id);
-		return _hbc_string_buffer_append (out, tmp);
+		return _hbc_string_buffer_appendf (out, " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id);
 	}
 	u32 n = key_count < value_count? key_count: value_count;
 	SLPValue *key_vals = (SLPValue *)calloc (n, sizeof (SLPValue));
@@ -284,9 +274,7 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 		if (suppress_comments) {
 			return _hbc_string_buffer_append (out, "}");
 		}
-		char tmp[96];
-		snprintf (tmp, sizeof (tmp), " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id);
-		return _hbc_string_buffer_append (out, tmp);
+		return _hbc_string_buffer_appendf (out, " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id);
 	}
 
 	for (u32 i = 0; i < n; i++) {
@@ -323,9 +311,7 @@ Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, St
 		if (suppress_comments) {
 			return _hbc_string_buffer_append (out, "]");
 		}
-		char tmp[64];
-		snprintf (tmp, sizeof (tmp), " /*n:%u id:%u*/ ]", value_count, array_id);
-		return _hbc_string_buffer_append (out, tmp);
+		return _hbc_string_buffer_appendf (out, " /*n:%u id:%u*/ ]", value_count, array_id);
 	}
 	SLPValue *vals = (SLPValue *)calloc (value_count, sizeof (SLPValue));
 	if (!vals) {
@@ -337,9 +323,7 @@ Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, St
 		if (suppress_comments) {
 			return _hbc_string_buffer_append (out, "]");
 		}
-		char tmp[64];
-		snprintf (tmp, sizeof (tmp), " /*n:%u id:%u*/ ]", value_count, array_id);
-		return _hbc_string_buffer_append (out, tmp);
+		return _hbc_string_buffer_appendf (out, " /*n:%u id:%u*/ ]", value_count, array_id);
 	}
 	for (u32 i = 0; i < value_count; i++) {
 		if (multiline) {
@@ -366,14 +350,10 @@ Result _hbc_format_variadic_call(const ParsedInstruction *insn, StringBuffer *ou
 		u32 base = insn->arg2;
 		for (u32 i = 1; i <= argc; i++) {
 			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", "));
-			char nb[16];
-			snprintf (nb, sizeof (nb), "r%u", base + i);
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, nb));
+			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "r%u", base + i));
 		}
 		/* Also annotate argc */
-		char cm[32];
-		snprintf (cm, sizeof (cm), " /*argc:%u*/", argc);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, cm));
+		RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, " /*argc:%u*/", argc));
 	} else {
 		/* No args beyond 'this' */
 	}
