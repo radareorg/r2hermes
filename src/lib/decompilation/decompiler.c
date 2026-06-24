@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <hbc/decompilation/decompiler.h>
 #include <hbc/decompilation/token.h>
 #include <hbc/parser.h>
@@ -63,7 +64,7 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 	if (function_header->offset >= reader->file_buffer.size) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
 	}
-	if (function_header->offset + function_header->bytecodeSizeInBytes > reader->file_buffer.size) {
+	if (function_header->bytecodeSizeInBytes > reader->file_buffer.size - function_header->offset) {
 		/* Truncate to file size */
 		function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
 	}
@@ -2222,7 +2223,7 @@ static bool is_simple_ident(const char *s) {
 		return false;
 	}
 	for (const char *p = s; *p; p++) {
-		if (!(*p == '_' || (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9'))) {
+		if (*p != '_' && !isalnum ((unsigned char)*p)) {
 			return false;
 		}
 	}
