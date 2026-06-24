@@ -305,6 +305,7 @@ static void cmd_list_eval_functions(HbcContext *ctx, RCore *core, const char *ar
 			pj_kn (pj, "offset", site->offset);
 			pj_kn (pj, "function_address", HBC_VADDR_BASE + (ut64)site->function_address);
 			pj_ks (pj, "name", r_str_get_fail (site->function_name, "unknown"));
+			pj_kb (pj, "strict", site->strict);
 			pj_end (pj);
 		}
 		pj_end (pj);
@@ -321,11 +322,12 @@ static void cmd_list_eval_functions(HbcContext *ctx, RCore *core, const char *ar
 			r_cons_printf (core->cons, "0x%08" PFMT64x "\n", address);
 		} else {
 			r_cons_printf (core->cons,
-				"0x%08" PFMT64x " f=%u +0x%x func=0x%08" PFMT64x " name=%s\n",
+				"0x%08" PFMT64x " f=%u +0x%x func=0x%08" PFMT64x " strict=%s name=%s\n",
 				address,
 				site->function_id,
 				site->offset,
 				HBC_VADDR_BASE + (ut64)site->function_address,
+				site->strict? "true": "false",
 				r_str_get_fail (site->function_name, "unknown"));
 		}
 	}

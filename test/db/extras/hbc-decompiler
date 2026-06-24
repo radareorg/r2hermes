@@ -142,7 +142,7 @@ CMDS=<<EOF
 r2hermes-E
 EOF
 EXPECT=<<EOF
-0x100000b4 f=0 +0x4 func=0x100000b0 name=global
+0x100000b4 f=0 +0x4 func=0x100000b0 strict=false name=global
 EOF
 RUN
 
@@ -162,7 +162,7 @@ CMDS=<<EOF
 r2hermes-Ej
 EOF
 EXPECT=<<EOF
-[{"address":268435636,"function_id":0,"offset":4,"function_address":268435632,"name":"global"}]
+[{"address":268435636,"function_id":0,"offset":4,"function_address":268435632,"name":"global","strict":false}]
 EOF
 RUN
 
@@ -172,7 +172,7 @@ CMDS=<<EOF
 r2hermes-E
 EOF
 EXPECT=<<EOF
-0x100d166b f=4953 +0x28 func=0x100d1643 name=onPress
+0x100d166b f=4953 +0x28 func=0x100d1643 strict=false name=onPress
 EOF
 RUN
 

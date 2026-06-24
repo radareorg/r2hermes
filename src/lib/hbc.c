@@ -649,6 +649,9 @@ Result hbc_find_eval_sites(HBC *hbc, HBCEvalSites *out) {
 			if (!inst || !inst->name || !inst->binary_size) {
 				break;
 			}
+			if (pc + inst->binary_size > size) {
+				break;
+			}
 			if (hbc_canonical_opcode_from_name (inst->name) == OP_DirectEval) {
 				HBCEvalSite site = {
 					.function_id = fid,
@@ -656,6 +659,7 @@ Result hbc_find_eval_sites(HBC *hbc, HBCEvalSites *out) {
 					.offset = pc,
 					.function_address = info.offset,
 					.function_name = info.name,
+					.strict = inst->operands[2].operand_type != OPERAND_TYPE_NONE && code[pc + 3] != 0,
 				};
 				Result res = hbc_eval_sites_add (out, &cap, &site);
 				if (res.code != RESULT_SUCCESS) {

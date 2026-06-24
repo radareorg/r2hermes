@@ -561,6 +561,7 @@ static Result cmd_eval(const CliContext *ctx, int argc, char **argv) {
 				site->offset,
 				site->function_address);
 			json_print_string (site->function_name? site->function_name: "unknown");
+			printf (",\"strict\":%s", site->strict? "true": "false");
 			putchar ('}');
 		}
 		puts ("]");
@@ -570,11 +571,12 @@ static Result cmd_eval(const CliContext *ctx, int argc, char **argv) {
 			if (ctx->flags.quiet) {
 				printf ("0x%08x\n", site->address);
 			} else {
-				printf ("0x%08x f=%u +0x%x func=0x%08x name=%s\n",
+				printf ("0x%08x f=%u +0x%x func=0x%08x strict=%s name=%s\n",
 					site->address,
 					site->function_id,
 					site->offset,
 					site->function_address,
+					site->strict? "true": "false",
 					site->function_name? site->function_name: "unknown");
 			}
 		}

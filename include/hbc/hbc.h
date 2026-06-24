@@ -71,6 +71,7 @@ typedef struct {
 	u32 offset; // Offset within function bytecode
 	u32 function_address; // File-absolute function start
 	const char *function_name; // Valid while provider is alive; caller must not free
+	bool strict; // Whether eval is compiled in strict mode
 } HBCEvalSite;
 
 typedef struct {
