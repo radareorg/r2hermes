@@ -1,6 +1,6 @@
 /* radare2 - BSD - Copyright 2025-2026 - pancake */
 
-#include <hbc/hbc.h>
+#include "../src/lib/hbc_internal.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -74,9 +74,32 @@ static int test_empty_debug_info(const char *root) {
 	return 0;
 }
 
+static int test_function_bytecode_bounds(const char *root) {
+	char path[512];
+	snprintf (path, sizeof (path), "%s/test/bins/hbc/bespoke_eval.hbc", root);
+
+	HBC *hbc = NULL;
+	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);
+	CHECK (hbc->reader.function_headers);
+	CHECK (hbc->reader.file_buffer.size < UINT32_MAX);
+
+	FunctionHeader *fh = &hbc->reader.function_headers[0];
+	fh->offset = (u32)hbc->reader.file_buffer.size + 1;
+	fh->bytecodeSizeInBytes = 1;
+
+	const u8 *ptr = (const u8 *)1;
+	u32 size = 1;
+	CHECK (hbc_get_function_bytecode (hbc, 0, &ptr, &size).code == RESULT_ERROR_INVALID_DATA);
+	CHECK (!ptr);
+	CHECK (size == 0);
+
+	hbc_close (hbc);
+	return 0;
+}
+
 int main(int argc, char **argv) {
 	const char *root = argc > 1? argv[1]: ".";
-	if (test_small_debug_info (root) || test_empty_debug_info (root)) {
+	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_function_bytecode_bounds (root)) {
 		return 1;
 	}
 	return 0;

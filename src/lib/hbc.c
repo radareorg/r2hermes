@@ -170,6 +170,9 @@ Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
+	if (!hbc->reader.function_headers) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Function table is not loaded");
+	}
 	if (function_id >= hbc->reader.header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
@@ -485,10 +488,18 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 	if (!hbc || !out_ptr || !out_size) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
+	*out_ptr = NULL;
+	*out_size = 0;
+	if (!hbc->reader.file_buffer.data || !hbc->reader.function_headers) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Bytecode data is not loaded");
+	}
 	if (function_id >= hbc->reader.header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
 	const FunctionHeader *fh = &hbc->reader.function_headers[function_id];
+	if (fh->offset > hbc->reader.file_buffer.size || fh->bytecodeSizeInBytes > hbc->reader.file_buffer.size - fh->offset) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Function bytecode range is out of bounds");
+	}
 	*out_ptr = hbc->reader.file_buffer.data + fh->offset;
 	*out_size = fh->bytecodeSizeInBytes;
 	return SUCCESS_RESULT ();
@@ -979,7 +990,8 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 				break;
 			}
 			u32 values[6];
-			if (!decode_operands (inst, code + pc, size - pc, values)) {
+			size_t decoded_size = decode_operands (inst, code + pc, size - pc, values);
+			if (!decoded_size) {
 				break;
 			}
 			bool is_store = is_export_store (inst->name);
@@ -1022,7 +1034,7 @@ Result hbc_scan_bindings(HBC *hbc, HBCBindings *out) {
 					cand_n++;
 				}
 			}
-			pc += inst->binary_size;
+			pc += (u32)decoded_size;
 		}
 		if (!has_marker) {
 			continue;
