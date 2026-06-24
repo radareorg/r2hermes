@@ -498,11 +498,17 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
 	}
 	const FunctionHeader *fh = &hbc->reader.function_headers[function_id];
-	if (fh->offset > hbc->reader.file_buffer.size || fh->bytecodeSizeInBytes > hbc->reader.file_buffer.size - fh->offset) {
+	/* Recover the canonical size for deduplicated functions, which encode
+	 * bytecodeSizeInBytes == 0 while pointing at a shared body. */
+	u32 size = fh->bytecodeSizeInBytes;
+	if (size == 0) {
+		size = _hbc_reader_resolve_deduped_size (&hbc->reader, fh);
+	}
+	if (fh->offset > hbc->reader.file_buffer.size || size > hbc->reader.file_buffer.size - fh->offset) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Function bytecode range is out of bounds");
 	}
 	*out_ptr = hbc->reader.file_buffer.data + fh->offset;
-	*out_size = fh->bytecodeSizeInBytes;
+	*out_size = size;
 	return SUCCESS_RESULT ();
 }
 

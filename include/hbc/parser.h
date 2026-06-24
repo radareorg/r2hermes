@@ -313,6 +313,22 @@ Result _hbc_reader_read_debug_info_header(HBCReader *reader);
 Result _hbc_reader_read_debug_info(HBCReader *reader);
 Result _hbc_reader_read_whole_file(HBCReader *reader, const char *filename);
 
+/*
+ * Recover the bytecode size for a deduplicated function.
+ *
+ * In bytecode versions that deduplicate identical function bodies (observed
+ * with v98 bundles), a deduped function stores bytecodeSizeInBytes == 0 in
+ * its (small or large) header while keeping a valid offset pointing at the
+ * shared canonical body owned by another function. This helper scans the
+ * function table for a function sharing \p fh->offset with a non-zero size
+ * and returns that size so the deduped function can be parsed/decompiled
+ * using the canonical body.
+ *
+ * \return the recovered size, or 0 if \p fh already has a non-zero size, or
+ *         if no canonical function is found (genuinely empty function).
+ */
+u32 _hbc_reader_resolve_deduped_size(const HBCReader *reader, const FunctionHeader *fh);
+
 /* Utility functions */
 const char *_hbc_string_kind_to_string(StringKind kind);
 BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);

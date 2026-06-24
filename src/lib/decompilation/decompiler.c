@@ -26,6 +26,12 @@ static Result ensure_function_bytecode_loaded_from_state(HBC *hbc, FunctionHeade
 		return SUCCESS_RESULT ();
 	}
 
+	/* Recover the canonical size for deduplicated functions, which encode
+	 * bytecodeSizeInBytes == 0 while pointing at a shared body. */
+	if (function_header->bytecodeSizeInBytes == 0) {
+		function_header->bytecodeSizeInBytes = _hbc_reader_resolve_deduped_size (&hbc->reader, function_header);
+	}
+
 	/* Get bytecode from state */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
@@ -55,6 +61,12 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 	FunctionHeader *function_header = &reader->function_headers[function_id];
 	if (function_header->bytecode) {
 		return SUCCESS_RESULT ();
+	}
+
+	/* Recover the canonical size for deduplicated functions, which encode
+	 * bytecodeSizeInBytes == 0 while pointing at a shared body. */
+	if (function_header->bytecodeSizeInBytes == 0) {
+		function_header->bytecodeSizeInBytes = _hbc_reader_resolve_deduped_size (reader, function_header);
 	}
 
 	/* Skip invalid offsets */
@@ -967,9 +979,18 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 			if (dec->decompiled_functions[i]) {
 				continue;
 			}
-			r = _hbc_decompile_function (dec, i, NULL, -1, false, false, false);
-			if (r.code == RESULT_SUCCESS) {
+			Result fr = _hbc_decompile_function (dec, i, NULL, -1, false, false, false);
+			if (fr.code == RESULT_SUCCESS) {
 				r = _hbc_string_buffer_append (&dec->output, "\n\n");
+			} else {
+				/* A single function failing must not abort the whole
+				 * bundle: emit a stub marker and keep decompiling the
+				 * remaining functions. A genuine memory/IO failure on the
+				 * append itself still terminates the run. */
+				char buf[160];
+				snprintf (buf, sizeof (buf), "// Function %u: skipped (%s)\n\n",
+					i, fr.error_message[0] != '\0'? fr.error_message: "unknown error");
+				r = _hbc_string_buffer_append (&dec->output, buf);
 			}
 		}
 	}
