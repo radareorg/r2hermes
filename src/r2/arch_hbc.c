@@ -17,6 +17,7 @@ typedef struct {
 	ut32 bytecode_version; /* cached effective HBC bytecode version */
 	HBC *hbc; /* Hermes state for direct access */
 	u32 string_count;
+	u32 overflow_string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
@@ -96,6 +97,7 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 		return false;
 	}
 	hs->string_count = tables.string_count;
+	hs->overflow_string_count = tables.overflow_string_count;
 	hs->small_string_table = tables.small_string_table;
 	hs->overflow_string_table = tables.overflow_string_table;
 	hs->string_storage_offset = tables.string_storage_offset;
@@ -239,6 +241,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	/* Build decode context */
 	HBCStrs string_tables = {
 		.string_count = hs->string_count,
+		.overflow_string_count = hs->overflow_string_count,
 		.small_string_table = hs->small_string_table,
 		.overflow_string_table = hs->overflow_string_table,
 		.string_storage_offset = hs->string_storage_offset

@@ -96,6 +96,7 @@ typedef struct {
 /* String table data */
 typedef struct {
 	u32 string_count;
+	u32 overflow_string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
