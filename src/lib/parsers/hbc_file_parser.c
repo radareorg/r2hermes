@@ -526,6 +526,29 @@ static Result validate_function_bytecode_range(const HBCReader *reader, const Fu
 	return SUCCESS_RESULT ();
 }
 
+u32 _hbc_reader_resolve_deduped_size(const HBCReader *reader, const FunctionHeader *fh) {
+	if (!reader || !fh || !reader->function_headers) {
+		return 0;
+	}
+	/* Nothing to do if the function already has a non-zero size, or if it
+	 * has no offset to dedup against. */
+	if (fh->bytecodeSizeInBytes != 0 || fh->offset == 0) {
+		return fh->bytecodeSizeInBytes;
+	}
+	/* Search for a canonical function sharing this offset with a real body.
+	 * Deduped functions encode size==0 while pointing at the shared body. */
+	for (u32 i = 0; i < reader->header.functionCount; i++) {
+		const FunctionHeader *other = &reader->function_headers[i];
+		if (other == fh) {
+			continue;
+		}
+		if (other->offset == fh->offset && other->bytecodeSizeInBytes > 0) {
+			return other->bytecodeSizeInBytes;
+		}
+	}
+	return 0;
+}
+
 static Result load_function_bytecode(HBCReader *reader, FunctionHeader *header) {
 	if (!header->bytecodeSizeInBytes) {
 		return SUCCESS_RESULT ();
