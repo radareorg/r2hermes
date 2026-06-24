@@ -200,72 +200,72 @@ typedef struct HBC HBC;
  * Open an HBC file from disk.
  * Creates an HBC for direct access to file data.
  */
-Result hbc_open(const char *path, HBC **out);
+HBC_API Result hbc_open(const char *path, HBC **out);
 
 /**
  * Open an HBC file from memory buffer.
  * Creates an HBC for direct access to in-memory data.
  */
-Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out);
+HBC_API Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out);
 
 /**
  * Close an HBC and free all resources.
  * After this call, all pointers returned from the state are invalid.
  */
-void hbc_close(HBC *hbc);
+HBC_API void hbc_close(HBC *hbc);
 
 /**
  * Get the total number of functions in the HBC file.
  */
-u32 hbc_function_count(HBC *hbc);
+HBC_API u32 hbc_function_count(HBC *hbc);
 
 /**
  * Get the total number of strings in the HBC file.
  */
-u32 hbc_string_count(HBC *hbc);
+HBC_API u32 hbc_string_count(HBC *hbc);
 
 /**
  * Get the HBC file header information.
  */
-Result hbc_get_header(HBC *hbc, HBCHeader *out);
+HBC_API Result hbc_get_header(HBC *hbc, HBCHeader *out);
 
 /**
  * Get metadata for a specific function.
  */
-Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out);
+HBC_API Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out);
 
 /**
  * Get a string by index.
  */
-Result hbc_get_string(HBC *hbc, u32 index, const char **out_str);
+HBC_API Result hbc_get_string(HBC *hbc, u32 index, const char **out_str);
 
 /**
  * Get metadata for a string (offset, length, kind).
  */
-Result hbc_get_string_meta(HBC *hbc, u32 index, HBCStringMeta *out);
+HBC_API Result hbc_get_string_meta(HBC *hbc, u32 index, HBCStringMeta *out);
 
 /**
  * Get string table data for decoding purposes.
  */
-Result hbc_get_string_tables(HBC *hbc, HBCStrs *out);
+HBC_API Result hbc_get_string_tables(HBC *hbc, HBCStrs *out);
 
 /**
  * Get source/module name associated with a function.
  */
-Result hbc_get_function_source(HBC *hbc, u32 function_id, const char **out_src);
+HBC_API Result hbc_get_function_source(HBC *hbc, u32 function_id, const char **out_src);
 
 /**
  * Get decoded source-line records from debug information.
  */
-Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out);
-void hbc_free_source_lines(HBCSourceLineArray *arr);
-bool hbc_has_source_lines(HBC *hbc);
-Result hbc_get_debug_info(HBC *hbc, HBCDebugInfo *out);
+HBC_API Result hbc_get_source_lines(HBC *hbc, HBCSourceLineArray *out);
+HBC_API void hbc_free_source_lines(HBCSourceLineArray *arr);
+HBC_API bool hbc_has_source_lines(HBC *hbc);
+HBC_API Result hbc_get_debug_info(HBC *hbc, HBCDebugInfo *out);
 
 /**
  * Get the raw bytecode bytes for a function.
  */
-Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size);
+HBC_API Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, u32 *out_size);
 
 /* ============================================================================
  * Decompilation API
@@ -274,7 +274,7 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 /**
  * Decompile a specific function.
  */
-Result hbc_decomp_fn(
+HBC_API Result hbc_decomp_fn(
 	HBC *hbc,
 	u32 function_id,
 	HBCDecompOptions options,
@@ -283,7 +283,7 @@ Result hbc_decomp_fn(
 /**
  * Decompile all functions.
  */
-Result hbc_decomp_all(
+HBC_API Result hbc_decomp_all(
 	HBC *hbc,
 	HBCDecompOptions options,
 	char **out_str);
@@ -313,14 +313,14 @@ typedef struct {
 /**
  * Get all functions at once.
  */
-Result hbc_all_funcs(
+HBC_API Result hbc_all_funcs(
 	HBC *hbc,
 	HBCFuncArray *out);
 
 /**
  * Free function array.
  */
-void hbc_free_funcs(HBCFuncArray *arr);
+HBC_API void hbc_free_funcs(HBCFuncArray *arr);
 
 /**
  * Decoded instructions list
@@ -369,22 +369,22 @@ typedef struct {
 /**
  * Free instruction array.
  */
-void hbc_free_insns(HBCInsn *insns, u32 count);
+HBC_API void hbc_free_insns(HBCInsn *insns, u32 count);
 
 /**
  * Scan bytecode/string references for probable JS/native import/export
  * boundaries. Hermes has no native import table, so these entries are derived
  * from bytecode operands and CJS metadata.
  */
-Result hbc_scan_bindings(HBC *hbc, HBCBindings *out);
-void hbc_free_bindings(HBCBindings *bindings);
+HBC_API Result hbc_scan_bindings(HBC *hbc, HBCBindings *out);
+HBC_API void hbc_free_bindings(HBCBindings *bindings);
 
 /**
  * List probable bundled modules/libraries. Hermes bytecode has no SBOM table,
  * so versions are only populated when they are explicitly preserved in strings.
  */
-Result hbc_list_modules(HBC *hbc, HBCModules *out);
-void hbc_free_modules(HBCModules *modules);
+HBC_API Result hbc_list_modules(HBC *hbc, HBCModules *out);
+HBC_API void hbc_free_modules(HBCModules *modules);
 
 /**
  * Encoding buffer and functions
@@ -422,7 +422,7 @@ typedef struct {
 /**
  * Decode a single instruction using a context struct.
  */
-Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out);
+HBC_API Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out);
 
 /* ============================================================================
  * Instruction Encoding
@@ -431,7 +431,7 @@ Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out);
 /**
  * Encode a single instruction from asm text to bytecode.
  */
-Result hbc_enc(
+HBC_API Result hbc_enc(
 	const char *asm_line,
 	u32 bytecode_version,
 	HBCEncBuf *out);
@@ -439,7 +439,7 @@ Result hbc_enc(
 /**
  * Encode multiple instructions from asm text to bytecode.
  */
-Result hbc_enc_multi(
+HBC_API Result hbc_enc_multi(
 	const char *asm_text,
 	u32 bytecode_version,
 	HBCEncBuf *out);

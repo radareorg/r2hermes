@@ -12,6 +12,14 @@
 #include <errno.h>
 #include <stdarg.h>
 
+#if defined(_WIN32) && defined(HBC_BUILD_SHARED)
+#define HBC_API __declspec(dllexport)
+#elif defined(__GNUC__) || defined(__clang__)
+#define HBC_API __attribute__ ((visibility ("default")))
+#else
+#define HBC_API
+#endif
+
 #ifndef R2_VERSION
 #define R_RETURN_VAL_IF_FAIL(x, y) \
 	if (! (x)) \
@@ -87,12 +95,12 @@ struct HBCReader;
 typedef struct HBCReader HBCReader;
 
 /* StringBuffer functions */
-Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity);
-Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str);
-Result _hbc_string_buffer_appendf(StringBuffer *buffer, const char *fmt, ...);
-Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c);
-Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value);
-void _hbc_string_buffer_free(StringBuffer *buffer);
+Result _hbc_sb_init(StringBuffer *buffer, size_t initial_capacity);
+Result _hbc_sb_append(StringBuffer *buffer, const char *str);
+Result _hbc_sb_appendf(StringBuffer *buffer, const char *fmt, ...);
+Result _hbc_sb_append_char(StringBuffer *buffer, char c);
+Result _hbc_sb_append_int(StringBuffer *buffer, int value);
+void _hbc_sb_free(StringBuffer *buffer);
 
 /* BufferReader functions */
 Result _hbc_buffer_reader_init_from_file(BufferReader *reader, const char *filename);
@@ -107,8 +115,8 @@ Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment);
 void _hbc_buffer_reader_free(BufferReader *reader);
 
 /* String case conversion utilities */
-void hbc_camel_to_snake(const char *camel, char *snake, size_t snake_size);
-void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size);
+HBC_API void hbc_camel_to_snake(const char *camel, char *snake, size_t snake_size);
+HBC_API void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size);
 
 /* Utility macros for error handling */
 #define RETURN_IF_ERROR(expr) \

@@ -1,10 +1,19 @@
 CC?= gcc
-CFLAGS?=-Wall -Wextra -std=c11 -pedantic -O2 -fPIC -D_POSIX_C_SOURCE=200809L
+CFLAGS?=-Wall -Wextra -std=c11 -pedantic -O2 -fPIC -fvisibility=hidden -D_POSIX_C_SOURCE=200809L
 DEBUG_FLAGS?=-g -DDEBUG -DHBC_DEBUG_LOGGING=1
 
 VERSION=$(shell grep vers meson.build| cut -d "'" -f 2)
 
 VH=include/hbc/version.h
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	CLI_EXPORT_LDFLAGS = -Wl,-exported_symbols_list,src/tool/libhbctool.exports
+else ifeq ($(UNAME_S),Linux)
+	CLI_EXPORT_LDFLAGS = -Wl,--version-script,src/tool/libhbctool.version
+else
+	CLI_EXPORT_LDFLAGS =
+endif
 
 # Directories
 SRC_DIR = src/lib
@@ -24,7 +33,9 @@ HBC_HEADERS = $(shell find include -name '*.h')
 
 ## Object files
 LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
+LIB_RELOC_OBJ = $(BUILD_DIR)/libhbc_all.o
 MAIN_OBJ = $(BUILD_DIR)/libhbctool.o
+MAIN_RELOC_OBJ = $(BUILD_DIR)/libhbctool_all.o
 
 ## Artifacts
 BIN_FILE = $(BIN_DIR)/libhbctool
@@ -32,8 +43,9 @@ STATIC_LIB = $(BUILD_DIR)/libhbc.a
 
 # Include paths
 INCLUDES = -Iinclude
+LD_RELOC_FLAGS ?= -r -nostdlib
 
-all: $(BIN_FILE)
+all: $(STATIC_LIB) $(BIN_FILE)
 
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: all
@@ -50,18 +62,25 @@ asan:
 format indent fmt:
 	clang-format-radare2 $(shell find src include src/r2 | grep '\.[c|h]$$')
 
-$(STATIC_LIB): $(LIB_OBJ)
+$(LIB_RELOC_OBJ): $(LIB_OBJ)
+	$(CC) $(LD_RELOC_FLAGS) -o $@ $^
+
+$(STATIC_LIB): $(LIB_RELOC_OBJ)
+	$(RM) $@
 	ar rcs $@ $^
 
-$(BIN_FILE): $(STATIC_LIB) $(MAIN_OBJ) | $(shell mkdir -p $(BIN_DIR))
-	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJ) -L$(BUILD_DIR) -lhbc
+$(MAIN_RELOC_OBJ): $(MAIN_OBJ) $(LIB_OBJ)
+	$(CC) $(LD_RELOC_FLAGS) -o $@ $^
+
+$(BIN_FILE): $(STATIC_LIB) $(MAIN_RELOC_OBJ) | $(shell mkdir -p $(BIN_DIR))
+	$(CC) $(CFLAGS) $(CLI_EXPORT_LDFLAGS) -o $@ $(MAIN_RELOC_OBJ)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HBC_HEADERS) | $(VH)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(MAIN_OBJ): $(MAIN_SRC) $(HBC_HEADERS) | $(VH)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) -c $< -o $@
 
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)/libhbctool
@@ -74,7 +93,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_BIN = $(BIN_DIR)/run_tests
 
 $(TEST_BIN): $(STATIC_LIB) $(TEST_SRC) | $(shell mkdir -p $(BIN_DIR))
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc
+	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) $(CLI_EXPORT_LDFLAGS) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc
 
 test: $(BIN_FILE) $(TEST_BIN)
 	$(TEST_BIN)

@@ -304,11 +304,11 @@ typedef struct {
 #define HBC_CANONICAL_OPCODE_UNKNOWN 0xffu
 
 /* Public API for getting instruction set by version */
-HBCISA hbc_isa_getv(int version);
-u8 hbc_canonical_opcode_from_name(const char *name);
+HBC_API HBCISA hbc_isa_getv(int version);
+HBC_API u8 hbc_canonical_opcode_from_name(const char *name);
 
 /* Human-readable label for an operand, derived from its meaning or type.
  * Never returns NULL; falls back to "Unknown" for unexpected values. */
-const char *hbc_operand_name(const InstructionOperand *operand);
+HBC_API const char *hbc_operand_name(const InstructionOperand *operand);
 
 #endif /* LIBHBC_HERMES_OPCODES_H */

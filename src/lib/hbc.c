@@ -526,14 +526,14 @@ Result hbc_decomp_fn(
 	}
 
 	StringBuffer sb;
-	Result res = _hbc_string_buffer_init (&sb, 16 * 1024);
+	Result res = _hbc_sb_init (&sb, 16 * 1024);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	res = _hbc_decompile_function_with_state (hbc, function_id, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
-		_hbc_string_buffer_free (&sb);
+		_hbc_sb_free (&sb);
 		return res;
 	}
 
@@ -550,14 +550,14 @@ Result hbc_decomp_all(
 	}
 
 	StringBuffer sb;
-	Result res = _hbc_string_buffer_init (&sb, 32 * 1024);
+	Result res = _hbc_sb_init (&sb, 32 * 1024);
 	if (res.code != RESULT_SUCCESS) {
 		return res;
 	}
 
 	res = _hbc_decompile_all_with_state (hbc, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
-		_hbc_string_buffer_free (&sb);
+		_hbc_sb_free (&sb);
 		return res;
 	}
 
@@ -611,7 +611,7 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 static char *build_literal_comment(HBCReader *reader, const char *mnemonic, const u32 *ovs, const char *base_text) {
 	const bool is_obj = mnemonic && !strncmp (mnemonic, "new_object_with_buffer", strlen ("new_object_with_buffer"));
 	StringBuffer sb;
-	if (_hbc_string_buffer_init (&sb, 256).code != RESULT_SUCCESS) {
+	if (_hbc_sb_init (&sb, 256).code != RESULT_SUCCESS) {
 		return NULL;
 	}
 	Result fmt_res;
@@ -636,7 +636,7 @@ static char *build_literal_comment(HBCReader *reader, const char *mnemonic, cons
 			memcpy (result + base_len + 4, sb.data, sb.length + 1);
 		}
 	}
-	_hbc_string_buffer_free (&sb);
+	_hbc_sb_free (&sb);
 	return result;
 }
 

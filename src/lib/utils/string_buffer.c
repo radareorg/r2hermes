@@ -3,7 +3,7 @@
 #include <hbc/common.h>
 
 /* Grow the buffer (doubling) so it can hold at least required_capacity bytes. */
-static Result string_buffer_ensure(StringBuffer *buffer, size_t required_capacity) {
+static Result sb_ensure(StringBuffer *buffer, size_t required_capacity) {
 	if (required_capacity <= buffer->capacity) {
 		return SUCCESS_RESULT ();
 	}
@@ -25,7 +25,7 @@ static Result string_buffer_ensure(StringBuffer *buffer, size_t required_capacit
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
+Result _hbc_sb_init(StringBuffer *buffer, size_t initial_capacity) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
@@ -46,7 +46,7 @@ Result _hbc_string_buffer_init(StringBuffer *buffer, size_t initial_capacity) {
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
+Result _hbc_sb_append(StringBuffer *buffer, const char *str) {
 	if (!buffer || !str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer or string is NULL");
 	}
@@ -57,7 +57,7 @@ Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
 	}
 
 	/* Ensure enough capacity */
-	RETURN_IF_ERROR (string_buffer_ensure (buffer, buffer->length + str_len + 1));
+	RETURN_IF_ERROR (sb_ensure (buffer, buffer->length + str_len + 1));
 
 	/* Append the string */
 	memcpy (buffer->data + buffer->length, str, str_len);
@@ -67,12 +67,12 @@ Result _hbc_string_buffer_append(StringBuffer *buffer, const char *str) {
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_string_buffer_appendf(StringBuffer *buffer, const char *fmt, ...) {
+Result _hbc_sb_appendf(StringBuffer *buffer, const char *fmt, ...) {
 	if (!buffer || !fmt) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer or format is NULL");
 	}
 
-	char stack[1024];
+	char stack[128];
 	va_list ap, ap2;
 	va_start (ap, fmt);
 	va_copy (ap2, ap);
@@ -84,7 +84,7 @@ Result _hbc_string_buffer_appendf(StringBuffer *buffer, const char *fmt, ...) {
 	}
 	if ((size_t)len < sizeof (stack)) {
 		va_end (ap2);
-		return _hbc_string_buffer_append (buffer, stack);
+		return _hbc_sb_append (buffer, stack);
 	}
 
 	char *heap = (char *)malloc ((size_t)len + 1);
@@ -94,18 +94,18 @@ Result _hbc_string_buffer_appendf(StringBuffer *buffer, const char *fmt, ...) {
 	}
 	vsnprintf (heap, (size_t)len + 1, fmt, ap2);
 	va_end (ap2);
-	Result result = _hbc_string_buffer_append (buffer, heap);
+	Result result = _hbc_sb_append (buffer, heap);
 	free (heap);
 	return result;
 }
 
-Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c) {
+Result _hbc_sb_append_char(StringBuffer *buffer, char c) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
 
 	/* Ensure enough capacity (+1 for the char, +1 for null terminator) */
-	RETURN_IF_ERROR (string_buffer_ensure (buffer, buffer->length + 2));
+	RETURN_IF_ERROR (sb_ensure (buffer, buffer->length + 2));
 
 	/* Append the character */
 	buffer->data[buffer->length] = c;
@@ -115,15 +115,15 @@ Result _hbc_string_buffer_append_char(StringBuffer *buffer, char c) {
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_string_buffer_append_int(StringBuffer *buffer, int value) {
+Result _hbc_sb_append_int(StringBuffer *buffer, int value) {
 	if (!buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Buffer is NULL");
 	}
 
-	return _hbc_string_buffer_appendf (buffer, "%d", value);
+	return _hbc_sb_appendf (buffer, "%d", value);
 }
 
-void _hbc_string_buffer_free(StringBuffer *buffer) {
+void _hbc_sb_free(StringBuffer *buffer) {
 	if (buffer && buffer->data) {
 		free (buffer->data);
 		buffer->data = NULL;

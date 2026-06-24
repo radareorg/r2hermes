@@ -417,24 +417,24 @@ static Token *quoted_string(HBCReader *r, u32 sid) {
 		size_t n = s? strlen (s): 0;
 		/* naive escape for quotes and backslashes */
 		StringBuffer sb;
-		if (_hbc_string_buffer_init (&sb, n + 8).code != RESULT_SUCCESS) {
+		if (_hbc_sb_init (&sb, n + 8).code != RESULT_SUCCESS) {
 			return NULL;
 		}
-		_hbc_string_buffer_append (&sb, "\"");
+		_hbc_sb_append (&sb, "\"");
 		for (size_t i = 0; i < n; i++) {
 			char c = s[i];
 			if (c == '\\' || c == '"') {
-				_hbc_string_buffer_append_char (&sb, '\\');
+				_hbc_sb_append_char (&sb, '\\');
 			}
 			if ((unsigned char)c < 0x20) {
-				_hbc_string_buffer_appendf (&sb, "\\x%02x", (unsigned char)c);
+				_hbc_sb_appendf (&sb, "\\x%02x", (unsigned char)c);
 			} else {
-				_hbc_string_buffer_append_char (&sb, c);
+				_hbc_sb_append_char (&sb, c);
 			}
 		}
-		_hbc_string_buffer_append (&sb, "\"");
+		_hbc_sb_append (&sb, "\"");
 		Token *t = create_raw_token (sb.data? sb.data: "\"\"");
-		_hbc_string_buffer_free (&sb);
+		_hbc_sb_free (&sb);
 		return t;
 	}
 	return create_raw_token ("\"\"");
@@ -680,13 +680,13 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			RETURN_IF_ERROR (_hbc_string_buffer_init (&sb, 48));
-			_hbc_string_buffer_append (&sb, "try_get(");
-			_hbc_string_buffer_appendf (&sb, "r%u", (unsigned)insn->arg2);
+			RETURN_IF_ERROR (_hbc_sb_init (&sb, 48));
+			_hbc_sb_append (&sb, "try_get(");
+			_hbc_sb_appendf (&sb, "r%u", (unsigned)insn->arg2);
 			_hbc_format_property_from_string_id (insn->hbc_reader, insn->arg4, &sb);
-			_hbc_string_buffer_append (&sb, ")");
+			_hbc_sb_append (&sb, ")");
 			Token *t = create_raw_token (sb.data? sb.data: "try_get(r0)");
-			_hbc_string_buffer_free (&sb);
+			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}
@@ -852,13 +852,13 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			Result r = _hbc_string_buffer_init (&sb, 128);
+			Result r = _hbc_sb_init (&sb, 128);
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
 			r = _hbc_format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, LITERALS_PRETTY_AUTO, false);
 			Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
-			_hbc_string_buffer_free (&sb);
+			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}
@@ -871,13 +871,13 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
 			RETURN_IF_ERROR (add (out, create_assignment_token ()));
 			StringBuffer sb;
-			Result r = _hbc_string_buffer_init (&sb, 128);
+			Result r = _hbc_sb_init (&sb, 128);
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
 			r = _hbc_format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, LITERALS_PRETTY_AUTO, false);
 			Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
-			_hbc_string_buffer_free (&sb);
+			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}
@@ -1217,10 +1217,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 
 			/* Fallback: emit a comment-like raw token with mnemonic */
 			StringBuffer sb;
-			RETURN_IF_ERROR (_hbc_string_buffer_init (&sb, 64));
-			_hbc_string_buffer_appendf (&sb, "/* %s */", insn->inst->name);
+			RETURN_IF_ERROR (_hbc_sb_init (&sb, 64));
+			_hbc_sb_appendf (&sb, "/* %s */", insn->inst->name);
 			Token *t = create_raw_token (sb.data? sb.data: "/* insn */");
-			_hbc_string_buffer_free (&sb);
+			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 			}

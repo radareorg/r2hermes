@@ -18,13 +18,13 @@ Result _hbc_disassembler_init(Disassembler *disassembler, HBCReader *reader, HBC
 	}
 	disassembler->current_function_id = 0;
 
-	return _hbc_string_buffer_init (&disassembler->output, 8192);
+	return _hbc_sb_init (&disassembler->output, 8192);
 }
 
 /* Clean up disassembler */
 void _hbc_disassembler_cleanup(Disassembler *disassembler) {
 	if (disassembler) {
-		_hbc_string_buffer_free (&disassembler->output);
+		_hbc_sb_free (&disassembler->output);
 	}
 }
 
@@ -48,7 +48,7 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 	}
 
 	if (verbose) {
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (output,
+		RETURN_IF_ERROR (_hbc_sb_appendf (output,
 			"=> [Function #%u \"%s\" of %u bytes]: %u params, frame size=%u, env size=%u",
 			function_id, function_name, function_header->bytecodeSizeInBytes,
 			function_header->paramCount, function_header->frameSize,
@@ -57,7 +57,7 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 
 	/* Verbose information */
 	if (verbose) {
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (output,
+		RETURN_IF_ERROR (_hbc_sb_appendf (output,
 			", read index sz=%u, write index sz=%u, strict=%s, exc handler=%s, debug info=%s",
 			function_header->highestReadCacheIndex,
 			function_header->highestWriteCacheIndex,
@@ -67,35 +67,35 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 	}
 
 	/* Offset information */
-	RETURN_IF_ERROR (_hbc_string_buffer_appendf (output, " @ offset 0x%08x", function_header->offset));
+	RETURN_IF_ERROR (_hbc_sb_appendf (output, " @ offset 0x%08x", function_header->offset));
 
 	/* Exception handler information */
 	if (function_header->hasExceptionHandler && disassembler->options.show_debug_info) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (output, "\n  [Exception handlers:"));
+		RETURN_IF_ERROR (_hbc_sb_append (output, "\n  [Exception handlers:"));
 
 		ExceptionHandlerList *exc_handlers = &reader->function_id_to_exc_handlers[function_id];
 		for (u32 i = 0; i < exc_handlers->count; i++) {
 			ExceptionHandlerInfo *handler = &exc_handlers->handlers[i];
 
-			RETURN_IF_ERROR (_hbc_string_buffer_appendf (output,
+			RETURN_IF_ERROR (_hbc_sb_appendf (output,
 				" [start=0x%x, end=0x%x, target=0x%x]",
 				handler->start, handler->end, handler->target));
 		}
 
-		RETURN_IF_ERROR (_hbc_string_buffer_append (output, " ]"));
+		RETURN_IF_ERROR (_hbc_sb_append (output, " ]"));
 	}
 
 	/* Debug information */
 	if (function_header->hasDebugInfo && disassembler->options.show_debug_info) {
 		DebugOffsets *debug_offsets = &reader->function_id_to_debug_offsets[function_id];
 
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (output,
+		RETURN_IF_ERROR (_hbc_sb_appendf (output,
 			"\n  [Debug offsets: source_locs=0x%x, scope_desc_data=0x%x]",
 			debug_offsets->source_locations, debug_offsets->scope_desc_data));
 	}
 
 	/* End the function header */
-	RETURN_IF_ERROR (_hbc_string_buffer_append (output, "\n\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (output, "\n\n"));
 
 	return SUCCESS_RESULT ();
 }
@@ -112,15 +112,15 @@ static Result format_operand_asm(Disassembler *d, ParsedInstruction *ins, int id
 	FunctionHeader *fh = &r->function_headers[d->current_function_id];
 
 	if (t == OPERAND_TYPE_REG8 || t == OPERAND_TYPE_REG32) {
-		return _hbc_string_buffer_appendf (out, "r%u", v);
+		return _hbc_sb_appendf (out, "r%u", v);
 	}
 
 	if (m == OPERAND_MEANING_FUNCTION_ID) {
 		if (v < r->header.functionCount) {
 			u32 off = r->function_headers[v].offset;
-			return _hbc_string_buffer_appendf (out, "0x%x", off);
+			return _hbc_sb_appendf (out, "0x%x", off);
 		}
-		return _hbc_string_buffer_appendf (out, "%u", v);
+		return _hbc_sb_appendf (out, "%u", v);
 	}
 
 	if (m == OPERAND_MEANING_STRING_ID) {
@@ -140,23 +140,23 @@ static Result format_operand_asm(Disassembler *d, ParsedInstruction *ins, int id
 			}
 		}
 		u32 abs = r->string_storage_file_offset + off;
-		return _hbc_string_buffer_appendf (out, "0x%x", abs);
+		return _hbc_sb_appendf (out, "0x%x", abs);
 	}
 
 	if (t == OPERAND_TYPE_ADDR8 || t == OPERAND_TYPE_ADDR32) {
 		/* Convert relative address to file-absolute */
 		u32 file_abs = fh->offset + ins->original_pos + v;
-		return _hbc_string_buffer_appendf (out, "0x%x", file_abs);
+		return _hbc_sb_appendf (out, "0x%x", file_abs);
 	}
 
 	if (t == OPERAND_TYPE_DOUBLE) {
 		double double_val = ins->double_arg2;
 
-		return _hbc_string_buffer_appendf (out, "%.6f", double_val);
+		return _hbc_sb_appendf (out, "%.6f", double_val);
 	}
 
 	/* Default: decimal immediate */
-	return _hbc_string_buffer_appendf (out, "%u", v);
+	return _hbc_sb_appendf (out, "%u", v);
 }
 
 static Result print_instruction_asm(Disassembler *disassembler, ParsedInstruction *instruction) {
@@ -164,20 +164,20 @@ static Result print_instruction_asm(Disassembler *disassembler, ParsedInstructio
 	/* Prefix with absolute file address of the instruction */
 	HBCReader *r = disassembler->reader;
 	FunctionHeader *fh = &r->function_headers[disassembler->current_function_id];
-	RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08x: ", fh->offset + instruction->original_pos));
+	RETURN_IF_ERROR (_hbc_sb_appendf (out, "0x%08x: ", fh->offset + instruction->original_pos));
 	/* mnemonic — tables are already snake_case */
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, instruction->inst->name));
+	RETURN_IF_ERROR (_hbc_sb_append (out, instruction->inst->name));
 
 	bool first = true;
 	for (int i = 0; i < 6; i++) {
 		if (instruction->inst->operands[i].operand_type == OPERAND_TYPE_NONE) {
 			continue;
 		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, first? " ": ", "));
+		RETURN_IF_ERROR (_hbc_sb_append (out, first? " ": ", "));
 		first = false;
 		RETURN_IF_ERROR (format_operand_asm (disassembler, instruction, i, out));
 	}
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (out, "\n"));
 	return SUCCESS_RESULT ();
 }
 
@@ -195,9 +195,9 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 	FunctionHeader *fh = &reader->function_headers[disassembler->current_function_id];
 
 	/* Print instruction address */
-	RETURN_IF_ERROR (_hbc_string_buffer_appendf (output, "==> %08x>: <", fh->offset + instruction->original_pos));
-	RETURN_IF_ERROR (_hbc_string_buffer_append (output, instruction->inst->name));
-	RETURN_IF_ERROR (_hbc_string_buffer_append (output, ">: <"));
+	RETURN_IF_ERROR (_hbc_sb_appendf (output, "==> %08x>: <", fh->offset + instruction->original_pos));
+	RETURN_IF_ERROR (_hbc_sb_append (output, instruction->inst->name));
+	RETURN_IF_ERROR (_hbc_sb_append (output, ">: <"));
 
 	/* Print operands */
 	bool first = true;
@@ -208,29 +208,29 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 		}
 
 		if (!first) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (output, ", "));
+			RETURN_IF_ERROR (_hbc_sb_append (output, ", "));
 		}
 		first = false;
 
 		/* Print operand name and value */
 		const char *operand_name = hbc_operand_name (&instruction->inst->operands[i]);
-		RETURN_IF_ERROR (_hbc_string_buffer_append (output, operand_name));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (output, ": "));
+		RETURN_IF_ERROR (_hbc_sb_append (output, operand_name));
+		RETURN_IF_ERROR (_hbc_sb_append (output, ": "));
 
 		/* Get operand value */
 		u32 value = hbc_operand_value (instruction, i);
 
 		/* Print operand value */
 		if (instruction->inst->operands[i].operand_type != OPERAND_TYPE_DOUBLE) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append_int (output, value));
+			RETURN_IF_ERROR (_hbc_sb_append_int (output, value));
 		} else {
 			double double_val = instruction->double_arg2;
 
-			RETURN_IF_ERROR (_hbc_string_buffer_appendf (output, "%.6f", double_val));
+			RETURN_IF_ERROR (_hbc_sb_appendf (output, "%.6f", double_val));
 		}
 	}
 
-	RETURN_IF_ERROR (_hbc_string_buffer_append (output, ">"));
+	RETURN_IF_ERROR (_hbc_sb_append (output, ">"));
 
 	/* Add comments for special operands */
 
@@ -246,22 +246,22 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 		case OPERAND_MEANING_STRING_ID:
 			if (value < reader->header.stringCount &&
 				reader->strings && reader->strings[value]) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (output, "  # String: \""));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (output, reader->strings[value]));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (output, "\" ("));
+				RETURN_IF_ERROR (_hbc_sb_append (output, "  # String: \""));
+				RETURN_IF_ERROR (_hbc_sb_append (output, reader->strings[value]));
+				RETURN_IF_ERROR (_hbc_sb_append (output, "\" ("));
 				if (value < reader->header.stringCount && reader->string_kinds) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (output, _hbc_string_kind_to_string (reader->string_kinds[value])));
+					RETURN_IF_ERROR (_hbc_sb_append (output, _hbc_string_kind_to_string (reader->string_kinds[value])));
 				} else {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (output, "Unknown"));
+					RETURN_IF_ERROR (_hbc_sb_append (output, "Unknown"));
 				}
-				RETURN_IF_ERROR (_hbc_string_buffer_append (output, ")"));
+				RETURN_IF_ERROR (_hbc_sb_append (output, ")"));
 			}
 			break;
 
 		case OPERAND_MEANING_BIGINT_ID:
 			if (value < reader->bigint_count) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (output, "  # BigInt: "));
-				RETURN_IF_ERROR (_hbc_string_buffer_append_int (output, reader->bigint_values[value]));
+				RETURN_IF_ERROR (_hbc_sb_append (output, "  # BigInt: "));
+				RETURN_IF_ERROR (_hbc_sb_append_int (output, reader->bigint_values[value]));
 			}
 			break;
 
@@ -274,7 +274,7 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 					func_name = reader->strings[func->functionName];
 				}
 
-				RETURN_IF_ERROR (_hbc_string_buffer_appendf (output,
+				RETURN_IF_ERROR (_hbc_sb_appendf (output,
 					"  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x",
 					value, func_name, func->bytecodeSizeInBytes,
 					func->paramCount, func->offset));
@@ -299,28 +299,28 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 
 		u32 value = hbc_operand_value (instruction, i);
 
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (output, "  # Address: %08x", fh->offset + instruction->original_pos + value));
+		RETURN_IF_ERROR (_hbc_sb_appendf (output, "  # Address: %08x", fh->offset + instruction->original_pos + value));
 	}
 
 	/* Add jump table comment for switch instructions */
 	if (strcmp (instruction->inst->name, "SwitchImm") == 0) {
 		if (instruction->switch_jump_table && instruction->switch_jump_table_size > 0) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (output, "  # Jump table: ["));
+			RETURN_IF_ERROR (_hbc_sb_append (output, "  # Jump table: ["));
 
 			for (u32 i = 0; i < instruction->switch_jump_table_size; i++) {
 				if (i > 0) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (output, ", "));
+					RETURN_IF_ERROR (_hbc_sb_append (output, ", "));
 				}
 
-				RETURN_IF_ERROR (_hbc_string_buffer_appendf (output, "%08x", fh->offset + instruction->switch_jump_table[i]));
+				RETURN_IF_ERROR (_hbc_sb_appendf (output, "%08x", fh->offset + instruction->switch_jump_table[i]));
 			}
 
-			RETURN_IF_ERROR (_hbc_string_buffer_append (output, "]"));
+			RETURN_IF_ERROR (_hbc_sb_append (output, "]"));
 		}
 	}
 
 	/* End the instruction */
-	RETURN_IF_ERROR (_hbc_string_buffer_append (output, "\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (output, "\n"));
 
 	return SUCCESS_RESULT ();
 }
@@ -344,9 +344,9 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 
 	/* Print bytecode listing header */
 	if (disassembler->options.asm_syntax) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "Bytecode listing (asm):\n\n"));
+		RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "Bytecode listing (asm):\n\n"));
 	} else {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "Bytecode listing:\n\n"));
+		RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "Bytecode listing:\n\n"));
 	}
 
 	/* Debug mode - always show function offset info */
@@ -362,28 +362,28 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 	if (function_header->bytecodeSizeInBytes > 0 && !function_header->bytecode) {
 		/* Skip functions with suspicious sizes */
 		if (function_header->bytecodeSizeInBytes > 1024 * 1024) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output,
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output,
 				"[Skipping function with unreasonably large bytecode size]\n"));
 			return SUCCESS_RESULT ();
 		}
 
 		/* Skip functions with offset 0 (likely invalid) */
 		if (function_header->offset == 0) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output,
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output,
 				"[No bytecode available for this function (invalid offset)]\n"));
 			return SUCCESS_RESULT ();
 		}
 
 		/* Verify offset is within file bounds */
 		if (function_header->offset >= reader->file_buffer.size) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output,
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output,
 				"[Bytecode offset beyond file size]\n"));
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
 		}
 
 		/* Verify we can read the full bytecode from the file */
 		if (function_header->bytecodeSizeInBytes > reader->file_buffer.size - function_header->offset) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output,
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output,
 				"[Bytecode extends beyond file size, truncating]\n"));
 			function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
 		}
@@ -391,7 +391,7 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		/* Allocate bytecode buffer */
 		function_header->bytecode = (u8 *)malloc (function_header->bytecodeSizeInBytes);
 		if (!function_header->bytecode) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "[Memory allocation failed for bytecode]\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "[Memory allocation failed for bytecode]\n"));
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 		}
 
@@ -401,7 +401,7 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		/* Seek to bytecode offset */
 		Result seek_result = _hbc_buffer_reader_seek (&reader->file_buffer, function_header->offset);
 		if (seek_result.code != RESULT_SUCCESS) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "[Failed to seek to bytecode location]\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "[Failed to seek to bytecode location]\n"));
 			free (function_header->bytecode);
 			function_header->bytecode = NULL;
 			return seek_result;
@@ -416,7 +416,7 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		_hbc_buffer_reader_seek (&reader->file_buffer, saved_pos);
 
 		if (read_result.code != RESULT_SUCCESS) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "[Failed to read bytecode data]\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "[Failed to read bytecode data]\n"));
 			free (function_header->bytecode);
 			function_header->bytecode = NULL;
 			return read_result;
@@ -426,7 +426,7 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		if (function_header->bytecodeSizeInBytes > 0) {
 			u8 first_opcode = function_header->bytecode[0];
 			if (first_opcode == 0 || first_opcode > 0xA2) { // Using known opcode range
-				RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output,
+				RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output,
 					"[Warning: First byte doesn't look like a valid opcode]\n"));
 			}
 		}
@@ -439,7 +439,7 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 
 	if (result.code != RESULT_SUCCESS) {
 		/* Handle parsing error - Print more debug info */
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (&disassembler->output,
+		RETURN_IF_ERROR (_hbc_sb_appendf (&disassembler->output,
 			"[Error parsing bytecode for function #%u: %s - Offset: %u, Size: %u]\n",
 			function_id, result.error_message[0] != '\0'? result.error_message: "Unknown error",
 			function_header->offset, function_header->bytecodeSizeInBytes));
@@ -449,16 +449,16 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 	} else {
 		/* Print raw bytecode if requested */
 		if (disassembler->options.show_bytecode) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "Raw bytecode: "));
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "Raw bytecode: "));
 			for (u32 i = 0; i < function_header->bytecodeSizeInBytes; i++) {
-				RETURN_IF_ERROR (_hbc_string_buffer_appendf (&disassembler->output, "%02x ", function_header->bytecode[i]));
+				RETURN_IF_ERROR (_hbc_sb_appendf (&disassembler->output, "%02x ", function_header->bytecode[i]));
 
 				/* Line break every 16 bytes */
 				if ((i + 1) % 16 == 0 && i + 1 < function_header->bytecodeSizeInBytes) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "\n               "));
+					RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "\n               "));
 				}
 			}
-			RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "\n\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "\n\n"));
 		}
 
 		/* Print instructions */
@@ -476,8 +476,8 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 	}
 
 	/* End the function disassembly */
-	RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "\n\n"));
-	RETURN_IF_ERROR (_hbc_string_buffer_append (&disassembler->output, "===============\n\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "\n\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (&disassembler->output, "===============\n\n"));
 
 	return SUCCESS_RESULT ();
 }

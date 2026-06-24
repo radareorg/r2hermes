@@ -199,7 +199,7 @@ static Result for_each_branch_target(const ParsedInstruction *insn, u32 func_sz,
 
 static Result append_indent(StringBuffer *sb, int level) {
 	for (int i = 0; i < level; i++) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (sb, "  "));
+		RETURN_IF_ERROR (_hbc_sb_append (sb, "  "));
 	}
 	return SUCCESS_RESULT ();
 }
@@ -207,17 +207,17 @@ static Result append_indent(StringBuffer *sb, int level) {
 static Result emit_close_brace(HermesDecompiler *state, StringBuffer *out) {
 	state->indent_level--;
 	RETURN_IF_ERROR (append_indent (out, state->indent_level));
-	return _hbc_string_buffer_append (out, "}\n");
+	return _hbc_sb_append (out, "}\n");
 }
 
 /* Labels always start at column 0. empty_stmt adds a ';' so the label can
  * legally precede a closing brace. */
 static Result emit_label(StringBuffer *out, u64 addr, bool empty_stmt) {
-	return _hbc_string_buffer_appendf (out, empty_stmt? "loc_%08llx:;\n": "loc_%08llx:\n", (unsigned long long)addr);
+	return _hbc_sb_appendf (out, empty_stmt? "loc_%08llx:;\n": "loc_%08llx:\n", (unsigned long long)addr);
 }
 
 static Result emit_goto(StringBuffer *out, u64 addr) {
-	return _hbc_string_buffer_appendf (out, "goto loc_%08llx;\n", (unsigned long long)addr);
+	return _hbc_sb_appendf (out, "goto loc_%08llx;\n", (unsigned long long)addr);
 }
 
 /* Reconstruct a SwitchImm jump table as a real switch dispatch. The table maps
@@ -229,7 +229,7 @@ static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, cons
 	const u64 fbase = state->options.function_base;
 	const int minval = (int) (int32_t)insn->arg4;
 	const u32 default_target = _hbc_compute_target_address (insn, 2);
-	RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "switch (r%u) {\n", (unsigned)insn->arg1));
+	RETURN_IF_ERROR (_hbc_sb_appendf (out, "switch (r%u) {\n", (unsigned)insn->arg1));
 	state->indent_level++;
 	for (u32 i = 0; i < insn->switch_jump_table_size;) {
 		const u32 tgt = insn->switch_jump_table[i];
@@ -245,22 +245,22 @@ static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, cons
 		}
 		for (u32 k = i; k <= j; k++) {
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "case %d:", minval + (int)k));
+			RETURN_IF_ERROR (_hbc_sb_appendf (out, "case %d:", minval + (int)k));
 			if (k < j) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "\n"));
 			} else {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " "));
+				RETURN_IF_ERROR (_hbc_sb_append (out, " "));
 				RETURN_IF_ERROR (emit_goto (out, fbase + tgt));
 			}
 		}
 		i = j + 1;
 	}
 	RETURN_IF_ERROR (append_indent (out, state->indent_level));
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "default: "));
+	RETURN_IF_ERROR (_hbc_sb_append (out, "default: "));
 	RETURN_IF_ERROR (emit_goto (out, fbase + default_target));
 	state->indent_level--;
 	RETURN_IF_ERROR (append_indent (out, state->indent_level));
-	return _hbc_string_buffer_append (out, "}\n");
+	return _hbc_sb_append (out, "}\n");
 }
 
 static Result token_string_clear_tokens(TokenString *ts) {
@@ -558,7 +558,7 @@ static Result close_if_blocks(HermesDecompiler *state, StringBuffer *out, Output
 			/* then-branch closed at the else entry: open the else clause */
 			state->indent_level--;
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} else {\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (out, "} else {\n"));
 			state->indent_level++;
 			top->end = top->else_end;
 			top->else_end = 0;
@@ -840,7 +840,7 @@ Result _hbc_decompiler_init(HermesDecompiler *decompiler) {
 	decompiler->options.suppress_comments = false;
 
 	// Initialize string buffer for output
-	_hbc_string_buffer_init (&decompiler->output, 4096); // Start with 4KB buffer
+	_hbc_sb_init (&decompiler->output, 4096); // Start with 4KB buffer
 
 	return SUCCESS_RESULT ();
 }
@@ -875,7 +875,7 @@ Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler) {
 	decompiler->function_in_progress = NULL;
 	/* The hbc state may be owned by the caller; never freed here */
 	decompiler->hbc = NULL;
-	_hbc_string_buffer_free (&decompiler->output);
+	_hbc_sb_free (&decompiler->output);
 	return SUCCESS_RESULT ();
 }
 
@@ -910,11 +910,11 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 
 	// Produce decompilation into a temporary buffer, then write to file/stdout
 	StringBuffer sb;
-	_hbc_string_buffer_init (&sb, 64 * 1024);
+	_hbc_sb_init (&sb, 64 * 1024);
 	HBCDecompOptions options = { .pretty_literals = LITERALS_PRETTY_AUTO, .suppress_comments = false };
 	result = _hbc_decompile_all_to_buffer (&reader, options, &sb);
 	if (result.code != RESULT_SUCCESS) {
-		_hbc_string_buffer_free (&sb);
+		_hbc_sb_free (&sb);
 		_hbc_reader_cleanup (&reader);
 		_hbc_decompiler_cleanup (&decompiler);
 		return result;
@@ -924,7 +924,7 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 	if (output_file) {
 		out = fopen (output_file, "w");
 		if (!out) {
-			_hbc_string_buffer_free (&sb);
+			_hbc_sb_free (&sb);
 			_hbc_reader_cleanup (&reader);
 			_hbc_decompiler_cleanup (&decompiler);
 			return ERROR_RESULT (RESULT_ERROR_FILE_NOT_FOUND, "Failed to open output file for writing");
@@ -934,7 +934,7 @@ Result _hbc_decompile_file(const char *input_file, const char *output_file) {
 	if (output_file && out != stdout) {
 		fclose (out);
 	}
-	_hbc_string_buffer_free (&sb);
+	_hbc_sb_free (&sb);
 
 	// Cleanup
 	_hbc_reader_cleanup (&reader);
@@ -954,7 +954,7 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 			r = _hbc_decompile_function (dec, fid, NULL, -1, false, false, false);
 		}
 		if (r.code == RESULT_SUCCESS) {
-			r = _hbc_string_buffer_append (&dec->output, "\n\n");
+			r = _hbc_sb_append (&dec->output, "\n\n");
 		}
 	} else {
 		/* Tracking array to skip functions already decompiled as nested ones */
@@ -963,7 +963,7 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 			r = ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate decompiled_functions tracker");
 		}
 		if (r.code == RESULT_SUCCESS && !dec->options.suppress_comments) {
-			r = _hbc_string_buffer_appendf (&dec->output, "// Decompiled Hermes bytecode\n// Version: %u\n\n", version);
+			r = _hbc_sb_appendf (&dec->output, "// Decompiled Hermes bytecode\n// Version: %u\n\n", version);
 		}
 		for (u32 i = 0; r.code == RESULT_SUCCESS && i < func_count && !dec->output_truncated; i++) {
 			if (dec->decompiled_functions[i]) {
@@ -971,19 +971,19 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 			}
 			Result fr = _hbc_decompile_function (dec, i, NULL, -1, false, false, false);
 			if (fr.code == RESULT_SUCCESS) {
-				r = _hbc_string_buffer_append (&dec->output, "\n\n");
+				r = _hbc_sb_append (&dec->output, "\n\n");
 			} else {
 				/* A single function failing must not abort the whole
 				 * bundle: emit a stub marker and keep decompiling the
 				 * remaining functions. A genuine memory/IO failure on the
 				 * append itself still terminates the run. */
-				r = _hbc_string_buffer_appendf (&dec->output, "// Function %u: skipped (%s)\n\n",
+				r = _hbc_sb_appendf (&dec->output, "// Function %u: skipped (%s)\n\n",
 					i, fr.error_message[0] != '\0'? fr.error_message: "unknown error");
 			}
 		}
 	}
 	if (r.code == RESULT_SUCCESS) {
-		r = _hbc_string_buffer_append (out, dec->output.data? dec->output.data: "");
+		r = _hbc_sb_append (out, dec->output.data? dec->output.data: "");
 	}
 	_hbc_decompiler_cleanup (dec);
 	return r;
@@ -1886,7 +1886,7 @@ static Result append_condition_tokens(StringBuffer *out, Token *cond, bool inver
 		for (Token *t = inner; t && t != op_tok; t = t->next) {
 			RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, use_op));
+		RETURN_IF_ERROR (_hbc_sb_append (out, use_op));
 		for (Token *t = op_tok->next; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
 			RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 		}
@@ -1896,13 +1896,13 @@ static Result append_condition_tokens(StringBuffer *out, Token *cond, bool inver
 	/* Single boolean term: negate with a bare `!` (wrap only if multi-token). */
 	bool multi = inner && inner->next && inner->next->type != TOKEN_TYPE_RIGHT_PARENTHESIS;
 	if (effective_neg) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, multi? "!(": "!"));
+		RETURN_IF_ERROR (_hbc_sb_append (out, multi? "!(": "!"));
 	}
 	for (Token *t = inner; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
 		RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 	}
 	if (effective_neg && multi) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ")"));
+		RETURN_IF_ERROR (_hbc_sb_append (out, ")"));
 	}
 	return SUCCESS_RESULT ();
 }
@@ -1926,7 +1926,7 @@ static Result append_token_spaced(StringBuffer *out, Token *t, bool first, Token
 		}
 	}
 	if (needs_space) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
+		RETURN_IF_ERROR (_hbc_sb_append_char (out, ' '));
 	}
 	return _hbc_token_to_string (t, out);
 }
@@ -2106,15 +2106,15 @@ static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
 	StringBuffer ba = { 0 };
 	StringBuffer bb = { 0 };
 	bool ok = false;
-	if (_hbc_string_buffer_init (&ba, 32).code == RESULT_SUCCESS &&
-		_hbc_string_buffer_init (&bb, 32).code == RESULT_SUCCESS &&
+	if (_hbc_sb_init (&ba, 32).code == RESULT_SUCCESS &&
+		_hbc_sb_init (&bb, 32).code == RESULT_SUCCESS &&
 		append_condition_tokens (&ba, a, inv_a).code == RESULT_SUCCESS &&
 		append_condition_tokens (&bb, b, inv_b).code == RESULT_SUCCESS &&
 		ba.data && bb.data) {
 		ok = streq_nospace (ba.data, bb.data);
 	}
-	_hbc_string_buffer_free (&ba);
-	_hbc_string_buffer_free (&bb);
+	_hbc_sb_free (&ba);
+	_hbc_sb_free (&bb);
 	return ok;
 }
 
@@ -2122,12 +2122,12 @@ static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
  * NULL on failure. Caller frees. */
 static char *render_cond_string(Token *cond, bool invert) {
 	StringBuffer b = { 0 };
-	if (_hbc_string_buffer_init (&b, 32).code != RESULT_SUCCESS) {
-		_hbc_string_buffer_free (&b);
+	if (_hbc_sb_init (&b, 32).code != RESULT_SUCCESS) {
+		_hbc_sb_free (&b);
 		return NULL;
 	}
 	if (append_condition_tokens (&b, cond, invert).code != RESULT_SUCCESS || !b.data) {
-		_hbc_string_buffer_free (&b);
+		_hbc_sb_free (&b);
 		return NULL;
 	}
 	return b.data; /* ownership transferred */
@@ -2137,11 +2137,11 @@ static char *render_cond_string(Token *cond, bool invert) {
 static bool token_is_reg(Token *t, const char *reg) {
 	StringBuffer b = { 0 };
 	bool eq = false;
-	if (_hbc_string_buffer_init (&b, 16).code == RESULT_SUCCESS &&
+	if (_hbc_sb_init (&b, 16).code == RESULT_SUCCESS &&
 		_hbc_token_to_string (t, &b).code == RESULT_SUCCESS && b.data) {
 		eq = streq_nospace (b.data, reg);
 	}
-	_hbc_string_buffer_free (&b);
+	_hbc_sb_free (&b);
 	return eq;
 }
 
@@ -2310,7 +2310,7 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 		char *gstr = render_cond_string (ghead->next, false);
 		if (gstr && is_simple_ident (gstr)) {
 			StringBuffer lhs = { 0 };
-			if (_hbc_string_buffer_init (&lhs, 16).code == RESULT_SUCCESS &&
+			if (_hbc_sb_init (&lhs, 16).code == RESULT_SUCCESS &&
 				_hbc_token_to_string (dhead, &lhs).code == RESULT_SUCCESS && lhs.data &&
 				streq_nospace (lhs.data, gstr) &&
 				conditions_match (dhead->next->next, false, be_head->next, be_inv)) {
@@ -2327,7 +2327,7 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 					dce[def_si] = true;
 				}
 			}
-			_hbc_string_buffer_free (&lhs);
+			_hbc_sb_free (&lhs);
 		}
 		free (gstr);
 	}
@@ -2848,46 +2848,46 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 	/* Function header line prefix: offset in pd:ho mode, indentation otherwise */
 	if (state->options.show_offsets) {
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08llx: ", (unsigned long long)state->options.function_base));
+		RETURN_IF_ERROR (_hbc_sb_appendf (out, "0x%08llx: ", (unsigned long long)state->options.function_base));
 	} else if (!state->inlining_function && !function_body->is_global) {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	}
 	if (function_body->is_async) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "async "));
+		RETURN_IF_ERROR (_hbc_sb_append (out, "async "));
 	}
 	if (function_body->is_global) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "function global() {"));
+		RETURN_IF_ERROR (_hbc_sb_append (out, "function global() {"));
 	} else {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->is_generator? "function* ": "function "));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name? function_body->function_name: "anonymous"));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, "("));
+		RETURN_IF_ERROR (_hbc_sb_append (out, function_body->is_generator? "function* ": "function "));
+		RETURN_IF_ERROR (_hbc_sb_append (out, function_body->function_name? function_body->function_name: "anonymous"));
+		RETURN_IF_ERROR (_hbc_sb_append (out, "("));
 		u32 pcnt = function_body->function_object? function_body->function_object->paramCount: 0;
 		for (u32 i = 0; i < pcnt; i++) {
-			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, i? ", a%u": "a%u", i));
+			RETURN_IF_ERROR (_hbc_sb_appendf (out, i? ", a%u": "a%u", i));
 		}
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {"));
+		RETURN_IF_ERROR (_hbc_sb_append (out, ") {"));
 	}
 	/* First priority: r2 comment at function start, then name/env fallback */
 	char *r2_comment = state->options.comment_callback? state->options.comment_callback (state->options.comment_context, state->options.function_base): NULL;
 	if (r2_comment) {
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-		RETURN_IF_ERROR (_hbc_string_buffer_append (out, r2_comment));
+		RETURN_IF_ERROR (_hbc_sb_append (out, " // "));
+		RETURN_IF_ERROR (_hbc_sb_append (out, r2_comment));
 		free (r2_comment);
 	} else if (!function_body->is_global && !state->options.suppress_comments &&
 		(function_body->is_closure || function_body->is_generator)) {
 		if (function_body->function_name && *function_body->function_name) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Original name: "));
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, function_body->function_name));
+			RETURN_IF_ERROR (_hbc_sb_append (out, " // Original name: "));
+			RETURN_IF_ERROR (_hbc_sb_append (out, function_body->function_name));
 			if (function_body->environment_id >= 0) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ", environment: r"));
-				RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
+				RETURN_IF_ERROR (_hbc_sb_append (out, ", environment: r"));
+				RETURN_IF_ERROR (_hbc_sb_append_int (out, function_body->environment_id));
 			}
 		} else if (function_body->environment_id >= 0) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // Environment: r"));
-			RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, function_body->environment_id));
+			RETURN_IF_ERROR (_hbc_sb_append (out, " // Environment: r"));
+			RETURN_IF_ERROR (_hbc_sb_append_int (out, function_body->environment_id));
 		}
 	}
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (out, "\n"));
 	state->indent_level++;
 
 	/* Collect sorted nested-frame start/end address lists */
@@ -2996,7 +2996,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			if (!state->truncation_marker_emitted) {
 				state->truncation_marker_emitted = true;
 				append_indent (out, state->indent_level);
-				_hbc_string_buffer_append (out,
+				_hbc_sb_append (out,
 					"// [output truncated: raise 'r2hermes.max_ast'/'r2hermes.max_bytes' (0=unlimited) for full output]\n");
 			}
 			break;
@@ -3031,7 +3031,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			for (u32 fl = 0; fl < function_body->forever_loops_count; fl++) {
 				if (function_body->forever_loops[fl].exit == pos) {
 					RETURN_IF_ERROR (append_indent (out, state->indent_level));
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, "break;\n"));
+					RETURN_IF_ERROR (_hbc_sb_append (out, "break;\n"));
 					RETURN_IF_ERROR (emit_close_brace (state, out));
 				}
 			}
@@ -3050,12 +3050,12 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			while (frame_start_idx < nf && ob.frame_starts[frame_start_idx] == pos) {
 				frame_start_idx++;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "{\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "{\n"));
 				state->indent_level++;
 			}
 			if (structured_catch_at (catch_plans, catch_plan_count, pos, 's')) {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "try {\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "try {\n"));
 				state->indent_level++;
 			}
 			/* do-while loop top: the back-edge below closes it as `} while`.
@@ -3063,14 +3063,14 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			int dw_top = dowhile_loop_at_top (function_body, pos);
 			if (dw_top >= 0 && !function_body->dowhile_loops[dw_top].promoted) {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "do {\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "do {\n"));
 				state->indent_level++;
 			}
 			/* infinite loop top: `for (;;) {`; the backward goto becomes a
 			 * `continue` and the exit emits `break;` then the close. */
 			if (forever_is_top (function_body, pos)) {
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "for (;;) {\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "for (;;) {\n"));
 				state->indent_level++;
 			}
 		}
@@ -3098,7 +3098,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 			state->indent_level--;
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
-			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "} catch (r%d) {\n", catch_start->catch_reg));
+			RETURN_IF_ERROR (_hbc_sb_appendf (out, "} catch (r%d) {\n", catch_start->catch_reg));
 			state->indent_level++;
 			catch_start->catch_open = true;
 			continue;
@@ -3129,9 +3129,9 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				}
 				state->indent_level--;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "} while ("));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "} while ("));
 				RETURN_IF_ERROR (append_condition_tokens (out, head->next, head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ");\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, ");\n"));
 				continue;
 			}
 		}
@@ -3144,7 +3144,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		/* Show offset if requested (pd:ho mode) */
 		if (state->options.show_offsets && asm_ref) {
-			RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08llx: ", (unsigned long long)abs_addr));
+			RETURN_IF_ERROR (_hbc_sb_appendf (out, "0x%08llx: ", (unsigned long long)abs_addr));
 			/* Add indentation after offset */
 			RETURN_IF_ERROR (append_indent (out, state->indent_level));
 		} else {
@@ -3176,9 +3176,9 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			TokenString *ret = (ret_si < function_body->statements_count)? &function_body->statements[ret_si]: NULL;
 			u32 ret_pos = (ret && ret->assembly)? ret->assembly->original_pos: UINT32_MAX;
 			if (ret && ret->head && ret->head->type == TOKEN_TYPE_RETURN_DIRECTIVE && !u32set_contains (&goto_labels, ret_pos)) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, "yield"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, "yield"));
 				if (ret->head->next) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
+					RETURN_IF_ERROR (_hbc_sb_append_char (out, ' '));
 					RETURN_IF_ERROR (append_plain_tokens (out, ret->head->next));
 				}
 				si = ret_si;
@@ -3198,8 +3198,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			if (jump_is_unconditional (head)) {
 				/* A bare jump to a loop top is a `continue`, to a loop exit a
 				 * `break`; otherwise a plain goto. */
-				RETURN_IF_ERROR (is_continue? _hbc_string_buffer_append (out, "continue;\n"):
-					is_break? _hbc_string_buffer_append (out, "break;\n"): emit_goto (out, lbl_abs));
+				RETURN_IF_ERROR (is_continue? _hbc_sb_append (out, "continue;\n"):
+					is_break? _hbc_sb_append (out, "break;\n"): emit_goto (out, lbl_abs));
 				continue;
 			}
 
@@ -3235,7 +3235,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			if (wl >= 0) {
 				function_body->dowhile_loops[wl].promoted = true;
 			}
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, wl >= 0? "while (": "if ("));
+			RETURN_IF_ERROR (_hbc_sb_append (out, wl >= 0? "while (": "if ("));
 			/* A materialized guard (`R=cmp; if(R)`) renders the real test from
 			 * the back-edge condition instead of the bare register. */
 			if (wl >= 0 && function_body->dowhile_loops[wl].while_cond) {
@@ -3244,7 +3244,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
 			}
 			if (is_continue) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") continue;\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, ") continue;\n"));
 			} else if (goto_form) {
 				/* Short-circuit OR: fold consecutive same-target conditional
 				 * gotos into one `if (c1 || c2 || ...) goto T`. Only across
@@ -3277,20 +3277,20 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 					if (boundary) {
 						break;
 					}
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, " || "));
+					RETURN_IF_ERROR (_hbc_sb_append (out, " || "));
 					RETURN_IF_ERROR (append_condition_tokens (out, ns->head->next, ns->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
 					si = sj;
 					sj++;
 				}
 				/* A conditional jump to a loop exit is a guarded `break`. */
 				if (is_break) {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") break;\n"));
+					RETURN_IF_ERROR (_hbc_sb_append (out, ") break;\n"));
 				} else {
-					RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") "));
+					RETURN_IF_ERROR (_hbc_sb_append (out, ") "));
 					RETURN_IF_ERROR (emit_goto (out, lbl_abs));
 				}
 			} else {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, ") {\n"));
+				RETURN_IF_ERROR (_hbc_sb_append (out, ") {\n"));
 				/* Recover an if/else: if the then-branch ends in `goto END` and
 				 * the else region [target_addr, END) stays within the enclosing
 				 * block, fold it into `} else { ... }`. */
@@ -3317,7 +3317,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 					FunctionTableIndexToken *fti = (FunctionTableIndexToken *)t;
 					if ((fti->is_closure || fti->is_generator) && !fti->is_builtin) {
 						if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
-							RETURN_IF_ERROR (_hbc_string_buffer_append_char (out, ' '));
+							RETURN_IF_ERROR (_hbc_sb_append_char (out, ' '));
 						}
 						if (should_inline_closure (state, fti)) {
 							int saved_indent = state->indent_level;
@@ -3331,8 +3331,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 							tail_inline_closure = true;
 						} else {
 							/* Reference the closure by function ID instead of inlining */
-							RETURN_IF_ERROR (_hbc_string_buffer_append (out, "fn_"));
-							RETURN_IF_ERROR (_hbc_string_buffer_append_int (out, (int)fti->function_id));
+							RETURN_IF_ERROR (_hbc_sb_append (out, "fn_"));
+							RETURN_IF_ERROR (_hbc_sb_append_int (out, (int)fti->function_id));
 							tail_inline_closure = false;
 						}
 						first_tok = false;
@@ -3361,16 +3361,16 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		if (state->options.comment_callback && asm_ref && !tail_inline_closure) {
 			char *comment = state->options.comment_callback (state->options.comment_context, abs_addr);
 			if (comment) {
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, " // "));
-				RETURN_IF_ERROR (_hbc_string_buffer_append (out, comment));
+				RETURN_IF_ERROR (_hbc_sb_append (out, " // "));
+				RETURN_IF_ERROR (_hbc_sb_append (out, comment));
 				free (comment);
 			}
 		}
 
 		if (is_block_stmt) {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, "\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (out, "\n"));
 		} else {
-			RETURN_IF_ERROR (_hbc_string_buffer_append (out, ";\n"));
+			RETURN_IF_ERROR (_hbc_sb_append (out, ";\n"));
 		}
 	}
 
@@ -3404,11 +3404,11 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	state->indent_level--;
 	if (state->options.show_offsets) {
 		/* In pd:ho mode, closing brace must start with an offset */
-		RETURN_IF_ERROR (_hbc_string_buffer_appendf (out, "0x%08llx: ", (unsigned long long)state->options.function_base));
+		RETURN_IF_ERROR (_hbc_sb_appendf (out, "0x%08llx: ", (unsigned long long)state->options.function_base));
 	} else {
 		RETURN_IF_ERROR (append_indent (out, state->indent_level));
 	}
-	RETURN_IF_ERROR (_hbc_string_buffer_append (out, "}\n"));
+	RETURN_IF_ERROR (_hbc_sb_append (out, "}\n"));
 
 	output_buffers_fini (&ob);
 	free (dce);

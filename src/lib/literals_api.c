@@ -73,7 +73,7 @@ u32 hbc_get_object_values_size(HBC *hbc) {
 static Result format_raw_impl(HBCReader *r, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, char **out) {
 	*out = NULL;
 	StringBuffer sb;
-	Result ir = _hbc_string_buffer_init (&sb, 128);
+	Result ir = _hbc_sb_init (&sb, 128);
 	if (ir.code != RESULT_SUCCESS) {
 		return ir;
 	}
@@ -92,7 +92,7 @@ static Result format_raw_impl(HBCReader *r, HBCLiteralKind kind, u32 num_items, 
 			fr = ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 		}
 	}
-	_hbc_string_buffer_free (&sb);
+	_hbc_sb_free (&sb);
 	return fr;
 }
 
