@@ -606,6 +606,78 @@ void hbc_free_funcs(HBCFuncArray *arr) {
 	}
 }
 
+static Result hbc_eval_sites_add(HBCEvalSites *out, u32 *cap, const HBCEvalSite *site) {
+	if (out->count >= *cap) {
+		u32 new_cap = *cap? *cap * 2: 8;
+		HBCEvalSite *new_sites = (HBCEvalSite *)realloc (out->sites, (size_t)new_cap * sizeof (*new_sites));
+		if (!new_sites) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate eval sites");
+		}
+		out->sites = new_sites;
+		*cap = new_cap;
+	}
+	out->sites[out->count++] = *site;
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_find_eval_sites(HBC *hbc, HBCEvalSites *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+	memset (out, 0, sizeof (*out));
+	HBCHeader header;
+	RETURN_IF_ERROR (hbc_get_header (hbc, &header));
+	HBCISA isa = hbc_isa_getv (header.version);
+	if (!isa.instructions) {
+		return ERROR_RESULT (RESULT_ERROR_UNSUPPORTED_VERSION, "No ISA for Hermes bytecode version");
+	}
+	u32 cap = 0;
+	const u32 count = hbc_function_count (hbc);
+	for (u32 fid = 0; fid < count; fid++) {
+		HBCFunc info;
+		if (hbc_get_function_info (hbc, fid, &info).code != RESULT_SUCCESS) {
+			continue;
+		}
+		const u8 *code = NULL;
+		u32 size = 0;
+		if (hbc_get_function_bytecode (hbc, fid, &code, &size).code != RESULT_SUCCESS || !code) {
+			continue;
+		}
+		for (u32 pc = 0; pc < size;) {
+			const u8 op = code[pc];
+			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
+			if (!inst || !inst->name || !inst->binary_size) {
+				break;
+			}
+			if (hbc_canonical_opcode_from_name (inst->name) == OP_DirectEval) {
+				HBCEvalSite site = {
+					.function_id = fid,
+					.address = info.offset + pc,
+					.offset = pc,
+					.function_address = info.offset,
+					.function_name = info.name,
+				};
+				Result res = hbc_eval_sites_add (out, &cap, &site);
+				if (res.code != RESULT_SUCCESS) {
+					hbc_free_eval_sites (out);
+					return res;
+				}
+			}
+			pc += inst->binary_size;
+		}
+	}
+	return SUCCESS_RESULT ();
+}
+
+void hbc_free_eval_sites(HBCEvalSites *sites) {
+	if (!sites) {
+		return;
+	}
+	free (sites->sites);
+	sites->sites = NULL;
+	sites->count = 0;
+}
+
 /* Single-instruction decode functions */
 
 static char *build_literal_comment(HBCReader *reader, const char *mnemonic, const u32 *ovs, const char *base_text) {

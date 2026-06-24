@@ -81,7 +81,7 @@ Usage: pd:h[subcommand]
 [0x00000000]> r2hermes-?
 Usage: r2hermes[-arg]  # see also pd:h for decompilation
   r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)
-  r2hermes-E       - List functions containing eval instructions
+  r2hermes-E[jq]   - List direct eval instruction sites (j=JSON, q=addresses only)
   r2hermes-H       - Show file information and hash status
   r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle
   r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)

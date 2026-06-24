@@ -16,7 +16,7 @@
 #include <string.h>
 
 typedef struct {
-	bool json, verbose, bytecode, debug, asm_syntax;
+	bool json, quiet, verbose, bytecode, debug, asm_syntax;
 	bool pretty_literals, no_pretty_literals, no_comments;
 } CliFlags;
 
@@ -40,6 +40,7 @@ static const struct {
 	size_t offset;
 } flag_table[] = {
 	{ "json", 'j', offsetof (CliFlags, json) },
+	{ "quiet", 'q', offsetof (CliFlags, quiet) },
 	{ "verbose", 'v', offsetof (CliFlags, verbose) },
 	{ "bytecode", 'b', offsetof (CliFlags, bytecode) },
 	{ "debug", 'd', offsetof (CliFlags, debug) },
@@ -535,6 +536,64 @@ static Result cmd_sl(const CliContext *ctx, int argc, char **argv) {
 	hbc_free_source_lines (&lines);
 	hbc_close (hbc);
 	return SUCCESS_RESULT ();
+}
+
+static Result cmd_eval(const CliContext *ctx, int argc, char **argv) {
+	if (argc != 1) {
+		return errorf (RESULT_ERROR_INVALID_ARGUMENT, "Usage: eval|E|Eq|Ej <input>");
+	}
+	HBC *hbc;
+	RETURN_IF_ERROR (open_hbc (argv[0], &hbc));
+	HBCEvalSites sites = { 0 };
+	Result r = hbc_find_eval_sites (hbc, &sites);
+	if (r.code != RESULT_SUCCESS) {
+		hbc_close (hbc);
+		return r;
+	}
+	if (ctx->flags.json) {
+		putchar ('[');
+		for (u32 i = 0; i < sites.count; i++) {
+			const HBCEvalSite *site = &sites.sites[i];
+			printf ("%s{\"address\":%u,\"function_id\":%u,\"offset\":%u,\"function_address\":%u,\"name\":",
+				i? ",": "",
+				site->address,
+				site->function_id,
+				site->offset,
+				site->function_address);
+			json_print_string (site->function_name? site->function_name: "unknown");
+			putchar ('}');
+		}
+		puts ("]");
+	} else {
+		for (u32 i = 0; i < sites.count; i++) {
+			const HBCEvalSite *site = &sites.sites[i];
+			if (ctx->flags.quiet) {
+				printf ("0x%08x\n", site->address);
+			} else {
+				printf ("0x%08x f=%u +0x%x func=0x%08x name=%s\n",
+					site->address,
+					site->function_id,
+					site->offset,
+					site->function_address,
+					site->function_name? site->function_name: "unknown");
+			}
+		}
+	}
+	hbc_free_eval_sites (&sites);
+	hbc_close (hbc);
+	return SUCCESS_RESULT ();
+}
+
+static Result cmd_eval_quiet(const CliContext *ctx, int argc, char **argv) {
+	CliContext local = *ctx;
+	local.flags.quiet = true;
+	return cmd_eval (&local, argc, argv);
+}
+
+static Result cmd_eval_json(const CliContext *ctx, int argc, char **argv) {
+	CliContext local = *ctx;
+	local.flags.json = true;
+	return cmd_eval (&local, argc, argv);
 }
 
 static Result cmd_cmp(const CliContext *ctx, int argc, char **argv) {
@@ -1098,6 +1157,10 @@ static const Command commands[] = {
 	{ "r", "Generate an r2 script with function flags", cmd_r },
 	{ "f", "Dump first N function headers", cmd_f },
 	{ "sl", "List source-line information", cmd_sl },
+	{ "eval", "List direct eval instruction sites", cmd_eval },
+	{ "E", "List direct eval instruction sites", cmd_eval },
+	{ "Eq", "List direct eval instruction addresses", cmd_eval_quiet },
+	{ "Ej", "List direct eval instruction sites as JSON", cmd_eval_json },
 	{ "cmp", "Compare first N funcs with parser.txt", cmd_cmp },
 	{ "cf", "Compare one function vs Python disasm", cmd_cf },
 	{ "s", "Print a string by index", cmd_s },
@@ -1115,7 +1178,8 @@ static void print_usage(const char *program_name) {
 		printf ("  %-5s %s\n", commands[i].name, commands[i].help);
 	}
 	printf ("\nOptions (may appear anywhere after the command):\n");
-	printf ("  --json, -j               JSON output (lit list, bind, libs)\n");
+	printf ("  --json, -j               JSON output (eval, sl, lit list, bind, libs)\n");
+	printf ("  --quiet, -q              Quiet output (eval)\n");
 	printf ("  --asmsyntax              CPU-like asm syntax (dis)\n");
 	printf ("  --verbose, -v            Verbose output\n");
 	printf ("  --bytecode, -b           Include bytecode bytes\n");

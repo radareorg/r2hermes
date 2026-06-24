@@ -260,55 +260,76 @@ static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 	}
 }
 
-/* List functions containing direct eval instructions */
-static void cmd_list_eval_functions(HbcContext *ctx, RCore *core) {
+static void print_eval_help(RCore *core) {
+	r_cons_print (core->cons,
+		"Usage: r2hermes-E[jq]\n"
+		" r2hermes-E       List direct eval instruction sites\n"
+		" r2hermes-Ej      List direct eval instruction sites as JSON\n"
+		" r2hermes-Eq      List only direct eval instruction addresses\n");
+}
+
+/* List direct eval instruction sites */
+static void cmd_list_eval_functions(HbcContext *ctx, RCore *core, const char *arg) {
 	Result res = hbc_load_current_binary (ctx, core);
 	if (res.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
-
-	HBCHeader header;
-	res = hbc_get_header (ctx->hbc, &header);
+	while (arg && *arg && isspace ((unsigned char)*arg)) {
+		arg++;
+	}
+	const bool as_json = arg && *arg == 'j';
+	const bool quiet = arg && *arg == 'q';
+	if (arg && *arg == '?') {
+		print_eval_help (core);
+		return;
+	}
+	if (arg && *arg && !as_json && !quiet) {
+		R_LOG_ERROR ("Invalid r2hermes-E mode. Use r2hermes-E? for help");
+		return;
+	}
+	HBCEvalSites sites = { 0 };
+	res = hbc_find_eval_sites (ctx->hbc, &sites);
 	if (res.code != RESULT_SUCCESS) {
-		R_LOG_ERROR ("reading header: %s", safe_errmsg (res.error_message));
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
 		return;
 	}
-	HBCISA isa = hbc_isa_getv (header.version);
-	if (!isa.instructions) {
-		R_LOG_ERROR ("No ISA for Hermes bytecode version %u", header.version);
+	if (as_json) {
+		PJ *pj = r_core_pj_new (core);
+		pj_a (pj);
+		for (u32 i = 0; i < sites.count; i++) {
+			const HBCEvalSite *site = &sites.sites[i];
+			pj_o (pj);
+			pj_kn (pj, "address", HBC_VADDR_BASE + (ut64)site->address);
+			pj_kn (pj, "function_id", site->function_id);
+			pj_kn (pj, "offset", site->offset);
+			pj_kn (pj, "function_address", HBC_VADDR_BASE + (ut64)site->function_address);
+			pj_ks (pj, "name", r_str_get_fail (site->function_name, "unknown"));
+			pj_end (pj);
+		}
+		pj_end (pj);
+		char *s = pj_drain (pj);
+		r_cons_println (core->cons, s);
+		free (s);
+		hbc_free_eval_sites (&sites);
 		return;
 	}
-
-	const u32 count = hbc_function_count (ctx->hbc);
-	for (u32 fid = 0; fid < count; fid++) {
-		HBCFunc info;
-		if (hbc_get_function_info (ctx->hbc, fid, &info).code != RESULT_SUCCESS) {
-			continue;
-		}
-		const u8 *code = NULL;
-		u32 size = 0;
-		if (hbc_get_function_bytecode (ctx->hbc, fid, &code, &size).code != RESULT_SUCCESS || !code) {
-			continue;
-		}
-		for (u32 pc = 0; pc < size;) {
-			const u8 op = code[pc];
-			const Instruction *inst = (op < isa.count)? &isa.instructions[op]: NULL;
-			if (!inst || !inst->name || !inst->binary_size) {
-				break;
-			}
-			if (hbc_canonical_opcode_from_name (inst->name) == OP_DirectEval) {
-				r_cons_printf (core->cons,
-					"0x%08" PFMT64x " f=%u +0x%x func=0x%08" PFMT64x " name=%s\n",
-					(ut64)HBC_VADDR_BASE + info.offset + pc,
-					fid,
-					pc,
-					(ut64)HBC_VADDR_BASE + info.offset,
-					r_str_get_fail (info.name, "unknown"));
-			}
-			pc += inst->binary_size;
+	for (u32 i = 0; i < sites.count; i++) {
+		const HBCEvalSite *site = &sites.sites[i];
+		ut64 address = HBC_VADDR_BASE + (ut64)site->address;
+		if (quiet) {
+			r_cons_printf (core->cons, "0x%08" PFMT64x "\n", address);
+		} else {
+			r_cons_printf (core->cons,
+				"0x%08" PFMT64x " f=%u +0x%x func=0x%08" PFMT64x " name=%s\n",
+				address,
+				site->function_id,
+				site->offset,
+				HBC_VADDR_BASE + (ut64)site->function_address,
+				r_str_get_fail (site->function_name, "unknown"));
 		}
 	}
+	hbc_free_eval_sites (&sites);
 }
 
 /* Show file information */
@@ -1057,7 +1078,7 @@ static void r2hermes_help(RCore *core) {
 	const char msg[] =
 		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
 		"r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)\n"
-		"r2hermes-E       - List functions containing eval instructions\n"
+		"r2hermes-E[jq]   - List direct eval instruction sites (j=JSON, q=addresses only)\n"
 		"r2hermes-H       - Show file information and hash status\n"
 		"r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle\n"
 		"r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)\n";
@@ -1089,7 +1110,7 @@ static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 	if (*arg == '-') {
 		switch (arg[1]) {
 		case 'E':
-			cmd_list_eval_functions (ctx, core);
+			cmd_list_eval_functions (ctx, core, arg + 2);
 			break;
 		case 'H':
 			cmd_file_info (ctx, core);

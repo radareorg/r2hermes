@@ -98,6 +98,11 @@ $(TEST_BIN): $(STATIC_LIB) $(TEST_SRC) | $(shell mkdir -p $(BIN_DIR))
 test: $(BIN_FILE) $(TEST_BIN)
 	$(TEST_BIN)
 	$(BIN_FILE) sl test/bins/hbc/bespoke_eval.hbc | grep -q '0x000000b4 f=0 +0x4 yes.js:1:5 stmt=0'
+	$(BIN_FILE) eval test/bins/hbc/bespoke_eval.hbc | grep -q '0x000000b4 f=0 +0x4 func=0x000000b0 name=global'
+	$(BIN_FILE) eval -q test/bins/hbc/bespoke_eval.hbc | grep -q '^0x000000b4$$'
+	$(BIN_FILE) eval -j test/bins/hbc/bespoke_eval.hbc | grep -q '"address":180'
+	$(BIN_FILE) Eq test/bins/hbc/bespoke_eval.hbc | grep -q '^0x000000b4$$'
+	$(BIN_FILE) Ej test/bins/hbc/bespoke_eval.hbc | grep -q '"function_id":0'
 	$(BIN_FILE) h test/bins/hbc/bespoke_eval.hbc | grep -q 'Source Locations: 13 bytes'
 	$(BIN_FILE) h test/bins/hbc/index.android.bundle | grep -q 'Source Locations: 0 bytes'
 	$(BIN_FILE) libs test/bins/hbc/index.android.bundle | grep -q 'react-native'

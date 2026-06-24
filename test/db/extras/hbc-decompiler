@@ -24,7 +24,7 @@ CMDS=<<EOF
 r2hermes-?~r2hermes-E
 EOF
 EXPECT=<<EOF
-r2hermes-E       - List functions containing eval instructions
+r2hermes-E[jq]   - List direct eval instruction sites (j=JSON, q=addresses only)
 EOF
 RUN
 
@@ -143,6 +143,26 @@ r2hermes-E
 EOF
 EXPECT=<<EOF
 0x100000b4 f=0 +0x4 func=0x100000b0 name=global
+EOF
+RUN
+
+NAME=r2hermes-Eq list eval addresses
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+r2hermes-Eq
+EOF
+EXPECT=<<EOF
+0x100000b4
+EOF
+RUN
+
+NAME=r2hermes-Ej list eval sites json
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+r2hermes-Ej
+EOF
+EXPECT=<<EOF
+[{"address":268435636,"function_id":0,"offset":4,"function_address":268435632,"name":"global"}]
 EOF
 RUN
 

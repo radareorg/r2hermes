@@ -67,6 +67,19 @@ typedef struct {
 
 typedef struct {
 	u32 function_id;
+	u32 address; // File-absolute bytecode address
+	u32 offset; // Offset within function bytecode
+	u32 function_address; // File-absolute function start
+	const char *function_name; // Valid while provider is alive; caller must not free
+} HBCEvalSite;
+
+typedef struct {
+	HBCEvalSite *sites;
+	u32 count;
+} HBCEvalSites;
+
+typedef struct {
+	u32 function_id;
 	u32 address;
 	u32 function_address;
 	u32 line;
@@ -321,6 +334,12 @@ HBC_API Result hbc_all_funcs(
  * Free function array.
  */
 HBC_API void hbc_free_funcs(HBCFuncArray *arr);
+
+/**
+ * Find direct eval instruction sites.
+ */
+HBC_API Result hbc_find_eval_sites(HBC *hbc, HBCEvalSites *out);
+HBC_API void hbc_free_eval_sites(HBCEvalSites *sites);
 
 /**
  * Decoded instructions list
