@@ -16,19 +16,15 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	EXT_SO = dylib
 	LDFLAGS += -dynamiclib -undefined dynamic_lookup
-	PLUGIN_EXPORT_LDFLAGS = -Wl,-exported_symbols_list,radare_plugin.exports
 else ifeq ($(UNAME_S),Linux)
 	EXT_SO = so
 	LDFLAGS += -shared
-	PLUGIN_EXPORT_LDFLAGS = -Wl,--version-script,radare_plugin.version
 else ifeq ($(UNAME_S),MINGW32_NT)
 	EXT_SO = dll
 	LDFLAGS += -shared
-	PLUGIN_EXPORT_LDFLAGS =
 else
 	EXT_SO = so
 	LDFLAGS += -shared
-	PLUGIN_EXPORT_LDFLAGS =
 endif
 
 # Source files
@@ -74,7 +70,7 @@ r2one: check-deps
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(ARCH_SRC) -o $(ARCH_OBJ)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(ASM_SRC) -o $(ASM_OBJ)
 	$(CC) $(CFLAGS) -DR2_PLUGIN_INCORE -c $(BIN_SRC) -o $(BIN_OBJ)
-	$(CC) $(LDFLAGS) $(PLUGIN_EXPORT_LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $(CORE_PLUGIN) $(CORE_OBJ) $(ARCH_OBJ) $(ASM_OBJ) $(BIN_OBJ) $(HERMES_LIB)
 	@echo "Plugin file: $(CORE_PLUGIN)"
 	rm -f ~/.local/share/radare2/plugins/*hbc*
 	cp -f $(CORE_PLUGIN) ~/.local/share/radare2/plugins
@@ -93,23 +89,23 @@ check-deps: $(HERMES_LIB)
 
 # Architecture plugin
 $(ARCH_PLUGIN): $(ARCH_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) $(PLUGIN_EXPORT_LDFLAGS) -o $@ $(ARCH_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(ARCH_OBJ) $(HERMES_LIB)
 
 # Binary format plugin
 $(BIN_PLUGIN): $(BIN_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) $(PLUGIN_EXPORT_LDFLAGS) -o $@ $(BIN_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(BIN_OBJ) $(HERMES_LIB)
 
 # Assembler/pseudo plugin
 $(ASM_PLUGIN): $(ASM_OBJ)
-	$(CC) $(LDFLAGS) $(PLUGIN_EXPORT_LDFLAGS) -o $@ $(ASM_OBJ)
+	$(CC) $(LDFLAGS) -o $@ $(ASM_OBJ)
 
 # Core decompiler plugin
 $(CORE_PLUGIN): $(CORE_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) $(PLUGIN_EXPORT_LDFLAGS) -o $@ $(CORE_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_OBJ) $(HERMES_LIB)
 
 # Core decompiler plugin with plugin registration enabled (r2one)
 $(CORE_ONE_PLUGIN): $(CORE_ONE_OBJ) $(HERMES_LIB)
-	$(CC) $(LDFLAGS) $(PLUGIN_EXPORT_LDFLAGS) -o $@ $(CORE_ONE_OBJ) $(HERMES_LIB)
+	$(CC) $(LDFLAGS) -o $@ $(CORE_ONE_OBJ) $(HERMES_LIB)
 
 # Compile object files
 $(ARCH_OBJ): $(ARCH_SRC) $(HBC_HEADERS)
