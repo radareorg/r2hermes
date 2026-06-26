@@ -402,9 +402,6 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 		reader->header.objShapeTableCount = 0;
 	}
 	reader->header.numStringSwitchImms = 0;
-	if (version >= 98) {
-		RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.numStringSwitchImms));
-	}
 
 	/* Read the segment ID (or CJS module offset for older versions) */
 	RETURN_IF_ERROR (_hbc_buffer_reader_read_u32 (&reader->file_buffer, &reader->header.segmentID));

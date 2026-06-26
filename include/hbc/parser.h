@@ -53,7 +53,7 @@ typedef struct HBCHeader {
 	u32 objKeyBufferSize;
 	u32 objValueBufferSize;
 	u32 objShapeTableCount; /* >=97 */
-	u32 numStringSwitchImms; /* >=98 */
+	u32 numStringSwitchImms; /* reserved; not present in the file header */
 	u32 segmentID; /* cjsModuleOffset before v78 */
 	u32 cjsModuleCount;
 	u32 functionSourceCount; /* >=84 */
