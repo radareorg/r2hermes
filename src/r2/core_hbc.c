@@ -240,6 +240,88 @@ static void cmd_decompile_function_ex(HbcContext *ctx, RCore *core, const char *
 	free (output);
 }
 
+static bool parse_offset_line(char *line, size_t len, ut64 *addr, char **body) {
+	if (len < 12 || line[0] != '0' || line[1] != 'x' || !isxdigit ((unsigned char)line[2])) {
+		return false;
+	}
+	char *end = NULL;
+	ut64 n = strtoull (line + 2, &end, 16);
+	if (end != line + 10 || end[0] != ':' || end[1] != ' ') {
+		return false;
+	}
+	*addr = n;
+	*body = end + 2;
+	return true;
+}
+
+static void print_decompile_comment_cmds(RCore *core, char *output) {
+	const ut64 addr_base = r_config_get_b (core->config, "io.va")? HBC_VADDR_BASE: 0;
+	for (char *p = output; *p;) {
+		char *eol = strchr (p, '\n');
+		size_t line_len = eol? (size_t) (eol - p): strlen (p);
+		if (eol) {
+			*eol = 0;
+		}
+		ut64 paddr = 0;
+		char *comment = NULL;
+		if (parse_offset_line (p, line_len, &paddr, &comment)) {
+			r_str_trim (comment);
+			if (R_STR_ISNOTEMPTY (comment) && strcmp (comment, "{") && strcmp (comment, "}")) {
+				char *b64 = r_base64_encode_dyn ((const ut8 *)comment, -1);
+				if (b64) {
+					r_cons_printf (core->cons, "CCu base64:%s @ 0x%08" PFMT64x "\n", b64, addr_base + paddr);
+					free (b64);
+				}
+			}
+		}
+		if (!eol) {
+			break;
+		}
+		p = eol + 1;
+	}
+}
+
+static void cmd_decompile_comment_cmds(HbcContext *ctx, RCore *core, const char *arg) {
+	Result res = hbc_load_current_binary (ctx, core);
+	if (res.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
+		return;
+	}
+
+	const char *as = r_str_trim_head_ro (arg);
+	bool all = false;
+	u32 function_id = 0;
+	if (*as == 'a' && (!as[1] || isspace ((unsigned char)as[1]))) {
+		all = true;
+	} else if (*as) {
+		function_id = parse_function_id (as);
+	} else if (find_function_at_offset (ctx, (u64)core->addr, &function_id) != 0) {
+		all = true;
+	}
+
+	HBCDecompOptions opts = make_decompile_options (core, true, 0);
+	opts.suppress_comments = true;
+	opts.comment_callback = NULL;
+
+	char *output = NULL;
+	if (all) {
+		res = hbc_decomp_all (ctx->hbc, opts, &output);
+	} else {
+		u32 count = hbc_function_count (ctx->hbc);
+		if (function_id >= count) {
+			R_LOG_ERROR ("function id %u out of range (count=%u)", function_id, count);
+			return;
+		}
+		res = hbc_decomp_fn (ctx->hbc, function_id, opts, &output);
+	}
+	if (res.code == RESULT_SUCCESS && output) {
+		print_decompile_comment_cmds (core, output);
+	} else {
+		R_LOG_ERROR ("Error decompiling: %s", safe_errmsg (res.error_message));
+	}
+	free (output);
+}
+
 /* List available functions */
 static void cmd_list_functions(HbcContext *ctx, RCore *core) {
 	Result res = hbc_load_current_binary (ctx, core);
@@ -582,36 +664,17 @@ static void cmd_json(HbcContext *ctx, RCore *core, const char *addr_str) {
 	LineAnn *anns = NULL;
 	size_t anns_n = 0, anns_cap = 0;
 
-	const char *p = output;
+	char *p = output;
 	while (*p) {
-		const char *eol = strchr (p, '\n');
+		char *eol = strchr (p, '\n');
 		size_t line_len = eol? (size_t) (eol - p): strlen (p);
 
-		bool has_offset = false;
 		u64 line_offset = 0;
-		if (line_len >= 12 && p[0] == '0' && p[1] == 'x' && p[10] == ':' && p[11] == ' ') {
-			bool valid = true;
-			for (int i = 2; i < 10; i++) {
-				if (!isxdigit ((unsigned char)p[i])) {
-					valid = false;
-					break;
-				}
-			}
-			if (valid) {
-				char hexbuf[9];
-				memcpy (hexbuf, p + 2, 8);
-				hexbuf[8] = 0;
-				line_offset = strtoull (hexbuf, NULL, 16);
-				has_offset = true;
-			}
-		}
+		char *line = p;
+		bool has_offset = parse_offset_line (p, line_len, &line_offset, &line);
 
 		size_t start = r_strbuf_length (code_buf);
-		if (has_offset) {
-			r_strbuf_append_n (code_buf, p + 12, line_len - 12);
-		} else {
-			r_strbuf_append_n (code_buf, p, line_len);
-		}
+		r_strbuf_append_n (code_buf, line, line_len - (size_t) (line - p));
 		r_strbuf_append (code_buf, "\n");
 		size_t end = r_strbuf_length (code_buf);
 
@@ -1093,6 +1156,7 @@ static void cmd_help(RCore *core) {
 		"Hermes bytecode decompiler via libhbc\n\n"
 		"Subcommands:\n"
 		"  pd:h           - Decompile function at current offset (or all if not in function)\n"
+		"  pd:h* [id|a]   - Emit CCu commands for decompiled lines\n"
 		"  pd:hc [id]     - Decompile function by id\n"
 		"  pd:ha          - Decompile all functions\n"
 		"  pd:hf          - List all functions\n"
@@ -1148,6 +1212,9 @@ static void cmd_pdh(RCore *core, HbcContext *ctx, const char *arg) {
 			break;
 		}
 		cmd_decompile_current_ex (ctx, core, false);
+		break;
+	case '*': /* pd:h* [id|a] */
+		cmd_decompile_comment_cmds (ctx, core, arg + 1);
 		break;
 	case 'a': /* pd:ha */
 		cmd_decompile_all_ex (ctx, core, false);
