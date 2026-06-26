@@ -46,6 +46,8 @@ typedef struct {
 	u32 xref_count;
 } HBCLiteralEntry;
 
+typedef bool (*HBCLiteralKeyCallback)(const char *key, void *user);
+
 /* Format a literal directly from raw parameters. Does not touch the cache.
  * Returned string is heap-allocated; caller frees with free (). */
 HBC_API Result hbc_literals_format_raw(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, char **out);
@@ -67,6 +69,13 @@ HBC_API Result hbc_literals_register(HBC *hbc, HBCLiteralKind kind, u32 num_item
  * New{Array,Object}WithBuffer[Long] call site into the cache (with xrefs).
  * Returns the number of distinct literals found in *out_count. */
 HBC_API Result hbc_literals_scan_code(HBC *hbc, u32 *out_count);
+
+/* Same as hbc_literals_scan_code (), but only records one literal kind.
+ * When format is false, formatted stays NULL until the caller formats the key. */
+HBC_API Result hbc_literals_scan_code_kind(HBC *hbc, HBCLiteralKind kind, bool format, u32 *out_count);
+
+/* Visit the string keys of one object literal without formatting values. */
+HBC_API Result hbc_literals_visit_object_keys(HBC *hbc, u32 num_items, u32 primary_id, HBCLiteralKeyCallback cb, void *user);
 
 /* Pool-side scan: enumerate group boundaries in the SLP pool for the given
  * kind. For arrays and object-values it walks the byte stream linearly.

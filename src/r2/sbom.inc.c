@@ -3,13 +3,12 @@
 /* CycloneDX SBOM generation for Hermes bytecode.
  *
  * Strategy:
- *   - Force a code scan so the SLP literal cache is populated.
- *   - Walk every cached object literal; keep package.json-style metadata
- *     objects ({name,version}) and dependency maps ({package: version}).
- *   - The literal formatter prints valid JS identifiers as bare keys
- *({foo: "1.2.3"}), which is not strict JSON. We rewrite bare keys
- *     into quoted ones, then parse with r_json so we don't hand-roll a
- *     key/value parser.
+ *   - Scan object literal constructors only; arrays cannot carry package
+ *     metadata in the current extractor.
+ *   - Visit object keys before formatting values, so most UI/data literals are
+ *     discarded without allocating their reconstructed JS text.
+ *   - Keep package.json-style metadata objects ({name,version}) and flat
+ *     dependency maps ({package: version}).
  *   - Emit each recovered package name and version as a CycloneDX component.
  *
  * Output formats:
@@ -63,82 +62,6 @@ static void sbom_free(SbomCompList *list) {
 	list->items = NULL;
 	list->count = 0;
 	list->cap = 0;
-}
-
-/* Quote bare identifier keys so the result is parsable as JSON.
- * Skips over double-quoted strings (with escape handling) so we never
- * touch content inside string literals. Bare 'true'/'false'/'null' are
- * left alone since they may legitimately appear as values. */
-static char *jsobj_to_json(const char *src) {
-	if (!src) {
-		return NULL;
-	}
-	RStrBuf *sb = r_strbuf_new ("");
-	if (!sb) {
-		return NULL;
-	}
-	const char *p = src;
-	while (*p) {
-		if (*p == '"') {
-			const char *start = p++;
-			while (*p && *p != '"') {
-				if (*p == '\\' && p[1]) {
-					p += 2;
-				} else {
-					p++;
-				}
-			}
-			if (*p == '"') {
-				p++;
-			}
-			r_strbuf_append_n (sb, start, (int) (p - start));
-			continue;
-		}
-		unsigned char c = (unsigned char)*p;
-		if (isalpha (c) || c == '_' || c == '$') {
-			const char *start = p;
-			while (*p && (isalnum ((unsigned char)*p) || *p == '_' || *p == '$')) {
-				p++;
-			}
-			int len = (int) (p - start);
-			const char *q = p;
-			while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') {
-				q++;
-			}
-			bool is_key = (*q == ':');
-			bool is_literal = (len == 4 && !memcmp (start, "true", 4)) || (len == 5 && !memcmp (start, "false", 5)) || (len == 4 && !memcmp (start, "null", 4));
-			if (is_key && !is_literal) {
-				r_strbuf_append (sb, "\"");
-				r_strbuf_append_n (sb, start, len);
-				r_strbuf_append (sb, "\"");
-			} else {
-				r_strbuf_append_n (sb, start, len);
-			}
-			continue;
-		}
-		if (isdigit (c)) {
-			const char *start = p;
-			while (*p && (isdigit ((unsigned char)*p) || *p == '.')) {
-				p++;
-			}
-			const char *q = p;
-			while (*q == ' ' || *q == '\t' || *q == '\n' || *q == '\r') {
-				q++;
-			}
-			if (*q == ':') {
-				r_strbuf_append (sb, "\"");
-				r_strbuf_append_n (sb, start, (int) (p - start));
-				r_strbuf_append (sb, "\"");
-			} else {
-				r_strbuf_append_n (sb, start, (int) (p - start));
-			}
-			continue;
-		}
-		char one[2] = { *p, 0 };
-		r_strbuf_append (sb, one);
-		p++;
-	}
-	return r_strbuf_drain (sb);
 }
 
 static bool sbom_is_npm_name(const char *s) {
@@ -232,45 +155,195 @@ static bool sbom_is_manifest_key(const char *key) {
 		!strcmp (key, "devDependencies") || !strcmp (key, "peerDependencies");
 }
 
+static bool sbom_is_strong_dep_key(const char *s) {
+	return strchr (s, '/') || !strcmp (s, "react") || !strcmp (s, "semver") ||
+		!strcmp (s, "eslint") || !strcmp (s, "jest") || !strcmp (s, "knip") || !strcmp (s, "madge") ||
+		!strcmp (s, "prettier") || !strcmp (s, "typescript") || !strcmp (s, "coveralls") ||
+		!strcmp (s, "mocha") || !strcmp (s, "nyc") || !strcmp (s, "rollup");
+}
+
+static bool sbom_key_may_match(const char *key, void *user) {
+	bool *may_match = user;
+	if (sbom_is_manifest_key (key) || (sbom_is_npm_name (key) && sbom_is_strong_dep_key (key))) {
+		*may_match = true;
+		return false;
+	}
+	return true;
+}
+
+static bool sbom_object_may_match(HBC *hbc, const HBCLiteralEntry *e) {
+	bool may_match = false;
+	Result r = hbc_literals_visit_object_keys (hbc, e->num_items, e->primary_id, sbom_key_may_match, &may_match);
+	return r.code != RESULT_SUCCESS || may_match;
+}
+
+static char *sbom_dup_range(const char *s, size_t n) {
+	char *out = malloc (n + 1);
+	if (!out) {
+		return NULL;
+	}
+	memcpy (out, s, n);
+	out[n] = 0;
+	return out;
+}
+
+static void sbom_skip_ws(const char **pp) {
+	while (**pp && isspace ((unsigned char)**pp)) {
+		(*pp)++;
+	}
+}
+
+static char *sbom_parse_quoted(const char **pp) {
+	const char *p = *pp;
+	if (*p != '"') {
+		return NULL;
+	}
+	p++;
+	RStrBuf *sb = r_strbuf_new ("");
+	if (!sb) {
+		return NULL;
+	}
+	while (*p && *p != '"') {
+		if (*p == '\\' && p[1]) {
+			p++;
+		}
+		r_strbuf_append_n (sb, p, 1);
+		p++;
+	}
+	if (*p == '"') {
+		p++;
+	}
+	*pp = p;
+	return r_strbuf_drain (sb);
+}
+
+static char *sbom_parse_key(const char **pp) {
+	sbom_skip_ws (pp);
+	const char *p = *pp;
+	if (*p == '"') {
+		return sbom_parse_quoted (pp);
+	}
+	if (! (isalnum ((unsigned char)*p) || *p == '_' || *p == '$')) {
+		return NULL;
+	}
+	const char *start = p;
+	while (isalnum ((unsigned char)*p) || *p == '_' || *p == '$') {
+		p++;
+	}
+	*pp = p;
+	return sbom_dup_range (start, (size_t) (p - start));
+}
+
+static void sbom_skip_quoted(const char **pp) {
+	const char *p = *pp;
+	if (*p != '"') {
+		return;
+	}
+	for (p++; *p && *p != '"'; p++) {
+		if (*p == '\\' && p[1]) {
+			p++;
+		}
+	}
+	if (*p == '"') {
+		p++;
+	}
+	*pp = p;
+}
+
+static void sbom_skip_value(const char **pp) {
+	const char *p = *pp;
+	int depth = 0;
+	while (*p) {
+		if (*p == '"') {
+			sbom_skip_quoted (&p);
+			continue;
+		}
+		if (*p == '{' || *p == '[') {
+			depth++;
+			p++;
+			continue;
+		}
+		if (*p == '}' || *p == ']') {
+			if (depth == 0) {
+				break;
+			}
+			depth--;
+			p++;
+			continue;
+		}
+		if (*p == ',' && depth == 0) {
+			break;
+		}
+		p++;
+	}
+	*pp = p;
+}
+
 /* Extract name/version metadata and dependency-map entries from one literal. */
 static size_t sbom_harvest(const char *formatted, SbomCompList *out) {
 	size_t before = out->count;
-	char *jsonstr = jsobj_to_json (formatted);
-	if (!jsonstr) {
+	while (formatted && isspace ((unsigned char)*formatted)) {
+		formatted++;
+	}
+	if (!formatted || *formatted != '{' || !strchr (formatted, ':')) {
 		return 0;
 	}
-	RJson *js = r_json_parsedup (jsonstr);
-	free (jsonstr);
-	if (!js) {
-		return 0;
-	}
-	if (js->type == R_JSON_OBJECT) {
-		const char *name = NULL;
-		const char *version = NULL;
-		bool manifest = false;
-		for (RJson *kid = js->children.first; kid; kid = kid->next) {
-			if (!kid->key) {
-				continue;
-			}
-			if (sbom_is_manifest_key (kid->key)) {
-				manifest = true;
-			}
-			if (kid->type != R_JSON_STRING || !kid->str_value) {
-				continue;
-			}
-			if (!strcmp (kid->key, "name")) {
-				name = kid->str_value;
-			} else if (!strcmp (kid->key, "version")) {
-				version = kid->str_value;
-			} else if (sbom_is_dep_name (kid->key) && sbom_is_version_spec (kid->str_value)) {
-				(void)sbom_push (out, kid->key, kid->str_value);
+	const char *p = formatted + 1;
+	char *name = NULL;
+	char *version = NULL;
+	bool manifest = false;
+	for (;;) {
+		sbom_skip_ws (&p);
+		if (*p == '}') {
+			break;
+		}
+		char *key = sbom_parse_key (&p);
+		if (!key) {
+			break;
+		}
+		sbom_skip_ws (&p);
+		if (*p != ':') {
+			free (key);
+			break;
+		}
+		p++;
+		sbom_skip_ws (&p);
+		char *value = NULL;
+		if (*p == '"') {
+			value = sbom_parse_quoted (&p);
+		} else {
+			sbom_skip_value (&p);
+		}
+		if (sbom_is_manifest_key (key)) {
+			manifest = true;
+		}
+		if (value) {
+			if (!strcmp (key, "name")) {
+				free (name);
+				name = strdup (value);
+			} else if (!strcmp (key, "version")) {
+				free (version);
+				version = strdup (value);
+			} else if (sbom_is_dep_name (key) && sbom_is_version_spec (value)) {
+				(void)sbom_push (out, key, value);
 			}
 		}
-		if (manifest && sbom_is_npm_name (name) && sbom_is_version_spec (version)) {
-			(void)sbom_push (out, name, version);
+		free (value);
+		free (key);
+		sbom_skip_ws (&p);
+		if (*p == ',') {
+			p++;
+			continue;
+		}
+		if (*p == '}') {
+			break;
 		}
 	}
-	r_json_free (js);
+	if (manifest && sbom_is_npm_name (name) && sbom_is_version_spec (version)) {
+		(void)sbom_push (out, name, version);
+	}
+	free (name);
+	free (version);
 	return out->count - before;
 }
 
@@ -377,8 +450,12 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	}
 
 	u32 nscanned = 0;
-	r = hbc_literals_scan_code (hbc, &nscanned);
+	bool reset_lit_cache = hbc_literals_count (hbc) == 0;
+	r = reset_lit_cache? hbc_literals_scan_code_kind (hbc, HBC_LIT_OBJECT, false, &nscanned): SUCCESS_RESULT ();
 	if (r.code != RESULT_SUCCESS) {
+		if (reset_lit_cache) {
+			hbc_literals_reset (hbc);
+		}
 		R_LOG_ERROR ("literal scan failed: %s", safe_errmsg (r.error_message));
 		return;
 	}
@@ -386,6 +463,9 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	const HBCLiteralEntry *arr = NULL;
 	u32 n = 0;
 	if (hbc_literals_list (hbc, &arr, &n).code != RESULT_SUCCESS || !arr) {
+		if (reset_lit_cache) {
+			hbc_literals_reset (hbc);
+		}
 		R_LOG_ERROR ("literal list unavailable");
 		return;
 	}
@@ -394,24 +474,38 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	u32 matched = 0;
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
-		if (e->kind != HBC_LIT_OBJECT || !e->formatted) {
+		if (e->kind != HBC_LIT_OBJECT || !sbom_object_may_match (hbc, e)) {
 			continue;
+		}
+		char *owned = NULL;
+		const char *formatted = e->formatted;
+		if (!formatted) {
+			Result fr = hbc_literals_format_raw (hbc, HBC_LIT_OBJECT, e->num_items, e->primary_id, e->secondary_id, &owned);
+			if (fr.code != RESULT_SUCCESS || !owned) {
+				free (owned);
+				continue;
+			}
+			formatted = owned;
 		}
 		if (fmt == SBOM_FMT_RAW) {
 			SbomCompList tmp = { 0 };
-			if (sbom_harvest (e->formatted, &tmp) > 0) {
+			if (sbom_harvest (formatted, &tmp) > 0) {
 				matched++;
-				r_cons_printf (core->cons, "# paddr=0x%08x xrefs=%u\n%s\n", e->paddr, e->xref_count, e->formatted);
+				r_cons_printf (core->cons, "# paddr=0x%08x xrefs=%u\n%s\n", e->paddr, e->xref_count, formatted);
 			}
 			sbom_free (&tmp);
 		} else {
-			matched += sbom_harvest (e->formatted, &comps) > 0;
+			matched += sbom_harvest (formatted, &comps) > 0;
 		}
+		free (owned);
 	}
 
 	if (fmt == SBOM_FMT_RAW) {
 		if (matched == 0) {
 			r_cons_println (core->cons, "(no SBOM candidates)");
+		}
+		if (reset_lit_cache) {
+			hbc_literals_reset (hbc);
 		}
 		return;
 	}
@@ -428,4 +522,7 @@ static void cmd_sbom(HbcContext *ctx, RCore *core, const char *arg) {
 	}
 
 	sbom_free (&comps);
+	if (reset_lit_cache) {
+		hbc_literals_reset (hbc);
+	}
 }

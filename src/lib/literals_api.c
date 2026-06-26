@@ -80,10 +80,9 @@ static Result format_raw_impl(HBCReader *r, HBCLiteralKind kind, u32 num_items, 
 	Result fr;
 	if (kind == HBC_LIT_ARRAY) {
 		fr = _hbc_format_array_literal (r, num_items, primary_id, &sb, LITERALS_PRETTY_NEVER, true);
+	} else if (r->header.version >= 97) {
+		fr = _hbc_format_object_literal (r, primary_id, secondary_id, 0, 0, &sb, LITERALS_PRETTY_NEVER, true);
 	} else {
-		/* For v97+ primary_id is the shape index; the internal formatter
-		 * expects that convention already (first arg is "key_count" which is
-		 * reinterpreted as shape id when version >= 97). */
 		fr = _hbc_format_object_literal (r, num_items, num_items, primary_id, secondary_id, &sb, LITERALS_PRETTY_NEVER, true);
 	}
 	if (fr.code == RESULT_SUCCESS && sb.data && sb.length > 0) {
@@ -167,9 +166,16 @@ static u32 entry_paddr(HBC *hbc, HBCLiteralKind kind, u32 primary_id) {
 	return r->object_keys_paddr + primary_id;
 }
 
-static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, HBCLiteralEntry **out_entry) {
+static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, bool format, HBCLiteralEntry **out_entry) {
 	HBCLiteralEntry *e = cache_find (&hbc->lit_cache, kind, num_items, primary_id, secondary_id);
 	if (e) {
+		if (format && !e->formatted) {
+			char *txt = NULL;
+			Result fr = format_raw_impl (&hbc->reader, kind, num_items, primary_id, secondary_id, &txt);
+			if (fr.code == RESULT_SUCCESS) {
+				e->formatted = txt;
+			}
+		}
 		*out_entry = e;
 		return SUCCESS_RESULT ();
 	}
@@ -182,12 +188,12 @@ static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, 
 	e->primary_id = primary_id;
 	e->secondary_id = secondary_id;
 	e->paddr = entry_paddr (hbc, kind, primary_id);
-	/* Format now (lazy across calls, but eager per key once we've decided to
-	 * cache it). The formatted string is small and reused on every access. */
-	char *txt = NULL;
-	Result fr = format_raw_impl (&hbc->reader, kind, num_items, primary_id, secondary_id, &txt);
-	if (fr.code == RESULT_SUCCESS) {
-		e->formatted = txt;
+	if (format) {
+		char *txt = NULL;
+		Result fr = format_raw_impl (&hbc->reader, kind, num_items, primary_id, secondary_id, &txt);
+		if (fr.code == RESULT_SUCCESS) {
+			e->formatted = txt;
+		}
 	}
 	*out_entry = e;
 	return SUCCESS_RESULT ();
@@ -198,7 +204,7 @@ Result hbc_literals_get(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primar
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
 	}
 	HBCLiteralEntry *e;
-	Result r = cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, &e);
+	Result r = cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, true, &e);
 	if (r.code != RESULT_SUCCESS) {
 		return r;
 	}
@@ -221,12 +227,12 @@ static void xref_add(HBCLiteralEntry *e, u32 from_addr) {
 	e->xref_addrs[e->xref_count++] = from_addr;
 }
 
-Result hbc_literals_register(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, u32 from_addr) {
+static Result register_literal(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, u32 from_addr, bool format) {
 	if (!hbc) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
 	}
 	HBCLiteralEntry *e;
-	Result r = cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, &e);
+	Result r = cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, format, &e);
 	if (r.code != RESULT_SUCCESS) {
 		return r;
 	}
@@ -234,6 +240,10 @@ Result hbc_literals_register(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 p
 		xref_add (e, from_addr);
 	}
 	return SUCCESS_RESULT ();
+}
+
+Result hbc_literals_register(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, u32 from_addr) {
+	return register_literal (hbc, kind, num_items, primary_id, secondary_id, from_addr, true);
 }
 
 Result hbc_literals_list(HBC *hbc, const HBCLiteralEntry **out, u32 *out_count) {
@@ -335,7 +345,111 @@ static bool decode_buffer_op(u8 op, u32 version, const u8 *code, u32 size, u32 p
 	return false;
 }
 
-Result hbc_literals_scan_code(HBC *hbc, u32 *out_count) {
+static bool slp_read_id(const u8 *base, size_t size, size_t *pos, u8 tag, u32 *sid) {
+	switch (tag) {
+	case 4:
+		if (*pos + 4 > size) {
+			return false;
+		}
+		*sid = rd_u32le (base + *pos);
+		*pos += 4;
+		return true;
+	case 5:
+		if (*pos + 2 > size) {
+			return false;
+		}
+		*sid = rd_u16le (base + *pos);
+		*pos += 2;
+		return true;
+	case 6:
+		if (*pos + 1 > size) {
+			return false;
+		}
+		*sid = base[*pos];
+		(*pos)++;
+		return true;
+	}
+	return false;
+}
+
+Result hbc_literals_visit_object_keys(HBC *hbc, u32 num_items, u32 primary_id, HBCLiteralKeyCallback cb, void *user) {
+	if (!hbc || !cb) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
+	}
+	HBCReader *r = &hbc->reader;
+	u32 key_count = num_items;
+	u32 keys_id = primary_id;
+	if (r->header.version >= 97 && r->object_shapes && r->object_shape_count > 0) {
+		if (primary_id >= r->object_shape_count) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "shape id out of range");
+		}
+		key_count = r->object_shapes[primary_id].prop_count;
+		keys_id = r->object_shapes[primary_id].key_buffer_offset;
+	}
+	if (!key_count || !r->object_keys || !r->strings) {
+		return SUCCESS_RESULT ();
+	}
+	size_t pos = keys_id;
+	size_t size = r->header.objKeyBufferSize;
+	u32 seen = 0;
+	while (seen < key_count) {
+		if (pos >= size) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "object key stream is out of bounds");
+		}
+		u8 taglen = r->object_keys[pos++];
+		u8 tag = (taglen >> 4) & 0x7;
+		u32 length = taglen & 0x0f;
+		if (taglen & 0x80) {
+			if (pos >= size) {
+				return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "object key stream is truncated");
+			}
+			length = ((u32) (taglen & 0x0f) << 8) | r->object_keys[pos++];
+		}
+		for (u32 i = 0; i < length; i++) {
+			bool emit = seen < key_count;
+			u32 sid = 0;
+			switch (tag) {
+			case 0:
+			case 1:
+			case 2:
+				break;
+			case 3:
+				if (pos + 8 > size) {
+					return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "object key stream is truncated");
+				}
+				pos += 8;
+				break;
+			case 4:
+			case 5:
+			case 6:
+				if (!slp_read_id (r->object_keys, size, &pos, tag, &sid)) {
+					return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "object key stream is truncated");
+				}
+				if (emit && sid < r->header.stringCount) {
+					const char *s = r->strings[sid];
+					if (s && !cb (s, user)) {
+						return SUCCESS_RESULT ();
+					}
+				}
+				break;
+			case 7:
+				if (pos + 4 > size) {
+					return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "object key stream is truncated");
+				}
+				pos += 4;
+				break;
+			default:
+				return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "unknown object key tag");
+			}
+			if (emit) {
+				seen++;
+			}
+		}
+	}
+	return SUCCESS_RESULT ();
+}
+
+static Result scan_code(HBC *hbc, bool filter_kind, HBCLiteralKind want_kind, bool format, u32 *out_count) {
 	if (!hbc) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
 	}
@@ -365,9 +479,9 @@ Result hbc_literals_scan_code(HBC *hbc, u32 *out_count) {
 			}
 			HBCLiteralKind kind;
 			u32 num_items = 0, primary = 0, secondary = 0;
-			if (decode_buffer_op (op, version, code, size, pc, ins->binary_size, &kind, &num_items, &primary, &secondary)) {
+			if (decode_buffer_op (op, version, code, size, pc, ins->binary_size, &kind, &num_items, &primary, &secondary) && (!filter_kind || kind == want_kind)) {
 				u32 call_addr = fn_paddr + pc;
-				hbc_literals_register (hbc, kind, num_items, primary, secondary, call_addr);
+				RETURN_IF_ERROR (register_literal (hbc, kind, num_items, primary, secondary, call_addr, format));
 			}
 			(void)is_buffer_op; /* retained for tools that need the predicate */
 			pc += ins->binary_size;
@@ -377,6 +491,14 @@ Result hbc_literals_scan_code(HBC *hbc, u32 *out_count) {
 		*out_count = hbc->lit_cache.count;
 	}
 	return SUCCESS_RESULT ();
+}
+
+Result hbc_literals_scan_code(HBC *hbc, u32 *out_count) {
+	return scan_code (hbc, false, HBC_LIT_ARRAY, true, out_count);
+}
+
+Result hbc_literals_scan_code_kind(HBC *hbc, HBCLiteralKind kind, bool format, u32 *out_count) {
+	return scan_code (hbc, true, kind, format, out_count);
 }
 
 /* ---------- Pool-side scan ---------- */
