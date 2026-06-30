@@ -99,7 +99,7 @@ jobs:
           path: release-artifacts
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3.0.0
+        uses: softprops/action-gh-release@v3.0.1
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           files: |
