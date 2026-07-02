@@ -73,10 +73,66 @@ jobs:
           path: dist/debian/*.deb
           if-no-files-found: error
 
+  windows:
+    name: Build Windows package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.12.x
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install meson ninja
+
+      - name: Install radare2
+        id: r2
+        uses: radareorg/github-actions@v2
+
+      - name: Build and install with Meson
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALLDIR=%%i"
+          if not defined VSINSTALLDIR (
+            echo Visual Studio with MSVC tools was not found.
+            exit /b 1
+          )
+          call "%VSINSTALLDIR%\Common7\Tools\VsDevCmd.bat" -arch=x64
+          meson setup builddir --prefix="%CD%\install" -Dr2_plugdir="%CD%\install\lib\radare2\plugins" -Dr2_prefix="%CD%\install"
+          meson compile -C builddir
+          meson install -C builddir
+
+      - name: Verify staged install
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path install -Recurse -File -ErrorAction SilentlyContinue
+          if (-not $files) {
+            throw "No files were installed under $PWD\install"
+          }
+          $files | ForEach-Object { $_.FullName }
+
+      - name: Package Windows build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path install\* -DestinationPath r2hermes-windows-x64.zip -Force
+
+      - name: Upload Windows package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-package
+          path: r2hermes-windows-x64.zip
+          if-no-files-found: error
+
   release:
     name: Create release and upload artifacts
     runs-on: ubuntu-latest
-    needs: [build, debian]
+    needs: [build, debian, windows]
     if: needs.build.outputs.tag != ''
 
     steps:
@@ -98,6 +154,12 @@ jobs:
           name: debian-package
           path: release-artifacts
 
+      - name: Download Windows package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-package
+          path: release-artifacts/windows
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3.0.1
         with:
@@ -105,6 +167,7 @@ jobs:
           files: |
             ./libhbc-${{ needs.build.outputs.tag }}.tgz
             ./release-artifacts/*.deb
+            ./release-artifacts/windows/*.zip
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

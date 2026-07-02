@@ -110,13 +110,25 @@ r2_core = dependency('r_core', required: false)
 
 if r2_core.found()
   # Get radare2 plugin directory
-  r2_found = run_command('which', 'r2', check: false).returncode() == 0
-  if r2_found
+  r2_plugdir_opt = get_option('r2_plugdir')
+  r2_prefix_opt = get_option('r2_prefix')
+  r2_found = false
+  if r2_plugdir_opt == '' or r2_prefix_opt == ''
+    r2_found = run_command('which', 'r2', check: false).returncode() == 0
+  endif
+  if r2_plugdir_opt != ''
+    r2_plugdir = r2_plugdir_opt
+  elif r2_found
     r2_plugdir = run_command('r2', '-H', 'R2_USER_PLUGINS', check: false).stdout().strip()
+  else
+    r2_plugdir = r2_plugdir_opt
+  endif
+  if r2_prefix_opt != ''
+    r2_prefix = r2_prefix_opt
+  elif r2_found
     r2_prefix = run_command('r2', '-H', 'R2_PREFIX', check: false).stdout().strip()
   else
-    r2_plugdir = get_option('r2_plugdir')
-    r2_prefix = get_option('r2_prefix')
+    r2_prefix = r2_prefix_opt
   endif
 
   # Check if only core_hbc_one should be built

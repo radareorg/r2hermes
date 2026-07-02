@@ -18,29 +18,45 @@ jobs:
         with:
           python-version: 3.12.x
 
-      - name: Prepare MSVC toolchain
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       - name: Install dependencies
-        shell: bash
+        shell: pwsh
         run: |
-          pip install meson ninja
+          python -m pip install meson ninja
 
       - name: Install radare2
         id: r2
         uses: radareorg/github-actions@v2
 
-      - name: Build with Meson
+      - name: Build and install with Meson
         shell: cmd
         run: |
-          meson setup builddir -Dprefix=%cd%\install
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALLDIR=%%i"
+          if not defined VSINSTALLDIR (
+            echo Visual Studio with MSVC tools was not found.
+            exit /b 1
+          )
+          call "%VSINSTALLDIR%\Common7\Tools\VsDevCmd.bat" -arch=x64
+          meson setup builddir --prefix="%CD%\install" -Dr2_plugdir="%CD%\install\lib\radare2\plugins" -Dr2_prefix="%CD%\install"
           meson compile -C builddir
           meson install -C builddir
+
+      - name: Verify staged install
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path install -Recurse -File -ErrorAction SilentlyContinue
+          if (-not $files) {
+            throw "No files were installed under $PWD\install"
+          }
+          $files | ForEach-Object { $_.FullName }
+
+      - name: Package Windows build
+        shell: pwsh
+        run: |
+          Compress-Archive -Path install\* -DestinationPath r2hermes-windows-x64.zip -Force
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: build-windows
-          path: builddir\install\**\*
+          name: windows-package
+          path: r2hermes-windows-x64.zip
+          if-no-files-found: error
