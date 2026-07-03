@@ -759,11 +759,10 @@ static void register_r2_artifacts(RCore *core, const HBCLiteralEntry *e) {
 static void register_all_artifacts(RCore *core, HBC *hbc) {
 	const HBCLiteralEntry *arr = NULL;
 	u32 n = 0;
-	if (hbc_literals_list (hbc, &arr, &n).code != RESULT_SUCCESS) {
-		return;
-	}
-	for (u32 i = 0; i < n; i++) {
-		register_r2_artifacts (core, &arr[i]);
+	if (hbc_literals_list (hbc, &arr, &n).code == RESULT_SUCCESS) {
+		for (u32 i = 0; i < n; i++) {
+			register_r2_artifacts (core, &arr[i]);
+		}
 	}
 }
 
@@ -820,11 +819,13 @@ static void cmd_lit_list_quiet(HbcContext *ctx, RCore *core) {
 	Result r = lit_list_collect (ctx, core, &arr, &n);
 	if (r.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
-		return;
-	}
-	for (u32 i = 0; i < n; i++) {
-		const HBCLiteralEntry *e = &arr[i];
-		r_cons_printf (core->cons, "0x%" PFMT64x " %s\n", (ut64)HBC_VADDR_BASE + e->paddr, e->formatted? e->formatted: "");
+	} else {
+		for (u32 i = 0; i < n; i++) {
+			const HBCLiteralEntry *e = &arr[i];
+			const ut64 addr = (ut64)HBC_VADDR_BASE + e->paddr;
+			const char *fmt = e->formatted? e->formatted: "";
+			r_cons_printf (core->cons, "0x%" PFMT64x " %s\n", addr, fmt);
+		}
 	}
 }
 
@@ -847,12 +848,8 @@ static void cmd_lit_list_xrefs(HbcContext *ctx, RCore *core, const char *args) {
 	}
 	bool va = r_config_get_b (core->config, "io.va");
 	/* Parse optional address argument. Accepts 0x... or bare hex. */
-	if (args) {
-		while (*args && isspace ((unsigned char)*args)) {
-			args++;
-		}
-	}
-	if (args && *args) {
+	if (R_STR_ISNOTEMPTY (args)) {
+		args = r_str_trim_head_ro (args);
 		ut64 want = r_num_get (core->num, args);
 		ut64 base = va? (ut64)HBC_VADDR_BASE: 0;
 		ut64 target_paddr = (want >= base)? (want - base): want;
@@ -917,27 +914,17 @@ static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 	bool va = r_config_get_b (core->config, "io.va");
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
-		if (va) {
-			r_cons_printf (core->cons,
-				"%-6s n=%-4u id=(%u,%u) vaddr=0x%08" PFMT64x " xrefs=%u  %s\n",
-				kind_label (e->kind),
-				e->num_items,
-				e->primary_id,
-				e->secondary_id,
-				(ut64)HBC_VADDR_BASE + e->paddr,
-				e->xref_count,
-				e->formatted? e->formatted: "");
-		} else {
-			r_cons_printf (core->cons,
-				"%-6s n=%-4u id=(%u,%u) paddr=0x%08x xrefs=%u  %s\n",
-				kind_label (e->kind),
-				e->num_items,
-				e->primary_id,
-				e->secondary_id,
-				e->paddr,
-				e->xref_count,
-				e->formatted? e->formatted: "");
-		}
+		const char *pavastr = va? "vaddr": "paddr";
+		r_cons_printf (core->cons,
+			"%-6s n=%-4u id=(%u,%u) %s=0x%08" PFMT64x " xrefs=%u  %s\n",
+			kind_label (e->kind),
+			e->num_items,
+			e->primary_id,
+			e->secondary_id,
+			pavastr,
+			(ut64)HBC_VADDR_BASE + e->paddr,
+			e->xref_count,
+			e->formatted? e->formatted: "");
 	}
 }
 
@@ -1076,7 +1063,8 @@ static void cmd_lit_toggle_inline(RCore *core) {
 	r_cons_printf (core->cons, "inline buffer literals: %s\n", next? "on": "off");
 }
 
-static const char LIT_HELP[] =
+/* Show help */
+static const char r2hermes_helpmsg[] =
 	"Usage: r2hermes-L[subcmd]\n"
 	" r2hermes-L            List cached literals (auto-scans code if cache is empty)\n"
 	" r2hermes-Lj           List as JSON (auto-scans if needed)\n"
@@ -1093,52 +1081,6 @@ static const char LIT_HELP[] =
 	" r2hermes-L?           This help\n"
 	"\nDeprecated alias: pd:hL[subcmd]\n";
 
-static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
-	while (*arg && isspace ((unsigned char)*arg)) {
-		arg++;
-	}
-	switch (*arg) {
-	case 0:
-		cmd_lit_list (ctx, core, false);
-		break;
-	case 'j':
-		cmd_lit_list (ctx, core, true);
-		break;
-	case 'q':
-		cmd_lit_list_quiet (ctx, core);
-		break;
-	case 'x':
-		cmd_lit_list_xrefs (ctx, core, arg + 1);
-		break;
-	case 'p':
-		{
-			char k = arg[1];
-			HBCLiteralKind kind = (k == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
-			cmd_lit_scan_pool (ctx, core, kind);
-			break;
-		}
-	case 'R':
-		cmd_lit_reset (ctx, core);
-		break;
-	case 'r':
-		cmd_lit_print_r2 (ctx, core, arg + 1);
-		break;
-	case 'g':
-		cmd_lit_get (ctx, core, arg + 1);
-		break;
-	case 'i':
-		cmd_lit_toggle_inline (core);
-		break;
-	case '?':
-		r_cons_print (core->cons, LIT_HELP);
-		break;
-	default:
-		R_LOG_ERROR ("Unknown subcommand. Use r2hermes-L? for help");
-		break;
-	}
-}
-
-/* Show help */
 static void r2hermes_help(RCore *core) {
 	const char msg[] =
 		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
@@ -1167,6 +1109,48 @@ static void cmd_help(RCore *core) {
 		"  pd:hL[?]       - Deprecated alias for r2hermes-L[?]\n"
 		"  pd:h?          - Show this help\n"
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
+}
+
+static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
+	while (*arg && isspace ((unsigned char)*arg)) {
+		arg++;
+	}
+	switch (*arg) {
+	case 0:
+		cmd_lit_list (ctx, core, false);
+		break;
+	case 'j':
+		cmd_lit_list (ctx, core, true);
+		break;
+	case 'q':
+		cmd_lit_list_quiet (ctx, core);
+		break;
+	case 'x':
+		cmd_lit_list_xrefs (ctx, core, arg + 1);
+		break;
+	case 'p':
+		HBCLiteralKind kind = (arg[1] == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
+		cmd_lit_scan_pool (ctx, core, kind);
+		break;
+	case 'R':
+		cmd_lit_reset (ctx, core);
+		break;
+	case 'r':
+		cmd_lit_print_r2 (ctx, core, arg + 1);
+		break;
+	case 'g':
+		cmd_lit_get (ctx, core, arg + 1);
+		break;
+	case 'i':
+		cmd_lit_toggle_inline (core);
+		break;
+	case '?':
+		r_cons_print (core->cons, r2hermes_helpmsg);
+		break;
+	default:
+		R_LOG_ERROR ("Unknown subcommand. Use r2hermes-L? for help");
+		break;
+	}
 }
 
 #include "sbom.inc.c"
@@ -1295,15 +1279,9 @@ static bool plugin_init(RCorePluginSession *s) {
 
 #ifdef HBC_CORE_REGISTER_PLUGINS
 	/* Register arch, bin and asm plugins when enabled */
-	if (core->anal && core->anal->arch) {
-		r_arch_plugin_add (core->anal->arch, (RArchPlugin *)&r_arch_plugin_r2hermes);
-	}
-	if (core->bin) {
-		r_bin_plugin_add (core->bin, (RBinPlugin *)&r_bin_plugin_r2hermes);
-	}
-	if (core->rasm) {
-		r_asm_plugin_add (core->rasm, (RAsmPlugin *)&r_asm_plugin_r2hermes);
-	}
+	r_arch_plugin_add (core->anal->arch, (RArchPlugin *)&r_arch_plugin_r2hermes);
+	r_bin_plugin_add (core->bin, (RBinPlugin *)&r_bin_plugin_r2hermes);
+	r_asm_plugin_add (core->rasm, (RAsmPlugin *)&r_asm_plugin_r2hermes);
 #endif
 
 	/* Define fix-hbc macro using r2's generic ph and wx commands
