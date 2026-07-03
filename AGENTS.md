@@ -7,19 +7,19 @@ Use this guide to navigate the code, extend features, and avoid common pitfalls 
 **Repo Layout**
 - `src/lib` C sources for the library
 - `src/r2/` radare2 plugin sources (optional)
-- `src/tool/` source code of the libhbctool program
+- `src/tool/` source code of the r2hermes program
 - `include/` public and internal headers
-- `bin/` where the libhbctool CLI program is compiled
+- `bin/` where the r2hermes CLI program is compiled
 - `build/` static library and objects
 - `tests/` testsuite based on `r2r` tool
 
 **Build & Run**
-- Build library + libhbctool cli tool: `make` (no debug messages)
+- Build library + r2hermes cli tool: `make` (no debug messages)
 - Build with address sanitizer checks: `make asan`
 - Build library + radare2 plugins + user-install: `make r2`
 - Format the source with `make fmt` (requires `clang-format-radare2`)
 - Clean: `make clean`
-- Run CLI: `./bin/libhbctool <command> <input> [output]`
+- Run CLI: `./bin/r2hermes <command> <input> [output]`
 
 **Public API**
 - Primary header: `include/hbc/hbc.h`

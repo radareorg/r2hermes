@@ -24,7 +24,7 @@ else
 	cd ../.. && $(MAKE) clean && $(MAKE) && $(MAKE) -C src/r2
 	rm -rf root
 	mkdir -p root/usr/bin
-	cp -f ../../bin/libhbctool root/usr/bin/
+	cp -f ../../bin/r2hermes root/usr/bin/
 	mkdir -p root/usr/lib
 	cp -f ../../build/libhbc.a root/usr/lib/
 	mkdir -p root/usr/include

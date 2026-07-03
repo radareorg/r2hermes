@@ -29,7 +29,7 @@ r2pm -ci r2hermes
 
 ### From source
 
-Build the `libhbctool` cli tool and install the `radare2` plugin:
+Build the `r2hermes` cli tool and install the `radare2` plugin:
 
 ```bash
 make && make user-install
