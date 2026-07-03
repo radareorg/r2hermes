@@ -93,12 +93,12 @@ install_subdir('include/hbc',
   install_dir: 'include',
 )
 
-# libhbctool CLI
-libhbctool_src = files('src/tool/libhbctool.c')
+# r2hermes CLI
+r2hermes_src = files('src/tool/r2hermes.c')
 
 executable(
-  'libhbctool',
-  libhbctool_src,
+  'r2hermes',
+  r2hermes_src,
   link_with: libhbc,
   include_directories: include_dirs,
   c_args: ['-pedantic'],
@@ -184,7 +184,7 @@ endif
 # Summary
 message('r2hermes build summary:')
 message('  Library: libhbc')
-message('  CLI: libhbctool')
+message('  CLI: r2hermes')
 if r2_core.found()
   message('  radare2 plugins: core_hbc (includes arch, bin, asm)')
   message('  Plugin install path: ' + r2_plugdir)

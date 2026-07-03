@@ -19,17 +19,17 @@ DECOMPILE_SRC = $(wildcard $(SRC_DIR)/decompilation/*.c)
 OPCODES_SRC = $(filter-out $(SRC_DIR)/opcodes/%.inc.c,$(wildcard $(SRC_DIR)/opcodes/*.c))
 LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_SRC) \
           $(SRC_DIR)/hbc.c $(SRC_DIR)/literals_api.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
-MAIN_SRC = src/tool/libhbctool.c
+MAIN_SRC = src/tool/r2hermes.c
 HBC_HEADERS = $(shell find include -name '*.h')
 
 ## Object files
 LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
 LIB_RELOC_OBJ = $(BUILD_DIR)/libhbc_all.o
-MAIN_OBJ = $(BUILD_DIR)/libhbctool.o
-MAIN_RELOC_OBJ = $(BUILD_DIR)/libhbctool_all.o
+MAIN_OBJ = $(BUILD_DIR)/r2hermes.o
+MAIN_RELOC_OBJ = $(BUILD_DIR)/r2hermes_all.o
 
 ## Artifacts
-BIN_FILE = $(BIN_DIR)/libhbctool
+BIN_FILE = $(BIN_DIR)/r2hermes
 STATIC_LIB = $(BUILD_DIR)/libhbc.a
 
 # Include paths
@@ -74,7 +74,7 @@ $(MAIN_OBJ): $(MAIN_SRC) $(HBC_HEADERS) | $(VH)
 	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD_DIR) $(BIN_DIR)/libhbctool
+	rm -rf $(BUILD_DIR) $(BIN_DIR)/r2hermes
 	rm -f $(VH)
 	$(MAKE) -C src/r2 clean
 
