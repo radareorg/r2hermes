@@ -563,8 +563,11 @@ Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *
 
 					RETURN_IF_ERROR (_hbc_sb_appendf (out_string,
 						"  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x",
-						value, func_name, func->bytecodeSizeInBytes,
-						func->paramCount, func->offset));
+						value,
+						func_name,
+						func->bytecodeSizeInBytes,
+						func->paramCount,
+						func->offset));
 				}
 				break;
 

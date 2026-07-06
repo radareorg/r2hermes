@@ -150,8 +150,8 @@ typedef struct {
 	bool inline_closures; /* Inline closure definitions (default: true) */
 	int inline_threshold; /* Max closure bytecode size to inline (0 = no limit, -1 = no inline) */
 	int inline_max_depth; /* Max nested inline depth (0 = no limit). Bounds the
-	                       * recursive closure expansion that otherwise inlines a
-	                       * whole module graph into one function. */
+			 * recursive closure expansion that otherwise inlines a
+			 * whole module graph into one function. */
 	/* Early-stop budgets (0 = unlimited). max_ast_statements caps pass2 AST
 	 * growth per function; max_output_bytes caps total emitted output. */
 	int max_ast_statements;

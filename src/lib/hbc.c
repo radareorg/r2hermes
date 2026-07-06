@@ -660,7 +660,7 @@ Result hbc_find_eval_sites(HBC *hbc, HBCEvalSites *out) {
 					.function_address = info.offset,
 					.function_name = info.name,
 					.strict = inst->operands[2].operand_type != OPERAND_TYPE_NONE && code[pc + 3] != 0,
-				};
+};
 				Result res = hbc_eval_sites_add (out, &cap, &site);
 				if (res.code != RESULT_SUCCESS) {
 					hbc_free_eval_sites (out);

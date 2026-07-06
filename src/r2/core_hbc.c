@@ -400,6 +400,7 @@ static void cmd_list_eval_functions(HbcContext *ctx, RCore *core, const char *ar
 	for (u32 i = 0; i < sites.count; i++) {
 		const HBCEvalSite *site = &sites.sites[i];
 		ut64 address = HBC_VADDR_BASE + (ut64)site->address;
+		ut64 function_address = HBC_VADDR_BASE + (ut64)site->function_address;
 		if (quiet) {
 			r_cons_printf (core->cons, "0x%08" PFMT64x "\n", address);
 		} else {
@@ -408,7 +409,7 @@ static void cmd_list_eval_functions(HbcContext *ctx, RCore *core, const char *ar
 				address,
 				site->function_id,
 				site->offset,
-				HBC_VADDR_BASE + (ut64)site->function_address,
+				function_address,
 				site->strict? "true": "false",
 				r_str_get_fail (site->function_name, "unknown"));
 		}
@@ -1129,9 +1130,11 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 		cmd_lit_list_xrefs (ctx, core, arg + 1);
 		break;
 	case 'p':
-		HBCLiteralKind kind = (arg[1] == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
-		cmd_lit_scan_pool (ctx, core, kind);
-		break;
+		{
+			HBCLiteralKind kind = (arg[1] == 'o')? HBC_LIT_OBJECT: HBC_LIT_ARRAY;
+			cmd_lit_scan_pool (ctx, core, kind);
+			break;
+		}
 	case 'R':
 		cmd_lit_reset (ctx, core);
 		break;

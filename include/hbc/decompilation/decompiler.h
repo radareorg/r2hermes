@@ -144,7 +144,7 @@ struct DecompiledFunctionBody {
 		u32 guard_pos;
 		u32 exit_addr;
 		bool promoted;
-		/* For a materialized guard (`r=cmp; if(r){do}while(cmp)`), the while
+		/* For a materialized guard (`r=cmp; if (r){do}while (cmp)`), the while
 		 * header renders this condition instead of the guard register. NULL when
 		 * the guard already spells the condition (fused compare-jump). */
 		void *while_cond;
@@ -156,7 +156,10 @@ struct DecompiledFunctionBody {
 	/* Infinite loops: a backward unconditional `goto top` is the back-edge of a
 	 * `for (;;) {` opened at `top`; the enclosing if's false path exits at
 	 * `exit`, where a `break;` and the loop close are emitted. */
-	struct { u32 top; u32 exit; } *forever_loops;
+	struct {
+		u32 top;
+		u32 exit;
+	} *forever_loops;
 	u32 forever_loops_count;
 	u32 forever_loops_capacity;
 

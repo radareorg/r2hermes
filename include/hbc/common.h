@@ -13,9 +13,9 @@
 #include <stdarg.h>
 
 #if defined(_WIN32) && defined(HBC_BUILD_SHARED)
-#define HBC_API __declspec(dllexport)
+#define HBC_API __declspec (dllexport)
 #elif defined(__GNUC__) || defined(__clang__)
-#define HBC_API __attribute__ ((visibility ("default")))
+#define HBC_API __attribute__((visibility ("default")))
 #else
 #define HBC_API
 #endif

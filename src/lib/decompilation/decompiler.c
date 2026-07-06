@@ -514,11 +514,11 @@ typedef struct {
 
 /* An if/else region recovered from `if (c) { then; goto END; } <else> END:`. */
 typedef struct {
-	u32 cond_pos;  /* the if-condition jump */
+	u32 cond_pos; /* the if-condition jump */
 	u32 else_addr; /* if-block close / else entry */
-	u32 end_addr;  /* else-block close (join) */
-	u32 goto_pos;  /* trailing then-goto, suppressed */
-	bool active;   /* set once the if is opened as a structured block */
+	u32 end_addr; /* else-block close (join) */
+	u32 goto_pos; /* trailing then-goto, suppressed */
+	bool active; /* set once the if is opened as a structured block */
 } IfElseRegion;
 
 /* Output code helper struct and cleanup */
@@ -977,8 +977,7 @@ static Result decompile_emit(HermesDecompiler *dec, u32 func_count, u32 version,
 				 * bundle: emit a stub marker and keep decompiling the
 				 * remaining functions. A genuine memory/IO failure on the
 				 * append itself still terminates the run. */
-				r = _hbc_sb_appendf (&dec->output, "// Function %u: skipped (%s)\n\n",
-					i, fr.error_message[0] != '\0'? fr.error_message: "unknown error");
+				r = _hbc_sb_appendf (&dec->output, "// Function %u: skipped (%s)\n\n", i, fr.error_message[0] != '\0'? fr.error_message: "unknown error");
 			}
 		}
 	}
@@ -1807,7 +1806,7 @@ static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *d
 		}
 		bool overlaps = false;
 		for (u32 k = 0; k < *out_count && !overlaps; k++) {
-			overlaps = !(plans[g].catch_end <= plans[k].try_start || plans[k].catch_end <= plans[g].try_start);
+			overlaps = ! (plans[g].catch_end <= plans[k].try_start || plans[k].catch_end <= plans[g].try_start);
 		}
 		if (!overlaps) {
 			plans[(*out_count)++] = plans[g];
@@ -1844,9 +1843,15 @@ static bool raw_token_is(const Token *tok, const char *text) {
 /* Negated form of a JS comparison operator, or NULL when not invertible. */
 static const char *negate_cmp_op(const char *op) {
 	static const char *const pairs[][2] = {
-		{ "===", "!==" }, { "!==", "===" }, { "==", "!=" }, { "!=", "==" },
-		{ "<", ">=" }, { ">=", "<" }, { "<=", ">" }, { ">", "<=" },
-	};
+		{ "===", "!==" },
+		{ "!==", "===" },
+		{ "==", "!=" },
+		{ "!=", "==" },
+		{ "<", ">=" },
+		{ ">=", "<" },
+		{ "<=", ">" },
+		{ ">", "<=" },
+};
 	if (op) {
 		for (size_t i = 0; i < sizeof (pairs) / sizeof (pairs[0]); i++) {
 			if (!strcmp (op, pairs[i][0])) {
@@ -1859,7 +1864,7 @@ static const char *negate_cmp_op(const char *op) {
 
 /* Render a jump condition, folding the requested negation into the expression
  * so a comparison flips its operator (`a === b` <-> `a !== b`) and a plain term
- * negates with `!` — no `!(a === b)` double-negative artifacts. The condition
+ * negates with `!` — no `! (a === b)` double-negative artifacts. The condition
  * tokens are one of: `t`, `! t`, `a op b`, or `! ( a op b )`. */
 static Result append_condition_tokens(StringBuffer *out, Token *cond, bool invert) {
 	Token *c = cond;
@@ -1912,7 +1917,7 @@ static Result append_token_spaced(StringBuffer *out, Token *t, bool first, Token
 	bool needs_space = !first && token_needs_space (prev, t->type);
 	/* Don't double up: many raw tokens already carry their own padding (`(`,
 	 * `, `, or operator patterns like ` >>> `), so skip the inserted space when
-	 * the previous output ends in `(`/space or this token starts with one. */
+	 * the previous output ends in ` (`/space or this token starts with one. */
 	if (needs_space && out->length > 0) {
 		char last = out->data[out->length - 1];
 		if (last == '(' || last == ' ') {
@@ -2336,7 +2341,7 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 
 /* True when a goto at `pos` targeting `target` should render as `break;`:
  * `target` is the exit of the innermost do-while/while loop whose body contains
- * `pos`. for(;;) loops are excluded — their exit-if is kept structured and the
+ * `pos`. for (;;) loops are excluded — their exit-if is kept structured and the
  * loop closes with its own `break;`, so converting jumps there would double it. */
 static bool is_break_target(const DecompiledFunctionBody *fb, u32 pos, u32 target) {
 	u32 best_span = UINT32_MAX;
@@ -2352,7 +2357,7 @@ static bool is_break_target(const DecompiledFunctionBody *fb, u32 pos, u32 targe
 			found = true;
 		}
 	}
-	/* a for(;;) body containing pos blocks an outer do-while break (it would be
+	/* a for (;;) body containing pos blocks an outer do-while break (it would be
 	 * a labeled break out of the inner loop, not expressible) */
 	for (u32 i = 0; i < fb->forever_loops_count; i++) {
 		u32 top = fb->forever_loops[i].top;
@@ -2569,7 +2574,7 @@ static int count_rhr(const Token *head, int reg) {
 }
 
 /* Classify a single-token rhs for forward substitution. Returns true and sets
- * *input_reg to the source register a register copy / `try_get(rN…)` reads (-1
+ * *input_reg to the source register a register copy / `try_get (rN…)` reads (-1
  * for a side-effect-free literal/closure), and *is_getter when the rhs is a
  * property read whose getter must not be moved across a side effect. Multi-token
  * and other call-like raw tokens are rejected. */
@@ -2594,7 +2599,7 @@ static bool classify_single_rhs(const Token *rhs, int *input_reg, bool *is_gette
 		if (!strchr (t, '(')) {
 			return true; /* literal: number, string, array, `{}`, identifier */
 		}
-		/* `try_get(rN.prop)` — a single-token property read; fold it, tracking
+		/* `try_get (rN.prop)` — a single-token property read; fold it, tracking
 		 * the object register (parsed after the prefix) as a getter input. */
 		if (strncmp (t, "try_get(r", 9) == 0 && t[9] >= '0' && t[9] <= '9') {
 			*input_reg = atoi (t + 9);
@@ -2606,8 +2611,8 @@ static bool classify_single_rhs(const Token *rhs, int *input_reg, bool *is_gette
 	return false;
 }
 
-/* True if the statement contains a call/construct (`(`) or a property access
- * (dot accessor) — a getter rhs must not be forward-substituted across one. */
+/* True if the statement contains a call/construct (` (`) or a property access
+ *(dot accessor) — a getter rhs must not be forward-substituted across one. */
 static bool stmt_side_effecting(const Token *head) {
 	for (const Token *t = head; t; t = t->next) {
 		if (t->type == TOKEN_TYPE_DOT_ACCESSOR) {
@@ -2658,25 +2663,47 @@ static int special_token_regs(const Token *t, int regs[5]) {
 	case TOKEN_TYPE_GET_ENVIRONMENT: regs[n++] = ((const GetEnvironmentToken *)t)->reg_num; break;
 	case TOKEN_TYPE_LOAD_FROM_ENVIRONMENT: regs[n++] = ((const LoadFromEnvironmentToken *)t)->reg_num; break;
 	case TOKEN_TYPE_NEW_ENVIRONMENT: regs[n++] = ((const NewEnvironmentToken *)t)->reg_num; break;
-	case TOKEN_TYPE_NEW_INNER_ENVIRONMENT: {
-		const NewInnerEnvironmentToken *e = (const NewInnerEnvironmentToken *)t;
-		regs[n++] = e->dest_register; regs[n++] = e->parent_register; break; }
+	case TOKEN_TYPE_NEW_INNER_ENVIRONMENT:
+		{
+			const NewInnerEnvironmentToken *e = (const NewInnerEnvironmentToken *)t;
+			regs[n++] = e->dest_register;
+			regs[n++] = e->parent_register;
+			break;
+		}
 	case TOKEN_TYPE_SWITCH_IMM: regs[n++] = ((const SwitchImmToken *)t)->value_reg; break;
-	case TOKEN_TYPE_STORE_TO_ENVIRONMENT: {
-		const StoreToEnvironmentToken *e = (const StoreToEnvironmentToken *)t;
-		regs[n++] = e->env_register; regs[n++] = e->value_register; break; }
-	case TOKEN_TYPE_FOR_IN_LOOP_INIT: {
-		const ForInLoopInitToken *e = (const ForInLoopInitToken *)t;
-		regs[n++] = e->obj_props_register; regs[n++] = e->obj_register;
-		regs[n++] = e->iter_index_register; regs[n++] = e->iter_size_register; break; }
-	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER: {
-		const ForInLoopNextIterToken *e = (const ForInLoopNextIterToken *)t;
-		regs[n++] = e->next_value_register; regs[n++] = e->obj_props_register;
-		regs[n++] = e->obj_register; regs[n++] = e->iter_index_register;
-		regs[n++] = e->iter_size_register; break; }
-	case TOKEN_TYPE_RESUME_GENERATOR: {
-		const ResumeGeneratorToken *e = (const ResumeGeneratorToken *)t;
-		regs[n++] = e->result_out_reg; regs[n++] = e->return_bool_out_reg; break; }
+	case TOKEN_TYPE_STORE_TO_ENVIRONMENT:
+		{
+			const StoreToEnvironmentToken *e = (const StoreToEnvironmentToken *)t;
+			regs[n++] = e->env_register;
+			regs[n++] = e->value_register;
+			break;
+		}
+	case TOKEN_TYPE_FOR_IN_LOOP_INIT:
+		{
+			const ForInLoopInitToken *e = (const ForInLoopInitToken *)t;
+			regs[n++] = e->obj_props_register;
+			regs[n++] = e->obj_register;
+			regs[n++] = e->iter_index_register;
+			regs[n++] = e->iter_size_register;
+			break;
+		}
+	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
+		{
+			const ForInLoopNextIterToken *e = (const ForInLoopNextIterToken *)t;
+			regs[n++] = e->next_value_register;
+			regs[n++] = e->obj_props_register;
+			regs[n++] = e->obj_register;
+			regs[n++] = e->iter_index_register;
+			regs[n++] = e->iter_size_register;
+			break;
+		}
+	case TOKEN_TYPE_RESUME_GENERATOR:
+		{
+			const ResumeGeneratorToken *e = (const ResumeGeneratorToken *)t;
+			regs[n++] = e->result_out_reg;
+			regs[n++] = e->return_bool_out_reg;
+			break;
+		}
 	case TOKEN_TYPE_CATCH_BLOCK_START: regs[n++] = ((const CatchBlockStartToken *)t)->arg_register; break;
 	default: break;
 	}
@@ -2684,10 +2711,10 @@ static int special_token_regs(const Token *t, int regs[5]) {
 }
 
 /* Forward-substitute single-use temporaries into their consumer:
- * `rN = <literal/closure/array/rM>; … f(…, rN, …)` splices the value into the use
+ * `rN = <literal/closure/array/rM>; … f (…, rN, …)` splices the value into the use
  * and drops the def. A fold is allowed only when rN's value cannot be read after
  * this def except at the use — either it is redefined within the same basic block
- * (`contained`), or it is read exactly once function-wide and never through a
+ *(`contained`), or it is read exactly once function-wide and never through a
  * special token's hidden register field. Bounded to straight-line, non-jump uses;
  * register-copy sources must be unmodified up to the use. */
 static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U32Set *labels) {
@@ -2784,8 +2811,7 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 				if (use_si < 0) {
 					use_si = (int)sj;
 				}
-			}
-			else if (use_si < 0) {
+			} else if (use_si < 0) {
 				/* a register copy needs its source unchanged up to the use; a
 				 * getter must not move across a call or property access. */
 				if (input_reg >= 0 && stmt_writes_reg (jh, input_reg)) {
@@ -2813,7 +2839,7 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 		if (bail || use_si < 0 || reads != 1 || !safe) {
 			continue;
 		}
-		/* splice the rhs in place of the single RHR(rN) in the use */
+		/* splice the rhs in place of the single RHR (rN) in the use */
 		TokenString *use = &fb->statements[use_si];
 		Token *prev = NULL;
 		Token *target = NULL;
@@ -3198,8 +3224,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			if (jump_is_unconditional (head)) {
 				/* A bare jump to a loop top is a `continue`, to a loop exit a
 				 * `break`; otherwise a plain goto. */
-				RETURN_IF_ERROR (is_continue? _hbc_sb_append (out, "continue;\n"):
-					is_break? _hbc_sb_append (out, "break;\n"): emit_goto (out, lbl_abs));
+				RETURN_IF_ERROR (is_continue? _hbc_sb_append (out, "continue;\n"): is_break? _hbc_sb_append (out, "break;\n")
+													: emit_goto (out, lbl_abs));
 				continue;
 			}
 
@@ -3220,7 +3246,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				u32 be = function_body->dowhile_loops[li].back_edge;
 				crosses_loop = (pos >= function_body->dowhile_loops[li].top && pos < be && target_addr > be);
 			}
-			/* An if-block inside a for(;;) body whose target jumps past the loop
+			/* An if-block inside a for (;;) body whose target jumps past the loop
 			 * exit would close after the loop; keep it as a goto (break). */
 			bool crosses_forever = false;
 			for (u32 fl = 0; fl < function_body->forever_loops_count && !crosses_forever; fl++) {
@@ -3236,7 +3262,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				function_body->dowhile_loops[wl].promoted = true;
 			}
 			RETURN_IF_ERROR (_hbc_sb_append (out, wl >= 0? "while (": "if ("));
-			/* A materialized guard (`R=cmp; if(R)`) renders the real test from
+			/* A materialized guard (`R=cmp; if (R)`) renders the real test from
 			 * the back-edge condition instead of the bare register. */
 			if (wl >= 0 && function_body->dowhile_loops[wl].while_cond) {
 				RETURN_IF_ERROR (append_condition_tokens (out, (Token *)function_body->dowhile_loops[wl].while_cond, function_body->dowhile_loops[wl].while_cond_invert));

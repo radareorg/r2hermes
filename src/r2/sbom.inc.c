@@ -109,7 +109,7 @@ static bool sbom_is_version_spec(const char *version) {
 		"patch:",
 		"portal:",
 		"workspace:",
-	};
+};
 	for (size_t i = 0; i < sizeof (prefixes) / sizeof (prefixes[0]); i++) {
 		if (r_str_startswith (version, prefixes[i])) {
 			return true;

@@ -46,7 +46,7 @@ typedef struct {
 	u32 xref_count;
 } HBCLiteralEntry;
 
-typedef bool (*HBCLiteralKeyCallback)(const char *key, void *user);
+typedef bool(*HBCLiteralKeyCallback)(const char *key, void *user);
 
 /* Format a literal directly from raw parameters. Does not touch the cache.
  * Returned string is heap-allocated; caller frees with free (). */

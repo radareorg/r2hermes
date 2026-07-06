@@ -50,8 +50,11 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 	if (verbose) {
 		RETURN_IF_ERROR (_hbc_sb_appendf (output,
 			"=> [Function #%u \"%s\" of %u bytes]: %u params, frame size=%u, env size=%u",
-			function_id, function_name, function_header->bytecodeSizeInBytes,
-			function_header->paramCount, function_header->frameSize,
+			function_id,
+			function_name,
+			function_header->bytecodeSizeInBytes,
+			function_header->paramCount,
+			function_header->frameSize,
 			function_header->environmentSize));
 	}
 
@@ -79,7 +82,9 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 
 			RETURN_IF_ERROR (_hbc_sb_appendf (output,
 				" [start=0x%x, end=0x%x, target=0x%x]",
-				handler->start, handler->end, handler->target));
+				handler->start,
+				handler->end,
+				handler->target));
 		}
 
 		RETURN_IF_ERROR (_hbc_sb_append (output, " ]"));
@@ -91,7 +96,8 @@ Result _hbc_print_function_header(Disassembler *disassembler, FunctionHeader *fu
 
 		RETURN_IF_ERROR (_hbc_sb_appendf (output,
 			"\n  [Debug offsets: source_locs=0x%x, scope_desc_data=0x%x]",
-			debug_offsets->source_locations, debug_offsets->scope_desc_data));
+			debug_offsets->source_locations,
+			debug_offsets->scope_desc_data));
 	}
 
 	/* End the function header */
@@ -276,8 +282,11 @@ Result _hbc_print_instruction(Disassembler *disassembler, ParsedInstruction *ins
 
 				RETURN_IF_ERROR (_hbc_sb_appendf (output,
 					"  # Function: [#%u %s of %u bytes]: %u params @ offset 0x%08x",
-					value, func_name, func->bytecodeSizeInBytes,
-					func->paramCount, func->offset));
+					value,
+					func_name,
+					func->bytecodeSizeInBytes,
+					func->paramCount,
+					func->offset));
 			}
 			break;
 
@@ -441,8 +450,10 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		/* Handle parsing error - Print more debug info */
 		RETURN_IF_ERROR (_hbc_sb_appendf (&disassembler->output,
 			"[Error parsing bytecode for function #%u: %s - Offset: %u, Size: %u]\n",
-			function_id, result.error_message[0] != '\0'? result.error_message: "Unknown error",
-			function_header->offset, function_header->bytecodeSizeInBytes));
+			function_id,
+			result.error_message[0] != '\0'? result.error_message: "Unknown error",
+			function_header->offset,
+			function_header->bytecodeSizeInBytes));
 
 		/* Skip this function but continue with others */
 		return SUCCESS_RESULT ();

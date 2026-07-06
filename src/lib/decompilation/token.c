@@ -376,37 +376,47 @@ Result _hbc_token_to_string(Token *token, StringBuffer *buffer) {
 			NewInnerEnvironmentToken *t = (NewInnerEnvironmentToken *)token;
 			return _hbc_sb_appendf (buffer,
 				"new_inner_env(r%d, r%d, %d)",
-				t->dest_register, t->parent_register, t->number_of_slots);
+				t->dest_register,
+				t->parent_register,
+				t->number_of_slots);
 		}
 	case TOKEN_TYPE_SWITCH_IMM:
 		{
 			SwitchImmToken *t = (SwitchImmToken *)token;
 			return _hbc_sb_appendf (buffer,
 				"switch(r%d /*%u..%u*/)",
-				t->value_reg, t->unsigned_min_value, t->unsigned_max_value);
+				t->value_reg,
+				t->unsigned_min_value,
+				t->unsigned_max_value);
 		}
 	case TOKEN_TYPE_STORE_TO_ENVIRONMENT:
 		{
 			StoreToEnvironmentToken *t = (StoreToEnvironmentToken *)token;
 			return _hbc_sb_appendf (buffer,
 				"env_store(r%d, %d, r%d)",
-				t->env_register, t->slot_index, t->value_register);
+				t->env_register,
+				t->slot_index,
+				t->value_register);
 		}
 	case TOKEN_TYPE_FOR_IN_LOOP_INIT:
 		{
 			ForInLoopInitToken *t = (ForInLoopInitToken *)token;
 			return _hbc_sb_appendf (buffer,
 				"forin_init(r%d, r%d, r%d, r%d)",
-				t->obj_props_register, t->obj_register,
-				t->iter_index_register, t->iter_size_register);
+				t->obj_props_register,
+				t->obj_register,
+				t->iter_index_register,
+				t->iter_size_register);
 		}
 	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
 		{
 			ForInLoopNextIterToken *t = (ForInLoopNextIterToken *)token;
 			return _hbc_sb_appendf (buffer,
 				"forin_next(r%d, r%d, r%d, r%d, r%d)",
-				t->next_value_register, t->obj_props_register,
-				t->obj_register, t->iter_index_register,
+				t->next_value_register,
+				t->obj_props_register,
+				t->obj_register,
+				t->iter_index_register,
 				t->iter_size_register);
 		}
 	case TOKEN_TYPE_RESUME_GENERATOR:
