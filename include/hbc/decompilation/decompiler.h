@@ -8,7 +8,7 @@
 #include <hbc/bytecode.h>
 #include <hbc/hbc.h>
 #include <hbc/decompilation/token.h>
-#include <hbc/vec.h>
+#include <r_vec.h>
 
 /* Forward declaration */
 struct Environment;

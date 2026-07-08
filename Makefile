@@ -12,6 +12,7 @@ BUILD_DIR = build
 BIN_DIR = bin
 
 ## Source files
+R2_CFLAGS=$(shell r2 -H R2_CFLAGS)
 UTILS_SRC = $(wildcard $(SRC_DIR)/utils/*.c)
 PARSERS_SRC = $(wildcard $(SRC_DIR)/parsers/*.c)
 DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
@@ -21,6 +22,7 @@ LIB_SRC = $(UTILS_SRC) $(PARSERS_SRC) $(DISASM_SRC) $(DECOMPILE_SRC) $(OPCODES_S
           $(SRC_DIR)/hbc.c $(SRC_DIR)/literals_api.c $(SRC_DIR)/opcodes/encoder.c $(SRC_DIR)/opcodes/decoder.c $(SRC_DIR)/r2.c
 MAIN_SRC = src/tool/r2hermes.c
 HBC_HEADERS = $(shell find include -name '*.h')
+CFLAGS+=${R2_CFLAGS}
 
 ## Object files
 LIB_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LIB_SRC))
@@ -64,7 +66,7 @@ $(MAIN_RELOC_OBJ): $(MAIN_OBJ) $(LIB_OBJ)
 	$(CC) $(LD_RELOC_FLAGS) -o $@ $^
 
 $(BIN_FILE): $(STATIC_LIB) $(MAIN_RELOC_OBJ) | $(shell mkdir -p $(BIN_DIR))
-	$(CC) $(CFLAGS) -o $@ $(MAIN_RELOC_OBJ)
+	$(CC) $(CFLAGS) -o $@ $(MAIN_RELOC_OBJ) $(R2_LDFLAGS) -lr_util
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HBC_HEADERS) | $(VH)
 	@mkdir -p $(dir $@)
