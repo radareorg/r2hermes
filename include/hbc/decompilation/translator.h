@@ -7,7 +7,7 @@
 #include <hbc/bytecode.h>
 #include "token.h"
 
-/* Translate a single parsed instruction into a TokenString */
-Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn, TokenString *out);
+/* Translate a single parsed instruction into a HbcTokenString */
+Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn, HbcTokenString *out);
 
 #endif /* LIBHBC_TRANSLATOR_H */

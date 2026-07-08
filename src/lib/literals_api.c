@@ -12,6 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+R_VEC_TYPE(RVecHBCPoolGroup, HBCPoolGroup)
+
+static HBCPoolGroup hbc_pool_group(u32 paddr, u32 pool_offset, u32 num_items, u8 tag) {
+	return (HBCPoolGroup){ .paddr = paddr, .pool_offset = pool_offset, .num_items = num_items, .tag = tag };
+}
+
 /* Little-endian readers for raw bytecode operands. */
 static inline u32 rd_u16le(const u8 *p) {
 	return (u32)p[0] | ((u32)p[1] << 8);
@@ -121,22 +127,12 @@ Result hbc_literals_format_for_opcode(HBC *hbc, u8 opcode, u32 arg3, u32 arg4, u
 /* ---------- Cache ---------- */
 
 static HBCLiteralEntry *cache_find(HBCLiteralCache *c, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id) {
-	for (u32 i = 0; i < c->count; i++) {
-		HBCLiteralEntry *e = &c->entries[i];
+	for (HBCLiteralEntry *e = R_VEC_START_ITER (&c->entries); e != R_VEC_END_ITER (&c->entries); e++) {
 		if (e->kind == kind && e->num_items == num_items && e->primary_id == primary_id && e->secondary_id == secondary_id) {
 			return e;
 		}
 	}
 	return NULL;
-}
-
-static HBCLiteralEntry *cache_alloc(HBCLiteralCache *c) {
-	if (grow_array (&c->entries, &c->cap, c->count, sizeof (HBCLiteralEntry), 64).code != RESULT_SUCCESS) {
-		return NULL;
-	}
-	HBCLiteralEntry *e = &c->entries[c->count++];
-	memset (e, 0, sizeof (*e));
-	return e;
 }
 
 /* Compute paddr for an entry based on its kind/primary_id. For v97+ objects,
@@ -179,10 +175,11 @@ static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, 
 		*out_entry = e;
 		return SUCCESS_RESULT ();
 	}
-	e = cache_alloc (&hbc->lit_cache);
+	e = RVecHBCLiteralEntry_emplace_back (&hbc->lit_cache.entries);
 	if (!e) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 	}
+	memset (e, 0, sizeof (*e));
 	e->kind = kind;
 	e->num_items = num_items;
 	e->primary_id = primary_id;
@@ -250,13 +247,13 @@ Result hbc_literals_list(HBC *hbc, const HBCLiteralEntry **out, u32 *out_count) 
 	if (!hbc || !out || !out_count) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
 	}
-	*out = hbc->lit_cache.entries;
-	*out_count = hbc->lit_cache.count;
+	*out = R_VEC_START_ITER (&hbc->lit_cache.entries);
+	*out_count = (u32)RVecHBCLiteralEntry_length (&hbc->lit_cache.entries);
 	return SUCCESS_RESULT ();
 }
 
 u32 hbc_literals_count(HBC *hbc) {
-	return hbc? hbc->lit_cache.count: 0;
+	return hbc? (u32)RVecHBCLiteralEntry_length (&hbc->lit_cache.entries): 0;
 }
 
 void hbc_literals_reset(HBC *hbc) {
@@ -264,14 +261,8 @@ void hbc_literals_reset(HBC *hbc) {
 		return;
 	}
 	HBCLiteralCache *c = &hbc->lit_cache;
-	for (u32 i = 0; i < c->count; i++) {
-		free (c->entries[i].formatted);
-		free (c->entries[i].xref_addrs);
-	}
-	free (c->entries);
-	c->entries = NULL;
-	c->count = 0;
-	c->cap = 0;
+	RVecHBCLiteralEntry_fini (&c->entries);
+	RVecHBCLiteralEntry_init (&c->entries);
 }
 
 /* ---------- Code-side scan ---------- */
@@ -488,7 +479,7 @@ static Result scan_code(HBC *hbc, bool filter_kind, HBCLiteralKind want_kind, bo
 		}
 	}
 	if (out_count) {
-		*out_count = hbc->lit_cache.count;
+		*out_count = (u32)RVecHBCLiteralEntry_length (&hbc->lit_cache.entries);
 	}
 	return SUCCESS_RESULT ();
 }
@@ -582,12 +573,8 @@ Result hbc_literals_scan_pool(HBC *hbc, HBCLiteralKind kind, HBCPoolGroup **out,
 		return SUCCESS_RESULT ();
 	}
 
-	u32 cap = 64;
-	HBCPoolGroup *arr = calloc (cap, sizeof (HBCPoolGroup));
-	if (!arr) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
-	}
-	u32 n = 0;
+	RVecHBCPoolGroup groups;
+	RVecHBCPoolGroup_init (&groups);
 	size_t pos = 0;
 	while (pos < size) {
 		size_t group_start = pos;
@@ -596,16 +583,11 @@ Result hbc_literals_scan_pool(HBC *hbc, HBCLiteralKind kind, HBCPoolGroup **out,
 		if (!slp_skip_group (base, size, &pos, &tag, &length)) {
 			break;
 		}
-		if (grow_array (&arr, &cap, n, sizeof (HBCPoolGroup), 64).code != RESULT_SUCCESS) {
-			break;
-		}
-		arr[n].pool_offset = (u32)group_start;
-		arr[n].paddr = paddr + (u32)group_start;
-		arr[n].num_items = length;
-		arr[n].tag = tag;
-		n++;
+		HBCPoolGroup group = hbc_pool_group (paddr + (u32)group_start, (u32)group_start, length, tag);
+		RVecHBCPoolGroup_push_back (&groups, &group);
 	}
-	*out = arr;
-	*out_count = n;
+	*out = R_VEC_START_ITER (&groups);
+	*out_count = (u32)RVecHBCPoolGroup_length (&groups);
+	memset (&groups, 0, sizeof (groups));
 	return SUCCESS_RESULT ();
 }

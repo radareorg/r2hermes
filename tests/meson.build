@@ -8,6 +8,7 @@ if test_src.length() > 0
     test_src,
     link_with: libhbc,
     include_directories: include_dirs,
+    dependencies: libhbc_link_deps,
     install: false,
   )
   test('debug-info', run_tests, args: [meson.project_source_root()])

@@ -8,17 +8,46 @@
 #include <hbc/bytecode.h>
 #include <hbc/hbc.h>
 #include <hbc/decompilation/token.h>
+#include <r_vec.h>
 
 /* Forward declaration */
 struct Environment;
 typedef struct Environment Environment;
+
+struct BasicBlock;
+typedef struct BasicBlock BasicBlock;
+
+typedef struct DowhileLoop {
+	u32 top;
+	u32 back_edge;
+	u32 guard_pos;
+	u32 exit_addr;
+	bool promoted;
+	/* For a materialized guard (`r=cmp; if (r){do}while (cmp)`), the while
+	 * header renders this condition instead of the guard register. NULL when
+	 * the guard already spells the condition (fused compare-jump). */
+	void *while_cond;
+	bool while_cond_invert;
+} DowhileLoop;
+
+typedef struct ForeverLoop {
+	u32 top;
+	u32 exit;
+} ForeverLoop;
+
+R_VEC_TYPE(RVecHBCU32, u32)
+R_VEC_TYPE(RVecBasicBlockPtr, BasicBlock *)
+R_VEC_TYPE(RVecEnvironmentPtr, Environment *)
+R_VEC_TYPE(RVecDowhileLoop, DowhileLoop)
+R_VEC_TYPE(RVecForeverLoop, ForeverLoop)
+R_VEC_TYPE(RVecHbcTokenString, HbcTokenString)
 
 /* Forward declaration */
 struct DecompiledFunctionBody;
 typedef struct DecompiledFunctionBody DecompiledFunctionBody;
 
 /* Basic block for control flow */
-typedef struct BasicBlock {
+struct BasicBlock {
 	u32 start_address;
 	u32 end_address;
 	bool may_be_cycling_anchor;
@@ -30,24 +59,15 @@ typedef struct BasicBlock {
 	bool is_conditional_jump_anchor;
 	bool is_switch_action_anchor;
 	ParsedInstruction *anchor_instruction;
-	u32 *jump_targets_for_anchor;
-	u32 jump_targets_count;
+	RVecHBCU32 jump_targets;
 	bool stay_visible;
 
 	/* Control flow graph */
-	struct BasicBlock **child_nodes;
-	u32 child_nodes_count;
-	u32 child_nodes_capacity;
-	struct BasicBlock **parent_nodes;
-	u32 parent_nodes_count;
-	u32 parent_nodes_capacity;
-	struct BasicBlock **error_handling_child_nodes;
-	u32 error_handling_child_nodes_count;
-	u32 error_handling_child_nodes_capacity;
-	struct BasicBlock **error_handling_parent_nodes;
-	u32 error_handling_parent_nodes_count;
-	u32 error_handling_parent_nodes_capacity;
-} BasicBlock;
+	RVecBasicBlockPtr child_nodes;
+	RVecBasicBlockPtr parent_nodes;
+	RVecBasicBlockPtr error_handling_child_nodes;
+	RVecBasicBlockPtr error_handling_parent_nodes;
+};
 
 /* Environment for closure variable handling */
 struct Environment {
@@ -70,10 +90,12 @@ typedef struct {
 } AddressLabels;
 
 /* Decompiled code nesting frame (e.g. for..in loop body scope) */
-typedef struct {
+typedef struct NestedFrame {
 	u32 start_address;
 	u32 end_address;
 } NestedFrame;
+
+R_VEC_TYPE(RVecNestedFrame, NestedFrame)
 
 /* Function body decompilation state */
 struct DecompiledFunctionBody {
@@ -99,9 +121,7 @@ struct DecompiledFunctionBody {
 	ParsedInstruction **throw_anchors; /* Map from address to instruction */
 	u32 throw_anchors_count;
 
-	u32 *jump_targets; /* Set of addresses */
-	u32 jump_targets_count;
-	u32 jump_targets_capacity;
+	RVecHBCU32 jump_targets;
 
 	/* Function flags */
 	bool is_closure;
@@ -114,59 +134,31 @@ struct DecompiledFunctionBody {
 	Environment **local_items; /* Map from env_register to Environment */
 	u32 local_items_count;
 	u32 local_items_capacity;
-	Environment **owned_environments; /* Environments allocated for this function */
-	u32 owned_environments_count;
-	u32 owned_environments_capacity;
+	RVecEnvironmentPtr owned_environments;
 
 	/* Control flow structures */
-	BasicBlock **basic_blocks;
-	u32 basic_blocks_count;
-	u32 basic_blocks_capacity;
+	RVecBasicBlockPtr basic_blocks;
 
 	/* Decompiled-code nesting frames */
-	NestedFrame *nested_frames;
-	u32 nested_frames_count;
-	u32 nested_frames_capacity;
+	RVecNestedFrame nested_frames;
 
 	/* for-in / loop top addresses: a jump here is a `continue`, not a `goto`,
 	 * and the address gets no label (the loop body brace stands in). */
-	u32 *forin_continue_targets;
-	u32 forin_continue_targets_count;
-	u32 forin_continue_targets_capacity;
+	RVecHBCU32 forin_continue_targets;
 
 	/* do-while loops: `do {` opens at `top`, `} while (cond);` replaces the
 	 * back-edge conditional jump at `back_edge`. When an entry guard at
 	 * `guard_pos` (jumping to `exit_addr`) tests the same condition, the loop is
 	 * `promoted` to `while (cond) {` (guard + do/while folded into one header). */
-	struct {
-		u32 top;
-		u32 back_edge;
-		u32 guard_pos;
-		u32 exit_addr;
-		bool promoted;
-		/* For a materialized guard (`r=cmp; if (r){do}while (cmp)`), the while
-		 * header renders this condition instead of the guard register. NULL when
-		 * the guard already spells the condition (fused compare-jump). */
-		void *while_cond;
-		bool while_cond_invert;
-	} *dowhile_loops;
-	u32 dowhile_loops_count;
-	u32 dowhile_loops_capacity;
+	RVecDowhileLoop dowhile_loops;
 
 	/* Infinite loops: a backward unconditional `goto top` is the back-edge of a
 	 * `for (;;) {` opened at `top`; the enclosing if's false path exits at
 	 * `exit`, where a `break;` and the loop close are emitted. */
-	struct {
-		u32 top;
-		u32 exit;
-	} *forever_loops;
-	u32 forever_loops_count;
-	u32 forever_loops_capacity;
+	RVecForeverLoop forever_loops;
 
 	/* Generated code */
-	TokenString *statements;
-	u32 statements_count;
-	u32 statements_capacity;
+	RVecHbcTokenString statements;
 
 	/* Parsed instructions */
 	ParsedInstructionList instructions;

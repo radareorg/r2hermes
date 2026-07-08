@@ -6,10 +6,12 @@ CC ?= gcc
 # Enable POSIX functions like strdup with proper prototypes
 CFLAGS += -Wall -Wextra -std=c11 -O2 -fPIC -fvisibility=hidden -D_POSIX_C_SOURCE=200809L
 CFLAGS += -I../../include
-CFLAGS += $(shell pkg-config --cflags r_core 2>/dev/null || echo "-I/usr/local/include/libr")
+R2_SRC_CFLAGS = $(if $(wildcard ../../../../../include/r_core.h),-I../../../../../include)
+CFLAGS += $(shell pkg-config --cflags r_core 2>/dev/null || r2pm -H R2_CFLAGS 2>/dev/null || echo "$(R2_SRC_CFLAGS)")
 R2_PLUGDIR?=$(shell r2 -H R2_USER_PLUGINS)
 R2_PREFIX?=$(shell r2 -H R2_PREFIX)
-LDFLAGS += $(shell pkg-config --libs r_core 2>/dev/null || echo "-L/usr/local/lib -lr_core -lr_config -lr_debug -lr_bin -lr_lang -lr_anal -lr_bp -lr_egg -lr_asm -lr_arch -lr_esil -lr_flag -lr_reg -lr_search -lr_syscall -lr_fs -lr_io -lr_socket -lr_cons -lr_magic -lr_muta -lr_util -ldl")
+R2PM_LINK_FLAGS := $(strip $(shell r2pm -H R2_LDFLAGS 2>/dev/null) $(shell r2pm -H R2_LIBS 2>/dev/null))
+LDFLAGS += $(shell pkg-config --libs r_core 2>/dev/null || echo "$(if $(R2PM_LINK_FLAGS),$(R2PM_LINK_FLAGS),-lr_core -lr_util)")
 
 # Detect platform for shared library extension
 UNAME_S := $(shell uname -s)
@@ -206,7 +208,7 @@ help:
 # Dependencies
 $(HERMES_LIB):
 	@echo "Building libhbc library..."
-	$(MAKE) -C ../.. all
+	$(MAKE) -C ../.. build/libhbc.a
 
 # Default target
 .DEFAULT_GOAL := all
