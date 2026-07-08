@@ -14,6 +14,10 @@
 
 R_VEC_TYPE(RVecHBCPoolGroup, HBCPoolGroup)
 
+static HBCPoolGroup hbc_pool_group(u32 paddr, u32 pool_offset, u32 num_items, u8 tag) {
+	return (HBCPoolGroup){ .paddr = paddr, .pool_offset = pool_offset, .num_items = num_items, .tag = tag };
+}
+
 /* Little-endian readers for raw bytecode operands. */
 static inline u32 rd_u16le(const u8 *p) {
 	return (u32)p[0] | ((u32)p[1] << 8);
@@ -131,10 +135,6 @@ static HBCLiteralEntry *cache_find(HBCLiteralCache *c, HBCLiteralKind kind, u32 
 	return NULL;
 }
 
-static HBCLiteralEntry *cache_alloc(HBCLiteralCache *c) {
-	return RVecHBCLiteralEntry_emplace_back (&c->entries);
-}
-
 /* Compute paddr for an entry based on its kind/primary_id. For v97+ objects,
  * primary_id is a shape index — resolve via the shape table. */
 static u32 entry_paddr(HBC *hbc, HBCLiteralKind kind, u32 primary_id) {
@@ -175,10 +175,7 @@ static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, 
 		*out_entry = e;
 		return SUCCESS_RESULT ();
 	}
-	e = cache_alloc (&hbc->lit_cache);
-	if (!e) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
-	}
+	e = RVecHBCLiteralEntry_emplace_back (&hbc->lit_cache.entries);
 	e->kind = kind;
 	e->num_items = num_items;
 	e->primary_id = primary_id;
@@ -582,12 +579,8 @@ Result hbc_literals_scan_pool(HBC *hbc, HBCLiteralKind kind, HBCPoolGroup **out,
 		if (!slp_skip_group (base, size, &pos, &tag, &length)) {
 			break;
 		}
-		RVecHBCPoolGroup_push_back (&groups, &(HBCPoolGroup){
-							.pool_offset = (u32)group_start,
-							.paddr = paddr + (u32)group_start,
-							.num_items = length,
-							.tag = tag,
-						});
+		HBCPoolGroup group = hbc_pool_group (paddr + (u32)group_start, (u32)group_start, length, tag);
+		RVecHBCPoolGroup_push_back (&groups, &group);
 	}
 	*out = R_VEC_START_ITER (&groups);
 	*out_count = (u32)RVecHBCPoolGroup_length (&groups);

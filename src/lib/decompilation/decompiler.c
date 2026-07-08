@@ -268,31 +268,22 @@ static Result token_string_clear_tokens(TokenString *ts) {
 	return SUCCESS_RESULT ();
 }
 
-static Result statements_push(DecompiledFunctionBody *fb, const TokenString *ts) {
-	if (!fb || !ts) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "statements_push args");
-	}
-	RVecTokenString_push_back (&fb->statements, ts);
-	return SUCCESS_RESULT ();
-}
-
 static int cmp_u32(const void *a, const void *b) {
 	u32 aa = *(const u32 *)a;
 	u32 bb = *(const u32 *)b;
 	return (aa > bb) - (aa < bb);
 }
 
-static Result nested_frames_push(DecompiledFunctionBody *fb, u32 start, u32 end) {
-	if (!fb) {
-		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "nested_frames_push: fb NULL");
-	}
-	RVecNestedFrame_push_back (&fb->nested_frames, &(NestedFrame){ .start_address = start, .end_address = end });
-	return SUCCESS_RESULT ();
+static NestedFrame nested_frame(u32 start, u32 end) {
+	return (NestedFrame){ .start_address = start, .end_address = end };
 }
 
-static Result forin_continue_target_push(DecompiledFunctionBody *fb, u32 addr) {
-	RVecHBCU32_push_back (&fb->forin_continue_targets, &addr);
-	return SUCCESS_RESULT ();
+static DowhileLoop dowhile_loop(u32 top, u32 back_edge) {
+	return (DowhileLoop){ .top = top, .back_edge = back_edge, .guard_pos = UINT32_MAX };
+}
+
+static ForeverLoop forever_loop(u32 top, u32 exit) {
+	return (ForeverLoop){ .top = top, .exit = exit };
 }
 
 static bool forin_is_continue_target(const DecompiledFunctionBody *fb, u32 addr) {
@@ -305,15 +296,6 @@ static bool forin_is_continue_target(const DecompiledFunctionBody *fb, u32 addr)
 	return false;
 }
 
-static Result dowhile_loop_push(DecompiledFunctionBody *fb, u32 top, u32 back_edge) {
-	RVecDowhileLoop_push_back (&fb->dowhile_loops, &(DowhileLoop){
-							.top = top,
-							.back_edge = back_edge,
-							.guard_pos = UINT32_MAX,
-						});
-	return SUCCESS_RESULT ();
-}
-
 static int dowhile_loop_at_top(const DecompiledFunctionBody *fb, u32 addr) {
 	u32 i = 0;
 	DowhileLoop *loop;
@@ -324,10 +306,6 @@ static int dowhile_loop_at_top(const DecompiledFunctionBody *fb, u32 addr) {
 		i++;
 	}
 	return -1;
-}
-
-static bool dowhile_is_top(const DecompiledFunctionBody *fb, u32 addr) {
-	return dowhile_loop_at_top (fb, addr) >= 0;
 }
 
 static int dowhile_loop_at_backedge(const DecompiledFunctionBody *fb, u32 pos) {
@@ -399,17 +377,13 @@ static Result envmap_set(DecompiledFunctionBody *fb, int reg, Environment *env) 
 	return SUCCESS_RESULT ();
 }
 
-static void owned_env_push(DecompiledFunctionBody *fb, Environment *env) {
-	RVecEnvironmentPtr_push_back (&fb->owned_environments, &env);
-}
-
 /* Allocate an Environment owned by fb, chained under parent */
 static Environment *env_new(DecompiledFunctionBody *fb, Environment *parent) {
 	Environment *env = (Environment *)calloc (1, sizeof (Environment));
 	env->parent_environment = parent;
 	env->nesting_quantity = parent? (parent->nesting_quantity + 1): 0;
 	env->captured_level = -1;
-	owned_env_push (fb, env);
+	RVecEnvironmentPtr_push_back (&fb->owned_environments, &env);
 	return env;
 }
 
@@ -507,6 +481,14 @@ typedef struct {
 R_VEC_TYPE(RVecIfFrame, IfFrame)
 R_VEC_TYPE(RVecIfElseRegion, IfElseRegion)
 
+static IfFrame if_frame(u32 end, u32 else_end, u32 goto_pos) {
+	return (IfFrame){ .end = end, .else_end = else_end, .goto_pos = goto_pos };
+}
+
+static IfElseRegion ifelse_region(u32 cond_pos, u32 else_addr, u32 end_addr, u32 goto_pos) {
+	return (IfElseRegion){ .cond_pos = cond_pos, .else_addr = else_addr, .end_addr = end_addr, .goto_pos = goto_pos };
+}
+
 /* Output code helper struct and cleanup */
 typedef struct {
 	u32 *frame_starts;
@@ -520,11 +502,6 @@ static inline void output_buffers_fini(OutputBuffers *ob) {
 	free (ob->frame_ends);
 	RVecIfFrame_fini (&ob->if_block_stack);
 	RVecIfElseRegion_fini (&ob->ifelse);
-}
-
-static inline Result if_block_stack_push(OutputBuffers *ob, u32 end_addr, u32 else_end, u32 goto_pos) {
-	RVecIfFrame_push_back (&ob->if_block_stack, &(IfFrame){ .end = end_addr, .else_end = else_end, .goto_pos = goto_pos });
-	return SUCCESS_RESULT ();
 }
 
 /* Close (or convert to `} else {`) if-blocks whose end is at or before pos;
@@ -549,12 +526,6 @@ static Result close_if_blocks(HermesDecompiler *state, StringBuffer *out, Output
 		RVecIfFrame_pop_back (&ob->if_block_stack);
 		RETURN_IF_ERROR (emit_close_brace (state, out));
 	}
-	return SUCCESS_RESULT ();
-}
-
-/* ============= CFG construction ============= */
-static Result bbvec_push(RVecBasicBlockPtr *vec, BasicBlock *bb) {
-	RVecBasicBlockPtr_push_back (vec, &bb);
 	return SUCCESS_RESULT ();
 }
 
@@ -586,7 +557,8 @@ static Result add_target_as_child(u32 target, void *ctx) {
 	if (!child) {
 		return SUCCESS_RESULT ();
 	}
-	return bbvec_push (&c->bb->child_nodes, child);
+	RVecBasicBlockPtr_push_back (&c->bb->child_nodes, &child);
+	return SUCCESS_RESULT ();
 }
 
 Result _hbc_function_body_init(DecompiledFunctionBody *body, u32 function_id, FunctionHeader *function_object, bool is_global) {
@@ -770,7 +742,7 @@ Result _hbc_build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedI
 			if (!is_uncond && last->next_pos < fh->bytecodeSizeInBytes) {
 				BasicBlock *fall = find_block_by_start (out_body, last->next_pos);
 				if (fall) {
-					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, fall));
+					RVecBasicBlockPtr_push_back (&bb->child_nodes, &fall);
 				}
 			} else if (is_uncond) {
 				bb->is_unconditional_jump_anchor = true;
@@ -780,7 +752,7 @@ Result _hbc_build_control_flow_graph(HBCReader *reader, u32 function_id, ParsedI
 			if (last->next_pos < fh->bytecodeSizeInBytes) {
 				BasicBlock *fall = find_block_by_start (out_body, last->next_pos);
 				if (fall) {
-					RETURN_IF_ERROR (bbvec_push (&bb->child_nodes, fall));
+					RVecBasicBlockPtr_push_back (&bb->child_nodes, &fall);
 				}
 			}
 		}
@@ -1053,14 +1025,14 @@ static Result address_labels_add(AddressLabels **arr, u32 *count, u32 address, c
 	return SUCCESS_RESULT ();
 }
 
-static Result bbvec_push_unique(RVecBasicBlockPtr *vec, BasicBlock *bb) {
-	BasicBlock **bbp;
-	R_VEC_FOREACH (vec, bbp) {
-		if (*bbp == bb) {
-			return SUCCESS_RESULT ();
-		}
+static int basic_block_ptr_cmp(BasicBlock *const *a, const void *b) {
+	return *a != (const BasicBlock *)b;
+}
+
+static void bbvec_push_unique(RVecBasicBlockPtr *vec, BasicBlock *bb) {
+	if (!RVecBasicBlockPtr_find (vec, bb, basic_block_ptr_cmp)) {
+		RVecBasicBlockPtr_push_back (vec, &bb);
 	}
-	return bbvec_push (vec, bb);
 }
 
 static bool token_needs_space(TokenType prev, TokenType cur) {
@@ -1216,8 +1188,8 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 		BasicBlock *bb = *bbp;
 
 		if (may_have_fallen_through && prev) {
-			RETURN_IF_ERROR (bbvec_push (&bb->parent_nodes, prev));
-			RETURN_IF_ERROR (bbvec_push (&prev->child_nodes, bb));
+			RVecBasicBlockPtr_push_back (&bb->parent_nodes, &prev);
+			RVecBasicBlockPtr_push_back (&prev->child_nodes, &bb);
 		}
 
 		may_have_fallen_through = true;
@@ -1280,8 +1252,8 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 			if (!child) {
 				continue;
 			}
-			RETURN_IF_ERROR (bbvec_push_unique (&bb->child_nodes, child));
-			RETURN_IF_ERROR (bbvec_push_unique (&child->parent_nodes, bb));
+			bbvec_push_unique (&bb->child_nodes, child);
+			bbvec_push_unique (&child->parent_nodes, bb);
 		}
 		/* Error-handling edges */
 		for (u32 h = 0; h < function_body->exc_handlers_count; h++) {
@@ -1295,8 +1267,8 @@ Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *
 			if (!handler_bb) {
 				continue;
 			}
-			RETURN_IF_ERROR (bbvec_push_unique (&bb->error_handling_child_nodes, handler_bb));
-			RETURN_IF_ERROR (bbvec_push_unique (&handler_bb->error_handling_parent_nodes, bb));
+			bbvec_push_unique (&bb->error_handling_child_nodes, handler_bb);
+			bbvec_push_unique (&handler_bb->error_handling_parent_nodes, bb);
 		}
 	}
 
@@ -1325,11 +1297,7 @@ Result _hbc_pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody
 			_hbc_token_string_cleanup (&ts);
 			return tr;
 		}
-		Result pr = statements_push (function_body, &ts);
-		if (pr.code != RESULT_SUCCESS) {
-			_hbc_token_string_cleanup (&ts);
-			return pr;
-		}
+		RVecTokenString_push_back (&function_body->statements, &ts);
 	}
 	return SUCCESS_RESULT ();
 }
@@ -1380,7 +1348,8 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 			continue;
 		}
 
-		RETURN_IF_ERROR (nested_frames_push (function_body, begin_address, end_address));
+		NestedFrame frame = nested_frame (begin_address, end_address);
+		RVecNestedFrame_push_back (&function_body->nested_frames, &frame);
 
 		ForInLoopInitToken *fili = (ForInLoopInitToken *)line->head;
 		ForInLoopNextIterToken *filni = (ForInLoopNextIterToken *)RVecTokenString_at (&function_body->statements, other)->head;
@@ -1407,7 +1376,7 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 		/* The loop top is a `continue` target (no label, jumps render as
 		 * continue); silence the unconditional back-edge so the body reads as
 		 * a plain loop. */
-		RETURN_IF_ERROR (forin_continue_target_push (function_body, begin_address));
+		RVecHBCU32_push_back (&function_body->forin_continue_targets, &begin_address);
 		u32 back_edge = UINT32_MAX;
 		for (TokenString *st = R_VEC_START_ITER (&function_body->statements); st != R_VEC_END_ITER (&function_body->statements); st++) {
 			size_t k = (size_t) (st - R_VEC_START_ITER (&function_body->statements));
@@ -2039,12 +2008,13 @@ static Result detect_dowhile_loops(DecompiledFunctionBody *fb, const bool *dce) 
 			}
 		}
 		if (!found) {
-			RETURN_IF_ERROR (dowhile_loop_push (fb, top, pos));
-			RETURN_IF_ERROR (forin_continue_target_push (fb, top));
+			DowhileLoop loop = dowhile_loop (top, pos);
+			RVecDowhileLoop_push_back (&fb->dowhile_loops, &loop);
+			RVecHBCU32_push_back (&fb->forin_continue_targets, &top);
 		}
 		/* mid-body `goto raw_target` continues still target the dead address */
 		if (raw_target != top && !forin_is_continue_target (fb, raw_target)) {
-			RETURN_IF_ERROR (forin_continue_target_push (fb, raw_target));
+			RVecHBCU32_push_back (&fb->forin_continue_targets, &raw_target);
 		}
 	}
 	return SUCCESS_RESULT ();
@@ -2360,11 +2330,6 @@ static int while_guard_index(const DecompiledFunctionBody *fb, u32 pos, u32 targ
 	return -1;
 }
 
-static Result forever_loop_push(DecompiledFunctionBody *fb, u32 top, u32 exit) {
-	RVecForeverLoop_push_back (&fb->forever_loops, &(ForeverLoop){ .top = top, .exit = exit });
-	return SUCCESS_RESULT ();
-}
-
 static bool forever_is_top(const DecompiledFunctionBody *fb, u32 addr) {
 	for (ForeverLoop *i_iter = R_VEC_START_ITER (&fb->forever_loops); i_iter != R_VEC_END_ITER (&fb->forever_loops); i_iter++) {
 		size_t i = (size_t) (i_iter - R_VEC_START_ITER (&fb->forever_loops));
@@ -2429,8 +2394,9 @@ static Result detect_forever_loops(DecompiledFunctionBody *fb, const bool *dce) 
 		if (!has_exit_if) {
 			continue;
 		}
-		RETURN_IF_ERROR (forever_loop_push (fb, top, exit));
-		RETURN_IF_ERROR (forin_continue_target_push (fb, top));
+		ForeverLoop loop = forever_loop (top, exit);
+		RVecForeverLoop_push_back (&fb->forever_loops, &loop);
+		RVecHBCU32_push_back (&fb->forin_continue_targets, &top);
 	}
 	return SUCCESS_RESULT ();
 }
@@ -2502,7 +2468,8 @@ static Result detect_if_else(DecompiledFunctionBody *fb, const bool *dce, Output
 		if (end_addr <= else_addr) {
 			continue;
 		}
-		RVecIfElseRegion_push_back (&ob->ifelse, &(IfElseRegion){ .cond_pos = cond_pos, .else_addr = else_addr, .end_addr = end_addr, .goto_pos = goto_pos, .active = false });
+		IfElseRegion region = ifelse_region (cond_pos, else_addr, end_addr, goto_pos);
+		RVecIfElseRegion_push_back (&ob->ifelse, &region);
 	}
 	return SUCCESS_RESULT ();
 }
@@ -3303,7 +3270,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 					}
 					u32 np = ns->assembly->original_pos;
 					bool boundary = u32set_contains (&goto_labels, np) ||
-						dowhile_is_top (function_body, np) || dowhile_is_back_edge (function_body, np) ||
+						dowhile_loop_at_top (function_body, np) >= 0 || dowhile_is_back_edge (function_body, np) ||
 						forin_is_continue_target (function_body, np);
 					for (u32 ci = 0; ci < catch_plan_count && !boundary; ci++) {
 						const StructuredCatch *p = &catch_plans[ci];
@@ -3342,7 +3309,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 						goto_pos = ie->goto_pos;
 					}
 				}
-				RETURN_IF_ERROR (if_block_stack_push (&ob, target_addr, else_end, goto_pos));
+				IfFrame frame = if_frame (target_addr, else_end, goto_pos);
+				RVecIfFrame_push_back (&ob.if_block_stack, &frame);
 				state->indent_level++;
 			}
 			continue;
