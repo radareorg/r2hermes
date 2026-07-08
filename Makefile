@@ -12,7 +12,7 @@ BUILD_DIR = build
 BIN_DIR = bin
 
 ## Source files
-R2_CFLAGS=$(shell r2 -H R2_CFLAGS)
+R2_CFLAGS=$(shell pkg-config --cflags r_util 2>/dev/null || r2pm -H R2_CFLAGS 2>/dev/null || r2 -H R2_CFLAGS 2>/dev/null || echo "-I/usr/local/include/libr -I/usr/local/libr")
 UTILS_SRC = $(wildcard $(SRC_DIR)/utils/*.c)
 PARSERS_SRC = $(wildcard $(SRC_DIR)/parsers/*.c)
 DISASM_SRC = $(wildcard $(SRC_DIR)/disassembly/*.c)
