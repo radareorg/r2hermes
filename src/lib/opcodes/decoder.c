@@ -405,19 +405,11 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 		}
 
-		/* Save current position */
-		size_t saved_pos = r_buf_tell (reader->file_buffer);
-
-		/* Seek to bytecode offset */
-		r_buf_seek (reader->file_buffer, function_header->offset, R_BUF_SET);
-
 		/* Read bytecode data */
-		bool read_ok = (u32)r_buf_read (reader->file_buffer,
-			function_header->bytecode,
-			function_header->bytecodeSizeInBytes) == function_header->bytecodeSizeInBytes;
-
-		/* Restore original position */
-		r_buf_seek (reader->file_buffer, saved_pos, R_BUF_SET);
+		bool read_ok = (u32)r_buf_read_at (reader->file_buffer,
+				function_header->offset,
+				function_header->bytecode,
+				function_header->bytecodeSizeInBytes) == function_header->bytecodeSizeInBytes;
 
 		if (!read_ok) {
 			RETURN_IF_ERROR (r_strbuf_append (&disassembler->output, "[Failed to read bytecode data]\n"));

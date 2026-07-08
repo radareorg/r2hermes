@@ -214,6 +214,7 @@ struct BytecodeModule {
 struct HBCReader {
 	/* File data */
 	RBuffer *file_buffer;
+	u8 *file_bytes_cache;
 
 	/* Parsed header and tables */
 	HBCHeader header;

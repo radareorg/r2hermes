@@ -34,6 +34,7 @@ Result _hbc_reader_cleanup(HBCReader *reader) {
 	if (reader->file_buffer) {
 		r_unref (reader->file_buffer);
 	}
+	free (reader->file_bytes_cache);
 
 	/* Clean up function data */
 	if (reader->function_headers) {
@@ -134,17 +135,12 @@ Result _hbc_reader_read_file(HBCReader *reader, const char *filename) {
 	}
 
 	/* Check for Hermes magic number */
-	size_t saved_pos = r_buf_tell (reader->file_buffer);
-	u64 magic = r_buf_read_le64 (reader->file_buffer);
-	if (r_buf_seek (reader->file_buffer, saved_pos, R_BUF_SET) < 0) {
-		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to restore file position");
-	}
+	u64 magic = r_buf_read_le64_at (reader->file_buffer, 0);
 
 	if (magic != HEADER_MAGIC) {
 		/* Check if this might be a bundle file that needs preprocessing */
 		char signature[10] = { 0 };
-		if (r_buf_size (reader->file_buffer) > 9) {
-			memcpy (signature, reader->file_buffer->rb_bytes->buf, 9);
+		if (r_buf_size (reader->file_buffer) > 9 && r_buf_read_at (reader->file_buffer, 0, (u8 *)signature, 9) == 9) {
 			signature[9] = '\0';
 
 			if (!strcmp (signature, "function(") || (signature[0] == '{' && strchr (signature, ':') != NULL)) {
@@ -182,7 +178,7 @@ static size_t remaining_bytes(RBuffer *buf) {
 	if (pos > size) {
 		return 0;
 	}
-	return (size_t)(size - pos);
+	return (size_t) (size - pos);
 }
 
 static bool has_remaining_bytes(RBuffer *buf, size_t bytes) {
@@ -1478,7 +1474,9 @@ Result _hbc_reader_read_debug_info_header(HBCReader *reader) {
 		header_size > r_buf_size (reader->file_buffer) - reader->header.debugInfoOffset) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_FORMAT, "Debug info header is out of bounds");
 	}
-	if (r_buf_seek (reader->file_buffer, (st64)(reader->header.debugInfoOffset), R_BUF_SET) < 0) { return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to seek buffer"); }
+	if (r_buf_seek (reader->file_buffer, (st64) (reader->header.debugInfoOffset), R_BUF_SET) < 0) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to seek buffer");
+	}
 
 	reader->debug_info_header.filename_count = r_buf_read_le32 (reader->file_buffer);
 	reader->debug_info_header.filename_storage_size = r_buf_read_le32 (reader->file_buffer);
@@ -1514,7 +1512,9 @@ Result _hbc_reader_read_debug_info(HBCReader *reader) {
 
 	/* Seek past the already-parsed header to the start of the body. */
 	const size_t debug_body_pos = (size_t)reader->header.debugInfoOffset + debug_info_header_bytes (reader->header.version);
-	if (r_buf_seek (reader->file_buffer, (st64)(debug_body_pos), R_BUF_SET) < 0) { return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to seek buffer"); }
+	if (r_buf_seek (reader->file_buffer, (st64) (debug_body_pos), R_BUF_SET) < 0) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to seek buffer");
+	}
 
 	/* Allocate debug string table */
 	if (reader->debug_info_header.filename_count > 0) {

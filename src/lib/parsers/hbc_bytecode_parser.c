@@ -350,8 +350,6 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 				}
 			}
 
-			/* Save file position */
-			size_t saved_pos = r_buf_tell (reader->file_buffer);
 			bool read_ok = false;
 
 			for (int ci = 0; ci < 3 && !read_ok; ci++) {
@@ -360,23 +358,17 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 					continue;
 				}
 
-				/* Seek and align to 4 bytes */
-				r_buf_seek (reader->file_buffer, jt_off, R_BUF_SET);
-				size_t rem = r_buf_tell (reader->file_buffer) % 4;
-				if (rem != 0) {
-					if (r_buf_tell (reader->file_buffer) + (4 - rem) > fsz) {
-						continue;
-					}
-					r_buf_seek (reader->file_buffer, r_buf_tell (reader->file_buffer) + (4 - rem), R_BUF_SET);
-				}
-
-				/* Validate that the whole table fits */
-				size_t table_end = r_buf_tell (reader->file_buffer) + (size_t)jump_table_size * sizeof (u32);
-				if (table_end > fsz) {
+				ut64 table_pos = R_ROUND (jt_off, 4);
+				if (table_pos > fsz) {
 					continue;
 				}
+				ut64 table_bytes = (ut64)jump_table_size * sizeof (u32);
+				if (table_bytes > fsz - table_pos) {
+					continue;
+				}
+				ut64 table_end = table_pos + table_bytes;
 				/* Jump tables live after the bytecode body, before the next function. */
-				if (! (r_buf_tell (reader->file_buffer) >= func_start && table_end <= table_limit)) {
+				if (! (table_pos >= func_start && table_end <= table_limit)) {
 					continue;
 				}
 
@@ -387,14 +379,11 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 
 				/* Read entries */
 				for (u32 i = 0; i < jump_table_size; i++) {
-					u32 rel = r_buf_read_le32 (reader->file_buffer);
+					u32 rel = r_buf_read_le32_at (reader->file_buffer, table_pos + (ut64)i * sizeof (u32));
 					instruction.switch_jump_table[i] = (u32)original_pos + rel;
 				}
 				read_ok = true;
 			}
-
-			/* Restore file position */
-			r_buf_seek (reader->file_buffer, saved_pos, R_BUF_SET);
 
 			if (!read_ok) {
 				/* Fill with safe defaults */

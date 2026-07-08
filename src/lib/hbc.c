@@ -19,6 +19,21 @@
  * HBC - Direct File Access API Implementation
  * ============================================================================ */
 
+static Result hbc_parse_reader(HBC *hbc) {
+	HBCReader *reader = &hbc->reader;
+	RETURN_IF_ERROR (_hbc_reader_read_header (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_functions_robust (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_string_kinds (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_identifier_hashes (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_string_tables (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_arrays (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_bigints (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_regexp (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_cjs_modules (reader));
+	RETURN_IF_ERROR (_hbc_reader_read_function_sources (reader));
+	return _hbc_reader_read_debug_info_header (reader);
+}
+
 Result hbc_open(const char *path, HBC **out) {
 	if (!path || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open");
@@ -69,63 +84,44 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate buffer");
 	}
 
-	/* Parse header and all sections */
-	res = _hbc_reader_read_header (&hbc->reader);
+	res = hbc_parse_reader (hbc);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_functions_robust (&hbc->reader);
+
+	*out = hbc;
+	return SUCCESS_RESULT ();
+}
+
+Result hbc_open_from_rbuffer(RBuffer *buf, HBC **out) {
+	if (!buf || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open_from_rbuffer");
+	}
+	ut64 size = r_buf_size (buf);
+	if (size == 0) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer size");
+	}
+
+	HBC *hbc = (HBC *)calloc (1, sizeof (HBC));
+	if (!hbc) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
+	}
+
+	Result res = _hbc_reader_init (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
+		free (hbc);
 		return res;
 	}
-	res = _hbc_reader_read_string_kinds (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
+
+	hbc->reader.file_buffer = r_buf_new_slice (buf, 0, size);
+	if (!hbc->reader.file_buffer) {
+		_hbc_reader_cleanup (&hbc->reader);
+		free (hbc);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to create buffer view");
 	}
-	res = _hbc_reader_read_identifier_hashes (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	res = _hbc_reader_read_string_tables (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	res = _hbc_reader_read_arrays (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	res = _hbc_reader_read_bigints (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	res = _hbc_reader_read_regexp (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	res = _hbc_reader_read_cjs_modules (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	res = _hbc_reader_read_function_sources (&hbc->reader);
-	if (res.code != RESULT_SUCCESS) {
-		hbc_close (hbc);
-		return res;
-	}
-	/* Read only the DebugInfoHeader eagerly — a handful of u32s — so
-	 * hbc_has_source_lines () can answer accurately without committing to the
-	 * full body parse. The filename, file region and sources/scope/textified
-	 * storage blobs are read lazily on first hbc_get_source_lines /
-	 * hbc_get_debug_info call. */
-	res = _hbc_reader_read_debug_info_header (&hbc->reader);
+
+	res = hbc_parse_reader (hbc);
 	if (res.code != RESULT_SUCCESS) {
 		hbc_close (hbc);
 		return res;
@@ -491,7 +487,7 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 	}
 	*out_ptr = NULL;
 	*out_size = 0;
-	if (!hbc->reader.file_buffer || !hbc->reader.file_buffer->rb_bytes || !hbc->reader.file_buffer->rb_bytes->buf || !hbc->reader.function_headers) {
+	if (!hbc->reader.file_buffer || !hbc->reader.function_headers) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Bytecode data is not loaded");
 	}
 	if (function_id >= hbc->reader.header.functionCount) {
@@ -508,7 +504,26 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 	if (fh->offset > file_size || size > file_size - fh->offset) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Function bytecode range is out of bounds");
 	}
-	*out_ptr = hbc->reader.file_buffer->rb_bytes->buf + fh->offset;
+	const u8 *file_bytes = NULL;
+	if (hbc->reader.file_buffer->type == R_BUFFER_BYTES && hbc->reader.file_buffer->rb_bytes && hbc->reader.file_buffer->rb_bytes->buf) {
+		file_bytes = hbc->reader.file_buffer->rb_bytes->buf;
+	} else {
+		if (file_size > SIZE_MAX) {
+			return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "File is too large");
+		}
+		if (!hbc->reader.file_bytes_cache) {
+			hbc->reader.file_bytes_cache = (u8 *)malloc ((size_t)file_size);
+			if (!hbc->reader.file_bytes_cache) {
+				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate file cache");
+			}
+			if ((ut64)r_buf_read_at (hbc->reader.file_buffer, 0, hbc->reader.file_bytes_cache, file_size) != file_size) {
+				R_FREE (hbc->reader.file_bytes_cache);
+				return ERROR_RESULT (RESULT_ERROR_READ, "Failed to cache file buffer");
+			}
+		}
+		file_bytes = hbc->reader.file_bytes_cache;
+	}
+	*out_ptr = file_bytes + fh->offset;
 	*out_size = size;
 	return SUCCESS_RESULT ();
 }

@@ -223,6 +223,12 @@ HBC_API Result hbc_open(const char *path, HBC **out);
 HBC_API Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out);
 
 /**
+ * Open an HBC file from an existing radare2 RBuffer.
+ * Creates an HBC with its own RBuffer cursor/reference.
+ */
+HBC_API Result hbc_open_from_rbuffer(RBuffer *buf, HBC **out);
+
+/**
  * Close an HBC and free all resources.
  * After this call, all pointers returned from the state are invalid.
  */

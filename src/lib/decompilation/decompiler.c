@@ -85,15 +85,11 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 	if (!function_header->bytecode) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 	}
-	size_t saved = r_buf_tell (reader->file_buffer);
-	r_buf_seek (reader->file_buffer, function_header->offset, R_BUF_SET);
-	if ((u32)r_buf_read (reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes) != function_header->bytecodeSizeInBytes) {
+	if ((u32)r_buf_read_at (reader->file_buffer, function_header->offset, function_header->bytecode, function_header->bytecodeSizeInBytes) != function_header->bytecodeSizeInBytes) {
 		free (function_header->bytecode);
 		function_header->bytecode = NULL;
-		r_buf_seek (reader->file_buffer, saved, R_BUF_SET);
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to read bytecode");
 	}
-	r_buf_seek (reader->file_buffer, saved, R_BUF_SET);
 	return SUCCESS_RESULT ();
 }
 
