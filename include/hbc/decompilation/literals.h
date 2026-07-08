@@ -22,18 +22,18 @@ bool _hbc_is_js_identifier(const char *s);
 /* Append a JS object literal reconstructed from object key/value buffers.
  * Decodes the Hermes SerializedLiteral buffers into real JS literals.
  * Falls back to a compact placeholder comment on failure. */
-Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments);
+Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, RStrBuf *out, LiteralsPrettyPolicy policy, bool suppress_comments);
 
 /* Append a JS array literal reconstructed from array buffer.
  * Decodes the Hermes SerializedLiteral buffers into real JS literals.
  * Falls back to a compact placeholder comment on failure. */
-Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments);
+Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, RStrBuf *out, LiteralsPrettyPolicy policy, bool suppress_comments);
 
 /* Format property access: emits ".name" for identifier-like names, or ["name"] otherwise. */
-Result _hbc_format_property_from_string_id(HBCReader *r, u32 string_id, StringBuffer *out);
+Result _hbc_format_property_from_string_id(HBCReader *r, u32 string_id, RStrBuf *out);
 
 /* Format a variadic call/construct when only (callee, this, argc) are provided.
  * Attempts best-effort representation and falls back to including argc as a comment. */
-Result _hbc_format_variadic_call(const ParsedInstruction *insn, StringBuffer *out);
+Result _hbc_format_variadic_call(const ParsedInstruction *insn, RStrBuf *out);
 
 #endif /* LIBHBC_LITERALS_H */

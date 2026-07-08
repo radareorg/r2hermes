@@ -272,10 +272,11 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 
 	/* asm.syntax=camel → convert snake_case mnemonic to CamelCase */
 	if (camel && sinfo.text) {
-		char camel_buf[128];
-		hbc_snake_to_camel (sinfo.text, camel_buf, sizeof (camel_buf));
-		free (sinfo.text);
-		sinfo.text = strdup (camel_buf);
+		char *camel_text = r_str_snake_to_camel (sinfo.text);
+		if (camel_text) {
+			free (sinfo.text);
+			sinfo.text = camel_text;
+		}
 	}
 	op->mnemonic = sinfo.text? sinfo.text: strdup ("unk");
 	op->size = sinfo.size? sinfo.size: 1;

@@ -100,7 +100,6 @@ endif
 
 # Library source files
 lib_utils_src = files(
-  'src/lib/utils/string_buffer.c',
   'src/lib/utils/buffer_reader.c',
 )
 

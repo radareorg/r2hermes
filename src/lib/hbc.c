@@ -525,19 +525,18 @@ Result hbc_decomp_fn(
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	StringBuffer sb;
-	Result res = _hbc_sb_init (&sb, 16 * 1024);
+	RStrBuf sb;
+	r_strbuf_init (&sb);
+	Result res = _hbc_decompile_function_with_state (hbc, function_id, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
+		r_strbuf_fini (&sb);
 		return res;
 	}
 
-	res = _hbc_decompile_function_with_state (hbc, function_id, options, &sb);
-	if (res.code != RESULT_SUCCESS) {
-		_hbc_sb_free (&sb);
-		return res;
+	*out_str = r_strbuf_drain_nofree (&sb);
+	if (!*out_str) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to drain decompilation output");
 	}
-
-	*out_str = sb.data;
 	return SUCCESS_RESULT ();
 }
 
@@ -549,19 +548,18 @@ Result hbc_decomp_all(
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
 	}
 
-	StringBuffer sb;
-	Result res = _hbc_sb_init (&sb, 32 * 1024);
+	RStrBuf sb;
+	r_strbuf_init (&sb);
+	Result res = _hbc_decompile_all_with_state (hbc, options, &sb);
 	if (res.code != RESULT_SUCCESS) {
+		r_strbuf_fini (&sb);
 		return res;
 	}
 
-	res = _hbc_decompile_all_with_state (hbc, options, &sb);
-	if (res.code != RESULT_SUCCESS) {
-		_hbc_sb_free (&sb);
-		return res;
+	*out_str = r_strbuf_drain_nofree (&sb);
+	if (!*out_str) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to drain decompilation output");
 	}
-
-	*out_str = sb.data;
 	return SUCCESS_RESULT ();
 }
 
@@ -686,10 +684,8 @@ void hbc_free_eval_sites(HBCEvalSites *sites) {
 
 static char *build_literal_comment(HBCReader *reader, const char *mnemonic, const u32 *ovs, const char *base_text) {
 	const bool is_obj = mnemonic && !strncmp (mnemonic, "new_object_with_buffer", strlen ("new_object_with_buffer"));
-	StringBuffer sb;
-	if (_hbc_sb_init (&sb, 256).code != RESULT_SUCCESS) {
-		return NULL;
-	}
+	RStrBuf sb;
+	r_strbuf_init (&sb);
 	Result fmt_res;
 	if (is_obj) {
 		const u32 key_count = ovs[1];
@@ -703,16 +699,18 @@ static char *build_literal_comment(HBCReader *reader, const char *mnemonic, cons
 		fmt_res = _hbc_format_array_literal (reader, value_count, array_id, &sb, LITERALS_PRETTY_NEVER, true);
 	}
 	char *result = NULL;
-	if (fmt_res.code == RESULT_SUCCESS && sb.length > 0) {
+	int sb_len = r_strbuf_length (&sb);
+	const char *sb_text = r_strbuf_get (&sb);
+	if (fmt_res.code == RESULT_SUCCESS && sb_text && sb_len > 0) {
 		size_t base_len = strlen (base_text);
-		result = (char *)malloc (base_len + 4 + sb.length + 1);
+		result = (char *)malloc (base_len + 4 + (size_t)sb_len + 1);
 		if (result) {
 			memcpy (result, base_text, base_len);
 			memcpy (result + base_len, "  ; ", 4);
-			memcpy (result + base_len + 4, sb.data, sb.length + 1);
+			memcpy (result + base_len + 4, sb_text, (size_t)sb_len + 1);
 		}
 	}
-	_hbc_sb_free (&sb);
+	r_strbuf_fini (&sb);
 	return result;
 }
 

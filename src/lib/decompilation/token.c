@@ -284,12 +284,12 @@ void _hbc_token_free(HbcToken *tok) {
 	free (tok);
 }
 
-static Result append_reg(StringBuffer *b, int r) {
-	return _hbc_sb_appendf (b, "r%d", r);
+static Result append_reg(RStrBuf *b, int r) {
+	return HBC_TO_RESULT (r_strbuf_appendf (b, "r%d", r));
 }
 
 /* Very simple token to string printer, good enough for M1 */
-Result _hbc_token_to_string(HbcToken *token, StringBuffer *buffer) {
+Result _hbc_token_to_string(HbcToken *token, RStrBuf *buffer) {
 	if (!token || !buffer) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_token_to_string: NULL");
 	}
@@ -297,7 +297,7 @@ Result _hbc_token_to_string(HbcToken *token, StringBuffer *buffer) {
 	case HBC_TOKEN_TYPE_RAW:
 		{
 			HbcRawToken *t = (HbcRawToken *)token;
-			return _hbc_sb_append (buffer, t->text? t->text: "");
+			return HBC_TO_RESULT (r_strbuf_append (buffer, t->text? t->text: ""));
 		}
 	case HBC_TOKEN_TYPE_LEFT_HAND_REG:
 		{
@@ -309,19 +309,19 @@ Result _hbc_token_to_string(HbcToken *token, StringBuffer *buffer) {
 			HbcRightHandRegToken *t = (HbcRightHandRegToken *)token;
 			return append_reg (buffer, t->reg_num);
 		}
-	case HBC_TOKEN_TYPE_ASSIGNMENT: return _hbc_sb_append (buffer, "=");
-	case HBC_TOKEN_TYPE_LEFT_PARENTHESIS: return _hbc_sb_append (buffer, "(");
-	case HBC_TOKEN_TYPE_RIGHT_PARENTHESIS: return _hbc_sb_append (buffer, ")");
-	case HBC_TOKEN_TYPE_DOT_ACCESSOR: return _hbc_sb_append (buffer, ".");
+	case HBC_TOKEN_TYPE_ASSIGNMENT: return HBC_TO_RESULT (r_strbuf_append (buffer, "="));
+	case HBC_TOKEN_TYPE_LEFT_PARENTHESIS: return HBC_TO_RESULT (r_strbuf_append (buffer, "("));
+	case HBC_TOKEN_TYPE_RIGHT_PARENTHESIS: return HBC_TO_RESULT (r_strbuf_append (buffer, ")"));
+	case HBC_TOKEN_TYPE_DOT_ACCESSOR: return HBC_TO_RESULT (r_strbuf_append (buffer, "."));
 	case HBC_TOKEN_TYPE_BIND:
 		{
 			HbcBindToken *t = (HbcBindToken *)token;
-			RETURN_IF_ERROR (_hbc_sb_append (buffer, ".bind("));
+			RETURN_IF_ERROR (r_strbuf_append (buffer, ".bind("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			return _hbc_sb_append (buffer, ")");
+			return HBC_TO_RESULT (r_strbuf_append (buffer, ")"));
 		}
-	case HBC_TOKEN_TYPE_RETURN_DIRECTIVE: return _hbc_sb_append (buffer, "return");
-	case HBC_TOKEN_TYPE_THROW_DIRECTIVE: return _hbc_sb_append (buffer, "throw");
+	case HBC_TOKEN_TYPE_RETURN_DIRECTIVE: return HBC_TO_RESULT (r_strbuf_append (buffer, "return"));
+	case HBC_TOKEN_TYPE_THROW_DIRECTIVE: return HBC_TO_RESULT (r_strbuf_append (buffer, "throw"));
 	case HBC_TOKEN_TYPE_FUNCTION_TABLE_INDEX:
 		{
 			HbcFunctionTableIndexToken *t = (HbcFunctionTableIndexToken *)token;
@@ -330,117 +330,117 @@ Result _hbc_token_to_string(HbcToken *token, StringBuffer *buffer) {
 				u32 name_id = t->state->hbc_reader->function_headers[t->function_id].functionName;
 				const char *name = (name_id < t->state->hbc_reader->header.stringCount && t->state->hbc_reader->strings)? t->state->hbc_reader->strings[name_id]: NULL;
 				if (name && *name) {
-					RETURN_IF_ERROR (_hbc_sb_append (buffer, name));
+					RETURN_IF_ERROR (r_strbuf_append (buffer, name));
 					return SUCCESS_RESULT ();
 				}
 			}
-			return _hbc_sb_appendf (buffer, "fn_%u", t->function_id);
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer, "fn_%u", t->function_id));
 		}
 	case HBC_TOKEN_TYPE_JUMP_CONDITION:
 		{
 			HbcJumpConditionToken *t = (HbcJumpConditionToken *)token;
-			return _hbc_sb_appendf (buffer, "/* jump -> 0x%08x */", t->target_address);
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer, "/* jump -> 0x%08x */", t->target_address));
 		}
 	case HBC_TOKEN_TYPE_JUMP_NOT_CONDITION:
 		{
 			HbcJumpNotConditionToken *t = (HbcJumpNotConditionToken *)token;
-			return _hbc_sb_appendf (buffer, "/* jump_if_not -> 0x%08x */", t->target_address);
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer, "/* jump_if_not -> 0x%08x */", t->target_address));
 		}
 	case HBC_TOKEN_TYPE_GET_ENVIRONMENT:
 		{
 			HbcGetEnvironmentToken *t = (HbcGetEnvironmentToken *)token;
-			RETURN_IF_ERROR (_hbc_sb_append (buffer, "get_env("));
+			RETURN_IF_ERROR (r_strbuf_append (buffer, "get_env("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			RETURN_IF_ERROR (_hbc_sb_append (buffer, ", "));
-			RETURN_IF_ERROR (_hbc_sb_appendf (buffer, "%d", t->nesting_level));
-			return _hbc_sb_append (buffer, ")");
+			RETURN_IF_ERROR (r_strbuf_append (buffer, ", "));
+			RETURN_IF_ERROR (r_strbuf_appendf (buffer, "%d", t->nesting_level));
+			return HBC_TO_RESULT (r_strbuf_append (buffer, ")"));
 		}
 	case HBC_TOKEN_TYPE_LOAD_FROM_ENVIRONMENT:
 		{
 			HbcLoadFromEnvironmentToken *t = (HbcLoadFromEnvironmentToken *)token;
-			RETURN_IF_ERROR (_hbc_sb_append (buffer, "env_load("));
+			RETURN_IF_ERROR (r_strbuf_append (buffer, "env_load("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			RETURN_IF_ERROR (_hbc_sb_append (buffer, ", "));
-			RETURN_IF_ERROR (_hbc_sb_appendf (buffer, "%d", t->slot_index));
-			return _hbc_sb_append (buffer, ")");
+			RETURN_IF_ERROR (r_strbuf_append (buffer, ", "));
+			RETURN_IF_ERROR (r_strbuf_appendf (buffer, "%d", t->slot_index));
+			return HBC_TO_RESULT (r_strbuf_append (buffer, ")"));
 		}
 	case HBC_TOKEN_TYPE_NEW_ENVIRONMENT:
 		{
 			HbcNewEnvironmentToken *t = (HbcNewEnvironmentToken *)token;
-			RETURN_IF_ERROR (_hbc_sb_append (buffer, "new_env("));
+			RETURN_IF_ERROR (r_strbuf_append (buffer, "new_env("));
 			RETURN_IF_ERROR (append_reg (buffer, t->reg_num));
-			return _hbc_sb_append (buffer, ")");
+			return HBC_TO_RESULT (r_strbuf_append (buffer, ")"));
 		}
 	case HBC_TOKEN_TYPE_NEW_INNER_ENVIRONMENT:
 		{
 			HbcNewInnerEnvironmentToken *t = (HbcNewInnerEnvironmentToken *)token;
-			return _hbc_sb_appendf (buffer,
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer,
 				"new_inner_env(r%d, r%d, %d)",
 				t->dest_register,
 				t->parent_register,
-				t->number_of_slots);
+				t->number_of_slots));
 		}
 	case HBC_TOKEN_TYPE_SWITCH_IMM:
 		{
 			HbcSwitchImmToken *t = (HbcSwitchImmToken *)token;
-			return _hbc_sb_appendf (buffer,
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer,
 				"switch(r%d /*%u..%u*/)",
 				t->value_reg,
 				t->unsigned_min_value,
-				t->unsigned_max_value);
+				t->unsigned_max_value));
 		}
 	case HBC_TOKEN_TYPE_STORE_TO_ENVIRONMENT:
 		{
 			HbcStoreToEnvironmentToken *t = (HbcStoreToEnvironmentToken *)token;
-			return _hbc_sb_appendf (buffer,
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer,
 				"env_store(r%d, %d, r%d)",
 				t->env_register,
 				t->slot_index,
-				t->value_register);
+				t->value_register));
 		}
 	case HBC_TOKEN_TYPE_FOR_IN_LOOP_INIT:
 		{
 			HbcForInLoopInitToken *t = (HbcForInLoopInitToken *)token;
-			return _hbc_sb_appendf (buffer,
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer,
 				"forin_init(r%d, r%d, r%d, r%d)",
 				t->obj_props_register,
 				t->obj_register,
 				t->iter_index_register,
-				t->iter_size_register);
+				t->iter_size_register));
 		}
 	case HBC_TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
 		{
 			HbcForInLoopNextIterToken *t = (HbcForInLoopNextIterToken *)token;
-			return _hbc_sb_appendf (buffer,
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer,
 				"forin_next(r%d, r%d, r%d, r%d, r%d)",
 				t->next_value_register,
 				t->obj_props_register,
 				t->obj_register,
 				t->iter_index_register,
-				t->iter_size_register);
+				t->iter_size_register));
 		}
 	case HBC_TOKEN_TYPE_RESUME_GENERATOR:
 		{
 			HbcResumeGeneratorToken *t = (HbcResumeGeneratorToken *)token;
-			return _hbc_sb_appendf (buffer, "resume_gen(r%d, r%d)", t->result_out_reg, t->return_bool_out_reg);
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer, "resume_gen(r%d, r%d)", t->result_out_reg, t->return_bool_out_reg));
 		}
 	case HBC_TOKEN_TYPE_SAVE_GENERATOR:
 		{
 			HbcSaveGeneratorToken *t = (HbcSaveGeneratorToken *)token;
-			return _hbc_sb_appendf (buffer, "save_gen(0x%08x)", t->address);
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer, "save_gen(0x%08x)", t->address));
 		}
-	case HBC_TOKEN_TYPE_START_GENERATOR: return _hbc_sb_append (buffer, "start_generator()");
+	case HBC_TOKEN_TYPE_START_GENERATOR: return HBC_TO_RESULT (r_strbuf_append (buffer, "start_generator()"));
 	case HBC_TOKEN_TYPE_CATCH_BLOCK_START:
 		{
 			HbcCatchBlockStartToken *t = (HbcCatchBlockStartToken *)token;
-			return _hbc_sb_appendf (buffer, "catch(r%d)", t->arg_register);
+			return HBC_TO_RESULT (r_strbuf_appendf (buffer, "catch(r%d)", t->arg_register));
 		}
 	default:
-		return _hbc_sb_append (buffer, "/*token*/");
+		return HBC_TO_RESULT (r_strbuf_append (buffer, "/*token*/"));
 	}
 }
 
-Result _hbc_token_string_to_string(HbcTokenString *ts, StringBuffer *out) {
+Result _hbc_token_string_to_string(HbcTokenString *ts, RStrBuf *out) {
 	if (!ts || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_token_string_to_string: NULL");
 	}
@@ -458,7 +458,7 @@ Result _hbc_token_string_to_string(HbcTokenString *ts, StringBuffer *out) {
 				need_space = prev != HBC_TOKEN_TYPE_LEFT_PARENTHESIS && prev != HBC_TOKEN_TYPE_DOT_ACCESSOR;
 			}
 			if (need_space) {
-				RETURN_IF_ERROR (_hbc_sb_append_char (out, ' '));
+				RETURN_IF_ERROR (r_strbuf_appendf (out, "%c", ' '));
 			}
 		}
 		RETURN_IF_ERROR (_hbc_token_to_string (cur, out));

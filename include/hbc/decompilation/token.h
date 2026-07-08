@@ -248,7 +248,7 @@ HbcToken *hbc_token_new_catch_block_start(int arg_register);
 /* HbcToken manipulation */
 Result _hbc_token_string_add_token(HbcTokenString *token_string, HbcToken *token);
 void _hbc_token_free(HbcToken *token);
-Result _hbc_token_to_string(HbcToken *token, StringBuffer *buffer);
-Result _hbc_token_string_to_string(HbcTokenString *token_string, StringBuffer *buffer);
+Result _hbc_token_to_string(HbcToken *token, RStrBuf *buffer);
+Result _hbc_token_string_to_string(HbcTokenString *token_string, RStrBuf *buffer);
 
 #endif /* LIBHBC_TOKEN_H */

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <r_util/r_strbuf.h>
 
 #if defined(_WIN32) && defined(HBC_BUILD_SHARED)
 #define HBC_API __declspec (dllexport)
@@ -47,13 +48,6 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
-/* String buffer for dynamic strings */
-typedef struct {
-	char *data;
-	size_t length;
-	size_t capacity;
-} StringBuffer;
-
 /* Result code for error handling */
 typedef enum {
 	RESULT_SUCCESS,
@@ -86,14 +80,6 @@ typedef struct {
 struct HBCReader;
 typedef struct HBCReader HBCReader;
 
-/* StringBuffer functions */
-Result _hbc_sb_init(StringBuffer *buffer, size_t initial_capacity);
-Result _hbc_sb_append(StringBuffer *buffer, const char *str);
-Result _hbc_sb_appendf(StringBuffer *buffer, const char *fmt, ...);
-Result _hbc_sb_append_char(StringBuffer *buffer, char c);
-Result _hbc_sb_append_int(StringBuffer *buffer, int value);
-void _hbc_sb_free(StringBuffer *buffer);
-
 /* BufferReader functions */
 Result _hbc_buffer_reader_init_from_file(BufferReader *reader, const char *filename);
 Result _hbc_buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size_t size);
@@ -106,21 +92,27 @@ Result _hbc_buffer_reader_seek(BufferReader *reader, size_t position);
 Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment);
 void _hbc_buffer_reader_free(BufferReader *reader);
 
-/* String case conversion utilities */
-HBC_API void hbc_camel_to_snake(const char *camel, char *snake, size_t snake_size);
-HBC_API void hbc_snake_to_camel(const char *snake, char *camel, size_t camel_size);
+#define SUCCESS_RESULT() ((Result){ RESULT_SUCCESS, "" })
+
+#define ERROR_RESULT(code, message) ((Result){ code, message })
+
+static inline Result hbc_result_from_result(Result result) {
+	return result;
+}
+
+static inline Result hbc_result_from_bool(bool ok) {
+	return ok? SUCCESS_RESULT (): ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "String buffer operation failed");
+}
+
+#define HBC_TO_RESULT(expr) _Generic ((expr), Result: hbc_result_from_result, bool: hbc_result_from_bool) (expr)
 
 /* Utility macros for error handling */
 #define RETURN_IF_ERROR(expr) \
 	do { \
-		Result result = (expr); \
+		Result result = HBC_TO_RESULT (expr); \
 		if (result.code != RESULT_SUCCESS) { \
 			return result; \
 		} \
 	} while (0)
-
-#define SUCCESS_RESULT() ((Result){ RESULT_SUCCESS, "" })
-
-#define ERROR_RESULT(code, message) ((Result){ code, message })
 
 #endif /* LIBHBC_COMMON_H */
