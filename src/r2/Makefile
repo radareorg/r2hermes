@@ -10,7 +10,8 @@ R2_SRC_CFLAGS = $(if $(wildcard ../../../../../include/r_core.h),-I../../../../.
 CFLAGS += $(shell pkg-config --cflags r_core 2>/dev/null || r2pm -H R2_CFLAGS 2>/dev/null || echo "$(R2_SRC_CFLAGS)")
 R2_PLUGDIR?=$(shell r2 -H R2_USER_PLUGINS)
 R2_PREFIX?=$(shell r2 -H R2_PREFIX)
-LDFLAGS += $(shell pkg-config --libs r_core 2>/dev/null || r2pm -H R2_LDFLAGS 2>/dev/null || echo "-lr_core -lr_util")
+R2PM_LINK_FLAGS := $(strip $(shell r2pm -H R2_LDFLAGS 2>/dev/null) $(shell r2pm -H R2_LIBS 2>/dev/null))
+LDFLAGS += $(shell pkg-config --libs r_core 2>/dev/null || echo "$(if $(R2PM_LINK_FLAGS),$(R2PM_LINK_FLAGS),-lr_core -lr_util)")
 
 # Detect platform for shared library extension
 UNAME_S := $(shell uname -s)
