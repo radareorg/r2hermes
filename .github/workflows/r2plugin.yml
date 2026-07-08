@@ -31,20 +31,13 @@ jobs:
           git clone --depth=1 https://github.com/radareorg/radare2.git
           cd radare2
           export CC=tcc
-
-          # Install radare2 first so r2hermes can discover r2 headers via
-          # pkg-config/r2 while building its static library.
-          ./configure --prefix=/usr --with-compiler=tcc
-          make -j
-          sudo make install
-
           echo core.r2hermes > libr/xps/static.cfg
           cp -f ../r2plugin/config.mk libr/xps/config.mk
           git clone .. libr/xps/p/r2hermes
           make -C libr/xps/p/r2hermes include/hbc/version.h
           make -C libr/xps
           ./configure --prefix=/usr --with-compiler=tcc
-          make -C libr/xps/p/r2hermes build/libhbc.a
+#          make -C libr/xps/p/r2hermes build/libhbc.a
           make -j
           sudo make install
 
