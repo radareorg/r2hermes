@@ -39,6 +39,65 @@ configure_file(
 # Include directories
 include_dirs = include_directories('include')
 
+# radare2 headers are needed by libhbc because it uses r_vec.h internally.
+# Prefer pkg-config/CMake, but fall back to the flags reported by r2 itself
+# for environments such as Windows CI where pkg-config may be unavailable.
+r2_bin = find_program('r2', required: false)
+r2_cflags = []
+r2_ldflags = []
+r2_libs = []
+if r2_bin.found()
+  r2_cflags_cmd = run_command(r2_bin, '-H', 'R2_CFLAGS', check: false)
+  if r2_cflags_cmd.returncode() == 0
+    r2_cflags = r2_cflags_cmd.stdout().strip().split()
+  endif
+  r2_ldflags_cmd = run_command(r2_bin, '-H', 'R2_LDFLAGS', check: false)
+  if r2_ldflags_cmd.returncode() == 0
+    r2_ldflags = r2_ldflags_cmd.stdout().strip().split()
+  endif
+  r2_libs_cmd = run_command(r2_bin, '-H', 'R2_LIBS', check: false)
+  if r2_libs_cmd.returncode() == 0
+    r2_libs = r2_libs_cmd.stdout().strip().split()
+  endif
+endif
+
+if r2_cflags.length() > 0
+  add_project_arguments(r2_cflags, language: 'c')
+endif
+
+r2_core = dependency('r_core', required: false)
+r2_util = dependency('r_util', required: false)
+r2_link_args = r2_ldflags + r2_libs
+r2_util_link_args = r2_ldflags
+if r2_libs.contains('-lr_util')
+  r2_util_link_args += ['-lr_util']
+else
+  r2_util_link_args += r2_libs
+endif
+if not r2_core.found() and r2_cflags.length() > 0 and r2_link_args.length() > 0
+  r2_core = declare_dependency(
+    compile_args: r2_cflags,
+    link_args: r2_link_args,
+  )
+  message('radare2 dependency resolved from r2 -H flags')
+endif
+if not r2_util.found() and r2_cflags.length() > 0 and r2_util_link_args.length() > 0
+  r2_util = declare_dependency(
+    compile_args: r2_cflags,
+    link_args: r2_util_link_args,
+  )
+  message('radare2 util dependency resolved from r2 -H flags')
+endif
+
+libhbc_compile_deps = []
+libhbc_link_deps = []
+if r2_util.found()
+  libhbc_link_deps += r2_util
+  if r2_cflags.length() == 0
+    libhbc_compile_deps += r2_util
+  endif
+endif
+
 # Library source files
 lib_utils_src = files(
   'src/lib/utils/string_buffer.c',
@@ -79,6 +138,7 @@ libhbc = static_library(
   lib_src,
   include_directories: include_dirs,
   c_args: ['-pedantic'],
+  dependencies: libhbc_compile_deps,
   install: true,
 )
 
@@ -86,6 +146,7 @@ libhbc = static_library(
 libhbc_dep = declare_dependency(
   link_with: libhbc,
   include_directories: include_dirs,
+  dependencies: libhbc_link_deps,
 )
 
 # Install library headers
@@ -102,11 +163,9 @@ executable(
   link_with: libhbc,
   include_directories: include_dirs,
   c_args: ['-pedantic'],
+  dependencies: libhbc_link_deps,
   install: true,
 )
-
-# radare2 plugins
-r2_core = dependency('r_core', required: false)
 
 if r2_core.found()
   # Get radare2 plugin directory
@@ -114,19 +173,19 @@ if r2_core.found()
   r2_prefix_opt = get_option('r2_prefix')
   r2_found = false
   if r2_plugdir_opt == '' or r2_prefix_opt == ''
-    r2_found = run_command('which', 'r2', check: false).returncode() == 0
+    r2_found = r2_bin.found()
   endif
   if r2_plugdir_opt != ''
     r2_plugdir = r2_plugdir_opt
   elif r2_found
-    r2_plugdir = run_command('r2', '-H', 'R2_USER_PLUGINS', check: false).stdout().strip()
+    r2_plugdir = run_command(r2_bin, '-H', 'R2_USER_PLUGINS', check: false).stdout().strip()
   else
     r2_plugdir = r2_plugdir_opt
   endif
   if r2_prefix_opt != ''
     r2_prefix = r2_prefix_opt
   elif r2_found
-    r2_prefix = run_command('r2', '-H', 'R2_PREFIX', check: false).stdout().strip()
+    r2_prefix = run_command(r2_bin, '-H', 'R2_PREFIX', check: false).stdout().strip()
   else
     r2_prefix = r2_prefix_opt
   endif
