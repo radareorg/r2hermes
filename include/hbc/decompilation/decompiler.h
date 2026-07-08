@@ -181,7 +181,7 @@ typedef struct HermesDecompiler {
 	bool output_truncated; /* Sticky flag: budget exceeded; stop emitting new content */
 	bool truncation_marker_emitted; /* Sticky flag: the truncation comment was already written */
 	HBCDecompOptions options;
-	StringBuffer output;
+	RStrBuf output;
 } HermesDecompiler;
 
 /* Function declarations */
@@ -191,10 +191,10 @@ Result _hbc_decompiler_cleanup(HermesDecompiler *decompiler);
 /* High-level entry points */
 Result _hbc_decompile_file(const char *input_file, const char *output_file);
 /* Buffer-based APIs used by hermesdec library */
-Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options, StringBuffer *out);
-Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, StringBuffer *out);
-Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompOptions options, StringBuffer *out);
-Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOptions options, StringBuffer *out);
+Result _hbc_decompile_all_to_buffer(HBCReader *reader, HBCDecompOptions options, RStrBuf *out);
+Result _hbc_decompile_all_with_state(HBC *hbc, HBCDecompOptions options, RStrBuf *out);
+Result _hbc_decompile_function_to_buffer(HBCReader *reader, u32 function_id, HBCDecompOptions options, RStrBuf *out);
+Result _hbc_decompile_function_with_state(HBC *hbc, u32 function_id, HBCDecompOptions options, RStrBuf *out);
 Result _hbc_decompile_function(HermesDecompiler *state, u32 function_id, Environment *parent_environment, int environment_id, bool is_closure, bool is_generator, bool is_async);
 
 /* Transformation passes */

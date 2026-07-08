@@ -86,7 +86,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_BIN = $(BIN_DIR)/run_tests
 
 $(TEST_BIN): $(STATIC_LIB) $(TEST_SRC) | $(shell mkdir -p $(BIN_DIR))
-	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc
+	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc $(R2_LDFLAGS) -lr_util
 
 test: $(BIN_FILE) $(TEST_BIN)
 	$(TEST_BIN)

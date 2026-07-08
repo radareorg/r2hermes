@@ -43,7 +43,7 @@ void _hbc_parsed_instruction_list_free(ParsedInstructionList *list);
 
 Result _hbc_parse_instruction(HBCReader *reader, FunctionHeader *function_header, u32 offset, ParsedInstruction *out_instruction);
 Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedInstructionList *out_instructions, HBCISA isa);
-Result _hbc_instruction_to_string(ParsedInstruction *instruction, StringBuffer *out_string);
+Result _hbc_instruction_to_string(ParsedInstruction *instruction, RStrBuf *out_string);
 
 /* Raw value of the i-th operand (0..5); 0 when the index is out of range. */
 u32 hbc_operand_value(const ParsedInstruction *insn, int i);

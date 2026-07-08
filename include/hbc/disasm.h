@@ -13,7 +13,7 @@
 /* Disassembler state */
 typedef struct {
 	HBCReader *reader; /* The HBC reader with parsed data */
-	StringBuffer output; /* The output buffer */
+	RStrBuf output; /* The output buffer */
 	HBCDisOptions options; /* Disassembly options */
 	u32 current_function_id; /* Function currently being disassembled */
 } Disassembler;

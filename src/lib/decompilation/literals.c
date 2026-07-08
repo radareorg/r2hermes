@@ -21,38 +21,38 @@ bool _hbc_is_js_identifier(const char *s) {
 	return true;
 }
 
-static Result append_quoted(StringBuffer *out, const char *s) {
-	RETURN_IF_ERROR (_hbc_sb_append (out, "\""));
+static Result append_quoted(RStrBuf *out, const char *s) {
+	RETURN_IF_ERROR (r_strbuf_append (out, "\""));
 	for (const char *p = s; p && *p; p++) {
 		unsigned char c = (unsigned char)*p;
 		if (c == '"' || c == '\\') {
-			RETURN_IF_ERROR (_hbc_sb_append_char (out, '\\'));
-			RETURN_IF_ERROR (_hbc_sb_append_char (out, (char)c));
+			RETURN_IF_ERROR (r_strbuf_appendf (out, "%c", '\\'));
+			RETURN_IF_ERROR (r_strbuf_appendf (out, "%c", (char)c));
 		} else if (c < 0x20) {
-			RETURN_IF_ERROR (_hbc_sb_appendf (out, "\\x%02x", c));
+			RETURN_IF_ERROR (r_strbuf_appendf (out, "\\x%02x", c));
 		} else {
-			RETURN_IF_ERROR (_hbc_sb_append_char (out, (char)c));
+			RETURN_IF_ERROR (r_strbuf_appendf (out, "%c", (char)c));
 		}
 	}
-	return _hbc_sb_append (out, "\"");
+	return HBC_TO_RESULT (r_strbuf_append (out, "\""));
 }
 
-Result _hbc_format_property_from_string_id(HBCReader *r, u32 string_id, StringBuffer *out) {
+Result _hbc_format_property_from_string_id(HBCReader *r, u32 string_id, RStrBuf *out) {
 	const char *s = NULL;
 	if (r && r->strings && string_id < r->header.stringCount) {
 		s = r->strings[string_id];
 	}
 	if (_hbc_is_js_identifier (s)) {
-		RETURN_IF_ERROR (_hbc_sb_append (out, "."));
-		return _hbc_sb_append (out, s);
+		RETURN_IF_ERROR (r_strbuf_append (out, "."));
+		return HBC_TO_RESULT (r_strbuf_append (out, s));
 	}
-	RETURN_IF_ERROR (_hbc_sb_append (out, "["));
+	RETURN_IF_ERROR (r_strbuf_append (out, "["));
 	if (s) {
 		RETURN_IF_ERROR (append_quoted (out, s));
 	} else {
-		RETURN_IF_ERROR (_hbc_sb_append (out, "\"\""));
+		RETURN_IF_ERROR (r_strbuf_append (out, "\"\""));
 	}
-	RETURN_IF_ERROR (_hbc_sb_append (out, "]"));
+	RETURN_IF_ERROR (r_strbuf_append (out, "]"));
 	return SUCCESS_RESULT ();
 }
 
@@ -194,19 +194,19 @@ static bool slp_parse_values(const u8 *base, size_t size, u32 offset, u32 num_it
 	return true;
 }
 
-static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key, StringBuffer *out) {
+static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key, RStrBuf *out) {
 	switch (v->tag) {
-	case SLP_NullTag: return _hbc_sb_append (out, "null");
-	case SLP_TrueTag: return _hbc_sb_append (out, "true");
-	case SLP_FalseTag: return _hbc_sb_append (out, "false");
+	case SLP_NullTag: return HBC_TO_RESULT (r_strbuf_append (out, "null"));
+	case SLP_TrueTag: return HBC_TO_RESULT (r_strbuf_append (out, "true"));
+	case SLP_FalseTag: return HBC_TO_RESULT (r_strbuf_append (out, "false"));
 	case SLP_IntegerTag:
 		{
-			return _hbc_sb_appendf (out, "%u", (unsigned)v->v.intv);
+			return HBC_TO_RESULT (r_strbuf_appendf (out, "%u", (unsigned)v->v.intv));
 		}
 	case SLP_NumberTag:
 		{
 			/* Use %.17g to preserve precision while avoiding trailing noise */
-			return _hbc_sb_appendf (out, "%.17g", v->v.num);
+			return HBC_TO_RESULT (r_strbuf_appendf (out, "%.17g", v->v.num));
 		}
 	case SLP_LongStringTag:
 	case SLP_ShortStringTag:
@@ -214,26 +214,26 @@ static Result slp_append_value_js(HBCReader *r, const SLPValue *v, bool for_key,
 		{
 			const char *s = (r && r->strings && v->v.str_id < r->header.stringCount)? r->strings[v->v.str_id]: NULL;
 			if (for_key && s && _hbc_is_js_identifier (s)) {
-				return _hbc_sb_append (out, s);
+				return HBC_TO_RESULT (r_strbuf_append (out, s));
 			}
 			if (s) {
 				return append_quoted (out, s);
 			}
-			return _hbc_sb_append (out, "\"\"");
+			return HBC_TO_RESULT (r_strbuf_append (out, "\"\""));
 		}
 	default:
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Unknown SLP tag");
 	}
 }
 
-Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
+Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, u32 keys_id, u32 values_id, RStrBuf *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
 	if (r && r->header.version >= 97 && r->object_shapes && r->object_shape_count > 0) {
 		u32 value_offset = value_count;
 		if (key_count >= r->object_shape_count || !r->object_keys || !r->object_values) {
 			if (suppress_comments) {
-				return _hbc_sb_append (out, "}");
+				return HBC_TO_RESULT (r_strbuf_append (out, "}"));
 			}
-			return _hbc_sb_appendf (out, " /*shape:%u vals:%u*/ }", key_count, value_count);
+			return HBC_TO_RESULT (r_strbuf_appendf (out, " /*shape:%u vals:%u*/ }", key_count, value_count));
 		}
 		const ShapeTableEntry *shape = &r->object_shapes[key_count];
 		key_count = shape->prop_count;
@@ -244,13 +244,13 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 	/* Apply policy */
 	bool pretty = (policy == LITERALS_PRETTY_ALWAYS) || (policy == LITERALS_PRETTY_AUTO && (key_count > 0));
 	bool multiline = pretty && (key_count > 0);
-	RETURN_IF_ERROR (_hbc_sb_append (out, multiline? "{\n": "{"));
+	RETURN_IF_ERROR (r_strbuf_append (out, multiline? "{\n": "{"));
 	if (!r || key_count == 0 || value_count == 0 || !r->object_keys || !r->object_values) {
 		/* Fallback placeholder */
 		if (suppress_comments) {
-			return _hbc_sb_append (out, "}");
+			return HBC_TO_RESULT (r_strbuf_append (out, "}"));
 		}
-		return _hbc_sb_appendf (out, " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id);
+		return HBC_TO_RESULT (r_strbuf_appendf (out, " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id));
 	}
 	u32 n = key_count < value_count? key_count: value_count;
 	SLPValue *key_vals = (SLPValue *)calloc (n, sizeof (SLPValue));
@@ -272,46 +272,46 @@ Result _hbc_format_object_literal(HBCReader *r, u32 key_count, u32 value_count, 
 		free (key_vals);
 		free (val_vals);
 		if (suppress_comments) {
-			return _hbc_sb_append (out, "}");
+			return HBC_TO_RESULT (r_strbuf_append (out, "}"));
 		}
-		return _hbc_sb_appendf (out, " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id);
+		return HBC_TO_RESULT (r_strbuf_appendf (out, " /*k:%u id:%u vals:%u*/ }", key_count, keys_id, values_id));
 	}
 
 	for (u32 i = 0; i < n; i++) {
 		if (multiline) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, "  "));
+			RETURN_IF_ERROR (r_strbuf_append (out, "  "));
 		}
 		if (!multiline && i) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, ", "));
+			RETURN_IF_ERROR (r_strbuf_append (out, ", "));
 		}
 		/* Key: allow identifiers and numeric keys unquoted; otherwise quote. */
 		RETURN_IF_ERROR (slp_append_value_js (r, &key_vals[i], true /*for_key*/, out));
-		RETURN_IF_ERROR (_hbc_sb_append (out, ": "));
+		RETURN_IF_ERROR (r_strbuf_append (out, ": "));
 		/* Value: always a valid JS literal */
 		RETURN_IF_ERROR (slp_append_value_js (r, &val_vals[i], false, out));
 		if (multiline) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, i + 1 < n? ",\n": "\n"));
+			RETURN_IF_ERROR (r_strbuf_append (out, i + 1 < n? ",\n": "\n"));
 		}
 	}
 
 	free (key_vals);
 	free (val_vals);
-	RETURN_IF_ERROR (_hbc_sb_append (out, multiline? "}": "}"));
+	RETURN_IF_ERROR (r_strbuf_append (out, multiline? "}": "}"));
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, StringBuffer *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
+Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, RStrBuf *out, LiteralsPrettyPolicy policy, bool suppress_comments) {
 	/* Apply policy. AUTO renders arrays inline (`[1, 2, 3]`): these are data
 	 *(e.g. module dependency lists) often hundreds long, and one-element-per-
 	 * line dominates the output while its embedded newlines ignore the statement
 	 * indent. Only ALWAYS expands them vertically. */
 	bool multiline = (policy == LITERALS_PRETTY_ALWAYS) && (value_count > 0);
-	RETURN_IF_ERROR (_hbc_sb_append (out, multiline? "[\n": "["));
+	RETURN_IF_ERROR (r_strbuf_append (out, multiline? "[\n": "["));
 	if (!r || !r->arrays || value_count == 0) {
 		if (suppress_comments) {
-			return _hbc_sb_append (out, "]");
+			return HBC_TO_RESULT (r_strbuf_append (out, "]"));
 		}
-		return _hbc_sb_appendf (out, " /*n:%u id:%u*/ ]", value_count, array_id);
+		return HBC_TO_RESULT (r_strbuf_appendf (out, " /*n:%u id:%u*/ ]", value_count, array_id));
 	}
 	SLPValue *vals = (SLPValue *)calloc (value_count, sizeof (SLPValue));
 	if (!vals) {
@@ -321,39 +321,39 @@ Result _hbc_format_array_literal(HBCReader *r, u32 value_count, u32 array_id, St
 	if (!ok) {
 		free (vals);
 		if (suppress_comments) {
-			return _hbc_sb_append (out, "]");
+			return HBC_TO_RESULT (r_strbuf_append (out, "]"));
 		}
-		return _hbc_sb_appendf (out, " /*n:%u id:%u*/ ]", value_count, array_id);
+		return HBC_TO_RESULT (r_strbuf_appendf (out, " /*n:%u id:%u*/ ]", value_count, array_id));
 	}
 	for (u32 i = 0; i < value_count; i++) {
 		if (multiline) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, "  "));
+			RETURN_IF_ERROR (r_strbuf_append (out, "  "));
 		}
 		if (!multiline && i) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, ", "));
+			RETURN_IF_ERROR (r_strbuf_append (out, ", "));
 		}
 		RETURN_IF_ERROR (slp_append_value_js (r, &vals[i], false, out));
 		if (multiline) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, i + 1 < value_count? ",\n": "\n"));
+			RETURN_IF_ERROR (r_strbuf_append (out, i + 1 < value_count? ",\n": "\n"));
 		}
 	}
 	free (vals);
-	RETURN_IF_ERROR (_hbc_sb_append (out, "]"));
+	RETURN_IF_ERROR (r_strbuf_append (out, "]"));
 	return SUCCESS_RESULT ();
 }
 
-Result _hbc_format_variadic_call(const ParsedInstruction *insn, StringBuffer *out) {
+Result _hbc_format_variadic_call(const ParsedInstruction *insn, RStrBuf *out) {
 	/* Known operands: arg1=callee, arg2=this, arg3=argc or imm32 argc. */
 	u32 argc = insn->arg3;
 	if (argc > 0) {
 		/* Heuristic: arguments follow 'this' in successive registers */
 		u32 base = insn->arg2;
 		for (u32 i = 1; i <= argc; i++) {
-			RETURN_IF_ERROR (_hbc_sb_append (out, ", "));
-			RETURN_IF_ERROR (_hbc_sb_appendf (out, "r%u", base + i));
+			RETURN_IF_ERROR (r_strbuf_append (out, ", "));
+			RETURN_IF_ERROR (r_strbuf_appendf (out, "r%u", base + i));
 		}
 		/* Also annotate argc */
-		RETURN_IF_ERROR (_hbc_sb_appendf (out, " /*argc:%u*/", argc));
+		RETURN_IF_ERROR (r_strbuf_appendf (out, " /*argc:%u*/", argc));
 	} else {
 		/* No args beyond 'this' */
 	}
