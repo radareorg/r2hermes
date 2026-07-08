@@ -11,6 +11,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <r_vec.h>
 
 #if defined(_WIN32) && defined(HBC_BUILD_SHARED)
 #define HBC_API __declspec (dllexport)
@@ -18,14 +19,6 @@
 #define HBC_API __attribute__((visibility ("default")))
 #else
 #define HBC_API
-#endif
-
-#ifndef R2_VERSION
-#define R_RETURN_VAL_IF_FAIL(x, y) \
-	if (! (x)) \
-	return y
-#define R_LOG_WARN(x, ...) // (x)
-#define R_LOG_DEBUG(x, ...) // (x)
 #endif
 
 /* Debug logging support - disable by default for clean output */

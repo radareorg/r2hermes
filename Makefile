@@ -33,7 +33,9 @@ BIN_FILE = $(BIN_DIR)/r2hermes
 STATIC_LIB = $(BUILD_DIR)/libhbc.a
 
 # Include paths
-INCLUDES = -Iinclude
+R_UTIL_CFLAGS ?= $(shell pkg-config --cflags r_util 2>/dev/null | sed 's/-I/-isystem /g' || echo "-isystem /usr/local/include/libr")
+R_UTIL_LIBS ?= $(shell pkg-config --libs r_util 2>/dev/null || echo "-L/usr/local/lib -lr_util -ldl")
+INCLUDES = -Iinclude $(R_UTIL_CFLAGS)
 LD_RELOC_FLAGS ?= -r -nostdlib
 
 all: $(STATIC_LIB) $(BIN_FILE)
@@ -64,7 +66,7 @@ $(MAIN_RELOC_OBJ): $(MAIN_OBJ) $(LIB_OBJ)
 	$(CC) $(LD_RELOC_FLAGS) -o $@ $^
 
 $(BIN_FILE): $(STATIC_LIB) $(MAIN_RELOC_OBJ) | $(shell mkdir -p $(BIN_DIR))
-	$(CC) $(CFLAGS) -o $@ $(MAIN_RELOC_OBJ)
+	$(CC) $(CFLAGS) -o $@ $(MAIN_RELOC_OBJ) $(R_UTIL_LIBS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(HBC_HEADERS) | $(VH)
 	@mkdir -p $(dir $@)
@@ -84,7 +86,7 @@ TEST_SRC = $(wildcard $(TEST_DIR)/*.c)
 TEST_BIN = $(BIN_DIR)/run_tests
 
 $(TEST_BIN): $(STATIC_LIB) $(TEST_SRC) | $(shell mkdir -p $(BIN_DIR))
-	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc
+	$(CC) $(CFLAGS) -fvisibility=default $(INCLUDES) -o $@ $(TEST_SRC) -L$(BUILD_DIR) -lhbc $(R_UTIL_LIBS)
 
 test: $(BIN_FILE) $(TEST_BIN)
 	$(TEST_BIN)

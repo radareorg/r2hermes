@@ -38,6 +38,7 @@ configure_file(
 
 # Include directories
 include_dirs = include_directories('include')
+r_util = dependency('r_util', include_type: 'system')
 
 # Library source files
 lib_utils_src = files(
@@ -78,6 +79,7 @@ libhbc = static_library(
   'hbc',
   lib_src,
   include_directories: include_dirs,
+  dependencies: r_util,
   c_args: ['-pedantic'],
   install: true,
 )
@@ -86,6 +88,7 @@ libhbc = static_library(
 libhbc_dep = declare_dependency(
   link_with: libhbc,
   include_directories: include_dirs,
+  dependencies: r_util,
 )
 
 # Install library headers
@@ -101,6 +104,7 @@ executable(
   r2hermes_src,
   link_with: libhbc,
   include_directories: include_dirs,
+  dependencies: r_util,
   c_args: ['-pedantic'],
   install: true,
 )

@@ -61,15 +61,6 @@ static Result errorf(ResultCode code, const char *fmt, ...) {
 	return r;
 }
 
-static void eprintf(const char *fmt, ...) {
-	va_list ap;
-	fputs ("Error: ", stderr);
-	va_start (ap, fmt);
-	vfprintf (stderr, fmt, ap);
-	va_end (ap);
-	fputc ('\n', stderr);
-}
-
 static bool streq(const char *a, const char *b) {
 	return a && b && !strcmp (a, b);
 }
