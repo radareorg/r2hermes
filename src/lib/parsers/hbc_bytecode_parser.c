@@ -120,29 +120,25 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 
 	/* Read directly from the function bytecode: the parser never writes and
 	 * the header-owned buffer outlives the parse, so no owning copy is needed */
-	BufferReader bytecode_buffer = { function_header->bytecode, function_header->bytecodeSizeInBytes, 0 };
 	Result result;
+	RBuffer *bytecode_buffer = r_buf_new_with_pointers (function_header->bytecode, function_header->bytecodeSizeInBytes, false);
+	if (!bytecode_buffer) {
+		_hbc_parsed_instruction_list_free (out_instructions);
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer view");
+	}
 
 	/* Parse instructions in a loop similar to Python's implementation */
-	while (bytecode_buffer.position < bytecode_buffer.size) {
+	while (r_buf_tell (bytecode_buffer) < r_buf_size (bytecode_buffer)) {
 		/* Remember the original position */
-		size_t original_pos = bytecode_buffer.position;
+		size_t original_pos = r_buf_tell (bytecode_buffer);
 
 		/* Make sure we have at least one byte to read */
-		if (bytecode_buffer.position >= bytecode_buffer.size) {
+		if (r_buf_tell (bytecode_buffer) >= r_buf_size (bytecode_buffer)) {
 			break;
 		}
 
 		/* Read opcode */
-		u8 opcode;
-		result = _hbc_buffer_reader_read_u8 (&bytecode_buffer, &opcode);
-		if (result.code != RESULT_SUCCESS) {
-			hbc_debug_printf ("Error reading opcode at position %zu: %s\n",
-				original_pos,
-				result.error_message);
-			_hbc_parsed_instruction_list_free (out_instructions);
-			return result;
-		}
+		u8 opcode = r_buf_read8 (bytecode_buffer);
 
 		/* Find instruction definition */
 		const Instruction *inst = NULL;
@@ -153,7 +149,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			}
 		}
 		if (!inst) {
-			size_t remaining = bytecode_buffer.size > original_pos? (bytecode_buffer.size - original_pos): 0;
+			size_t remaining = r_buf_size (bytecode_buffer) > original_pos? (r_buf_size (bytecode_buffer) - original_pos): 0;
 			if (remaining == 0) {
 				break;
 			}
@@ -174,10 +170,15 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			instruction.hbc_reader = reader;
 			instruction.switch_jump_table = NULL;
 			instruction.switch_jump_table_size = 0;
-			RETURN_IF_ERROR (_hbc_parsed_instruction_list_add (out_instructions, &instruction));
+			result = _hbc_parsed_instruction_list_add (out_instructions, &instruction);
+			if (result.code != RESULT_SUCCESS) {
+				_hbc_parsed_instruction_list_free (out_instructions);
+				r_unref (bytecode_buffer);
+				return result;
+			}
 
 			/* Stop parsing this function and move on. */
-			bytecode_buffer.position = bytecode_buffer.size;
+			r_buf_seek (bytecode_buffer, r_buf_size (bytecode_buffer), R_BUF_SET);
 			break;
 		}
 
@@ -217,7 +218,9 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			case OPERAND_TYPE_DOUBLE: need = 8; break;
 			default: need = 0; break;
 			}
-			if (need && (bytecode_buffer.position > bytecode_buffer.size || need > bytecode_buffer.size - bytecode_buffer.position)) {
+			ut64 pos = r_buf_tell (bytecode_buffer);
+			ut64 size = r_buf_size (bytecode_buffer);
+			if (need && (pos > size || need > size - pos)) {
 				parsing_failed = true;
 				break;
 			}
@@ -226,23 +229,13 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			case OPERAND_TYPE_REG8:
 			case OPERAND_TYPE_UINT8:
 				{
-					u8 value;
-					Result read_result = _hbc_buffer_reader_read_u8 (&bytecode_buffer, &value);
-					if (read_result.code != RESULT_SUCCESS) {
-						parsing_failed = true;
-						break;
-					}
+					u8 value = r_buf_read8 (bytecode_buffer);
 					operand_values[i] = value;
 					break;
 				}
 			case OPERAND_TYPE_ADDR8:
 				{
-					u8 value_u;
-					Result read_result = _hbc_buffer_reader_read_u8 (&bytecode_buffer, &value_u);
-					if (read_result.code != RESULT_SUCCESS) {
-						parsing_failed = true;
-						break;
-					}
+					u8 value_u = r_buf_read8 (bytecode_buffer);
 					/* Sign-extend relative offsets */
 					i8 value_s = (i8)value_u;
 					operand_values[i] = (u32) (i32)value_s;
@@ -251,12 +244,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 
 			case OPERAND_TYPE_UINT16:
 				{
-					u16 value;
-					Result read_result = _hbc_buffer_reader_read_u16 (&bytecode_buffer, &value);
-					if (read_result.code != RESULT_SUCCESS) {
-						parsing_failed = true;
-						break;
-					}
+					u16 value = r_buf_read_le16 (bytecode_buffer);
 					operand_values[i] = value;
 					break;
 				}
@@ -265,23 +253,13 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			case OPERAND_TYPE_UINT32:
 			case OPERAND_TYPE_IMM32:
 				{
-					u32 value;
-					Result read_result = _hbc_buffer_reader_read_u32 (&bytecode_buffer, &value);
-					if (read_result.code != RESULT_SUCCESS) {
-						parsing_failed = true;
-						break;
-					}
+					u32 value = r_buf_read_le32 (bytecode_buffer);
 					operand_values[i] = value;
 					break;
 				}
 			case OPERAND_TYPE_ADDR32:
 				{
-					u32 value_u;
-					Result read_result = _hbc_buffer_reader_read_u32 (&bytecode_buffer, &value_u);
-					if (read_result.code != RESULT_SUCCESS) {
-						parsing_failed = true;
-						break;
-					}
+					u32 value_u = r_buf_read_le32 (bytecode_buffer);
 					/* Sign-extend relative offsets */
 					i32 value_s = (i32)value_u;
 					operand_values[i] = (u32)value_s;
@@ -290,11 +268,8 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			case OPERAND_TYPE_DOUBLE:
 				{
 					double value;
-					Result read_result = _hbc_buffer_reader_read_u64 (&bytecode_buffer, (u64 *)&value);
-					if (read_result.code != RESULT_SUCCESS) {
-						parsing_failed = true;
-						break;
-					}
+					u64 raw = r_buf_read_le64 (bytecode_buffer);
+					memcpy (&value, &raw, sizeof (value));
 					has_double_arg2 = true;
 					double_arg2_value = value;
 					break;
@@ -354,13 +329,14 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			instruction.switch_jump_table = (u32 *)malloc (jump_table_size * sizeof (u32));
 			if (!instruction.switch_jump_table) {
 				_hbc_parsed_instruction_list_free (out_instructions);
+				r_unref (bytecode_buffer);
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate jump table");
 			}
 			instruction.switch_jump_table_size = jump_table_size;
 
 			/* Resolve jump table base pointer. The Python impl uses func_off + instr_off + arg2 first. */
 			u32 base = instruction.arg2;
-			size_t fsz = reader->file_buffer.size;
+			size_t fsz = r_buf_size (reader->file_buffer);
 			u32 candidates[3];
 			candidates[0] = function_header->offset + (u32)original_pos + base; /* instruction-relative */
 			candidates[1] = function_header->offset + base; /* function-relative */
@@ -375,7 +351,7 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			}
 
 			/* Save file position */
-			size_t saved_pos = reader->file_buffer.position;
+			size_t saved_pos = r_buf_tell (reader->file_buffer);
 			bool read_ok = false;
 
 			for (int ci = 0; ci < 3 && !read_ok; ci++) {
@@ -385,25 +361,22 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 				}
 
 				/* Seek and align to 4 bytes */
-				Result seek_result = _hbc_buffer_reader_seek (&reader->file_buffer, jt_off);
-				if (seek_result.code != RESULT_SUCCESS) {
-					continue;
-				}
-				size_t rem = reader->file_buffer.position % 4;
+				r_buf_seek (reader->file_buffer, jt_off, R_BUF_SET);
+				size_t rem = r_buf_tell (reader->file_buffer) % 4;
 				if (rem != 0) {
-					if (reader->file_buffer.position + (4 - rem) > fsz) {
+					if (r_buf_tell (reader->file_buffer) + (4 - rem) > fsz) {
 						continue;
 					}
-					_hbc_buffer_reader_seek (&reader->file_buffer, reader->file_buffer.position + (4 - rem));
+					r_buf_seek (reader->file_buffer, r_buf_tell (reader->file_buffer) + (4 - rem), R_BUF_SET);
 				}
 
 				/* Validate that the whole table fits */
-				size_t table_end = reader->file_buffer.position + (size_t)jump_table_size * sizeof (u32);
+				size_t table_end = r_buf_tell (reader->file_buffer) + (size_t)jump_table_size * sizeof (u32);
 				if (table_end > fsz) {
 					continue;
 				}
 				/* Jump tables live after the bytecode body, before the next function. */
-				if (! (reader->file_buffer.position >= func_start && table_end <= table_limit)) {
+				if (! (r_buf_tell (reader->file_buffer) >= func_start && table_end <= table_limit)) {
 					continue;
 				}
 
@@ -413,23 +386,15 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 				}
 
 				/* Read entries */
-				bool fail = false;
 				for (u32 i = 0; i < jump_table_size; i++) {
-					u32 rel;
-					Result rr = _hbc_buffer_reader_read_u32 (&reader->file_buffer, &rel);
-					if (rr.code != RESULT_SUCCESS) {
-						fail = true;
-						break;
-					}
+					u32 rel = r_buf_read_le32 (reader->file_buffer);
 					instruction.switch_jump_table[i] = (u32)original_pos + rel;
 				}
-				if (!fail) {
-					read_ok = true;
-				}
+				read_ok = true;
 			}
 
 			/* Restore file position */
-			_hbc_buffer_reader_seek (&reader->file_buffer, saved_pos);
+			r_buf_seek (reader->file_buffer, saved_pos, R_BUF_SET);
 
 			if (!read_ok) {
 				/* Fill with safe defaults */
@@ -443,10 +408,12 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 		result = _hbc_parsed_instruction_list_add (out_instructions, &instruction);
 		if (result.code != RESULT_SUCCESS) {
 			_hbc_parsed_instruction_list_free (out_instructions);
+			r_unref (bytecode_buffer);
 			return result;
 		}
 	}
 
+	r_unref (bytecode_buffer);
 	return SUCCESS_RESULT ();
 }
 

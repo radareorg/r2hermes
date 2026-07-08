@@ -99,9 +99,7 @@ if r2_util.found()
 endif
 
 # Library source files
-lib_utils_src = files(
-  'src/lib/utils/buffer_reader.c',
-)
+lib_utils_src = []
 
 lib_parsers_src = files(
   'src/lib/parsers/hbc_file_parser.c',

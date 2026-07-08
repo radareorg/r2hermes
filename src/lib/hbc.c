@@ -62,11 +62,11 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 		return res;
 	}
 
-	res = _hbc_buffer_reader_init_from_memory (&hbc->reader.file_buffer, data, size);
-	if (res.code != RESULT_SUCCESS) {
+	hbc->reader.file_buffer = r_buf_new_with_bytes (data, size);
+	if (!hbc->reader.file_buffer) {
 		_hbc_reader_cleanup (&hbc->reader);
 		free (hbc);
-		return res;
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate buffer");
 	}
 
 	/* Parse header and all sections */
@@ -491,7 +491,7 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 	}
 	*out_ptr = NULL;
 	*out_size = 0;
-	if (!hbc->reader.file_buffer.data || !hbc->reader.function_headers) {
+	if (!hbc->reader.file_buffer || !hbc->reader.file_buffer->rb_bytes || !hbc->reader.file_buffer->rb_bytes->buf || !hbc->reader.function_headers) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Bytecode data is not loaded");
 	}
 	if (function_id >= hbc->reader.header.functionCount) {
@@ -504,10 +504,11 @@ Result hbc_get_function_bytecode(HBC *hbc, u32 function_id, const u8 **out_ptr, 
 	if (size == 0) {
 		size = _hbc_reader_resolve_deduped_size (&hbc->reader, fh);
 	}
-	if (fh->offset > hbc->reader.file_buffer.size || size > hbc->reader.file_buffer.size - fh->offset) {
+	ut64 file_size = r_buf_size (hbc->reader.file_buffer);
+	if (fh->offset > file_size || size > file_size - fh->offset) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Function bytecode range is out of bounds");
 	}
-	*out_ptr = hbc->reader.file_buffer.data + fh->offset;
+	*out_ptr = hbc->reader.file_buffer->rb_bytes->buf + fh->offset;
 	*out_size = size;
 	return SUCCESS_RESULT ();
 }

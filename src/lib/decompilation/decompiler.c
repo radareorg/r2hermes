@@ -73,33 +73,27 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 	if (function_header->offset == 0) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset is zero");
 	}
-	if (function_header->offset >= reader->file_buffer.size) {
+	if (function_header->offset >= r_buf_size (reader->file_buffer)) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
 	}
-	if (function_header->bytecodeSizeInBytes > reader->file_buffer.size - function_header->offset) {
+	if (function_header->bytecodeSizeInBytes > r_buf_size (reader->file_buffer) - function_header->offset) {
 		/* Truncate to file size */
-		function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
+		function_header->bytecodeSizeInBytes = r_buf_size (reader->file_buffer) - function_header->offset;
 	}
 
 	function_header->bytecode = (u8 *)malloc (function_header->bytecodeSizeInBytes);
 	if (!function_header->bytecode) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 	}
-	size_t saved = reader->file_buffer.position;
-	Result sr = _hbc_buffer_reader_seek (&reader->file_buffer, function_header->offset);
-	if (sr.code != RESULT_SUCCESS) {
+	size_t saved = r_buf_tell (reader->file_buffer);
+	r_buf_seek (reader->file_buffer, function_header->offset, R_BUF_SET);
+	if ((u32)r_buf_read (reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes) != function_header->bytecodeSizeInBytes) {
 		free (function_header->bytecode);
 		function_header->bytecode = NULL;
-		reader->file_buffer.position = saved;
-		return sr;
+		r_buf_seek (reader->file_buffer, saved, R_BUF_SET);
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to read bytecode");
 	}
-	sr = _hbc_buffer_reader_read_bytes (&reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes);
-	reader->file_buffer.position = saved;
-	if (sr.code != RESULT_SUCCESS) {
-		free (function_header->bytecode);
-		function_header->bytecode = NULL;
-		return sr;
-	}
+	r_buf_seek (reader->file_buffer, saved, R_BUF_SET);
 	return SUCCESS_RESULT ();
 }
 

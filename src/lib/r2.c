@@ -13,6 +13,26 @@ static void sanitize_identifier(const char *src, char *dst, size_t dst_size) {
 	dst[out] = '\0';
 }
 
+static Result rbuf_seek_checked(RBuffer *buf, ut64 offset) {
+	if (!buf || offset > r_buf_size (buf)) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Seek position beyond buffer size");
+	}
+	r_buf_seek (buf, offset, R_BUF_SET);
+	return SUCCESS_RESULT ();
+}
+
+static Result rbuf_align(RBuffer *buf, size_t alignment) {
+	if (!buf || alignment == 0) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid align arguments");
+	}
+	ut64 aligned = R_ROUND (r_buf_tell (buf), alignment);
+	if (aligned > r_buf_size (buf)) {
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Buffer overflow in align");
+	}
+	r_buf_seek (buf, aligned, R_BUF_SET);
+	return SUCCESS_RESULT ();
+}
+
 Result _hbc_generate_r2_script(const char *input_file, const char *output_file) {
 	if (!input_file) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Input file is NULL");
@@ -69,7 +89,7 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 	/* ================= ROBUST FUNCTION PARSING ================= */
 
 	/* Align buffer */
-	result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
+	result = rbuf_align (reader.file_buffer, 4);
 	if (result.code != RESULT_SUCCESS) {
 		fprintf (stderr, "Warning: Error aligning buffer for functions: %s\n", result.error_message);
 		fprintf (out, "# Warning: Error aligning buffer for functions: %s\n", result.error_message);
@@ -86,12 +106,12 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 		function_count = MAX_SAFE_FUNCTIONS;
 	}
 
-	fprintf (stderr, "Reading functions at position %zu of %zu bytes.\n", reader.file_buffer.position, reader.file_buffer.size);
-	fprintf (out, "# Reading %u functions from position 0x%zx\n", function_count, reader.file_buffer.position);
+	fprintf (stderr, "Reading functions at position %zu of %zu bytes.\n", (size_t)r_buf_tell (reader.file_buffer), (size_t)r_buf_size (reader.file_buffer));
+	fprintf (out, "# Reading %u functions from position 0x%zx\n", function_count, (size_t)r_buf_tell (reader.file_buffer));
 
 	/* Check for reasonable function count vs file size */
 	size_t min_bytes_needed = function_count * 16; /* Each header is at least 16 bytes */
-	if (reader.file_buffer.position + min_bytes_needed > reader.file_buffer.size) {
+	if (r_buf_tell (reader.file_buffer) + min_bytes_needed > r_buf_size (reader.file_buffer)) {
 		fprintf (stderr, "Warning: File might be truncated. Need ~%zu more bytes for function headers.\n", min_bytes_needed);
 		fprintf (out, "# Warning: File appears too small for %u functions, may only read partial data\n", function_count);
 	}
@@ -130,36 +150,20 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 	}
 
 	/* Print current position in case we have issues */
-	fprintf (stderr, "Function section start position: %zu\n", reader.file_buffer.position);
+	fprintf (stderr, "Function section start position: %zu\n", (size_t)r_buf_tell (reader.file_buffer));
 
 	/* Read all function headers directly from the buffer */
 	for (u32 i = 0; i < function_count; i++) {
 		/* Safety check - ensure we have enough buffer for a function header (16 bytes) */
-		if (reader.file_buffer.position + 16 > reader.file_buffer.size) {
+		if (r_buf_tell (reader.file_buffer) + 16 > r_buf_size (reader.file_buffer)) {
 			fprintf (stderr, "Reached end of file after reading %zu of %u functions\n", successful_functions, function_count);
 			break; /* End reading if we reach end of buffer */
 		}
 
-		/* Track position in case we need to restore it */
-		size_t start_position = reader.file_buffer.position;
-
 		/* Read function header raw data with explicit error handling */
 		u32 raw_data[4];
-		bool header_read_failed = false;
-
 		for (int j = 0; j < 4; j++) {
-			Result res = _hbc_buffer_reader_read_u32 (&reader.file_buffer, &raw_data[j]);
-			if (res.code != RESULT_SUCCESS) {
-				fprintf (stderr, "Error reading function %u header word %d: %s\n", i, j, res.error_message);
-				header_read_failed = true;
-				break;
-			}
-		}
-
-		if (header_read_failed) {
-			/* Restore position and break */
-			_hbc_buffer_reader_seek (&reader.file_buffer, start_position);
-			break;
+			raw_data[j] = r_buf_read_le32 (reader.file_buffer);
 		}
 
 		/* Extract fields from raw data based on the Python implementation */
@@ -178,7 +182,7 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 		 */
 
 		/* Skip if offset is invalid or outside file bounds */
-		if (offset == 0 || offset >= reader.file_buffer.size) {
+		if (offset == 0 || offset >= r_buf_size (reader.file_buffer)) {
 			/* Skip this function silently */
 			continue;
 		}
@@ -243,37 +247,37 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 
 	/* First try to locate and read the string tables */
 	/* Reset file position */
-	if (_hbc_buffer_reader_seek (&reader.file_buffer, sizeof (HBCHeader)).code == RESULT_SUCCESS) {
+	if (rbuf_seek_checked (reader.file_buffer, sizeof (HBCHeader)).code == RESULT_SUCCESS) {
 		/* Skip over functions section */
 		u32 function_headers_bytes = reader.header.functionCount * 16; /* 16 bytes per small header */
-		result = _hbc_buffer_reader_seek (&reader.file_buffer, reader.file_buffer.position + function_headers_bytes);
+		result = rbuf_seek_checked (reader.file_buffer, r_buf_tell (reader.file_buffer) + function_headers_bytes);
 
 		if (result.code == RESULT_SUCCESS) {
 			/* Align for string kinds */
-			result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
+			result = rbuf_align (reader.file_buffer, 4);
 			if (result.code == RESULT_SUCCESS) {
 				/* Skip over string kinds section */
 				if (reader.header.stringKindCount > 0) {
-					result = _hbc_buffer_reader_seek (&reader.file_buffer,
-						reader.file_buffer.position + reader.header.stringKindCount * sizeof (u32));
+					result = rbuf_seek_checked (reader.file_buffer,
+						r_buf_tell (reader.file_buffer) + reader.header.stringKindCount * sizeof (u32));
 				}
 
 				if (result.code == RESULT_SUCCESS) {
 					/* Skip over identifier hashes section */
 					if (reader.header.identifierCount > 0) {
-						result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
+						result = rbuf_align (reader.file_buffer, 4);
 						if (result.code == RESULT_SUCCESS) {
-							result = _hbc_buffer_reader_seek (&reader.file_buffer,
-								reader.file_buffer.position + reader.header.identifierCount * sizeof (u32));
+							result = rbuf_seek_checked (reader.file_buffer,
+								r_buf_tell (reader.file_buffer) + reader.header.identifierCount * sizeof (u32));
 						}
 					}
 
 					if (result.code == RESULT_SUCCESS) {
 						/* Prepare to read string tables */
-						result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
+						result = rbuf_align (reader.file_buffer, 4);
 
 						if (result.code == RESULT_SUCCESS && reader.header.stringCount > 0) {
-							fprintf (stderr, "Reading string tables at position %zu\n", reader.file_buffer.position);
+							fprintf (stderr, "Reading string tables at position %zu\n", (size_t)r_buf_tell (reader.file_buffer));
 
 							/* Allocate storage for string info */
 							u32 safe_string_count = reader.header.stringCount;
@@ -288,12 +292,11 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 								/* Read the small string table entries */
 								bool read_success = true;
 								for (u32 i = 0; i < safe_string_count; i++) {
-									u32 entry;
-									result = _hbc_buffer_reader_read_u32 (&reader.file_buffer, &entry);
-									if (result.code != RESULT_SUCCESS) {
+									if (r_buf_tell (reader.file_buffer) + sizeof (u32) > r_buf_size (reader.file_buffer)) {
 										read_success = false;
 										break;
 									}
+									u32 entry = r_buf_read_le32 (reader.file_buffer);
 
 									/* Parse entry fields */
 									string_infos[i].isUTF16 = entry & 0x1;
@@ -303,18 +306,18 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 
 								/* Skip overflow string table if present */
 								if (read_success && reader.header.overflowStringCount > 0) {
-									result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
+									result = rbuf_align (reader.file_buffer, 4);
 									if (result.code == RESULT_SUCCESS) {
 										/* Skip past each overflow entry (8 bytes each) */
-										result = _hbc_buffer_reader_seek (&reader.file_buffer,
-											reader.file_buffer.position + reader.header.overflowStringCount * 8);
+										result = rbuf_seek_checked (reader.file_buffer,
+											r_buf_tell (reader.file_buffer) + reader.header.overflowStringCount * 8);
 									}
 								}
 
 								/* Now read the actual string data */
 								if (read_success && result.code == RESULT_SUCCESS) {
 									/* Align buffer for string storage */
-									result = _hbc_buffer_reader_align (&reader.file_buffer, 4);
+									result = rbuf_align (reader.file_buffer, 4);
 									if (result.code == RESULT_SUCCESS && reader.header.stringStorageSize > 0) {
 										/* Safety check - limit large string storage */
 										size_t storage_size = reader.header.stringStorageSize;
@@ -323,13 +326,12 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 										}
 
 										/* Make sure we have room to read */
-										if (reader.file_buffer.position + storage_size <= reader.file_buffer.size) {
+										if (r_buf_tell (reader.file_buffer) + storage_size <= r_buf_size (reader.file_buffer)) {
 											/* Allocate space for string storage */
 											string_storage = (u8 *)malloc (storage_size);
 											if (string_storage) {
 												/* Read entire string storage section */
-												result = _hbc_buffer_reader_read_bytes (&reader.file_buffer, string_storage, storage_size);
-												if (result.code == RESULT_SUCCESS) {
+												if ((size_t)r_buf_read (reader.file_buffer, string_storage, storage_size) == storage_size) {
 													string_storage_size = storage_size;
 													strings_parsed = true;
 													fprintf (stderr, "Successfully read %zu bytes of string data\n", storage_size);
@@ -392,7 +394,7 @@ Result _hbc_generate_r2_script(const char *input_file, const char *output_file) 
 			snprintf (unique_name, sizeof (unique_name), "%s_%u", sanitized_name[0]? sanitized_name: "str", i);
 
 			/* Write the string flag - offset is relative to string storage base */
-			uint32_t addr = (unsigned long) (reader.file_buffer.position - string_storage_size + offset);
+			uint32_t addr = (unsigned long) (r_buf_tell (reader.file_buffer) - string_storage_size + offset);
 			fprintf (out, "'f str.%s %u 0x%08x\n", unique_name, length * bpc, addr);
 #if 0
 	/* Add flag for string length */

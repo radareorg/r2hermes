@@ -213,7 +213,7 @@ struct BytecodeModule {
 /* Main HBC reader structure */
 struct HBCReader {
 	/* File data */
-	BufferReader file_buffer;
+	RBuffer *file_buffer;
 
 	/* Parsed header and tables */
 	HBCHeader header;
