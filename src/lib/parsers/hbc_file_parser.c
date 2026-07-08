@@ -17,8 +17,9 @@ static void unpack_function_flags(FunctionHeader *h, u8 flags) {
 
 /* Initialize HBC reader */
 Result _hbc_reader_init(HBCReader *reader) {
-	R_RETURN_VAL_IF_FAIL (reader,
-		ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL"));
+	if (!reader) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
+	}
 	memset (reader, 0, sizeof (HBCReader));
 	return SUCCESS_RESULT ();
 }
@@ -670,11 +671,11 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Reader is NULL");
 	}
 
-	R_LOG_DEBUG ("Reading identifier hashes at position %zu", reader->file_buffer.position);
+	hbc_debug_printf ("Reading identifier hashes at position %zu\n", reader->file_buffer.position);
 
 	/* Sanity check on identifier count */
 	if (reader->header.identifierCount > 1000000) { /* 1M limit */
-		R_LOG_WARN ("Very large identifier count (%u), may be corrupted",
+		hbc_debug_printf ("Very large identifier count (%u), may be corrupted\n",
 			reader->header.identifierCount);
 		/* We'll still attempt to read, but we'll be cautious */
 	}
@@ -685,7 +686,7 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 	size_t bytes_needed = 0;
 	RETURN_IF_ERROR (checked_count_size (reader->header.identifierCount, sizeof (u32), &bytes_needed, "Identifier hash table is too large"));
 	if (!has_remaining_bytes (&reader->file_buffer, bytes_needed)) {
-		R_LOG_WARN ("File too small for %u identifiers, truncating",
+		hbc_debug_printf ("File too small for %u identifiers, truncating\n",
 			reader->header.identifierCount);
 		/* Adjust the identifier count to what we can safely read */
 		u32 max_identifiers = remaining_bytes (&reader->file_buffer) / sizeof (u32);
@@ -1267,7 +1268,7 @@ Result _hbc_reader_read_bigints(HBCReader *reader) {
 	}
 
 	reader->bigint_count = reader->header.bigIntCount;
-	R_LOG_DEBUG ("Successfully processed %zu BigInt values", reader->bigint_count);
+	hbc_debug_printf ("Successfully processed %zu BigInt values\n", reader->bigint_count);
 
 	/* Free temporary storage */
 	free (bigint_table);

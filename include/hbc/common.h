@@ -11,7 +11,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <r_vec.h>
 
 #if defined(_WIN32) && defined(HBC_BUILD_SHARED)
 #define HBC_API __declspec (dllexport)

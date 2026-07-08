@@ -1198,7 +1198,7 @@ int main(int argc, char **argv) {
 	const Command *cmd = find_command (argv[1]);
 	if (!cmd) {
 		print_usage (ctx.program_name);
-		eprintf ("Unknown command: %s", argv[1]);
+		fprintf (stderr, "Error: Unknown command: %s\n", argv[1]);
 		return 1;
 	}
 	int rest_argc = argc - 2;
@@ -1208,7 +1208,7 @@ int main(int argc, char **argv) {
 		r = cmd->handler (&ctx, rest_argc, rest_argv);
 	}
 	if (r.code != RESULT_SUCCESS) {
-		eprintf ("%s", r.error_message[0]? r.error_message: "Unknown error");
+		fprintf (stderr, "Error: %s\n", r.error_message[0]? r.error_message: "Unknown error");
 		return 1;
 	}
 	return 0;

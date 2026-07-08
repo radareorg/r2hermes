@@ -6,6 +6,7 @@
 #include <hbc/hbc.h>
 #include <hbc/parser.h>
 #include <hbc/literals.h>
+#include <hbc/vec.h>
 #include <stdlib.h>
 #include <string.h>
 

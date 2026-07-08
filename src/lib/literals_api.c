@@ -176,6 +176,10 @@ static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, 
 		return SUCCESS_RESULT ();
 	}
 	e = RVecHBCLiteralEntry_emplace_back (&hbc->lit_cache.entries);
+	if (!e) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
+	}
+	memset (e, 0, sizeof (*e));
 	e->kind = kind;
 	e->num_items = num_items;
 	e->primary_id = primary_id;
