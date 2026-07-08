@@ -38,7 +38,20 @@ configure_file(
 
 # Include directories
 include_dirs = include_directories('include')
-r_util = dependency('r_util', include_type: 'system')
+cc = meson.get_compiler('c')
+r_util = dependency('r_util', include_type: 'system', required: false)
+if not r_util.found()
+  r2_cflags = run_command('r2pm', '-H', 'R2_CFLAGS', check: false)
+  r2_ldflags = run_command('r2pm', '-H', 'R2_LDFLAGS', check: false)
+  if r2_cflags.returncode() == 0 and r2_ldflags.returncode() == 0
+    r_util = declare_dependency(
+      compile_args: r2_cflags.stdout().strip().split(),
+      link_args: r2_ldflags.stdout().strip().split(),
+    )
+  else
+    r_util = cc.find_library('r_util', required: true)
+  endif
+endif
 
 # Library source files
 lib_utils_src = files(
