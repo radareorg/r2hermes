@@ -258,7 +258,7 @@ static Result emit_switch_block(HermesDecompiler *state, StringBuffer *out, cons
 	return _hbc_sb_append (out, "}\n");
 }
 
-static Result token_string_clear_tokens(TokenString *ts) {
+static Result token_string_clear_tokens(HbcTokenString *ts) {
 	if (!ts) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "token_string_clear_tokens: ts NULL");
 	}
@@ -334,8 +334,8 @@ static bool dowhile_is_back_edge(const DecompiledFunctionBody *fb, u32 pos) {
 	return false;
 }
 
-static bool jump_is_unconditional(const Token *head);
-static u32 jump_target_of(const Token *head);
+static bool jump_is_unconditional(const HbcToken *head);
+static u32 jump_target_of(const HbcToken *head);
 
 static Environment *envmap_get(const DecompiledFunctionBody *fb, int reg) {
 	if (!fb || reg < 0) {
@@ -625,11 +625,11 @@ void _hbc_function_body_cleanup(DecompiledFunctionBody *body) {
 	}
 	RVecEnvironmentPtr_fini (&body->owned_environments);
 	free (body->local_items);
-	TokenString *statement;
+	HbcTokenString *statement;
 	R_VEC_FOREACH (&body->statements, statement) {
 		_hbc_token_string_cleanup (statement);
 	}
-	RVecTokenString_fini (&body->statements);
+	RVecHbcTokenString_fini (&body->statements);
 	_hbc_parsed_instruction_list_free (&body->instructions);
 	memset (body, 0, sizeof (*body));
 }
@@ -1035,16 +1035,16 @@ static void bbvec_push_unique(RVecBasicBlockPtr *vec, BasicBlock *bb) {
 	}
 }
 
-static bool token_needs_space(TokenType prev, TokenType cur) {
-	if (cur == TOKEN_TYPE_LEFT_PARENTHESIS) {
+static bool token_needs_space(HbcTokenType prev, HbcTokenType cur) {
+	if (cur == HBC_TOKEN_TYPE_LEFT_PARENTHESIS) {
 		/* No space in calls like r1 (args) */
-		return prev != TOKEN_TYPE_RIGHT_HAND_REG && prev != TOKEN_TYPE_LEFT_HAND_REG;
+		return prev != HBC_TOKEN_TYPE_RIGHT_HAND_REG && prev != HBC_TOKEN_TYPE_LEFT_HAND_REG;
 	}
 	/* No space before other punctuation nor after '(' or '.' */
-	if (cur == TOKEN_TYPE_RIGHT_PARENTHESIS || cur == TOKEN_TYPE_DOT_ACCESSOR) {
+	if (cur == HBC_TOKEN_TYPE_RIGHT_PARENTHESIS || cur == HBC_TOKEN_TYPE_DOT_ACCESSOR) {
 		return false;
 	}
-	return prev != TOKEN_TYPE_LEFT_PARENTHESIS && prev != TOKEN_TYPE_DOT_ACCESSOR;
+	return prev != HBC_TOKEN_TYPE_LEFT_PARENTHESIS && prev != HBC_TOKEN_TYPE_DOT_ACCESSOR;
 }
 
 Result _hbc_pass1_set_metadata(HermesDecompiler *state, DecompiledFunctionBody *function_body) {
@@ -1283,7 +1283,7 @@ Result _hbc_pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody
 	int ast_budget = state->options.max_ast_statements;
 	for (u32 i = 0; i < function_body->instructions.count; i++) {
 		/* AST-size cap: bail mid-build so pass3/4 and output stay cheap. */
-		if (ast_budget > 0 && (u32)RVecTokenString_length (&function_body->statements) >= (u32)ast_budget) {
+		if (ast_budget > 0 && (u32)RVecHbcTokenString_length (&function_body->statements) >= (u32)ast_budget) {
 			state->output_truncated = true;
 			break;
 		}
@@ -1291,13 +1291,13 @@ Result _hbc_pass2_transform_code(HermesDecompiler *state, DecompiledFunctionBody
 		if (!ins->inst) {
 			continue;
 		}
-		TokenString ts;
+		HbcTokenString ts;
 		Result tr = _hbc_translate_instruction_to_tokens (ins, &ts);
 		if (tr.code != RESULT_SUCCESS) {
 			_hbc_token_string_cleanup (&ts);
 			return tr;
 		}
-		RVecTokenString_push_back (&function_body->statements, &ts);
+		RVecHbcTokenString_push_back (&function_body->statements, &ts);
 	}
 	return SUCCESS_RESULT ();
 }
@@ -1308,42 +1308,42 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "_hbc_pass3_parse_forin_loops args");
 	}
 	/* Recreate simple for..in structures (non-nested case) */
-	TokenString *line;
+	HbcTokenString *line;
 	R_VEC_FOREACH (&function_body->statements, line) {
 		size_t i = (size_t) (line - R_VEC_START_ITER (&function_body->statements));
-		if (!line->head || line->head->type != TOKEN_TYPE_FOR_IN_LOOP_INIT) {
+		if (!line->head || line->head->type != HBC_TOKEN_TYPE_FOR_IN_LOOP_INIT) {
 			continue;
 		}
 		u32 other = 0;
 		bool found = false;
-		for (TokenString *jt = R_VEC_START_ITER (&function_body->statements); jt != R_VEC_END_ITER (&function_body->statements); jt++) {
+		for (HbcTokenString *jt = R_VEC_START_ITER (&function_body->statements); jt != R_VEC_END_ITER (&function_body->statements); jt++) {
 			size_t j = (size_t) (jt - R_VEC_START_ITER (&function_body->statements));
 			if (j < i) {
 				continue;
 			}
-			if (jt->head && jt->head->type == TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER) {
+			if (jt->head && jt->head->type == HBC_TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER) {
 				other = j;
 				found = true;
 				break;
 			}
 		}
-		if (!found || other + 1 >= (u32)RVecTokenString_length (&function_body->statements) || i + 2 >= (u32)RVecTokenString_length (&function_body->statements)) {
+		if (!found || other + 1 >= (u32)RVecHbcTokenString_length (&function_body->statements) || i + 2 >= (u32)RVecHbcTokenString_length (&function_body->statements)) {
 			continue;
 		}
-		TokenString *j1 = RVecTokenString_at (&function_body->statements, i + 1);
-		TokenString *j2 = RVecTokenString_at (&function_body->statements, other + 1);
+		HbcTokenString *j1 = RVecHbcTokenString_at (&function_body->statements, i + 1);
+		HbcTokenString *j2 = RVecHbcTokenString_at (&function_body->statements, other + 1);
 		if (!j1->head || !j2->head) {
 			continue;
 		}
-		if (j1->head->type != TOKEN_TYPE_JUMP_NOT_CONDITION || j2->head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) {
+		if (j1->head->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION || j2->head->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) {
 			continue; /* nested/weird cases not handled yet */
 		}
-		ParsedInstruction *begin_ins = RVecTokenString_at (&function_body->statements, i + 2)->assembly;
+		ParsedInstruction *begin_ins = RVecHbcTokenString_at (&function_body->statements, i + 2)->assembly;
 		if (!begin_ins) {
 			continue;
 		}
 		u32 begin_address = begin_ins->original_pos;
-		u32 end_address = ((JumpNotConditionToken *)j2->head)->target_address;
+		u32 end_address = ((HbcJumpNotConditionToken *)j2->head)->target_address;
 		if (end_address <= begin_address) {
 			continue;
 		}
@@ -1351,9 +1351,9 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 		NestedFrame frame = nested_frame (begin_address, end_address);
 		RVecNestedFrame_push_back (&function_body->nested_frames, &frame);
 
-		ForInLoopInitToken *fili = (ForInLoopInitToken *)line->head;
-		ForInLoopNextIterToken *filni = (ForInLoopNextIterToken *)RVecTokenString_at (&function_body->statements, other)->head;
-		if (!filni || RVecTokenString_at (&function_body->statements, other)->head->type != TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER) {
+		HbcForInLoopInitToken *fili = (HbcForInLoopInitToken *)line->head;
+		HbcForInLoopNextIterToken *filni = (HbcForInLoopNextIterToken *)RVecHbcTokenString_at (&function_body->statements, other)->head;
+		if (!filni || RVecHbcTokenString_at (&function_body->statements, other)->head->type != HBC_TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER) {
 			continue;
 		}
 		int next_value_register = filni->next_value_register;
@@ -1361,16 +1361,16 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 
 		/* Replace GetPNameList line with a `for (<next> in <obj>)` header */
 		RETURN_IF_ERROR (token_string_clear_tokens (line));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("for")));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_parenthesis_token ()));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_left_hand_reg_token (next_value_register)));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("in")));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (obj_register)));
-		RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_parenthesis_token ()));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_raw ("for")));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_left_parenthesis ()));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_left_hand_reg (next_value_register)));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_raw ("in")));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_right_hand_reg (obj_register)));
+		RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_right_parenthesis ()));
 
 		/* Silence the loop plumbing instructions */
 		RETURN_IF_ERROR (token_string_clear_tokens (j1));
-		RETURN_IF_ERROR (token_string_clear_tokens (RVecTokenString_at (&function_body->statements, other)));
+		RETURN_IF_ERROR (token_string_clear_tokens (RVecHbcTokenString_at (&function_body->statements, other)));
 		RETURN_IF_ERROR (token_string_clear_tokens (j2));
 
 		/* The loop top is a `continue` target (no label, jumps render as
@@ -1378,7 +1378,7 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 		 * a plain loop. */
 		RVecHBCU32_push_back (&function_body->forin_continue_targets, &begin_address);
 		u32 back_edge = UINT32_MAX;
-		for (TokenString *st = R_VEC_START_ITER (&function_body->statements); st != R_VEC_END_ITER (&function_body->statements); st++) {
+		for (HbcTokenString *st = R_VEC_START_ITER (&function_body->statements); st != R_VEC_END_ITER (&function_body->statements); st++) {
 			size_t k = (size_t) (st - R_VEC_START_ITER (&function_body->statements));
 			if (k <= i) {
 				continue;
@@ -1390,13 +1390,13 @@ Result _hbc_pass3_parse_forin_loops(HermesDecompiler *state, DecompiledFunctionB
 			if (pos < begin_address || pos >= end_address) {
 				continue;
 			}
-			if ((st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			if ((st->head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || st->head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 				jump_is_unconditional (st->head) && jump_target_of (st->head) == begin_address) {
 				back_edge = k;
 			}
 		}
 		if (back_edge != UINT32_MAX) {
-			RETURN_IF_ERROR (token_string_clear_tokens (RVecTokenString_at (&function_body->statements, back_edge)));
+			RETURN_IF_ERROR (token_string_clear_tokens (RVecHbcTokenString_at (&function_body->statements, back_edge)));
 		}
 	}
 	return SUCCESS_RESULT ();
@@ -1409,25 +1409,25 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 	}
 	Environment *parent_environment = function_body->parent_environment;
 
-	TokenString *line;
+	HbcTokenString *line;
 	R_VEC_FOREACH (&function_body->statements, line) {
-		for (Token *tok = line->head; tok; tok = tok->next) {
-			if (tok->type == TOKEN_TYPE_NEW_ENVIRONMENT) {
-				NewEnvironmentToken *t = (NewEnvironmentToken *)tok;
+		for (HbcToken *tok = line->head; tok; tok = tok->next) {
+			if (tok->type == HBC_TOKEN_TYPE_NEW_ENVIRONMENT) {
+				HbcNewEnvironmentToken *t = (HbcNewEnvironmentToken *)tok;
 				Environment *env = env_new (function_body, parent_environment);
 				RETURN_IF_ERROR (envmap_set (function_body, t->reg_num, env));
 				RETURN_IF_ERROR (token_string_clear_tokens (line));
 				break;
-			} else if (tok->type == TOKEN_TYPE_NEW_INNER_ENVIRONMENT) {
-				NewInnerEnvironmentToken *t = (NewInnerEnvironmentToken *)tok;
+			} else if (tok->type == HBC_TOKEN_TYPE_NEW_INNER_ENVIRONMENT) {
+				HbcNewInnerEnvironmentToken *t = (HbcNewInnerEnvironmentToken *)tok;
 				Environment *outer = envmap_get (function_body, t->parent_register);
 				if (!outer) {
 					continue;
 				}
 				Environment *env = env_new (function_body, outer);
 				RETURN_IF_ERROR (envmap_set (function_body, t->dest_register, env));
-			} else if (tok->type == TOKEN_TYPE_GET_ENVIRONMENT) {
-				GetEnvironmentToken *t = (GetEnvironmentToken *)tok;
+			} else if (tok->type == HBC_TOKEN_TYPE_GET_ENVIRONMENT) {
+				HbcGetEnvironmentToken *t = (HbcGetEnvironmentToken *)tok;
 				Environment *env = parent_environment;
 				for (int n = 0; env && n < t->nesting_level; n++) {
 					env = env->parent_environment;
@@ -1441,8 +1441,8 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				RETURN_IF_ERROR (envmap_set (function_body, t->reg_num, env));
 				RETURN_IF_ERROR (token_string_clear_tokens (line));
 				break;
-			} else if (tok->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
-				FunctionTableIndexToken *t = (FunctionTableIndexToken *)tok;
+			} else if (tok->type == HBC_TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
+				HbcFunctionTableIndexToken *t = (HbcFunctionTableIndexToken *)tok;
 				t->state = state;
 				if (t->environment_id >= 0) {
 					Environment *env = envmap_get (function_body, t->environment_id);
@@ -1450,8 +1450,8 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 						t->parent_environment = env;
 					}
 				}
-			} else if (tok->type == TOKEN_TYPE_STORE_TO_ENVIRONMENT) {
-				StoreToEnvironmentToken *t = (StoreToEnvironmentToken *)tok;
+			} else if (tok->type == HBC_TOKEN_TYPE_STORE_TO_ENVIRONMENT) {
+				HbcStoreToEnvironmentToken *t = (HbcStoreToEnvironmentToken *)tok;
 				int value_register = t->value_register;
 				Environment *env = envmap_get (function_body, t->env_register);
 				if (!env) {
@@ -1467,14 +1467,14 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 				/* Only the function's own created env declares new vars; a write
 				 * to a captured parent scope is a plain assignment. */
 				if (first && env->captured_level < 0) {
-					RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token ("var")));
+					RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_raw ("var")));
 				}
-				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_raw_token (existing)));
-				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_assignment_token ()));
-				RETURN_IF_ERROR (_hbc_token_string_add_token (line, create_right_hand_reg_token (value_register)));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_raw (existing)));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_assignment ()));
+				RETURN_IF_ERROR (_hbc_token_string_add_token (line, hbc_token_new_right_hand_reg (value_register)));
 				break;
-			} else if (tok->type == TOKEN_TYPE_LOAD_FROM_ENVIRONMENT) {
-				LoadFromEnvironmentToken *t = (LoadFromEnvironmentToken *)tok;
+			} else if (tok->type == HBC_TOKEN_TYPE_LOAD_FROM_ENVIRONMENT) {
+				HbcLoadFromEnvironmentToken *t = (HbcLoadFromEnvironmentToken *)tok;
 				Environment *env = envmap_get (function_body, t->reg_num);
 				if (!env) {
 					continue;
@@ -1485,23 +1485,23 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
 					continue;
 				}
 				/* Replace this token with the resolved variable name */
-				RawToken *rt = (RawToken *)create_raw_token (existing);
+				HbcRawToken *rt = (HbcRawToken *)hbc_token_new_raw (existing);
 				if (!rt) {
 					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom token");
 				}
-				Token *next = tok->next;
-				Token *prev = NULL;
-				for (Token *it = line->head; it && it != tok; it = it->next) {
+				HbcToken *next = tok->next;
+				HbcToken *prev = NULL;
+				for (HbcToken *it = line->head; it && it != tok; it = it->next) {
 					prev = it;
 				}
 				if (prev) {
-					prev->next = (Token *)rt;
+					prev->next = (HbcToken *)rt;
 				} else {
-					line->head = (Token *)rt;
+					line->head = (HbcToken *)rt;
 				}
-				((Token *)rt)->next = next;
+				((HbcToken *)rt)->next = next;
 				if (line->tail == tok) {
-					line->tail = (Token *)rt;
+					line->tail = (HbcToken *)rt;
 				}
 				_hbc_token_free (tok);
 				break;
@@ -1516,12 +1516,12 @@ Result _hbc_pass4_name_closure_vars(HermesDecompiler *state, DecompiledFunctionB
  * can be eliminated.
  */
 static Result identify_dead_assignments(DecompiledFunctionBody *function_body, bool **dce_out) {
-	if (!function_body || (u32)RVecTokenString_length (&function_body->statements) == 0) {
+	if (!function_body || (u32)RVecHbcTokenString_length (&function_body->statements) == 0) {
 		*dce_out = NULL;
 		return SUCCESS_RESULT ();
 	}
 
-	bool *dce = (bool *)calloc ((u32)RVecTokenString_length (&function_body->statements), sizeof (bool));
+	bool *dce = (bool *)calloc ((u32)RVecHbcTokenString_length (&function_body->statements), sizeof (bool));
 	if (!dce) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom dce");
 	}
@@ -1534,8 +1534,8 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 	}
 
 	/* Scan statements in reverse to find register usage */
-	size_t si = RVecTokenString_length (&function_body->statements);
-	TokenString *st;
+	size_t si = RVecHbcTokenString_length (&function_body->statements);
+	HbcTokenString *st;
 	R_VEC_FOREACH_PREV (&function_body->statements, st) {
 		si--;
 		if (!st->head) {
@@ -1543,16 +1543,16 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 		}
 
 		/* Detect if this is a pure assignment: starts with left-hand register token */
-		bool is_assignment = (st->head->type == TOKEN_TYPE_LEFT_HAND_REG);
+		bool is_assignment = (st->head->type == HBC_TOKEN_TYPE_LEFT_HAND_REG);
 		int written_reg_num = -1;
 
 		bool has_call = false;
 		bool has_jump = false;
-		for (Token *tok = st->head; tok; tok = tok->next) {
-			if (tok->type == TOKEN_TYPE_LEFT_PARENTHESIS) {
+		for (HbcToken *tok = st->head; tok; tok = tok->next) {
+			if (tok->type == HBC_TOKEN_TYPE_LEFT_PARENTHESIS) {
 				has_call = true;
 			}
-			if (tok->type == TOKEN_TYPE_JUMP_CONDITION || tok->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
+			if (tok->type == HBC_TOKEN_TYPE_JUMP_CONDITION || tok->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) {
 				has_jump = true;
 			}
 		}
@@ -1564,7 +1564,7 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 		}
 
 		if (is_assignment) {
-			LeftHandRegToken *lhr = (LeftHandRegToken *)st->head;
+			HbcLeftHandRegToken *lhr = (HbcLeftHandRegToken *)st->head;
 			written_reg_num = lhr->reg_num;
 
 			/* Mark as dead if it writes a register never read after this point */
@@ -1579,9 +1579,9 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 		}
 
 		/* Mark all registers read in this statement */
-		for (Token *tok = st->head; tok; tok = tok->next) {
-			if (tok->type == TOKEN_TYPE_RIGHT_HAND_REG) {
-				RightHandRegToken *rhr = (RightHandRegToken *)tok;
+		for (HbcToken *tok = st->head; tok; tok = tok->next) {
+			if (tok->type == HBC_TOKEN_TYPE_RIGHT_HAND_REG) {
+				HbcRightHandRegToken *rhr = (HbcRightHandRegToken *)tok;
 				if (rhr->reg_num >= 0 && rhr->reg_num < 256) {
 					register_read_after[rhr->reg_num] = true;
 				}
@@ -1596,19 +1596,19 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 
 /* True when a conditional-jump statement is unconditional (its condition is the
  * literal `true`/`false`, i.e. a plain goto). */
-static bool jump_is_unconditional(const Token *head) {
-	if (!head->next || head->next->type != TOKEN_TYPE_RAW || head->next->next) {
+static bool jump_is_unconditional(const HbcToken *head) {
+	if (!head->next || head->next->type != HBC_TOKEN_TYPE_RAW || head->next->next) {
 		return false;
 	}
-	const RawToken *rt = (const RawToken *)head->next;
+	const HbcRawToken *rt = (const HbcRawToken *)head->next;
 	return rt->text && (!strcmp (rt->text, "true") || !strcmp (rt->text, "false"));
 }
 
-static u32 jump_target_of(const Token *head) {
-	if (head->type == TOKEN_TYPE_JUMP_CONDITION) {
-		return ((const JumpConditionToken *)head)->target_address;
+static u32 jump_target_of(const HbcToken *head) {
+	if (head->type == HBC_TOKEN_TYPE_JUMP_CONDITION) {
+		return ((const HbcJumpConditionToken *)head)->target_address;
 	}
-	return ((const JumpNotConditionToken *)head)->target_address;
+	return ((const HbcJumpNotConditionToken *)head)->target_address;
 }
 
 typedef struct {
@@ -1628,12 +1628,12 @@ typedef struct {
 static u32 catch_region_end(DecompiledFunctionBody *fb, const bool *dce, u32 catch_start, u32 func_sz) {
 	u32 reach = catch_start;
 	bool prev_terminal = false;
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		TokenString *st = RVecTokenString_at (&fb->statements, si);
+		HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
 		if (!st->head || !st->assembly) {
 			continue;
 		}
@@ -1649,7 +1649,7 @@ static u32 catch_region_end(DecompiledFunctionBody *fb, const bool *dce, u32 cat
 			reach = a->next_pos;
 		}
 		bool uncond = false;
-		if (st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
+		if (st->head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || st->head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) {
 			u32 t = jump_target_of (st->head);
 			if (t > reach && t <= func_sz) {
 				reach = t;
@@ -1707,22 +1707,22 @@ static Result build_structured_catches(DecompiledFunctionBody *fb, const bool *d
 	for (u32 g = 0; g < ng; g++) {
 		StructuredCatch *p = &plans[g];
 		bool has_try_start = false;
-		for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+		for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 			size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 			if (dce && dce[si]) {
 				continue;
 			}
-			TokenString *st = RVecTokenString_at (&fb->statements, si);
+			HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
 			if (!st->head || !st->assembly) {
 				continue;
 			}
 			u32 pos = st->assembly->original_pos;
 			if (pos == p->try_start) {
 				has_try_start = true;
-			} else if (pos == p->catch_start && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
-				p->catch_reg = ((CatchBlockStartToken *)st->head)->arg_register;
+			} else if (pos == p->catch_start && st->head->type == HBC_TOKEN_TYPE_CATCH_BLOCK_START) {
+				p->catch_reg = ((HbcCatchBlockStartToken *)st->head)->arg_register;
 			} else if (pos == p->try_end &&
-				(st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+				(st->head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || st->head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 				jump_is_unconditional (st->head)) {
 				p->catch_end = jump_target_of (st->head);
 			}
@@ -1769,11 +1769,11 @@ static StructuredCatch *structured_catch_at(StructuredCatch *plans, u32 count, u
 	return NULL;
 }
 
-static bool raw_token_is(const Token *tok, const char *text) {
-	if (!tok || tok->type != TOKEN_TYPE_RAW) {
+static bool raw_token_is(const HbcToken *tok, const char *text) {
+	if (!tok || tok->type != HBC_TOKEN_TYPE_RAW) {
 		return false;
 	}
-	const RawToken *rt = (const RawToken *)tok;
+	const HbcRawToken *rt = (const HbcRawToken *)tok;
 	return rt->text && !strcmp (rt->text, text);
 }
 
@@ -1803,19 +1803,19 @@ static const char *negate_cmp_op(const char *op) {
  * so a comparison flips its operator (`a === b` <-> `a !== b`) and a plain term
  * negates with `!` — no `! (a === b)` double-negative artifacts. The condition
  * tokens are one of: `t`, `! t`, `a op b`, or `! ( a op b )`. */
-static Result append_condition_tokens(StringBuffer *out, Token *cond, bool invert) {
-	Token *c = cond;
+static Result append_condition_tokens(StringBuffer *out, HbcToken *cond, bool invert) {
+	HbcToken *c = cond;
 	bool neg = raw_token_is (c, "!") && c->next;
 	if (neg) {
 		c = c->next;
 	}
-	bool had_paren = c && c->type == TOKEN_TYPE_LEFT_PARENTHESIS;
-	Token *inner = had_paren? c->next: c;
+	bool had_paren = c && c->type == HBC_TOKEN_TYPE_LEFT_PARENTHESIS;
+	HbcToken *inner = had_paren? c->next: c;
 
 	/* Locate a comparison operator among the inner tokens. */
-	Token *op_tok = NULL;
-	for (Token *t = inner; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
-		if (t->type == TOKEN_TYPE_RAW && negate_cmp_op (((RawToken *)t)->text)) {
+	HbcToken *op_tok = NULL;
+	for (HbcToken *t = inner; t && t->type != HBC_TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
+		if (t->type == HBC_TOKEN_TYPE_RAW && negate_cmp_op (((HbcRawToken *)t)->text)) {
 			op_tok = t;
 			break;
 		}
@@ -1823,24 +1823,24 @@ static Result append_condition_tokens(StringBuffer *out, Token *cond, bool inver
 	const bool effective_neg = invert ^ neg;
 
 	if (op_tok) {
-		const char *op_text = ((RawToken *)op_tok)->text;
+		const char *op_text = ((HbcRawToken *)op_tok)->text;
 		const char *use_op = effective_neg? negate_cmp_op (op_text): op_text;
-		for (Token *t = inner; t && t != op_tok; t = t->next) {
+		for (HbcToken *t = inner; t && t != op_tok; t = t->next) {
 			RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 		}
 		RETURN_IF_ERROR (_hbc_sb_append (out, use_op));
-		for (Token *t = op_tok->next; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
+		for (HbcToken *t = op_tok->next; t && t->type != HBC_TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
 			RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 		}
 		return SUCCESS_RESULT ();
 	}
 
 	/* Single boolean term: negate with a bare `!` (wrap only if multi-token). */
-	bool multi = inner && inner->next && inner->next->type != TOKEN_TYPE_RIGHT_PARENTHESIS;
+	bool multi = inner && inner->next && inner->next->type != HBC_TOKEN_TYPE_RIGHT_PARENTHESIS;
 	if (effective_neg) {
 		RETURN_IF_ERROR (_hbc_sb_append (out, multi? "!(": "!"));
 	}
-	for (Token *t = inner; t && t->type != TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
+	for (HbcToken *t = inner; t && t->type != HBC_TOKEN_TYPE_RIGHT_PARENTHESIS; t = t->next) {
 		RETURN_IF_ERROR (_hbc_token_to_string (t, out));
 	}
 	if (effective_neg && multi) {
@@ -1850,7 +1850,7 @@ static Result append_condition_tokens(StringBuffer *out, Token *cond, bool inver
 }
 
 /* Emit one token, preceded by a space when the token pair requires it */
-static Result append_token_spaced(StringBuffer *out, Token *t, bool first, TokenType prev) {
+static Result append_token_spaced(StringBuffer *out, HbcToken *t, bool first, HbcTokenType prev) {
 	bool needs_space = !first && token_needs_space (prev, t->type);
 	/* Don't double up: many raw tokens already carry their own padding (`(`,
 	 * `, `, or operator patterns like ` >>> `), so skip the inserted space when
@@ -1861,8 +1861,8 @@ static Result append_token_spaced(StringBuffer *out, Token *t, bool first, Token
 			needs_space = false;
 		}
 	}
-	if (needs_space && t->type == TOKEN_TYPE_RAW) {
-		const RawToken *rt = (const RawToken *)t;
+	if (needs_space && t->type == HBC_TOKEN_TYPE_RAW) {
+		const HbcRawToken *rt = (const HbcRawToken *)t;
 		if (rt->text && (rt->text[0] == ',' || rt->text[0] == ';' || rt->text[0] == ')' || rt->text[0] == ' ')) {
 			needs_space = false;
 		}
@@ -1873,9 +1873,9 @@ static Result append_token_spaced(StringBuffer *out, Token *t, bool first, Token
 	return _hbc_token_to_string (t, out);
 }
 
-static Result append_plain_tokens(StringBuffer *out, Token *tok) {
-	TokenType prev_type = (TokenType) (-1);
-	for (Token *t = tok; t; t = t->next) {
+static Result append_plain_tokens(StringBuffer *out, HbcToken *tok) {
+	HbcTokenType prev_type = (HbcTokenType) (-1);
+	for (HbcToken *t = tok; t; t = t->next) {
 		RETURN_IF_ERROR (append_token_spaced (out, t, t == tok, prev_type));
 		prev_type = t->type;
 	}
@@ -1884,7 +1884,7 @@ static Result append_plain_tokens(StringBuffer *out, Token *tok) {
 
 /* Decide whether a closure reference gets inlined as a function expression.
  * inline_threshold: negative = never inline, 0 = no limit, >0 = max bytes */
-static bool should_inline_closure(const HermesDecompiler *state, const FunctionTableIndexToken *fti) {
+static bool should_inline_closure(const HermesDecompiler *state, const HbcFunctionTableIndexToken *fti) {
 	if (!state->options.inline_closures || state->options.inline_threshold < 0) {
 		return false;
 	}
@@ -1913,17 +1913,17 @@ static Result labels_add_target(U32Set *labels, u32 target, u32 func_sz, u32 *en
 
 static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 func_sz, U32Set *labels, u32 *end_label_addr) {
 	*end_label_addr = UINT32_MAX;
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		TokenString *st = RVecTokenString_at (&fb->statements, si);
+		HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
 		ParsedInstruction *asm_ref = st->assembly;
 		if (!st->head) {
 			continue;
 		}
-		if (asm_ref && st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
+		if (asm_ref && st->head->type == HBC_TOKEN_TYPE_CATCH_BLOCK_START) {
 			RETURN_IF_ERROR (labels_add_target (labels, asm_ref->original_pos, func_sz, end_label_addr));
 		}
 		if (asm_ref && asm_ref->opcode == OP_SwitchImm) {
@@ -1939,8 +1939,8 @@ static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 fu
 		if (asm_ref && (asm_ref->opcode == OP_SaveGenerator || asm_ref->opcode == OP_SaveGeneratorLong)) {
 			RETURN_IF_ERROR (labels_add_target (labels, _hbc_compute_target_address (asm_ref, 0), func_sz, end_label_addr));
 		}
-		Token *head = st->head;
-		if (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) {
+		HbcToken *head = st->head;
+		if (head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) {
 			u32 tgt = jump_target_of (head);
 			/* for-in loop tops get no label: those jumps become `continue`. */
 			if (!forin_is_continue_target (fb, tgt)) {
@@ -1955,12 +1955,12 @@ static Result collect_labels(DecompiledFunctionBody *fb, const bool *dce, u32 fu
  * UINT32_MAX if none. Mirrors where a goto label would land for `addr`. */
 static u32 dowhile_snap_target(const DecompiledFunctionBody *fb, const bool *dce, u32 addr) {
 	u32 best = UINT32_MAX;
-	for (TokenString *q_iter = R_VEC_START_ITER (&fb->statements); q_iter != R_VEC_END_ITER (&fb->statements); q_iter++) {
+	for (HbcTokenString *q_iter = R_VEC_START_ITER (&fb->statements); q_iter != R_VEC_END_ITER (&fb->statements); q_iter++) {
 		size_t q = (size_t) (q_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[q]) {
 			continue;
 		}
-		const TokenString *qs = RVecTokenString_at (&fb->statements, q);
+		const HbcTokenString *qs = RVecHbcTokenString_at (&fb->statements, q);
 		if (qs->assembly && qs->assembly->original_pos >= addr && qs->assembly->original_pos < best) {
 			best = qs->assembly->original_pos;
 		}
@@ -1974,17 +1974,17 @@ static u32 dowhile_snap_target(const DecompiledFunctionBody *fb, const bool *dce
  * target, and the largest-position back-edge per top closes the loop. for-in
  * tops are already handled, so they are skipped. */
 static Result detect_dowhile_loops(DecompiledFunctionBody *fb, const bool *dce) {
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		TokenString *st = RVecTokenString_at (&fb->statements, si);
+		HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
 		if (!st->head || !st->assembly) {
 			continue;
 		}
-		Token *head = st->head;
-		if ((head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || jump_is_unconditional (head)) {
+		HbcToken *head = st->head;
+		if ((head->type != HBC_TOKEN_TYPE_JUMP_CONDITION && head->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) || jump_is_unconditional (head)) {
 			continue;
 		}
 		u32 pos = st->assembly->original_pos;
@@ -2049,7 +2049,7 @@ static bool streq_nospace(const char *a, const char *b) {
 
 /* True if two conditions render to the same text (used to match a loop entry
  * guard against the back-edge test). */
-static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
+static bool conditions_match(HbcToken *a, bool inv_a, HbcToken *b, bool inv_b) {
 	StringBuffer ba = { 0 };
 	StringBuffer bb = { 0 };
 	bool ok = false;
@@ -2067,7 +2067,7 @@ static bool conditions_match(Token *a, bool inv_a, Token *b, bool inv_b) {
 
 /* Render `cond` (a condition token chain) to a freshly allocated string, or
  * NULL on failure. Caller frees. */
-static char *render_cond_string(Token *cond, bool invert) {
+static char *render_cond_string(HbcToken *cond, bool invert) {
 	StringBuffer b = { 0 };
 	if (_hbc_sb_init (&b, 32).code != RESULT_SUCCESS) {
 		_hbc_sb_free (&b);
@@ -2081,7 +2081,7 @@ static char *render_cond_string(Token *cond, bool invert) {
 }
 
 /* True if token `t` renders to register/identifier `reg`. */
-static bool token_is_reg(Token *t, const char *reg) {
+static bool token_is_reg(HbcToken *t, const char *reg) {
 	StringBuffer b = { 0 };
 	bool eq = false;
 	if (_hbc_sb_init (&b, 16).code == RESULT_SUCCESS &&
@@ -2092,8 +2092,8 @@ static bool token_is_reg(Token *t, const char *reg) {
 	return eq;
 }
 
-static bool stmt_refs_reg(Token *head, const char *reg) {
-	for (Token *t = head; t; t = t->next) {
+static bool stmt_refs_reg(HbcToken *head, const char *reg) {
+	for (HbcToken *t = head; t; t = t->next) {
 		if (token_is_reg (t, reg)) {
 			return true;
 		}
@@ -2102,11 +2102,11 @@ static bool stmt_refs_reg(Token *head, const char *reg) {
 }
 
 /* True if `head` is exactly `reg = <rhs>` with reg not read in the rhs. */
-static bool stmt_is_pure_write(Token *head, const char *reg) {
-	if (!head || !head->next || head->next->type != TOKEN_TYPE_ASSIGNMENT || !token_is_reg (head, reg)) {
+static bool stmt_is_pure_write(HbcToken *head, const char *reg) {
+	if (!head || !head->next || head->next->type != HBC_TOKEN_TYPE_ASSIGNMENT || !token_is_reg (head, reg)) {
 		return false;
 	}
-	for (Token *t = head->next->next; t; t = t->next) {
+	for (HbcToken *t = head->next->next; t; t = t->next) {
 		if (token_is_reg (t, reg)) {
 			return false;
 		}
@@ -2117,13 +2117,13 @@ static bool stmt_is_pure_write(Token *head, const char *reg) {
 /* The materialized guard's `R = cmp` is dead once the loop is a `while`: R is
  * overwritten at the loop top before any read and never read after the loop. */
 static bool materialized_def_is_dead(const DecompiledFunctionBody *fb, const bool *dce, u32 top, u32 exit, const char *reg) {
-	Token *top_head = NULL;
-	for (TokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
+	HbcToken *top_head = NULL;
+	for (HbcTokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
 		size_t sj = (size_t) (sj_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[sj]) {
 			continue;
 		}
-		const TokenString *s = RVecTokenString_at (&fb->statements, sj);
+		const HbcTokenString *s = RVecHbcTokenString_at (&fb->statements, sj);
 		if (!s->assembly || !s->head) {
 			continue;
 		}
@@ -2197,19 +2197,19 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 		/* loop exit = first surviving statement after the back-edge; guard =
 		 * statement just before the top; def = statement just before the guard. */
 		u32 exit_addr = UINT32_MAX;
-		Token *be_head = NULL;
+		HbcToken *be_head = NULL;
 		u32 guard_pos = 0;
-		Token *ghead = NULL;
+		HbcToken *ghead = NULL;
 		u32 def_pos = 0;
-		Token *dhead = NULL;
+		HbcToken *dhead = NULL;
 		u32 def_si = UINT32_MAX;
 		u32 guard_si = UINT32_MAX;
-		for (TokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
+		for (HbcTokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
 			size_t sj = (size_t) (sj_iter - R_VEC_START_ITER (&fb->statements));
 			if (dce && dce[sj]) {
 				continue;
 			}
-			const TokenString *s = RVecTokenString_at (&fb->statements, sj);
+			const HbcTokenString *s = RVecHbcTokenString_at (&fb->statements, sj);
 			if (!s->assembly || !s->head) {
 				continue;
 			}
@@ -2244,11 +2244,11 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 			continue;
 		}
 		/* guard must be a conditional jump to the loop exit */
-		if ((ghead->type != TOKEN_TYPE_JUMP_CONDITION && ghead->type != TOKEN_TYPE_JUMP_NOT_CONDITION) ||
+		if ((ghead->type != HBC_TOKEN_TYPE_JUMP_CONDITION && ghead->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) ||
 			jump_is_unconditional (ghead) || jump_target_of (ghead) != exit_addr) {
 			continue;
 		}
-		bool be_inv = be_head->type == TOKEN_TYPE_JUMP_NOT_CONDITION;
+		bool be_inv = be_head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION;
 		/* fused guard: the jump already spells the same test as the back-edge */
 		if (conditions_match (ghead->next, false, be_head->next, be_inv)) {
 			loop->guard_pos = guard_pos;
@@ -2256,7 +2256,7 @@ static Result detect_while_loops(DecompiledFunctionBody *fb, bool *dce) {
 		}
 		/* materialized guard: `R = cmp; if (R)` where the def's `cmp` equals the
 		 * back-edge test. Render the while header from the back-edge condition. */
-		if (!dhead || !dhead->next || dhead->next->type != TOKEN_TYPE_ASSIGNMENT) {
+		if (!dhead || !dhead->next || dhead->next->type != HBC_TOKEN_TYPE_ASSIGNMENT) {
 			continue;
 		}
 		char *gstr = render_cond_string (ghead->next, false);
@@ -2344,17 +2344,17 @@ static bool forever_is_top(const DecompiledFunctionBody *fb, u32 addr) {
  * ends in `if (cond) { ...; goto top; }`, so the if's false path exits the loop.
  * Renders as `for (;;) { ... break; }`. */
 static Result detect_forever_loops(DecompiledFunctionBody *fb, const bool *dce) {
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		const TokenString *st = RVecTokenString_at (&fb->statements, si);
+		const HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
 		if (!st->head || !st->assembly) {
 			continue;
 		}
-		Token *head = st->head;
-		if ((head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || !jump_is_unconditional (head)) {
+		HbcToken *head = st->head;
+		if ((head->type != HBC_TOKEN_TYPE_JUMP_CONDITION && head->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) || !jump_is_unconditional (head)) {
 			continue;
 		}
 		u32 back_edge = st->assembly->original_pos;
@@ -2374,7 +2374,7 @@ static Result detect_forever_loops(DecompiledFunctionBody *fb, const bool *dce) 
 		/* require an enclosing if whose false path is the exit: a conditional
 		 * jump in [top, back_edge) targeting exit. */
 		bool has_exit_if = false;
-		for (TokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
+		for (HbcTokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
 			size_t sj = (size_t) (sj_iter - R_VEC_START_ITER (&fb->statements));
 			if (has_exit_if) {
 				break;
@@ -2382,13 +2382,13 @@ static Result detect_forever_loops(DecompiledFunctionBody *fb, const bool *dce) 
 			if (dce && dce[sj]) {
 				continue;
 			}
-			const TokenString *s2 = RVecTokenString_at (&fb->statements, sj);
+			const HbcTokenString *s2 = RVecHbcTokenString_at (&fb->statements, sj);
 			if (!s2->head || !s2->assembly) {
 				continue;
 			}
 			u32 p = s2->assembly->original_pos;
 			has_exit_if = p >= top && p < back_edge &&
-				(s2->head->type == TOKEN_TYPE_JUMP_CONDITION || s2->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+				(s2->head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || s2->head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 				!jump_is_unconditional (s2->head) && jump_target_of (s2->head) == exit;
 		}
 		if (!has_exit_if) {
@@ -2404,13 +2404,13 @@ static Result detect_forever_loops(DecompiledFunctionBody *fb, const bool *dce) 
 /* Number of surviving jump statements that target `addr`. */
 static u32 label_ref_count(const DecompiledFunctionBody *fb, const bool *dce, u32 addr) {
 	u32 n = 0;
-	for (TokenString *i_iter = R_VEC_START_ITER (&fb->statements); i_iter != R_VEC_END_ITER (&fb->statements); i_iter++) {
+	for (HbcTokenString *i_iter = R_VEC_START_ITER (&fb->statements); i_iter != R_VEC_END_ITER (&fb->statements); i_iter++) {
 		size_t i = (size_t) (i_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[i]) {
 			continue;
 		}
-		const TokenString *st = RVecTokenString_at (&fb->statements, i);
-		if (st->head && (st->head->type == TOKEN_TYPE_JUMP_CONDITION || st->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+		const HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, i);
+		if (st->head && (st->head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || st->head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 			jump_target_of (st->head) == addr) {
 			n++;
 		}
@@ -2422,17 +2422,17 @@ static u32 label_ref_count(const DecompiledFunctionBody *fb, const bool *dce, u3
  * END:` where the then-branch (the fall-through of the conditional) ends in an
  * unconditional `goto END` past the else entry. */
 static Result detect_if_else(DecompiledFunctionBody *fb, const bool *dce, OutputBuffers *ob) {
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		const TokenString *st = RVecTokenString_at (&fb->statements, si);
+		const HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
 		if (!st->head || !st->assembly) {
 			continue;
 		}
-		Token *head = st->head;
-		if ((head->type != TOKEN_TYPE_JUMP_CONDITION && head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || jump_is_unconditional (head)) {
+		HbcToken *head = st->head;
+		if ((head->type != HBC_TOKEN_TYPE_JUMP_CONDITION && head->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) || jump_is_unconditional (head)) {
 			continue;
 		}
 		u32 cond_pos = st->assembly->original_pos;
@@ -2442,8 +2442,8 @@ static Result detect_if_else(DecompiledFunctionBody *fb, const bool *dce, Output
 		}
 		/* last surviving statement strictly before else_addr */
 		u32 goto_pos = UINT32_MAX;
-		Token *ghead = NULL;
-		for (TokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
+		HbcToken *ghead = NULL;
+		for (HbcTokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
 			size_t sj = (size_t) (sj_iter - R_VEC_START_ITER (&fb->statements));
 			if (sj <= si) {
 				continue;
@@ -2451,7 +2451,7 @@ static Result detect_if_else(DecompiledFunctionBody *fb, const bool *dce, Output
 			if (dce && dce[sj]) {
 				continue;
 			}
-			const TokenString *s2 = RVecTokenString_at (&fb->statements, sj);
+			const HbcTokenString *s2 = RVecHbcTokenString_at (&fb->statements, sj);
 			if (!s2->assembly) {
 				continue;
 			}
@@ -2461,7 +2461,7 @@ static Result detect_if_else(DecompiledFunctionBody *fb, const bool *dce, Output
 			goto_pos = s2->assembly->original_pos;
 			ghead = s2->head;
 		}
-		if (!ghead || (ghead->type != TOKEN_TYPE_JUMP_CONDITION && ghead->type != TOKEN_TYPE_JUMP_NOT_CONDITION) || !jump_is_unconditional (ghead)) {
+		if (!ghead || (ghead->type != HBC_TOKEN_TYPE_JUMP_CONDITION && ghead->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) || !jump_is_unconditional (ghead)) {
 			continue;
 		}
 		u32 end_addr = jump_target_of (ghead);
@@ -2522,10 +2522,10 @@ static bool ifelse_label_suppressed(const OutputBuffers *ob, const DecompiledFun
 
 /* Count how many times register `reg` is read (right-hand reg token) in a
  * statement's token chain. */
-static int count_rhr(const Token *head, int reg) {
+static int count_rhr(const HbcToken *head, int reg) {
 	int n = 0;
-	for (const Token *t = head; t; t = t->next) {
-		if (t->type == TOKEN_TYPE_RIGHT_HAND_REG && ((const RightHandRegToken *)t)->reg_num == reg) {
+	for (const HbcToken *t = head; t; t = t->next) {
+		if (t->type == HBC_TOKEN_TYPE_RIGHT_HAND_REG && ((const HbcRightHandRegToken *)t)->reg_num == reg) {
 			n++;
 		}
 	}
@@ -2537,21 +2537,21 @@ static int count_rhr(const Token *head, int reg) {
  * for a side-effect-free literal/closure), and *is_getter when the rhs is a
  * property read whose getter must not be moved across a side effect. Multi-token
  * and other call-like raw tokens are rejected. */
-static bool classify_single_rhs(const Token *rhs, int *input_reg, bool *is_getter) {
+static bool classify_single_rhs(const HbcToken *rhs, int *input_reg, bool *is_getter) {
 	*input_reg = -1;
 	*is_getter = false;
 	if (!rhs || rhs->next) {
 		return false;
 	}
-	if (rhs->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
+	if (rhs->type == HBC_TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
 		return true;
 	}
-	if (rhs->type == TOKEN_TYPE_RIGHT_HAND_REG) {
-		*input_reg = ((const RightHandRegToken *)rhs)->reg_num;
+	if (rhs->type == HBC_TOKEN_TYPE_RIGHT_HAND_REG) {
+		*input_reg = ((const HbcRightHandRegToken *)rhs)->reg_num;
 		return true;
 	}
-	if (rhs->type == TOKEN_TYPE_RAW) {
-		const char *t = ((const RawToken *)rhs)->text;
+	if (rhs->type == HBC_TOKEN_TYPE_RAW) {
+		const char *t = ((const HbcRawToken *)rhs)->text;
 		if (!t) {
 			return false;
 		}
@@ -2572,40 +2572,40 @@ static bool classify_single_rhs(const Token *rhs, int *input_reg, bool *is_gette
 
 /* True if the statement contains a call/construct (` (`) or a property access
  *(dot accessor) — a getter rhs must not be forward-substituted across one. */
-static bool stmt_side_effecting(const Token *head) {
-	for (const Token *t = head; t; t = t->next) {
-		if (t->type == TOKEN_TYPE_DOT_ACCESSOR) {
+static bool stmt_side_effecting(const HbcToken *head) {
+	for (const HbcToken *t = head; t; t = t->next) {
+		if (t->type == HBC_TOKEN_TYPE_DOT_ACCESSOR) {
 			return true;
 		}
-		if (t->type == TOKEN_TYPE_RAW && ((const RawToken *)t)->text && strchr (((const RawToken *)t)->text, '(')) {
+		if (t->type == HBC_TOKEN_TYPE_RAW && ((const HbcRawToken *)t)->text && strchr (((const HbcRawToken *)t)->text, '(')) {
 			return true;
 		}
 	}
 	return false;
 }
 
-static bool stmt_writes_reg(const Token *head, int reg) {
-	return head && head->type == TOKEN_TYPE_LEFT_HAND_REG && ((const LeftHandRegToken *)head)->reg_num == reg;
+static bool stmt_writes_reg(const HbcToken *head, int reg) {
+	return head && head->type == HBC_TOKEN_TYPE_LEFT_HAND_REG && ((const HbcLeftHandRegToken *)head)->reg_num == reg;
 }
 
 /* True if every token in the statement exposes its register operands as plain
  * left/right-hand reg tokens. Special tokens (for-in, switch, environment,
  * generator, catch) carry registers in int fields that the read counter cannot
  * see, so substituting across them could silently fold a multi-use register. */
-static bool stmt_is_simple(const Token *head) {
-	for (const Token *t = head; t; t = t->next) {
+static bool stmt_is_simple(const HbcToken *head) {
+	for (const HbcToken *t = head; t; t = t->next) {
 		switch (t->type) {
-		case TOKEN_TYPE_RAW:
-		case TOKEN_TYPE_LEFT_HAND_REG:
-		case TOKEN_TYPE_RIGHT_HAND_REG:
-		case TOKEN_TYPE_ASSIGNMENT:
-		case TOKEN_TYPE_LEFT_PARENTHESIS:
-		case TOKEN_TYPE_RIGHT_PARENTHESIS:
-		case TOKEN_TYPE_DOT_ACCESSOR:
-		case TOKEN_TYPE_BIND:
-		case TOKEN_TYPE_RETURN_DIRECTIVE:
-		case TOKEN_TYPE_THROW_DIRECTIVE:
-		case TOKEN_TYPE_FUNCTION_TABLE_INDEX:
+		case HBC_TOKEN_TYPE_RAW:
+		case HBC_TOKEN_TYPE_LEFT_HAND_REG:
+		case HBC_TOKEN_TYPE_RIGHT_HAND_REG:
+		case HBC_TOKEN_TYPE_ASSIGNMENT:
+		case HBC_TOKEN_TYPE_LEFT_PARENTHESIS:
+		case HBC_TOKEN_TYPE_RIGHT_PARENTHESIS:
+		case HBC_TOKEN_TYPE_DOT_ACCESSOR:
+		case HBC_TOKEN_TYPE_BIND:
+		case HBC_TOKEN_TYPE_RETURN_DIRECTIVE:
+		case HBC_TOKEN_TYPE_THROW_DIRECTIVE:
+		case HBC_TOKEN_TYPE_FUNCTION_TABLE_INDEX:
 			break;
 		default:
 			return false;
@@ -2616,39 +2616,39 @@ static bool stmt_is_simple(const Token *head) {
 
 /* Collect the registers a special token references through int fields (invisible
  * to the right-hand-reg counter). Returns the count, filling regs[0..ret). */
-static int special_token_regs(const Token *t, int regs[5]) {
+static int special_token_regs(const HbcToken *t, int regs[5]) {
 	int n = 0;
 	switch (t->type) {
-	case TOKEN_TYPE_GET_ENVIRONMENT: regs[n++] = ((const GetEnvironmentToken *)t)->reg_num; break;
-	case TOKEN_TYPE_LOAD_FROM_ENVIRONMENT: regs[n++] = ((const LoadFromEnvironmentToken *)t)->reg_num; break;
-	case TOKEN_TYPE_NEW_ENVIRONMENT: regs[n++] = ((const NewEnvironmentToken *)t)->reg_num; break;
-	case TOKEN_TYPE_NEW_INNER_ENVIRONMENT:
+	case HBC_TOKEN_TYPE_GET_ENVIRONMENT: regs[n++] = ((const HbcGetEnvironmentToken *)t)->reg_num; break;
+	case HBC_TOKEN_TYPE_LOAD_FROM_ENVIRONMENT: regs[n++] = ((const HbcLoadFromEnvironmentToken *)t)->reg_num; break;
+	case HBC_TOKEN_TYPE_NEW_ENVIRONMENT: regs[n++] = ((const HbcNewEnvironmentToken *)t)->reg_num; break;
+	case HBC_TOKEN_TYPE_NEW_INNER_ENVIRONMENT:
 		{
-			const NewInnerEnvironmentToken *e = (const NewInnerEnvironmentToken *)t;
+			const HbcNewInnerEnvironmentToken *e = (const HbcNewInnerEnvironmentToken *)t;
 			regs[n++] = e->dest_register;
 			regs[n++] = e->parent_register;
 			break;
 		}
-	case TOKEN_TYPE_SWITCH_IMM: regs[n++] = ((const SwitchImmToken *)t)->value_reg; break;
-	case TOKEN_TYPE_STORE_TO_ENVIRONMENT:
+	case HBC_TOKEN_TYPE_SWITCH_IMM: regs[n++] = ((const HbcSwitchImmToken *)t)->value_reg; break;
+	case HBC_TOKEN_TYPE_STORE_TO_ENVIRONMENT:
 		{
-			const StoreToEnvironmentToken *e = (const StoreToEnvironmentToken *)t;
+			const HbcStoreToEnvironmentToken *e = (const HbcStoreToEnvironmentToken *)t;
 			regs[n++] = e->env_register;
 			regs[n++] = e->value_register;
 			break;
 		}
-	case TOKEN_TYPE_FOR_IN_LOOP_INIT:
+	case HBC_TOKEN_TYPE_FOR_IN_LOOP_INIT:
 		{
-			const ForInLoopInitToken *e = (const ForInLoopInitToken *)t;
+			const HbcForInLoopInitToken *e = (const HbcForInLoopInitToken *)t;
 			regs[n++] = e->obj_props_register;
 			regs[n++] = e->obj_register;
 			regs[n++] = e->iter_index_register;
 			regs[n++] = e->iter_size_register;
 			break;
 		}
-	case TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
+	case HBC_TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER:
 		{
-			const ForInLoopNextIterToken *e = (const ForInLoopNextIterToken *)t;
+			const HbcForInLoopNextIterToken *e = (const HbcForInLoopNextIterToken *)t;
 			regs[n++] = e->next_value_register;
 			regs[n++] = e->obj_props_register;
 			regs[n++] = e->obj_register;
@@ -2656,14 +2656,14 @@ static int special_token_regs(const Token *t, int regs[5]) {
 			regs[n++] = e->iter_size_register;
 			break;
 		}
-	case TOKEN_TYPE_RESUME_GENERATOR:
+	case HBC_TOKEN_TYPE_RESUME_GENERATOR:
 		{
-			const ResumeGeneratorToken *e = (const ResumeGeneratorToken *)t;
+			const HbcResumeGeneratorToken *e = (const HbcResumeGeneratorToken *)t;
 			regs[n++] = e->result_out_reg;
 			regs[n++] = e->return_bool_out_reg;
 			break;
 		}
-	case TOKEN_TYPE_CATCH_BLOCK_START: regs[n++] = ((const CatchBlockStartToken *)t)->arg_register; break;
+	case HBC_TOKEN_TYPE_CATCH_BLOCK_START: regs[n++] = ((const HbcCatchBlockStartToken *)t)->arg_register; break;
 	default: break;
 	}
 	return n;
@@ -2691,14 +2691,14 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 		free (field_use);
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "forward_substitute alloc");
 	}
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		for (const Token *t = RVecTokenString_at (&fb->statements, si)->head; t; t = t->next) {
-			if (t->type == TOKEN_TYPE_RIGHT_HAND_REG) {
-				int r = ((const RightHandRegToken *)t)->reg_num;
+		for (const HbcToken *t = RVecHbcTokenString_at (&fb->statements, si)->head; t; t = t->next) {
+			if (t->type == HBC_TOKEN_TYPE_RIGHT_HAND_REG) {
+				int r = ((const HbcRightHandRegToken *)t)->reg_num;
 				if (r >= 0 && (u32)r < cap) {
 					reads_fw[r]++;
 				}
@@ -2713,24 +2713,24 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 			}
 		}
 	}
-	for (TokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&fb->statements); si_iter != R_VEC_END_ITER (&fb->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&fb->statements));
 		if (dce && dce[si]) {
 			continue;
 		}
-		TokenString *st = RVecTokenString_at (&fb->statements, si);
-		Token *head = st->head;
-		if (!head || !st->assembly || head->type != TOKEN_TYPE_LEFT_HAND_REG ||
-			!head->next || head->next->type != TOKEN_TYPE_ASSIGNMENT) {
+		HbcTokenString *st = RVecHbcTokenString_at (&fb->statements, si);
+		HbcToken *head = st->head;
+		if (!head || !st->assembly || head->type != HBC_TOKEN_TYPE_LEFT_HAND_REG ||
+			!head->next || head->next->type != HBC_TOKEN_TYPE_ASSIGNMENT) {
 			continue;
 		}
-		Token *rhs = head->next->next;
+		HbcToken *rhs = head->next->next;
 		int input_reg = -1;
 		bool is_getter = false;
 		if (!classify_single_rhs (rhs, &input_reg, &is_getter)) {
 			continue;
 		}
-		int rN = ((LeftHandRegToken *)head)->reg_num;
+		int rN = ((HbcLeftHandRegToken *)head)->reg_num;
 		if (input_reg == rN || (u32)rN >= cap) {
 			continue; /* `rN = rN` no-op, or out of range */
 		}
@@ -2742,7 +2742,7 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 		int reads = 0;
 		bool bail = false;
 		bool contained = false;
-		for (TokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
+		for (HbcTokenString *sj_iter = R_VEC_START_ITER (&fb->statements); sj_iter != R_VEC_END_ITER (&fb->statements); sj_iter++) {
 			size_t sj = (size_t) (sj_iter - R_VEC_START_ITER (&fb->statements));
 			if (sj <= si) {
 				continue;
@@ -2753,15 +2753,15 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 			if (dce && dce[sj]) {
 				continue;
 			}
-			TokenString *sj_st = RVecTokenString_at (&fb->statements, sj);
+			HbcTokenString *sj_st = RVecHbcTokenString_at (&fb->statements, sj);
 			if (!sj_st->head || !sj_st->assembly) {
 				continue;
 			}
 			if (u32set_contains (labels, sj_st->assembly->original_pos)) {
 				break; /* basic-block boundary: rN's value escapes */
 			}
-			Token *jh = sj_st->head;
-			bool is_jump = jh->type == TOKEN_TYPE_JUMP_CONDITION || jh->type == TOKEN_TYPE_JUMP_NOT_CONDITION;
+			HbcToken *jh = sj_st->head;
+			bool is_jump = jh->type == HBC_TOKEN_TYPE_JUMP_CONDITION || jh->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION;
 			/* Bail on statements whose registers aren't fully visible (for-in,
 			 * switch, env, …): the read count below would be unreliable. Jumps
 			 * are handled separately as basic-block terminators. */
@@ -2808,11 +2808,11 @@ static Result forward_substitute(DecompiledFunctionBody *fb, bool *dce, const U3
 			continue;
 		}
 		/* splice the rhs in place of the single RHR (rN) in the use */
-		TokenString *use = RVecTokenString_at (&fb->statements, use_si);
-		Token *prev = NULL;
-		Token *target = NULL;
-		for (Token *t = use->head; t; prev = t, t = t->next) {
-			if (t->type == TOKEN_TYPE_RIGHT_HAND_REG && ((RightHandRegToken *)t)->reg_num == rN) {
+		HbcTokenString *use = RVecHbcTokenString_at (&fb->statements, use_si);
+		HbcToken *prev = NULL;
+		HbcToken *target = NULL;
+		for (HbcToken *t = use->head; t; prev = t, t = t->next) {
+			if (t->type == HBC_TOKEN_TYPE_RIGHT_HAND_REG && ((HbcRightHandRegToken *)t)->reg_num == rN) {
 				target = t;
 				break;
 			}
@@ -2983,8 +2983,8 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 	hbc_debug_printf ("[_hbc_output_code] START function_base=0x%llx, stmt_count=%u\n",
 		(unsigned long long)state->options.function_base,
-		(u32)RVecTokenString_length (&function_body->statements));
-	for (TokenString *si_iter = R_VEC_START_ITER (&function_body->statements); si_iter != R_VEC_END_ITER (&function_body->statements); si_iter++) {
+		(u32)RVecHbcTokenString_length (&function_body->statements));
+	for (HbcTokenString *si_iter = R_VEC_START_ITER (&function_body->statements); si_iter != R_VEC_END_ITER (&function_body->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&function_body->statements));
 		/* Stop when budget exhausted or earlier phase (pass2) flagged it. */
 		if (state->output_truncated || (state->options.max_output_bytes > 0 && out->length >= (size_t)state->options.max_output_bytes)) {
@@ -3001,7 +3001,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		if (dce && dce[si]) {
 			continue;
 		}
-		TokenString *st = RVecTokenString_at (&function_body->statements, si);
+		HbcTokenString *st = RVecHbcTokenString_at (&function_body->statements, si);
 		ParsedInstruction *asm_ref = st->assembly;
 		if (si < 10) {
 			hbc_debug_printf ("[_hbc_output_code] stmt %u: asm_ref=%p\n", si, (void *)asm_ref);
@@ -3076,16 +3076,16 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			continue;
 		}
 
-		Token *head = st->head;
+		HbcToken *head = st->head;
 		/* A def emptied by forward substitution (`rN =` with no rhs) is dropped
 		 * here — after the structural block above ran for its position, so a
 		 * folded def that anchors a loop/frame still opened its block. */
-		if (head->type == TOKEN_TYPE_LEFT_HAND_REG && head->next &&
-			head->next->type == TOKEN_TYPE_ASSIGNMENT && !head->next->next) {
+		if (head->type == HBC_TOKEN_TYPE_LEFT_HAND_REG && head->next &&
+			head->next->type == HBC_TOKEN_TYPE_ASSIGNMENT && !head->next->next) {
 			continue;
 		}
 		StructuredCatch *try_end = asm_ref? structured_catch_at (catch_plans, catch_plan_count, asm_ref->original_pos, 'e'): NULL;
-		if (try_end && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+		if (try_end && (head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 			jump_is_unconditional (head) && jump_target_of (head) == try_end->catch_end) {
 			continue;
 		}
@@ -3101,7 +3101,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			continue;
 		}
 
-		if (st->head->type == TOKEN_TYPE_CATCH_BLOCK_START) {
+		if (st->head->type == HBC_TOKEN_TYPE_CATCH_BLOCK_START) {
 			RETURN_IF_ERROR (close_if_blocks (state, out, &ob, UINT32_MAX));
 		}
 
@@ -3109,7 +3109,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		 * at the join replaces it. */
 		if (asm_ref && (u32)RVecIfFrame_length (&ob.if_block_stack) > 0 &&
 			RVecIfFrame_at (&ob.if_block_stack, (u32)RVecIfFrame_length (&ob.if_block_stack) - 1)->goto_pos == asm_ref->original_pos &&
-			(head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+			(head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 			jump_is_unconditional (head)) {
 			continue;
 		}
@@ -3117,7 +3117,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		/* do-while back-edge: render the closing `} while (cond);` in place of
 		 * the backward conditional `if (cond) goto top`. For a promoted while
 		 * loop the back-edge is implicit in the `while` header, so drop it. */
-		if (asm_ref && (head->type == TOKEN_TYPE_JUMP_CONDITION || head->type == TOKEN_TYPE_JUMP_NOT_CONDITION) &&
+		if (asm_ref && (head->type == HBC_TOKEN_TYPE_JUMP_CONDITION || head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) &&
 			!jump_is_unconditional (head)) {
 			int dw_be = dowhile_loop_at_backedge (function_body, asm_ref->original_pos);
 			if (dw_be >= 0) {
@@ -3127,7 +3127,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				state->indent_level--;
 				RETURN_IF_ERROR (append_indent (out, state->indent_level));
 				RETURN_IF_ERROR (_hbc_sb_append (out, "} while ("));
-				RETURN_IF_ERROR (append_condition_tokens (out, head->next, head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+				RETURN_IF_ERROR (append_condition_tokens (out, head->next, head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION));
 				RETURN_IF_ERROR (_hbc_sb_append (out, ");\n"));
 				continue;
 			}
@@ -3156,23 +3156,23 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 
 		/* Detect `for (` header used as a block statement */
 		bool is_block_stmt = false;
-		if (st->head && st->head->type == TOKEN_TYPE_RAW) {
-			RawToken *rt = (RawToken *)st->head;
-			if (rt->text && strcmp (rt->text, "for") == 0 && st->head->next && st->head->next->type == TOKEN_TYPE_LEFT_PARENTHESIS) {
+		if (st->head && st->head->type == HBC_TOKEN_TYPE_RAW) {
+			HbcRawToken *rt = (HbcRawToken *)st->head;
+			if (rt->text && strcmp (rt->text, "for") == 0 && st->head->next && st->head->next->type == HBC_TOKEN_TYPE_LEFT_PARENTHESIS) {
 				is_block_stmt = true;
 			}
 		}
 
 		bool emitted_statement = false;
 		bool tail_inline_closure = false;
-		if (head->type == TOKEN_TYPE_SAVE_GENERATOR) {
+		if (head->type == HBC_TOKEN_TYPE_SAVE_GENERATOR) {
 			u32 ret_si = si + 1;
-			while (ret_si < (u32)RVecTokenString_length (&function_body->statements) && dce && dce[ret_si]) {
+			while (ret_si < (u32)RVecHbcTokenString_length (&function_body->statements) && dce && dce[ret_si]) {
 				ret_si++;
 			}
-			TokenString *ret = (ret_si < (u32)RVecTokenString_length (&function_body->statements))? RVecTokenString_at (&function_body->statements, ret_si): NULL;
+			HbcTokenString *ret = (ret_si < (u32)RVecHbcTokenString_length (&function_body->statements))? RVecHbcTokenString_at (&function_body->statements, ret_si): NULL;
 			u32 ret_pos = (ret && ret->assembly)? ret->assembly->original_pos: UINT32_MAX;
-			if (ret && ret->head && ret->head->type == TOKEN_TYPE_RETURN_DIRECTIVE && !u32set_contains (&goto_labels, ret_pos)) {
+			if (ret && ret->head && ret->head->type == HBC_TOKEN_TYPE_RETURN_DIRECTIVE && !u32set_contains (&goto_labels, ret_pos)) {
 				RETURN_IF_ERROR (_hbc_sb_append (out, "yield"));
 				if (ret->head->next) {
 					RETURN_IF_ERROR (_hbc_sb_append_char (out, ' '));
@@ -3182,7 +3182,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				emitted_statement = true;
 			}
 		}
-		if (!emitted_statement && (head->type == TOKEN_TYPE_JUMP_NOT_CONDITION || head->type == TOKEN_TYPE_JUMP_CONDITION)) {
+		if (!emitted_statement && (head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION || head->type == HBC_TOKEN_TYPE_JUMP_CONDITION)) {
 			u32 target_addr = jump_target_of (head);
 			/* Jumps that leave the function share a single end label. */
 			u32 lbl_rel = (target_addr >= plan_func_sz)? plan_func_sz: target_addr;
@@ -3244,9 +3244,9 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 			/* A materialized guard (`R=cmp; if (R)`) renders the real test from
 			 * the back-edge condition instead of the bare register. */
 			if (wl >= 0 && RVecDowhileLoop_at (&function_body->dowhile_loops, wl)->while_cond) {
-				RETURN_IF_ERROR (append_condition_tokens (out, (Token *)RVecDowhileLoop_at (&function_body->dowhile_loops, wl)->while_cond, RVecDowhileLoop_at (&function_body->dowhile_loops, wl)->while_cond_invert));
+				RETURN_IF_ERROR (append_condition_tokens (out, (HbcToken *)RVecDowhileLoop_at (&function_body->dowhile_loops, wl)->while_cond, RVecDowhileLoop_at (&function_body->dowhile_loops, wl)->while_cond_invert));
 			} else {
-				RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+				RETURN_IF_ERROR (append_condition_tokens (out, head->next, goto_form && head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION));
 			}
 			if (is_continue) {
 				RETURN_IF_ERROR (_hbc_sb_append (out, ") continue;\n"));
@@ -3255,16 +3255,16 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 				 * gotos into one `if (c1 || c2 || ...) goto T`. Only across
 				 * statements whose skip drops no label or block boundary. */
 				u32 sj = si + 1;
-				while (sj < (u32)RVecTokenString_length (&function_body->statements)) {
+				while (sj < (u32)RVecHbcTokenString_length (&function_body->statements)) {
 					if (dce && dce[sj]) {
 						sj++;
 						continue;
 					}
-					TokenString *ns = RVecTokenString_at (&function_body->statements, sj);
+					HbcTokenString *ns = RVecHbcTokenString_at (&function_body->statements, sj);
 					if (!ns->head || !ns->assembly) {
 						break;
 					}
-					if ((ns->head->type != TOKEN_TYPE_JUMP_CONDITION && ns->head->type != TOKEN_TYPE_JUMP_NOT_CONDITION) ||
+					if ((ns->head->type != HBC_TOKEN_TYPE_JUMP_CONDITION && ns->head->type != HBC_TOKEN_TYPE_JUMP_NOT_CONDITION) ||
 						jump_is_unconditional (ns->head) || jump_target_of (ns->head) != target_addr) {
 						break;
 					}
@@ -3283,7 +3283,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 						break;
 					}
 					RETURN_IF_ERROR (_hbc_sb_append (out, " || "));
-					RETURN_IF_ERROR (append_condition_tokens (out, ns->head->next, ns->head->type == TOKEN_TYPE_JUMP_NOT_CONDITION));
+					RETURN_IF_ERROR (append_condition_tokens (out, ns->head->next, ns->head->type == HBC_TOKEN_TYPE_JUMP_NOT_CONDITION));
 					si = sj;
 					sj++;
 				}
@@ -3317,12 +3317,12 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 		} else if (!emitted_statement) {
 			/* Emit all tokens, handling nested function expressions */
 			bool first_tok = true;
-			TokenType prev_type = (TokenType) (-1);
-			for (Token *t = st->head; t; t = t->next) {
-				if (t->type == TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
-					FunctionTableIndexToken *fti = (FunctionTableIndexToken *)t;
+			HbcTokenType prev_type = (HbcTokenType) (-1);
+			for (HbcToken *t = st->head; t; t = t->next) {
+				if (t->type == HBC_TOKEN_TYPE_FUNCTION_TABLE_INDEX) {
+					HbcFunctionTableIndexToken *fti = (HbcFunctionTableIndexToken *)t;
 					if ((fti->is_closure || fti->is_generator) && !fti->is_builtin) {
-						if (!first_tok && token_needs_space (prev_type, TOKEN_TYPE_RAW)) {
+						if (!first_tok && token_needs_space (prev_type, HBC_TOKEN_TYPE_RAW)) {
 							RETURN_IF_ERROR (_hbc_sb_append_char (out, ' '));
 						}
 						if (should_inline_closure (state, fti)) {
@@ -3342,7 +3342,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 							tail_inline_closure = false;
 						}
 						first_tok = false;
-						prev_type = TOKEN_TYPE_RAW;
+						prev_type = HBC_TOKEN_TYPE_RAW;
 						continue;
 					}
 				}

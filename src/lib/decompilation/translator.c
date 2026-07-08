@@ -7,7 +7,7 @@
 #include <string.h>
 #include <hbc/decompilation/literals.h>
 
-static Result add(TokenString *ts, Token *t) {
+static Result add(HbcTokenString *ts, HbcToken *t) {
 	if (!t) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "alloc token");
 	}
@@ -153,83 +153,83 @@ static const char *lookup_op_table(const OpTableEntry *table, u8 opcode) {
 	return NULL;
 }
 
-static Token *reg_l_safe(const ParsedInstruction *insn, int idx);
-static Token *reg_r_safe(const ParsedInstruction *insn, int idx);
-static Token *num_token_u32(u32 v);
+static HbcToken *reg_l_safe(const ParsedInstruction *insn, int idx);
+static HbcToken *reg_r_safe(const ParsedInstruction *insn, int idx);
+static HbcToken *num_token_u32(u32 v);
 
-static Result emit_literal_assign(TokenString *out, const ParsedInstruction *insn, const char *literal) {
+static Result emit_literal_assign(HbcTokenString *out, const ParsedInstruction *insn, const char *literal) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	return add (out, create_raw_token (literal));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+	return add (out, hbc_token_new_raw (literal));
 }
 
-static Result emit_binary_op(TokenString *out, const ParsedInstruction *insn, const char *op) {
+static Result emit_binary_op(HbcTokenString *out, const ParsedInstruction *insn, const char *op) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
-	RETURN_IF_ERROR (add (out, create_raw_token (op)));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (op)));
 	return add (out, reg_r_safe (insn, 2));
 }
 
-static Result emit_unary_op(TokenString *out, const ParsedInstruction *insn, const char *op) {
+static Result emit_unary_op(HbcTokenString *out, const ParsedInstruction *insn, const char *op) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	RETURN_IF_ERROR (add (out, create_raw_token (op)));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (op)));
 	return add (out, reg_r_safe (insn, 1));
 }
 
-static Result emit_func1(TokenString *out, const ParsedInstruction *insn, const char *func) {
+static Result emit_func1(HbcTokenString *out, const ParsedInstruction *insn, const char *func) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	RETURN_IF_ERROR (add (out, create_raw_token (func)));
-	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (func)));
+	RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
-	return add (out, create_right_parenthesis_token ());
+	return add (out, hbc_token_new_right_parenthesis ());
 }
 
-static Result emit_load_offset(TokenString *out, const ParsedInstruction *insn, const char *func) {
+static Result emit_load_offset(HbcTokenString *out, const ParsedInstruction *insn, const char *func) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	RETURN_IF_ERROR (add (out, create_raw_token (func)));
-	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (func)));
+	RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
-	RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 	RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-	return add (out, create_right_parenthesis_token ());
+	return add (out, hbc_token_new_right_parenthesis ());
 }
 
-static Result emit_store3(TokenString *out, const ParsedInstruction *insn, const char *func) {
-	RETURN_IF_ERROR (add (out, create_raw_token (func)));
-	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+static Result emit_store3(HbcTokenString *out, const ParsedInstruction *insn, const char *func) {
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (func)));
+	RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 	RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-	RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
-	return add (out, create_right_parenthesis_token ());
+	return add (out, hbc_token_new_right_parenthesis ());
 }
 
-static Result emit_incdec(TokenString *out, const ParsedInstruction *insn, const char *suffix) {
+static Result emit_incdec(HbcTokenString *out, const ParsedInstruction *insn, const char *suffix) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
-	return add (out, create_raw_token (suffix));
+	return add (out, hbc_token_new_raw (suffix));
 }
 
-static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, int operand_count) {
+static Result emit_call_fixed(HbcTokenString *out, const ParsedInstruction *insn, int operand_count) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0))); /* dest */
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1))); /* callee */
 	/* Call1..Call4 encode an explicit `this` register before the user arguments. */
-	RETURN_IF_ERROR (add (out, create_raw_token (".call")));
-	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (".call")));
+	RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 	for (int i = 2; i < operand_count; i++) {
 		if (i > 2) {
-			RETURN_IF_ERROR (add (out, create_raw_token (",")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (",")));
 		}
 		RETURN_IF_ERROR (add (out, reg_r_safe (insn, i)));
 	}
-	return add (out, create_right_parenthesis_token ());
+	return add (out, hbc_token_new_right_parenthesis ());
 }
 
 /* Hermes reserves this many frame-header registers at the very top of a
@@ -241,44 +241,44 @@ static Result emit_call_fixed(TokenString *out, const ParsedInstruction *insn, i
  * frame_size-1-RESERVED, the explicit arguments descending below it.
  * Reconstruct them as fn.call (this, a1, ...) (or new fn (a1, ...) for construct).
  * Falls back to an argc note when the frame layout is unknown or too small. */
-static Result emit_call_with_argc(TokenString *out, const ParsedInstruction *insn, bool is_construct) {
+static Result emit_call_with_argc(HbcTokenString *out, const ParsedInstruction *insn, bool is_construct) {
 	const u32 argc = insn->arg3;
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 	if (is_construct) {
-		RETURN_IF_ERROR (add (out, create_raw_token ("new")));
+		RETURN_IF_ERROR (add (out, hbc_token_new_raw ("new")));
 	}
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn, 1)));
 	if (!is_construct) {
-		RETURN_IF_ERROR (add (out, create_raw_token (".call")));
+		RETURN_IF_ERROR (add (out, hbc_token_new_raw (".call")));
 	}
-	RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+	RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 	const int base = (int)insn->frame_size - 1 - HBC_CALL_FRAME_RESERVED;
 	if (argc == 0 || base < 0 || (int)argc > base + 1) {
 		char buf2[32];
 		snprintf (buf2, sizeof (buf2), "/*argc:%u*/", (unsigned)argc);
-		RETURN_IF_ERROR (add (out, create_raw_token (buf2)));
-		return add (out, create_right_parenthesis_token ());
+		RETURN_IF_ERROR (add (out, hbc_token_new_raw (buf2)));
+		return add (out, hbc_token_new_right_parenthesis ());
 	}
 	/* Construct omits the implicit `this` (the freshly created object). */
 	const u32 first = is_construct? 1: 0;
 	for (u32 i = first; i < argc; i++) {
 		if (i > first) {
-			RETURN_IF_ERROR (add (out, create_raw_token (",")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (",")));
 		}
-		RETURN_IF_ERROR (add (out, create_right_hand_reg_token (base - (int)i)));
+		RETURN_IF_ERROR (add (out, hbc_token_new_right_hand_reg (base - (int)i)));
 	}
-	return add (out, create_right_parenthesis_token ());
+	return add (out, hbc_token_new_right_parenthesis ());
 }
 
-static Result emit_simple_jump(TokenString *out, const ParsedInstruction *insn, bool positive) {
+static Result emit_simple_jump(HbcTokenString *out, const ParsedInstruction *insn, bool positive) {
 	u32 target = _hbc_compute_target_address (insn, 0);
 	if (positive) {
-		RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
-		return add (out, create_raw_token ("true"));
+		RETURN_IF_ERROR (add (out, hbc_token_new_jump_condition (target)));
+		return add (out, hbc_token_new_raw ("true"));
 	}
-	RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-	return add (out, create_raw_token ("false"));
+	RETURN_IF_ERROR (add (out, hbc_token_new_jump_not_condition (target)));
+	return add (out, hbc_token_new_raw ("false"));
 }
 
 /* Validate register bounds against function register count */
@@ -353,12 +353,12 @@ static const char *jump_cmp_operator(u8 op) {
 }
 
 /* Safe register token creation with validation */
-static Token *reg_l_safe(const ParsedInstruction *insn, int idx) {
+static HbcToken *reg_l_safe(const ParsedInstruction *insn, int idx) {
 	if (!insn || !insn->inst) {
-		return create_raw_token ("r?");
+		return hbc_token_new_raw ("r?");
 	}
 	if (!is_operand_register (insn->inst, idx)) {
-		return create_raw_token ("/*not_reg*/");
+		return hbc_token_new_raw ("/*not_reg*/");
 	}
 	u32 r = hbc_operand_value (insn, idx);
 	if (!is_valid_register (r, insn)) {
@@ -367,15 +367,15 @@ static Token *reg_l_safe(const ParsedInstruction *insn, int idx) {
 		 * or a parser bug, not a normal feature. */
 		hbc_debug_printf ("WARNING: Out-of-bounds register r%u (bytecode may be corrupted)\n", r);
 	}
-	return create_left_hand_reg_token ((int)r);
+	return hbc_token_new_left_hand_reg ((int)r);
 }
 
-static Token *reg_r_safe(const ParsedInstruction *insn, int idx) {
+static HbcToken *reg_r_safe(const ParsedInstruction *insn, int idx) {
 	if (!insn || !insn->inst) {
-		return create_raw_token ("r?");
+		return hbc_token_new_raw ("r?");
 	}
 	if (!is_operand_register (insn->inst, idx)) {
-		return create_raw_token ("/*not_reg*/");
+		return hbc_token_new_raw ("/*not_reg*/");
 	}
 	u32 r = hbc_operand_value (insn, idx);
 	if (!is_valid_register (r, insn)) {
@@ -384,22 +384,22 @@ static Token *reg_r_safe(const ParsedInstruction *insn, int idx) {
 		 * or a parser bug, not a normal feature. */
 		hbc_debug_printf ("WARNING: Out-of-bounds register r%u (bytecode may be corrupted)\n", r);
 	}
-	return create_right_hand_reg_token ((int)r);
+	return hbc_token_new_right_hand_reg ((int)r);
 }
 
-static Token *num_token_u32(u32 v) {
+static HbcToken *num_token_u32(u32 v) {
 	char buf[32];
 	snprintf (buf, sizeof (buf), "%u", v);
-	return create_raw_token (buf);
+	return hbc_token_new_raw (buf);
 }
 
-static Token *num_token_i32(i32 v) {
+static HbcToken *num_token_i32(i32 v) {
 	char buf[32];
 	snprintf (buf, sizeof (buf), "%d", v);
-	return create_raw_token (buf);
+	return hbc_token_new_raw (buf);
 }
 
-static Token *double_token(u32 lo, u32 hi) {
+static HbcToken *double_token(u32 lo, u32 hi) {
 	union {
 		u64 u;
 		double d;
@@ -408,10 +408,10 @@ static Token *double_token(u32 lo, u32 hi) {
 	char buf[64];
 	/* Print with minimal precision; avoid locale issues */
 	snprintf (buf, sizeof (buf), "%.*g", 15, u.d);
-	return create_raw_token (buf);
+	return hbc_token_new_raw (buf);
 }
 
-static Token *quoted_string(HBCReader *r, u32 sid) {
+static HbcToken *quoted_string(HBCReader *r, u32 sid) {
 	if (r && r->strings && sid < r->header.stringCount) {
 		const char *s = r->strings[sid];
 		size_t n = s? strlen (s): 0;
@@ -433,61 +433,61 @@ static Token *quoted_string(HBCReader *r, u32 sid) {
 			}
 		}
 		_hbc_sb_append (&sb, "\"");
-		Token *t = create_raw_token (sb.data? sb.data: "\"\"");
+		HbcToken *t = hbc_token_new_raw (sb.data? sb.data: "\"\"");
 		_hbc_sb_free (&sb);
 		return t;
 	}
-	return create_raw_token ("\"\"");
+	return hbc_token_new_raw ("\"\"");
 }
 
-static Token *unquoted_string(HBCReader *r, u32 sid) {
+static HbcToken *unquoted_string(HBCReader *r, u32 sid) {
 	if (r && r->strings && sid < r->header.stringCount) {
 		const char *s = r->strings[sid];
 		if (s) {
-			return create_raw_token (s);
+			return hbc_token_new_raw (s);
 		}
 	}
-	return create_raw_token ("unknown");
+	return hbc_token_new_raw ("unknown");
 }
 
 /* Emit `.name` when the property is a valid identifier, `["name"]` otherwise */
-static Result emit_property_access(TokenString *out, const ParsedInstruction *insn, u32 sid) {
+static Result emit_property_access(HbcTokenString *out, const ParsedInstruction *insn, u32 sid) {
 	HBCReader *r = insn->hbc_reader;
 	const char *s = (r && r->strings && sid < r->header.stringCount)? r->strings[sid]: NULL;
 	if (s && _hbc_is_js_identifier (s)) {
-		RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
-		return add (out, create_raw_token (s));
+		RETURN_IF_ERROR (add (out, hbc_token_new_dot_accessor ()));
+		return add (out, hbc_token_new_raw (s));
 	}
-	RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 	RETURN_IF_ERROR (add (out, quoted_string (r, sid)));
-	return add (out, create_raw_token ("]"));
+	return add (out, hbc_token_new_raw ("]"));
 }
 
 /* Emit a compare-and-jump as `if (rA cmp rB)` or its negated goto form */
-static Result emit_cmp_jump(TokenString *out, const ParsedInstruction *insn_c, const char *cmp) {
+static Result emit_cmp_jump(HbcTokenString *out, const ParsedInstruction *insn_c, const char *cmp) {
 	i32 rel = (i32)hbc_operand_value (insn_c, 0);
 	u32 target = _hbc_compute_target_address (insn_c, 0);
 	if (rel > 0) {
-		RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-		RETURN_IF_ERROR (add (out, create_raw_token ("!")));
-		RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+		RETURN_IF_ERROR (add (out, hbc_token_new_jump_not_condition (target)));
+		RETURN_IF_ERROR (add (out, hbc_token_new_raw ("!")));
+		RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 	} else {
-		RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+		RETURN_IF_ERROR (add (out, hbc_token_new_jump_condition (target)));
 	}
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-	RETURN_IF_ERROR (add (out, create_raw_token (cmp)));
+	RETURN_IF_ERROR (add (out, hbc_token_new_raw (cmp)));
 	RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 	if (rel > 0) {
-		RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+		RETURN_IF_ERROR (add (out, hbc_token_new_right_parenthesis ()));
 	}
 	return SUCCESS_RESULT ();
 }
 
 /* Emit `rD = <function table entry>` with environment and closure kind flags */
-static Result emit_closure_token(TokenString *out, const ParsedInstruction *insn_c, bool is_closure, bool is_generator, bool is_async) {
+static Result emit_closure_token(HbcTokenString *out, const ParsedInstruction *insn_c, bool is_closure, bool is_generator, bool is_async) {
 	RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-	RETURN_IF_ERROR (add (out, create_assignment_token ()));
-	FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
+	RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+	HbcFunctionTableIndexToken *t = (HbcFunctionTableIndexToken *)hbc_token_new_function_table_index (hbc_operand_value (insn_c, 2), NULL);
 	if (!t) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 	}
@@ -495,10 +495,10 @@ static Result emit_closure_token(TokenString *out, const ParsedInstruction *insn
 	t->is_closure = is_closure;
 	t->is_generator = is_generator;
 	t->is_async = is_async;
-	return add (out, (Token *)t);
+	return add (out, (HbcToken *)t);
 }
 
-Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, TokenString *out) {
+Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, HbcTokenString *out) {
 	if (!insn_c || !out || !insn_c->inst) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "translate: bad args");
 	}
@@ -532,7 +532,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	}
 	const char *simple_stmt = lookup_op_table (simple_stmt_table, op);
 	if (simple_stmt) {
-		return add (out, create_raw_token (simple_stmt));
+		return add (out, hbc_token_new_raw (simple_stmt));
 	}
 	const char *incdec = lookup_op_table (incdec_table, op);
 	if (incdec) {
@@ -545,28 +545,28 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* dest <- src */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_LoadConstUInt8:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
 			break;
 		}
 	case OP_LoadConstInt:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, num_token_i32 ((i32)insn->arg2)));
 			break;
 		}
 	case OP_LoadConstDouble:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, double_token (insn->arg2, insn->arg3)));
 			break;
 		}
@@ -574,7 +574,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_LoadConstStringLongIndex:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg2)));
 			break;
 		}
@@ -584,31 +584,31 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			/* LoadParam index maps directly to args[i]: index 0 is `this`,
 			 * matching the a0..aN-1 names emitted in the function signature. */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			char buf[32];
 			snprintf (buf, sizeof (buf), "args[%u]", insn->arg2);
-			RETURN_IF_ERROR (add (out, create_raw_token (buf)));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (buf)));
 			break;
 		}
 	case OP_SelectObject:
 		{
 			/* rD = select_object (obj1, obj2) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("select_object(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("select_object(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_Catch:
 		{
 			/* catch (rN) marker */
 			if (is_operand_register (insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_catch_block_start_token ((int)hbc_operand_value (insn, 0))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_catch_block_start ((int)hbc_operand_value (insn, 0))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*catch non-reg*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*catch non-reg*/")));
 			}
 			break;
 		}
@@ -616,18 +616,18 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* Create a new environment object in rD */
 			if (is_operand_register (insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_new_environment_token ((int)hbc_operand_value (insn_c, 0))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_new_environment ((int)hbc_operand_value (insn_c, 0))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_env_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*new_env_invalid*/")));
 			}
 			break;
 		}
 	case OP_CreateInnerEnvironment:
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
-				RETURN_IF_ERROR (add (out, create_new_inner_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_new_inner_environment ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*new_inner_env_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*new_inner_env_invalid*/")));
 			}
 			break;
 		}
@@ -647,10 +647,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* rD = new Array (count) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("new Array(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("new Array(")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_GetById:
@@ -658,7 +658,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_GetByIdLong:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			RETURN_IF_ERROR (emit_property_access (out, insn_c, insn->arg4));
 			break;
@@ -666,11 +666,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_GetByVal:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
 			break;
 		}
 	case OP_TryGetById:
@@ -678,14 +678,14 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* rD = try_get (obj.prop) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			StringBuffer sb;
 			RETURN_IF_ERROR (_hbc_sb_init (&sb, 48));
 			_hbc_sb_append (&sb, "try_get(");
 			_hbc_sb_appendf (&sb, "r%u", (unsigned)insn->arg2);
 			_hbc_format_property_from_string_id (insn->hbc_reader, insn->arg4, &sb);
 			_hbc_sb_append (&sb, ")");
-			Token *t = create_raw_token (sb.data? sb.data: "try_get(r0)");
+			HbcToken *t = hbc_token_new_raw (sb.data? sb.data: "try_get(r0)");
 			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
@@ -705,7 +705,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = (op == OP_PutNewOwnByIdLong || op == OP_PutNewOwnNEByIdLong)? insn->arg4: insn->arg3;
 			RETURN_IF_ERROR (emit_property_access (out, insn_c, sid));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
@@ -714,10 +714,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* obj[idx] = value; operands: obj reg, value reg, literal idx */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
@@ -725,10 +725,10 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* rObj[rKey] = rVal */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0))); /* object is read, not written */
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
@@ -738,19 +738,19 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			/* rObj.name = rVal (prefer dot accessor, matching GetById) */
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			RETURN_IF_ERROR (emit_property_access (out, insn_c, insn->arg4));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			break;
 		}
 	case OP_Ret:
 		{
-			RETURN_IF_ERROR (add (out, create_return_directive_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_return_directive ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			break;
 		}
 	case OP_Throw:
 		{
-			RETURN_IF_ERROR (add (out, create_throw_directive_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_throw_directive ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			break;
 		}
@@ -758,47 +758,47 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* rD = iterator_begin (obj) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("iterator_begin(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("iterator_begin(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_IteratorNext:
 		{
 			/* rD = iterator_next (iter, state) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("iterator_next(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("iterator_next(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_IteratorClose:
 		{
 			/* iterator_close (iter, hint) */
-			RETURN_IF_ERROR (add (out, create_raw_token ("iterator_close(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("iterator_close(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	/* Generators */
 	case OP_StartGenerator:
 		{
-			RETURN_IF_ERROR (add (out, create_start_generator_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_start_generator ()));
 			break;
 		}
 	case OP_ResumeGenerator:
 		{
 			/* args: result_out, return_bool_out */
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1)) {
-				RETURN_IF_ERROR (add (out, create_resume_generator_token ((int)insn->arg1, (int)insn->arg2)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_resume_generator ((int)insn->arg1, (int)insn->arg2)));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*resume_gen_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*resume_gen_invalid*/")));
 			}
 			break;
 		}
@@ -806,15 +806,15 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_SaveGeneratorLong:
 		{
 			u32 target = _hbc_compute_target_address (insn, 0);
-			RETURN_IF_ERROR (add (out, create_save_generator_token (target)));
+			RETURN_IF_ERROR (add (out, hbc_token_new_save_generator (target)));
 			break;
 		}
 	case OP_GetEnvironment:
 		{
 			if (is_operand_register (insn->inst, 0)) {
-				RETURN_IF_ERROR (add (out, create_get_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_get_environment ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*get_env_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*get_env_invalid*/")));
 			}
 			break;
 		}
@@ -827,9 +827,9 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_StoreNPToEnvironmentL:
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 2)) {
-				RETURN_IF_ERROR (add (out, create_store_to_environment_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_store_to_environment ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_store_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*env_store_invalid*/")));
 			}
 			break;
 		}
@@ -838,11 +838,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			/* rD = load_from_env (envReg, slot) */
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			if (is_operand_register (insn->inst, 1)) {
-				RETURN_IF_ERROR (add (out, create_load_from_environment_token ((int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_load_from_environment ((int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*env_load_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*env_load_invalid*/")));
 			}
 			break;
 		}
@@ -850,14 +850,14 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_NewObjectWithBufferLong:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			StringBuffer sb;
 			Result r = _hbc_sb_init (&sb, 128);
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
 			r = _hbc_format_object_literal (insn->hbc_reader, insn->arg2, insn->arg3, insn->arg4, insn->arg5, &sb, LITERALS_PRETTY_AUTO, false);
-			Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
+			HbcToken *t = hbc_token_new_raw ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "{ /*object*/ }");
 			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
@@ -869,14 +869,14 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_NewArrayWithBufferLong:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			StringBuffer sb;
 			Result r = _hbc_sb_init (&sb, 128);
 			if (r.code != RESULT_SUCCESS) {
 				return r;
 			}
 			r = _hbc_format_array_literal (insn->hbc_reader, insn->arg3, insn->arg4, &sb, LITERALS_PRETTY_AUTO, false);
-			Token *t = create_raw_token ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
+			HbcToken *t = hbc_token_new_raw ((r.code == RESULT_SUCCESS && sb.data)? sb.data: "[ /*array*/ ]");
 			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
@@ -902,7 +902,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_DelById:
 	case OP_DelByIdLong:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("delete ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("delete ")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
 			u32 sid = insn->arg2;
 			const char *s = NULL;
@@ -910,43 +910,43 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				s = insn->hbc_reader->strings[sid];
 			}
 			if (s && _hbc_is_js_identifier (s)) {
-				RETURN_IF_ERROR (add (out, create_dot_accessor_token ()));
-				RETURN_IF_ERROR (add (out, create_raw_token (s)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_dot_accessor ()));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw (s)));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 				RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
 			}
 			break;
 		}
 	case OP_DelByVal:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("delete ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("delete ")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
 			break;
 		}
 	/* Regex and special operations */
 	case OP_CreateRegExp:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("new RegExp(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("new RegExp(")));
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (", ")));
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg3)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_LoadConstBigInt:
 	case OP_LoadConstBigIntLongIndex:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("n")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("n")));
 			break;
 		}
 	/* Jump instructions */
@@ -959,11 +959,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_jump_not_condition (target)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("!")));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			} else {
-				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_jump_condition (target)));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			}
 			break;
@@ -974,11 +974,11 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_jump_not_condition (target)));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			} else {
-				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("!")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_jump_condition (target)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("!")));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
 			}
 			break;
@@ -989,15 +989,15 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			i32 rel = (i32)hbc_operand_value (insn_c, 0);
 			u32 target = _hbc_compute_target_address (insn, 0);
 			if (rel > 0) {
-				RETURN_IF_ERROR (add (out, create_jump_not_condition_token (target)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_jump_not_condition (target)));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("!==")));
-				RETURN_IF_ERROR (add (out, create_raw_token ("undefined")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("!==")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("undefined")));
 			} else {
-				RETURN_IF_ERROR (add (out, create_jump_condition_token (target)));
+				RETURN_IF_ERROR (add (out, hbc_token_new_jump_condition (target)));
 				RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("===")));
-				RETURN_IF_ERROR (add (out, create_raw_token ("undefined")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("===")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("undefined")));
 			}
 			break;
 		}
@@ -1038,7 +1038,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			const char *cmp = jump_cmp_operator (op);
 			if (!cmp) {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*jump_cmp*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*jump_cmp*/")));
 				break;
 			}
 			RETURN_IF_ERROR (emit_cmp_jump (out, insn_c, cmp));
@@ -1049,118 +1049,118 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 	case OP_CallBuiltinLong:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("builtin_")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("builtin_")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg2)));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
 			if (insn->arg3 > 0) {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*")));
 				RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg3)));
-				RETURN_IF_ERROR (add (out, create_raw_token ("args*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("args*/")));
 			}
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_right_parenthesis ()));
 			break;
 		}
 	case OP_GetBuiltinClosure:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			FunctionTableIndexToken *t = (FunctionTableIndexToken *)create_function_table_index_token (hbc_operand_value (insn_c, 1), NULL);
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			HbcFunctionTableIndexToken *t = (HbcFunctionTableIndexToken *)hbc_token_new_function_table_index (hbc_operand_value (insn_c, 1), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
 			t->is_builtin = true;
 			t->is_closure = true;
-			RETURN_IF_ERROR (add (out, (Token *)t));
+			RETURN_IF_ERROR (add (out, (HbcToken *)t));
 			break;
 		}
 	case OP_CallDirect:
 	case OP_CallDirectLongIndex:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			Token *t = create_function_table_index_token (hbc_operand_value (insn_c, 2), NULL);
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			HbcToken *t = hbc_token_new_function_table_index (hbc_operand_value (insn_c, 2), NULL);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom fti");
 			}
 			RETURN_IF_ERROR (add (out, t));
-			RETURN_IF_ERROR (add (out, create_left_parenthesis_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("/*argc:")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_left_parenthesis ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*argc:")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (hbc_operand_value (insn_c, 1))));
-			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
-			RETURN_IF_ERROR (add (out, create_right_parenthesis_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("*/")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_right_parenthesis ()));
 			break;
 		}
 	/* Arguments operations */
 	case OP_GetArgumentsPropByVal:
 		{
 			RETURN_IF_ERROR (add (out, reg_l_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
-			RETURN_IF_ERROR (add (out, create_raw_token ("arguments[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("arguments[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
 			break;
 		}
 	/* Special operations */
 	case OP_ProfilePoint:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("profile_point(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("profile_point(")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->arg1)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_ThrowIfEmpty:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("throw_if_empty(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("throw_if_empty(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_DeclareGlobalVar:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("declare extern var")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("declare extern var")));
 			u32 sid = insn->arg1;
 			RETURN_IF_ERROR (add (out, unquoted_string (insn->hbc_reader, sid)));
 			break;
 		}
 	case OP_ThrowIfHasRestrictedGlobalProperty:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("throw_if_restricted_prop(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("throw_if_restricted_prop(")));
 			u32 sid = insn->arg1;
 			RETURN_IF_ERROR (add (out, quoted_string (insn->hbc_reader, sid)));
-			RETURN_IF_ERROR (add (out, create_raw_token (")")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (")")));
 			break;
 		}
 	case OP_SwitchImm:
 		{
-			RETURN_IF_ERROR (add (out, create_raw_token ("switch(")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("switch(")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token (") /*tableSize:")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (") /*tableSize:")));
 			RETURN_IF_ERROR (add (out, num_token_u32 (insn->switch_jump_table_size)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("*/")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("*/")));
 			break;
 		}
 	case OP_PutOwnByVal:
 		{
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			RETURN_IF_ERROR (add (out, create_assignment_token ()));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_assignment ()));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
 			break;
 		}
 	case OP_PutOwnGetterSetterByVal:
 		{
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 0)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("[")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("[")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 1)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("]")));
-			RETURN_IF_ERROR (add (out, create_raw_token (" = {getter: ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("]")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (" = {getter: ")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 2)));
-			RETURN_IF_ERROR (add (out, create_raw_token (", setter: ")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw (", setter: ")));
 			RETURN_IF_ERROR (add (out, reg_r_safe (insn_c, 3)));
-			RETURN_IF_ERROR (add (out, create_raw_token ("}")));
+			RETURN_IF_ERROR (add (out, hbc_token_new_raw ("}")));
 			break;
 		}
 	/* Property list operations */
@@ -1168,9 +1168,9 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 		{
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
 				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3)) {
-				RETURN_IF_ERROR (add (out, create_for_in_loop_init_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2), (int)hbc_operand_value (insn_c, 3))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_for_in_loop_init ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2), (int)hbc_operand_value (insn_c, 3))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_init_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*forin_init_invalid*/")));
 			}
 			break;
 		}
@@ -1179,9 +1179,9 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			if (is_operand_register (insn->inst, 0) && is_operand_register (insn->inst, 1) &&
 				is_operand_register (insn->inst, 2) && is_operand_register (insn->inst, 3) &&
 				is_operand_register (insn->inst, 4)) {
-				RETURN_IF_ERROR (add (out, create_for_in_loop_next_iter_token ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2), (int)hbc_operand_value (insn_c, 3), (int)hbc_operand_value (insn_c, 4))));
+				RETURN_IF_ERROR (add (out, hbc_token_new_for_in_loop_next_iter ((int)hbc_operand_value (insn_c, 0), (int)hbc_operand_value (insn_c, 1), (int)hbc_operand_value (insn_c, 2), (int)hbc_operand_value (insn_c, 3), (int)hbc_operand_value (insn_c, 4))));
 			} else {
-				RETURN_IF_ERROR (add (out, create_raw_token ("/*forin_next_invalid*/")));
+				RETURN_IF_ERROR (add (out, hbc_token_new_raw ("/*forin_next_invalid*/")));
 			}
 			break;
 		}
@@ -1200,7 +1200,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 				} else {
 					snprintf (buf, sizeof (buf), "/* unknown opcode 0x%02x */", op);
 				}
-				Token *t = create_raw_token (buf);
+				HbcToken *t = hbc_token_new_raw (buf);
 				if (!t) {
 					return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");
 				}
@@ -1219,7 +1219,7 @@ Result _hbc_translate_instruction_to_tokens(const ParsedInstruction *insn_c, Tok
 			StringBuffer sb;
 			RETURN_IF_ERROR (_hbc_sb_init (&sb, 64));
 			_hbc_sb_appendf (&sb, "/* %s */", insn->inst->name);
-			Token *t = create_raw_token (sb.data? sb.data: "/* insn */");
+			HbcToken *t = hbc_token_new_raw (sb.data? sb.data: "/* insn */");
 			_hbc_sb_free (&sb);
 			if (!t) {
 				return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom");

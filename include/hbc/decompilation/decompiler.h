@@ -39,7 +39,7 @@ R_VEC_TYPE(RVecBasicBlockPtr, BasicBlock *)
 R_VEC_TYPE(RVecEnvironmentPtr, Environment *)
 R_VEC_TYPE(RVecDowhileLoop, DowhileLoop)
 R_VEC_TYPE(RVecForeverLoop, ForeverLoop)
-R_VEC_TYPE(RVecTokenString, TokenString)
+R_VEC_TYPE(RVecHbcTokenString, HbcTokenString)
 
 /* Forward declaration */
 struct DecompiledFunctionBody;
@@ -157,7 +157,7 @@ struct DecompiledFunctionBody {
 	RVecForeverLoop forever_loops;
 
 	/* Generated code */
-	RVecTokenString statements;
+	RVecHbcTokenString statements;
 
 	/* Parsed instructions */
 	ParsedInstructionList instructions;

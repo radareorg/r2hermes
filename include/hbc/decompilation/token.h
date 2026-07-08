@@ -10,97 +10,97 @@
 struct HermesDecompiler;
 struct Environment;
 
-/* Token types */
+/* HbcToken types */
 typedef enum {
-	TOKEN_TYPE_RAW,
-	TOKEN_TYPE_LEFT_HAND_REG,
-	TOKEN_TYPE_RIGHT_HAND_REG,
-	TOKEN_TYPE_ASSIGNMENT,
-	TOKEN_TYPE_LEFT_PARENTHESIS,
-	TOKEN_TYPE_RIGHT_PARENTHESIS,
-	TOKEN_TYPE_DOT_ACCESSOR,
-	TOKEN_TYPE_BIND,
-	TOKEN_TYPE_RETURN_DIRECTIVE,
-	TOKEN_TYPE_THROW_DIRECTIVE,
-	TOKEN_TYPE_FUNCTION_TABLE_INDEX,
-	TOKEN_TYPE_JUMP_CONDITION,
-	TOKEN_TYPE_JUMP_NOT_CONDITION,
-	TOKEN_TYPE_GET_ENVIRONMENT,
-	TOKEN_TYPE_LOAD_FROM_ENVIRONMENT,
-	TOKEN_TYPE_NEW_ENVIRONMENT,
-	TOKEN_TYPE_NEW_INNER_ENVIRONMENT,
-	TOKEN_TYPE_SWITCH_IMM,
-	TOKEN_TYPE_STORE_TO_ENVIRONMENT,
-	TOKEN_TYPE_FOR_IN_LOOP_INIT,
-	TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER,
-	TOKEN_TYPE_RESUME_GENERATOR,
-	TOKEN_TYPE_SAVE_GENERATOR,
-	TOKEN_TYPE_START_GENERATOR,
-	TOKEN_TYPE_CATCH_BLOCK_START
-} TokenType;
+	HBC_TOKEN_TYPE_RAW,
+	HBC_TOKEN_TYPE_LEFT_HAND_REG,
+	HBC_TOKEN_TYPE_RIGHT_HAND_REG,
+	HBC_TOKEN_TYPE_ASSIGNMENT,
+	HBC_TOKEN_TYPE_LEFT_PARENTHESIS,
+	HBC_TOKEN_TYPE_RIGHT_PARENTHESIS,
+	HBC_TOKEN_TYPE_DOT_ACCESSOR,
+	HBC_TOKEN_TYPE_BIND,
+	HBC_TOKEN_TYPE_RETURN_DIRECTIVE,
+	HBC_TOKEN_TYPE_THROW_DIRECTIVE,
+	HBC_TOKEN_TYPE_FUNCTION_TABLE_INDEX,
+	HBC_TOKEN_TYPE_JUMP_CONDITION,
+	HBC_TOKEN_TYPE_JUMP_NOT_CONDITION,
+	HBC_TOKEN_TYPE_GET_ENVIRONMENT,
+	HBC_TOKEN_TYPE_LOAD_FROM_ENVIRONMENT,
+	HBC_TOKEN_TYPE_NEW_ENVIRONMENT,
+	HBC_TOKEN_TYPE_NEW_INNER_ENVIRONMENT,
+	HBC_TOKEN_TYPE_SWITCH_IMM,
+	HBC_TOKEN_TYPE_STORE_TO_ENVIRONMENT,
+	HBC_TOKEN_TYPE_FOR_IN_LOOP_INIT,
+	HBC_TOKEN_TYPE_FOR_IN_LOOP_NEXT_ITER,
+	HBC_TOKEN_TYPE_RESUME_GENERATOR,
+	HBC_TOKEN_TYPE_SAVE_GENERATOR,
+	HBC_TOKEN_TYPE_START_GENERATOR,
+	HBC_TOKEN_TYPE_CATCH_BLOCK_START
+} HbcTokenType;
 
 /* Base token structure */
-typedef struct Token {
-	TokenType type;
-	struct Token *next;
-} Token;
+typedef struct HbcToken {
+	HbcTokenType type;
+	struct HbcToken *next;
+} HbcToken;
 
 /* Raw token with string content */
 typedef struct {
-	Token base;
+	HbcToken base;
 	char *text;
-} RawToken;
+} HbcRawToken;
 
 /* Register token (left-hand side) */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int reg_num;
-} LeftHandRegToken;
+} HbcLeftHandRegToken;
 
 /* Register token (right-hand side) */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int reg_num;
-} RightHandRegToken;
+} HbcRightHandRegToken;
 
 /* Assignment token (=) */
 typedef struct {
-	Token base;
-} AssignmentToken;
+	HbcToken base;
+} HbcAssignmentToken;
 
 /* Parenthesis tokens */
 typedef struct {
-	Token base;
-} LeftParenthesisToken;
+	HbcToken base;
+} HbcLeftParenthesisToken;
 
 typedef struct {
-	Token base;
-} RightParenthesisToken;
+	HbcToken base;
+} HbcRightParenthesisToken;
 
 /* Dot accessor token (.) */
 typedef struct {
-	Token base;
-} DotAccessorToken;
+	HbcToken base;
+} HbcDotAccessorToken;
 
 /* Bind token (.bind ()) */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int reg_num;
-} BindToken;
+} HbcBindToken;
 
 /* Return directive token */
 typedef struct {
-	Token base;
-} ReturnDirectiveToken;
+	HbcToken base;
+} HbcReturnDirectiveToken;
 
 /* Throw directive token */
 typedef struct {
-	Token base;
-} ThrowDirectiveToken;
+	HbcToken base;
+} HbcThrowDirectiveToken;
 
 /* Function table index token */
 typedef struct {
-	Token base;
+	HbcToken base;
 	u32 function_id;
 	struct HermesDecompiler *state;
 	int environment_id;
@@ -109,146 +109,146 @@ typedef struct {
 	bool is_generator;
 	bool is_async;
 	struct Environment *parent_environment;
-} FunctionTableIndexToken;
+} HbcFunctionTableIndexToken;
 
 /* Jump condition tokens */
 typedef struct {
-	Token base;
+	HbcToken base;
 	u32 target_address;
-} JumpConditionToken;
+} HbcJumpConditionToken;
 
 typedef struct {
-	Token base;
+	HbcToken base;
 	u32 target_address;
-} JumpNotConditionToken;
+} HbcJumpNotConditionToken;
 
 /* Environment tokens */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int reg_num;
 	int nesting_level;
-} GetEnvironmentToken;
+} HbcGetEnvironmentToken;
 
 typedef struct {
-	Token base;
+	HbcToken base;
 	int reg_num;
 	int slot_index;
-} LoadFromEnvironmentToken;
+} HbcLoadFromEnvironmentToken;
 
 typedef struct {
-	Token base;
+	HbcToken base;
 	int reg_num;
-} NewEnvironmentToken;
+} HbcNewEnvironmentToken;
 
 typedef struct {
-	Token base;
+	HbcToken base;
 	int dest_register;
 	int parent_register;
 	int number_of_slots;
-} NewInnerEnvironmentToken;
+} HbcNewInnerEnvironmentToken;
 
 /* Switch statement token */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int value_reg;
 	u32 jump_table_address;
 	u32 default_jump_address;
 	u32 unsigned_min_value;
 	u32 unsigned_max_value;
-} SwitchImmToken;
+} HbcSwitchImmToken;
 
 /* Environment store token */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int env_register;
 	int slot_index;
 	int value_register;
-} StoreToEnvironmentToken;
+} HbcStoreToEnvironmentToken;
 
 /* For-in loop tokens */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int obj_props_register;
 	int obj_register;
 	int iter_index_register;
 	int iter_size_register;
-} ForInLoopInitToken;
+} HbcForInLoopInitToken;
 
 typedef struct {
-	Token base;
+	HbcToken base;
 	int next_value_register;
 	int obj_props_register;
 	int obj_register;
 	int iter_index_register;
 	int iter_size_register;
-} ForInLoopNextIterToken;
+} HbcForInLoopNextIterToken;
 
 /* Generator tokens */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int result_out_reg;
 	int return_bool_out_reg;
-} ResumeGeneratorToken;
+} HbcResumeGeneratorToken;
 
 typedef struct {
-	Token base;
+	HbcToken base;
 	u32 address;
-} SaveGeneratorToken;
+} HbcSaveGeneratorToken;
 
 typedef struct {
-	Token base;
-} StartGeneratorToken;
+	HbcToken base;
+} HbcStartGeneratorToken;
 
 /* Try-catch token */
 typedef struct {
-	Token base;
+	HbcToken base;
 	int arg_register;
-} CatchBlockStartToken;
+} HbcCatchBlockStartToken;
 
-/* Token string (list of tokens) */
+/* HbcToken string (list of tokens) */
 typedef struct {
-	Token *head;
-	Token *tail;
+	HbcToken *head;
+	HbcToken *tail;
 	ParsedInstruction *assembly;
-} TokenString;
+} HbcTokenString;
 
 /* Function declarations */
-Result _hbc_token_string_init(TokenString *token_string, ParsedInstruction *instruction);
-void _hbc_token_string_cleanup(TokenString *token_string);
+Result _hbc_token_string_init(HbcTokenString *token_string, ParsedInstruction *instruction);
+void _hbc_token_string_cleanup(HbcTokenString *token_string);
 
-/* Token creation functions */
-Token *create_raw_token(const char *text);
-Token *create_left_hand_reg_token(int reg_num);
-Token *create_right_hand_reg_token(int reg_num);
-Token *create_assignment_token(void);
-Token *create_left_parenthesis_token(void);
-Token *create_right_parenthesis_token(void);
-Token *create_dot_accessor_token(void);
-Token *create_bind_token(int reg_num);
-Token *create_return_directive_token(void);
-Token *create_throw_directive_token(void);
-Token *create_function_table_index_token(u32 function_id, struct HermesDecompiler *state);
-Token *create_jump_condition_token(u32 target_address);
-Token *create_jump_not_condition_token(u32 target_address);
+/* HbcToken creation functions */
+HbcToken *hbc_token_new_raw(const char *text);
+HbcToken *hbc_token_new_left_hand_reg(int reg_num);
+HbcToken *hbc_token_new_right_hand_reg(int reg_num);
+HbcToken *hbc_token_new_assignment(void);
+HbcToken *hbc_token_new_left_parenthesis(void);
+HbcToken *hbc_token_new_right_parenthesis(void);
+HbcToken *hbc_token_new_dot_accessor(void);
+HbcToken *hbc_token_new_bind(int reg_num);
+HbcToken *hbc_token_new_return_directive(void);
+HbcToken *hbc_token_new_throw_directive(void);
+HbcToken *hbc_token_new_function_table_index(u32 function_id, struct HermesDecompiler *state);
+HbcToken *hbc_token_new_jump_condition(u32 target_address);
+HbcToken *hbc_token_new_jump_not_condition(u32 target_address);
 
 /* Advanced token creation */
-Token *create_get_environment_token(int reg_num, int nesting_level);
-Token *create_load_from_environment_token(int reg_num, int slot_index);
-Token *create_new_environment_token(int reg_num);
-Token *create_new_inner_environment_token(int dest_register, int parent_register, int number_of_slots);
-Token *create_switch_imm_token(int value_reg, u32 jump_table_address, u32 default_jump_address, u32 unsigned_min_value, u32 unsigned_max_value);
-Token *create_store_to_environment_token(int env_register, int slot_index, int value_register);
-Token *create_for_in_loop_init_token(int obj_props_register, int obj_register, int iter_index_register, int iter_size_register);
-Token *create_for_in_loop_next_iter_token(int next_value_register, int obj_props_register, int obj_register, int iter_index_register, int iter_size_register);
-Token *create_resume_generator_token(int result_out_reg, int return_bool_out_reg);
-Token *create_save_generator_token(u32 address);
-Token *create_start_generator_token(void);
-Token *create_catch_block_start_token(int arg_register);
+HbcToken *hbc_token_new_get_environment(int reg_num, int nesting_level);
+HbcToken *hbc_token_new_load_from_environment(int reg_num, int slot_index);
+HbcToken *hbc_token_new_new_environment(int reg_num);
+HbcToken *hbc_token_new_new_inner_environment(int dest_register, int parent_register, int number_of_slots);
+HbcToken *hbc_token_new_switch_imm(int value_reg, u32 jump_table_address, u32 default_jump_address, u32 unsigned_min_value, u32 unsigned_max_value);
+HbcToken *hbc_token_new_store_to_environment(int env_register, int slot_index, int value_register);
+HbcToken *hbc_token_new_for_in_loop_init(int obj_props_register, int obj_register, int iter_index_register, int iter_size_register);
+HbcToken *hbc_token_new_for_in_loop_next_iter(int next_value_register, int obj_props_register, int obj_register, int iter_index_register, int iter_size_register);
+HbcToken *hbc_token_new_resume_generator(int result_out_reg, int return_bool_out_reg);
+HbcToken *hbc_token_new_save_generator(u32 address);
+HbcToken *hbc_token_new_start_generator(void);
+HbcToken *hbc_token_new_catch_block_start(int arg_register);
 
-/* Token manipulation */
-Result _hbc_token_string_add_token(TokenString *token_string, Token *token);
-void _hbc_token_free(Token *token);
-Result _hbc_token_to_string(Token *token, StringBuffer *buffer);
-Result _hbc_token_string_to_string(TokenString *token_string, StringBuffer *buffer);
+/* HbcToken manipulation */
+Result _hbc_token_string_add_token(HbcTokenString *token_string, HbcToken *token);
+void _hbc_token_free(HbcToken *token);
+Result _hbc_token_to_string(HbcToken *token, StringBuffer *buffer);
+Result _hbc_token_string_to_string(HbcTokenString *token_string, StringBuffer *buffer);
 
 #endif /* LIBHBC_TOKEN_H */

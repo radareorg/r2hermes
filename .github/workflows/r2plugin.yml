@@ -35,9 +35,9 @@ jobs:
           cp -f ../r2plugin/config.mk libr/xps/config.mk
           git clone .. libr/xps/p/r2hermes
           make -C libr/xps/p/r2hermes include/hbc/version.h
-          make -C libr/xps/p/r2hermes build/libhbc.a
           make -C libr/xps
           ./configure --prefix=/usr --with-compiler=tcc
+          make -C libr/xps/p/r2hermes build/libhbc.a
           make -j
           sudo make install
 
@@ -64,8 +64,6 @@ jobs:
           # Clone r2hermes into the plugins directory and configure XPS
           cp -f ../r2plugin/config.mk libr/xps/config.mk
           git clone .. libr/xps/p/r2hermes
-          make -C libr/xps/p/r2hermes include/hbc/version.h
-          make -C libr/xps/p/r2hermes build/libhbc.a
           make -C libr/xps
 
           # Build radare2 with meson
