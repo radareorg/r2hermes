@@ -673,7 +673,7 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 		hbc_debug_printf ("File too small for %u identifiers, truncating\n",
 			reader->header.identifierCount);
 		/* Adjust the identifier count to what we can safely read */
-		reader->header.identifierCount = (u32)(remaining_bytes (reader->file_buffer) / sizeof (u32));
+		reader->header.identifierCount = (u32) (remaining_bytes (reader->file_buffer) / sizeof (u32));
 	}
 
 	/* If we have no identifiers to read, return success */
