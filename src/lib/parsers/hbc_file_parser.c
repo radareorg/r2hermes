@@ -673,8 +673,7 @@ Result _hbc_reader_read_identifier_hashes(HBCReader *reader) {
 		hbc_debug_printf ("File too small for %u identifiers, truncating\n",
 			reader->header.identifierCount);
 		/* Adjust the identifier count to what we can safely read */
-		u32 max_identifiers = remaining_bytes (reader->file_buffer) / sizeof (u32);
-		reader->header.identifierCount = max_identifiers;
+		reader->header.identifierCount = (u32)(remaining_bytes (reader->file_buffer) / sizeof (u32));
 	}
 
 	/* If we have no identifiers to read, return success */
@@ -1665,10 +1664,7 @@ Result _hbc_reader_read_functions_robust(HBCReader *reader) {
 		r_buf_size (reader->file_buffer));
 
 	/* Align buffer */
-	Result result = align_over_padding (reader->file_buffer, 4);
-	if (result.code != RESULT_SUCCESS) {
-		return result;
-	}
+	RETURN_IF_ERROR (align_over_padding (reader->file_buffer, 4));
 
 	/* Calculate memory requirements */
 	size_t function_headers_size = max_functions_to_read * sizeof (FunctionHeader);

@@ -199,10 +199,7 @@ Result hbc_literals_get(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primar
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
 	}
 	HBCLiteralEntry *e;
-	Result r = cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, true, &e);
-	if (r.code != RESULT_SUCCESS) {
-		return r;
-	}
+	RETURN_IF_ERROR (cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, true, &e));
 	*out_formatted = e->formatted;
 	return SUCCESS_RESULT ();
 }
@@ -227,10 +224,7 @@ static Result register_literal(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "invalid args");
 	}
 	HBCLiteralEntry *e;
-	Result r = cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, format, &e);
-	if (r.code != RESULT_SUCCESS) {
-		return r;
-	}
+	RETURN_IF_ERROR (cache_get_or_create (hbc, kind, num_items, primary_id, secondary_id, format, &e));
 	if (from_addr) {
 		xref_add (e, from_addr);
 	}

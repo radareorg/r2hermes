@@ -85,10 +85,7 @@ static Result hbc_load_current_binary(HbcContext *ctx, RCore *core) {
 	}
 
 	/* Open HBC from buffer */
-	Result res = hbc_open_from_buffer (bf->buf, &ctx->hbc);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
+	RETURN_IF_ERROR (hbc_open_from_buffer (bf->buf, &ctx->hbc));
 
 	ctx->core = core;
 	ctx->file_path = strdup (file_path);
@@ -800,17 +797,11 @@ static Result lit_list_collect(HbcContext *ctx, RCore *core, const HBCLiteralEnt
 	*out_arr = NULL;
 	*out_n = 0;
 	HBC *hbc = NULL;
-	Result r = ensure_hbc_loaded (ctx, core, &hbc);
-	if (r.code != RESULT_SUCCESS) {
-		return r;
-	}
+	RETURN_IF_ERROR (ensure_hbc_loaded (ctx, core, &hbc));
 	if (!ensure_lit_cache_populated (core, hbc)) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "literal cache not populated");
 	}
-	r = hbc_literals_list (hbc, out_arr, out_n);
-	if (r.code != RESULT_SUCCESS) {
-		return r;
-	}
+	RETURN_IF_ERROR (hbc_literals_list (hbc, out_arr, out_n));
 	return SUCCESS_RESULT ();
 }
 

@@ -57,8 +57,7 @@ static Result errorf(ResultCode code, const char *fmt, ...) {
 	va_start (ap, fmt);
 	vsnprintf (buf, sizeof (buf), fmt, ap);
 	va_end (ap);
-	Result r = { code, buf };
-	return r;
+	return (Result){ code, buf };
 }
 
 static bool streq(const char *a, const char *b) {

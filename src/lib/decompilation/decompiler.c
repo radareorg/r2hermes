@@ -35,10 +35,7 @@ static Result ensure_function_bytecode_loaded_from_state(HBC *hbc, FunctionHeade
 	/* Get bytecode from state */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
+	RETURN_IF_ERROR (hbc_get_function_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size));
 
 	/* Allocate and copy bytecode */
 	function_header->bytecode = (u8 *)malloc (bytecode_size);
@@ -781,10 +778,7 @@ Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBC *hbc) {
 	}
 
 	/* Initialize common fields */
-	Result res = _hbc_decompiler_init (decompiler);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
+	RETURN_IF_ERROR (_hbc_decompiler_init (decompiler));
 
 	/* Store state reference */
 	decompiler->hbc = hbc;

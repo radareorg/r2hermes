@@ -544,13 +544,10 @@ Result _hbc_disassemble_file(const char *input_file, const char *output_file, HB
 
 	/* Initialize HBC reader */
 	HBCReader reader;
-	Result result = _hbc_reader_init (&reader);
-	if (result.code != RESULT_SUCCESS) {
-		return result;
-	}
+	RETURN_IF_ERROR (_hbc_reader_init (&reader));
 
 	/* Read the whole file */
-	result = _hbc_reader_read_whole_file (&reader, input_file);
+	Result result = _hbc_reader_read_whole_file (&reader, input_file);
 	if (result.code != RESULT_SUCCESS) {
 		_hbc_reader_cleanup (&reader);
 		return result;
@@ -590,10 +587,7 @@ Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output
 
 	/* Initialize HBC reader */
 	HBCReader reader;
-	Result result = _hbc_reader_init (&reader);
-	if (result.code != RESULT_SUCCESS) {
-		return result;
-	}
+	RETURN_IF_ERROR (_hbc_reader_init (&reader));
 
 	reader.file_buffer = r_buf_new_with_bytes (buffer, size);
 	if (!reader.file_buffer) {
@@ -602,7 +596,7 @@ Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output
 	}
 
 	/* Read header */
-	result = _hbc_reader_read_header (&reader);
+	Result result = _hbc_reader_read_header (&reader);
 	if (result.code != RESULT_SUCCESS) {
 		_hbc_reader_cleanup (&reader);
 		return result;
