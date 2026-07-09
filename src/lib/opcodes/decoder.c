@@ -385,17 +385,17 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 		}
 
 		/* Verify offset is within file bounds */
-		if (function_header->offset >= reader->file_buffer.size) {
+		if (function_header->offset >= r_buf_size (reader->file_buffer)) {
 			RETURN_IF_ERROR (r_strbuf_append (&disassembler->output,
 				"[Bytecode offset beyond file size]\n"));
 			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
 		}
 
 		/* Verify we can read the full bytecode from the file */
-		if (function_header->bytecodeSizeInBytes > reader->file_buffer.size - function_header->offset) {
+		if (function_header->bytecodeSizeInBytes > r_buf_size (reader->file_buffer) - function_header->offset) {
 			RETURN_IF_ERROR (r_strbuf_append (&disassembler->output,
 				"[Bytecode extends beyond file size, truncating]\n"));
-			function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
+			function_header->bytecodeSizeInBytes = r_buf_size (reader->file_buffer) - function_header->offset;
 		}
 
 		/* Allocate bytecode buffer */
@@ -405,31 +405,17 @@ Result _hbc_disassemble_function(Disassembler *disassembler, u32 function_id) {
 			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 		}
 
-		/* Save current position */
-		size_t saved_pos = reader->file_buffer.position;
-
-		/* Seek to bytecode offset */
-		Result seek_result = _hbc_buffer_reader_seek (&reader->file_buffer, function_header->offset);
-		if (seek_result.code != RESULT_SUCCESS) {
-			RETURN_IF_ERROR (r_strbuf_append (&disassembler->output, "[Failed to seek to bytecode location]\n"));
-			free (function_header->bytecode);
-			function_header->bytecode = NULL;
-			return seek_result;
-		}
-
 		/* Read bytecode data */
-		Result read_result = _hbc_buffer_reader_read_bytes (&reader->file_buffer,
-			function_header->bytecode,
-			function_header->bytecodeSizeInBytes);
+		bool read_ok = (u32)r_buf_read_at (reader->file_buffer,
+				function_header->offset,
+				function_header->bytecode,
+				function_header->bytecodeSizeInBytes) == function_header->bytecodeSizeInBytes;
 
-		/* Restore original position */
-		_hbc_buffer_reader_seek (&reader->file_buffer, saved_pos);
-
-		if (read_result.code != RESULT_SUCCESS) {
+		if (!read_ok) {
 			RETURN_IF_ERROR (r_strbuf_append (&disassembler->output, "[Failed to read bytecode data]\n"));
 			free (function_header->bytecode);
 			function_header->bytecode = NULL;
-			return read_result;
+			return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to read bytecode data");
 		}
 
 		/* Verify the first byte looks like a valid opcode */
@@ -558,13 +544,10 @@ Result _hbc_disassemble_file(const char *input_file, const char *output_file, HB
 
 	/* Initialize HBC reader */
 	HBCReader reader;
-	Result result = _hbc_reader_init (&reader);
-	if (result.code != RESULT_SUCCESS) {
-		return result;
-	}
+	RETURN_IF_ERROR (_hbc_reader_init (&reader));
 
 	/* Read the whole file */
-	result = _hbc_reader_read_whole_file (&reader, input_file);
+	Result result = _hbc_reader_read_whole_file (&reader, input_file);
 	if (result.code != RESULT_SUCCESS) {
 		_hbc_reader_cleanup (&reader);
 		return result;
@@ -604,20 +587,16 @@ Result _hbc_disassemble_buffer(const u8 *buffer, size_t size, const char *output
 
 	/* Initialize HBC reader */
 	HBCReader reader;
-	Result result = _hbc_reader_init (&reader);
-	if (result.code != RESULT_SUCCESS) {
-		return result;
-	}
+	RETURN_IF_ERROR (_hbc_reader_init (&reader));
 
-	/* Initialize buffer reader */
-	result = _hbc_buffer_reader_init_from_memory (&reader.file_buffer, buffer, size);
-	if (result.code != RESULT_SUCCESS) {
+	reader.file_buffer = r_buf_new_with_bytes (buffer, size);
+	if (!reader.file_buffer) {
 		_hbc_reader_cleanup (&reader);
-		return result;
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate buffer");
 	}
 
 	/* Read header */
-	result = _hbc_reader_read_header (&reader);
+	Result result = _hbc_reader_read_header (&reader);
 	if (result.code != RESULT_SUCCESS) {
 		_hbc_reader_cleanup (&reader);
 		return result;

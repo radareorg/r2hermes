@@ -81,10 +81,10 @@ static int test_function_bytecode_bounds(const char *root) {
 	HBC *hbc = NULL;
 	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);
 	CHECK (hbc->reader.function_headers);
-	CHECK (hbc->reader.file_buffer.size < UINT32_MAX);
+	CHECK (r_buf_size (hbc->reader.file_buffer) < UINT32_MAX);
 
 	FunctionHeader *fh = &hbc->reader.function_headers[0];
-	fh->offset = (u32)hbc->reader.file_buffer.size + 1;
+	fh->offset = (u32)r_buf_size (hbc->reader.file_buffer) + 1;
 	fh->bytecodeSizeInBytes = 1;
 
 	const u8 *ptr = (const u8 *)1;

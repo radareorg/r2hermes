@@ -60,7 +60,7 @@ BytecodeModule *_hbc_get_bytecode_module(u32 bytecode_version);
 const char **_hbc_get_builtin_functions(BytecodeModule *module, u32 *out_count);
 
 /* Opcode handlers (defined in version-specific modules) */
-typedef Result(*OpcodeHandler)(HBCReader *reader, BufferReader *bytecode, ParsedInstruction *out_instruction);
+typedef Result(*OpcodeHandler)(HBCReader *reader, RBuffer *bytecode, ParsedInstruction *out_instruction);
 
 /* Helpers to classify opcodes */
 bool _hbc_is_jump_instruction(u8 opcode);

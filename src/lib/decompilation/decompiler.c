@@ -35,10 +35,7 @@ static Result ensure_function_bytecode_loaded_from_state(HBC *hbc, FunctionHeade
 	/* Get bytecode from state */
 	const u8 *bytecode_ptr = NULL;
 	u32 bytecode_size = 0;
-	Result res = hbc_get_function_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
+	RETURN_IF_ERROR (hbc_get_function_bytecode (hbc, function_id, &bytecode_ptr, &bytecode_size));
 
 	/* Allocate and copy bytecode */
 	function_header->bytecode = (u8 *)malloc (bytecode_size);
@@ -73,32 +70,22 @@ static Result ensure_function_bytecode_loaded(HBCReader *reader, u32 function_id
 	if (function_header->offset == 0) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset is zero");
 	}
-	if (function_header->offset >= reader->file_buffer.size) {
+	if (function_header->offset >= r_buf_size (reader->file_buffer)) {
 		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Bytecode offset beyond file size");
 	}
-	if (function_header->bytecodeSizeInBytes > reader->file_buffer.size - function_header->offset) {
+	if (function_header->bytecodeSizeInBytes > r_buf_size (reader->file_buffer) - function_header->offset) {
 		/* Truncate to file size */
-		function_header->bytecodeSizeInBytes = reader->file_buffer.size - function_header->offset;
+		function_header->bytecodeSizeInBytes = r_buf_size (reader->file_buffer) - function_header->offset;
 	}
 
 	function_header->bytecode = (u8 *)malloc (function_header->bytecodeSizeInBytes);
 	if (!function_header->bytecode) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate bytecode buffer");
 	}
-	size_t saved = reader->file_buffer.position;
-	Result sr = _hbc_buffer_reader_seek (&reader->file_buffer, function_header->offset);
-	if (sr.code != RESULT_SUCCESS) {
+	if ((u32)r_buf_read_at (reader->file_buffer, function_header->offset, function_header->bytecode, function_header->bytecodeSizeInBytes) != function_header->bytecodeSizeInBytes) {
 		free (function_header->bytecode);
 		function_header->bytecode = NULL;
-		reader->file_buffer.position = saved;
-		return sr;
-	}
-	sr = _hbc_buffer_reader_read_bytes (&reader->file_buffer, function_header->bytecode, function_header->bytecodeSizeInBytes);
-	reader->file_buffer.position = saved;
-	if (sr.code != RESULT_SUCCESS) {
-		free (function_header->bytecode);
-		function_header->bytecode = NULL;
-		return sr;
+		return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Failed to read bytecode");
 	}
 	return SUCCESS_RESULT ();
 }
@@ -791,10 +778,7 @@ Result _hbc_decompiler_init_with_state(HermesDecompiler *decompiler, HBC *hbc) {
 	}
 
 	/* Initialize common fields */
-	Result res = _hbc_decompiler_init (decompiler);
-	if (res.code != RESULT_SUCCESS) {
-		return res;
-	}
+	RETURN_IF_ERROR (_hbc_decompiler_init (decompiler));
 
 	/* Store state reference */
 	decompiler->hbc = hbc;

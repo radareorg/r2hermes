@@ -11,6 +11,9 @@
 #include <string.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <r_types.h>
+#include <r_list.h>
+#include <r_util/r_buf.h>
 #include <r_util/r_strbuf.h>
 
 #if defined(_WIN32) && defined(HBC_BUILD_SHARED)
@@ -69,28 +72,9 @@ typedef struct {
 	const char *error_message;
 } Result;
 
-/* Buffer reader for file operations */
-typedef struct {
-	uint8_t *data;
-	size_t size;
-	size_t position;
-} BufferReader;
-
 /* Forward declarations */
 struct HBCReader;
 typedef struct HBCReader HBCReader;
-
-/* BufferReader functions */
-Result _hbc_buffer_reader_init_from_file(BufferReader *reader, const char *filename);
-Result _hbc_buffer_reader_init_from_memory(BufferReader *reader, const u8 *data, size_t size);
-Result _hbc_buffer_reader_read_u8(BufferReader *reader, u8 *out_value);
-Result _hbc_buffer_reader_read_u16(BufferReader *reader, u16 *out_value);
-Result _hbc_buffer_reader_read_u32(BufferReader *reader, u32 *out_value);
-Result _hbc_buffer_reader_read_u64(BufferReader *reader, u64 *out_value);
-Result _hbc_buffer_reader_read_bytes(BufferReader *reader, u8 *out_buffer, size_t length);
-Result _hbc_buffer_reader_seek(BufferReader *reader, size_t position);
-Result _hbc_buffer_reader_align(BufferReader *reader, size_t alignment);
-void _hbc_buffer_reader_free(BufferReader *reader);
 
 #define SUCCESS_RESULT() ((Result){ RESULT_SUCCESS, "" })
 
