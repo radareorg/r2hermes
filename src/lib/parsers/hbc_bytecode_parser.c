@@ -228,11 +228,8 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 			switch (operand_type) {
 			case OPERAND_TYPE_REG8:
 			case OPERAND_TYPE_UINT8:
-				{
-					u8 value = r_buf_read8 (bytecode_buffer);
-					operand_values[i] = value;
-					break;
-				}
+				operand_values[i] = r_buf_read8 (bytecode_buffer);
+				break;
 			case OPERAND_TYPE_ADDR8:
 				{
 					u8 value_u = r_buf_read8 (bytecode_buffer);
@@ -243,20 +240,14 @@ Result _hbc_parse_function_bytecode(HBCReader *reader, u32 function_id, ParsedIn
 				}
 
 			case OPERAND_TYPE_UINT16:
-				{
-					u16 value = r_buf_read_le16 (bytecode_buffer);
-					operand_values[i] = value;
-					break;
-				}
+				operand_values[i] = r_buf_read_le16 (bytecode_buffer);
+				break;
 
 			case OPERAND_TYPE_REG32:
 			case OPERAND_TYPE_UINT32:
 			case OPERAND_TYPE_IMM32:
-				{
-					u32 value = r_buf_read_le32 (bytecode_buffer);
-					operand_values[i] = value;
-					break;
-				}
+				operand_values[i] = r_buf_read_le32 (bytecode_buffer);
+				break;
 			case OPERAND_TYPE_ADDR32:
 				{
 					u32 value_u = r_buf_read_le32 (bytecode_buffer);
