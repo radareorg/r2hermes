@@ -1,8 +1,7 @@
 HBC_CORE_WD=$(LIBR)/xps/p/r2hermes
 HBC_CORE_R2_CFLAGS=-I$(LIBR) -I$(LIBR)/include -I$(LIBR)/../shlr -I$(LIBR)/../subprojects/sdb/include
 CFLAGS+=-I$(HBC_CORE_WD)/include $(HBC_CORE_R2_CFLAGS)
-HBC_CORE_SRC=$(HBC_CORE_WD)/src/lib/utils/string_buffer.c \
-	$(HBC_CORE_WD)/src/lib/utils/buffer_reader.c \
+HBC_CORE_SRC=\
 	$(HBC_CORE_WD)/src/lib/parsers/hbc_file_parser.c \
 	$(HBC_CORE_WD)/src/lib/parsers/hbc_bytecode_parser.c \
 	$(HBC_CORE_WD)/src/lib/decompilation/translator.c \

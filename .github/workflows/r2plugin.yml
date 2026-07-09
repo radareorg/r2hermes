@@ -37,7 +37,6 @@ jobs:
           make -C libr/xps/p/r2hermes include/hbc/version.h
           make -C libr/xps
           ./configure --prefix=/usr --with-compiler=tcc
-#          make -C libr/xps/p/r2hermes build/libhbc.a
           make -j
           sudo make install
 

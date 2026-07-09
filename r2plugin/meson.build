@@ -8,8 +8,6 @@ core_plugins += ['r2hermes']
 r_core_additional_inc += include_directories(join_paths('..', 'include'))
 
 r_core_additional_sources += files(
-  '../src/lib/utils/string_buffer.c',
-  '../src/lib/utils/buffer_reader.c',
   '../src/lib/parsers/hbc_file_parser.c',
   '../src/lib/parsers/hbc_bytecode_parser.c',
   '../src/lib/decompilation/translator.c',
