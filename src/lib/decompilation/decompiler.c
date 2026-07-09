@@ -366,7 +366,7 @@ static Result envmap_set(DecompiledFunctionBody *fb, int reg, Environment *env) 
 
 /* Allocate an Environment owned by fb, chained under parent */
 static Environment *env_new(DecompiledFunctionBody *fb, Environment *parent) {
-	Environment *env = (Environment *)calloc (1, sizeof (Environment));
+	Environment *env = R_NEW0 (Environment);
 	env->parent_environment = parent;
 	env->nesting_quantity = parent? (parent->nesting_quantity + 1): 0;
 	env->captured_level = -1;
@@ -639,7 +639,7 @@ Result _hbc_create_basic_block(DecompiledFunctionBody *body, u32 start_address, 
 	if (!body) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "create_bb body");
 	}
-	BasicBlock *bb = (BasicBlock *)calloc (1, sizeof (*bb));
+	BasicBlock *bb = R_NEW0 (BasicBlock);
 	bb->start_address = start_address;
 	bb->end_address = end_address;
 	bb->stay_visible = true;
@@ -995,10 +995,7 @@ static Result address_labels_add(AddressLabels **arr, u32 *count, u32 address, c
 	}
 	*arr = na;
 	(*arr)[*count].address = address;
-	(*arr)[*count].labels = (char **)malloc (sizeof (char *));
-	if (! (*arr)[*count].labels) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom addrlabels labels");
-	}
+	(*arr)[*count].labels = R_NEW0 (char *);
 	(*arr)[*count].labels[0] = strdup (label);
 	if (! (*arr)[*count].labels[0]) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom strdup label");
@@ -1510,11 +1507,7 @@ static Result identify_dead_assignments(DecompiledFunctionBody *function_body, b
 	}
 
 	/* Track which registers are read/written */
-	bool *register_read_after = (bool *)calloc (256, sizeof (bool));
-	if (!register_read_after) {
-		free (dce);
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "oom register_read");
-	}
+	bool *register_read_after = R_NEWS0 (bool, 256);
 
 	/* Scan statements in reverse to find register usage */
 	size_t si = RVecHbcTokenString_length (&function_body->statements);

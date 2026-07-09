@@ -39,10 +39,7 @@ Result hbc_open(const char *path, HBC **out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open");
 	}
 
-	HBC *hbc = (HBC *)calloc (1, sizeof (HBC));
-	if (!hbc) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
-	}
+	HBC *hbc = R_NEW0 (HBC);
 
 	Result res = _hbc_reader_init (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
@@ -66,10 +63,7 @@ Result hbc_open_from_memory(const u8 *data, size_t size, HBC **out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments for hbc_open_from_memory");
 	}
 
-	HBC *hbc = (HBC *)calloc (1, sizeof (HBC));
-	if (!hbc) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
-	}
+	HBC *hbc = R_NEW0 (HBC);
 
 	Result res = _hbc_reader_init (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {
@@ -103,10 +97,7 @@ Result hbc_open_from_rbuffer(RBuffer *buf, HBC **out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid buffer size");
 	}
 
-	HBC *hbc = (HBC *)calloc (1, sizeof (HBC));
-	if (!hbc) {
-		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Failed to allocate HBC");
-	}
+	HBC *hbc = R_NEW0 (HBC);
 
 	Result res = _hbc_reader_init (&hbc->reader);
 	if (res.code != RESULT_SUCCESS) {

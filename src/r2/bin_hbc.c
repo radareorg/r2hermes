@@ -28,13 +28,10 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 		HBC *hbc = NULL;
 		if (hbc_open_from_buffer (buf, &hbc).code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
-			if (bo) {
-				bo->hbc = hbc;
-				bf->bo->bin_obj = bo;
-				bf->buf = buf;
-				return true;
-			}
-			hbc_safe_close (&hbc);
+			bo->hbc = hbc;
+			bf->bo->bin_obj = bo;
+			bf->buf = buf;
+			return true;
 		}
 	}
 	return false;
@@ -187,9 +184,6 @@ static void add_pool_section(RList *list, const char *name, ut64 paddr, ut64 siz
 		return;
 	}
 	RBinSection *s = R_NEW0 (RBinSection);
-	if (!s) {
-		return;
-	}
 	s->name = strdup (name);
 	s->size = size;
 	s->vsize = size;
@@ -451,9 +445,6 @@ static R_UNOWNED RList *lines(RBinFile *bf) {
 			bf->addrline.al_add (&bf->addrline, addr, file, NULL, sl->line, sl->column);
 		}
 		RBinAddrline *row = R_NEW0 (RBinAddrline);
-		if (!row) {
-			continue;
-		}
 		const RBinAddrline *stored = has_al? bf->addrline.al_get (&bf->addrline, addr): NULL;
 		if (stored) {
 			*row = *stored;
