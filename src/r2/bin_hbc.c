@@ -510,6 +510,111 @@ static RList *strings_list(RBinFile *bf) {
 	return ret;
 }
 
+#if R2_ABIVERSION >= 121
+static const char *classify_document(const char *str, const char **document, const char **label) {
+	const char *doc = *document = r_str_trim_head_ro (str);
+	const bool xml = !r_str_ncasecmp (doc, "<?xml", 5);
+	const char *svg = xml? r_str_casestr (doc, "<svg"): doc;
+	if (svg && !r_str_ncasecmp (svg, "<svg", 4) && r_str_casestr (svg, "</svg>")) {
+		*label = "svg";
+		return "image/svg+xml";
+	}
+	if ((!r_str_ncasecmp (doc, "<!doctype html", 14) || !r_str_ncasecmp (doc, "<html", 5)) && r_str_casestr (doc, "</html>")) {
+		*label = "html";
+		return "text/html";
+	}
+	if (xml && strstr (doc, "?>")) {
+		*label = "xml";
+		return "application/xml";
+	}
+	if (!r_str_ncasecmp (doc, "-----BEGIN ", 11) && r_str_casestr (doc, "-----END ")) {
+		*label = "pem";
+		return "application/x-pem-file";
+	}
+	return NULL;
+}
+
+static bool add_hbc_resource(RBinFile *bf, u32 string_id, const char *label, u32 ordinal, const char *type, size_t type_len, const char *encoding, ut64 paddr, ut64 size) {
+	size_t index = RVecRBinResource_length (&bf->bo->resources_vec);
+	if (index > UT32_MAX) {
+		return false;
+	}
+	RBinResource *resource = RVecRBinResource_emplace_back (&bf->bo->resources_vec);
+	if (!resource) {
+		return false;
+	}
+	resource->name = r_str_newf ("string.%u.%s.%u", string_id, label, ordinal);
+	resource->type = r_str_ndup (type, type_len);
+	resource->encoding = encoding? strdup (encoding): NULL;
+	resource->origin = r_str_newf ("hbc.string.%u", string_id);
+	resource->vaddr = HBC_VADDR_BASE + paddr;
+	resource->paddr = paddr;
+	resource->size = size;
+	resource->id = UT64_MAX;
+	resource->index = (ut32)index;
+	resource->type_id = UT32_MAX;
+	resource->language_id = UT32_MAX;
+	resource->codepage = 65001;
+	resource->named = true;
+	return resource->name && resource->type && resource->origin && (!encoding || resource->encoding);
+}
+
+static bool load_resources(RBinFile *bf) {
+	HBC *hbc = get_hbc (bf);
+	if (!hbc) {
+		return false;
+	}
+	u32 string_count = hbc_string_count (hbc);
+	for (u32 i = 0; i < string_count; i++) {
+		const char *str = NULL;
+		HBCStringMeta meta;
+		if (hbc_get_string (hbc, i, &str).code != RESULT_SUCCESS || !str || hbc_get_string_meta (hbc, i, &meta).code != RESULT_SUCCESS || meta.isUTF16) {
+			continue;
+		}
+		if (!*str) {
+			continue;
+		}
+
+		const char *doc;
+		const char *doc_label;
+		const char *doc_type = classify_document (str, &doc, &doc_label);
+		ut64 doc_offset = doc - str;
+		if (doc_type && !add_hbc_resource (bf, i, doc_label, 0, doc_type, strlen (doc_type), NULL, meta.offset + doc_offset, meta.length - doc_offset)) {
+			return false;
+		}
+
+		const char *cursor = str;
+		u32 data_ordinal = 0;
+		const char *data;
+		while ((data = r_str_casestr (cursor, "data:"))) {
+			const char *comma = strchr (data + 5, ',');
+			if (!comma || comma - data > 256 || comma - (data + 5) < 7 || r_str_ncasecmp (comma - 7, ";base64", 7)) {
+				cursor = data + 5;
+				continue;
+			}
+			const char *payload = comma + 1;
+			const char *data_end = payload + strspn (payload, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=%");
+			if (data_end - payload < 4) {
+				cursor = data + 5;
+				continue;
+			}
+			const char *mime_end = memchr (data + 5, ';', comma - (data + 5));
+			size_t mime_len = mime_end - (data + 5);
+			const char *data_type = data + 5;
+			if (!mime_len) {
+				data_type = "text/plain";
+				mime_len = strlen (data_type);
+			}
+			if (!add_hbc_resource (bf, i, "data", data_ordinal++, data_type, mime_len, "data-uri", meta.offset + (ut64) (data - str), (ut64) (data_end - data))) {
+				return false;
+			}
+			cursor = data_end;
+		}
+	}
+	return true;
+}
+#endif
+
 #if R2_ABIVERSION >= 104
 static bool sections_vec(RBinFile *bf) {
 	if (!bf || !bf->bo) {
@@ -880,6 +985,9 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.lines = &lines,
 	.header = &header,
 	.fields = &fields,
+#if R2_ABIVERSION >= 121
+	.load_resources = &load_resources,
+#endif
 };
 
 #ifndef R2_PLUGIN_INCORE
