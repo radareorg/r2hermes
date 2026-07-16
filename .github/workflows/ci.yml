@@ -161,7 +161,7 @@ jobs:
           path: release-artifacts/windows
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3.0.1
+        uses: softprops/action-gh-release@v3.0.2
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           files: |
