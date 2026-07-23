@@ -20,7 +20,7 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v2
+        uses: radareorg/github-actions@v3
 
       - name: Build library and r2 plugin with meson
         run: meson setup builddir && meson compile -C builddir
