@@ -1,4 +1,4 @@
-/* radare2 - BSD - Copyright 2025-2026 - pancake */
+/* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 /* Public literals API: lazy cache, formatting, scanning. See
  * include/hbc/literals.h for the contract. */

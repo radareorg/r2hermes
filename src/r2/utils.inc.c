@@ -1,4 +1,4 @@
-/* radare2 - BSD - Copyright 2025-2026 - pancake */
+/* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 #ifndef R2HERMES_UTILS_INC_C
 #define R2HERMES_UTILS_INC_C

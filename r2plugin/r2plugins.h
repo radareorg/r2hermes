@@ -1,4 +1,4 @@
-/* radare2 - BSD - Copyright 2025-2026 - pancake */
+/* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 #ifdef R2_CORE_H
 #include "core/deps.h"

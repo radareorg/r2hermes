@@ -1,4 +1,4 @@
-/* radare2 - BSD - Copyright 2025-2026 - pancake */
+/* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	if (!bytes || !op) {

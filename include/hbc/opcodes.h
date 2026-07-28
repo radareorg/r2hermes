@@ -1,4 +1,4 @@
-/* radare2 - BSD - Copyright 2025-2026 - pancake */
+/* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 #ifndef LIBHBC_HERMES_OPCODES_H
 #define LIBHBC_HERMES_OPCODES_H
