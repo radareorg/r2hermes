@@ -1,4 +1,4 @@
-/* radare2 - BSD - Copyright 2025-2026 - pancake */
+/* r2hermes - BSD - Copyright 2026 - Ahmeth4n */
 
 #define SHORT_OPERAND_TYPES
 #include <hbc/opcodes.h>
