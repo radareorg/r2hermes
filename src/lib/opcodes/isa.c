@@ -32,6 +32,7 @@
 #include "v95.inc.c"
 #include "v96.inc.c"
 #include "v97.inc.c"
+#include "v98.inc.c"
 #include "v99.inc.c"
 
 #define ISA_COUNT(v) (sizeof (k_instructions_v ## v) / sizeof (k_instructions_v ## v[0]))
@@ -64,6 +65,7 @@ ISA_ENTRY(94, 256)
 ISA_ENTRY(95, 256)
 ISA_ENTRY(96, 208)
 ISA_ENTRY(97, ISA_COUNT(97))
+ISA_ENTRY(98, ISA_COUNT(98))
 ISA_ENTRY(99, ISA_COUNT(99))
 
 typedef struct {
@@ -99,6 +101,7 @@ static const IsaVersion k_isa_versions[] = {
 	{ 95, &k_isa_v95 },
 	{ 96, &k_isa_v96 },
 	{ 97, &k_isa_v97 },
+	{ 98, &k_isa_v98 },
 	{ 99, &k_isa_v99 },
 };
 
