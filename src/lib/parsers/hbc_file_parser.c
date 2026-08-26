@@ -1,6 +1,8 @@
 /* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 #include <hbc/parser.h>
+#include <r_lib.h>
+#include <r_util/r_str.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -884,7 +886,12 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 			continue;
 		}
 
-		char *str = (char *)malloc (length * bpc + 1);
+		size_t decoded_size = 0;
+		RETURN_IF_ERROR (checked_count_size (length, is_utf16? 3: 1, &decoded_size, "Decoded string is too large"));
+		if (decoded_size == SIZE_MAX) {
+			return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Decoded string is too large");
+		}
+		char *str = (char *)malloc (decoded_size + 1);
 		if (!str) {
 			free (string_storage);
 			reader->string_table_storage = NULL;
@@ -893,17 +900,20 @@ Result _hbc_reader_read_string_tables(HBCReader *reader) {
 
 		/* Copy string data */
 		if (is_utf16) {
-			/* UTF-16 string */
-			/* Note: This is a simplified version that doesn't handle surrogate pairs */
-			for (u32 j = 0; j < length; j++) {
-				u16 c = (string_storage[offset + j * 2] | (string_storage[offset + j * 2 + 1] << 8));
-				if (c < 128) {
-					str[j] = (char)c;
-				} else {
-					str[j] = '?'; /* Replace non-ASCII with? */
-				}
+			/* The final flag changed from little-endian to big-endian in ABI 115. */
+#if R2_ABIVERSION >= 115
+			int written = r_str_utf16_to_utf8 ((ut8 *)str, decoded_size + 1,
+				string_storage + offset, length * 2, false);
+#else
+			int written = r_str_utf16_to_utf8 ((ut8 *)str, decoded_size + 1,
+				string_storage + offset, length * 2, true);
+#endif
+			if (written < 0) {
+				free (str);
+				free (string_storage);
+				reader->string_table_storage = NULL;
+				return ERROR_RESULT (RESULT_ERROR_PARSING_FAILED, "Invalid UTF-16 string");
 			}
-			str[length] = '\0';
 		} else {
 			/* ASCII string */
 			memcpy (str, string_storage + offset, length);

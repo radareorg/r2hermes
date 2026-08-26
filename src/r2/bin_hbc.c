@@ -564,6 +564,7 @@ static RList *strings_list(RBinFile *bf) {
 		ptr->vaddr = HBC_VADDR_BASE + meta.offset;
 		ptr->size = meta.isUTF16? (meta.length * 2): meta.length;
 		ptr->length = meta.length;
+		ptr->type = meta.isUTF16? R_STRING_TYPE_WIDE: R_STRING_TYPE_UTF8;
 		ptr->ordinal = i;
 		r_list_append (ret, ptr);
 	}

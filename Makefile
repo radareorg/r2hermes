@@ -99,6 +99,7 @@ test: $(BIN_FILE) $(TEST_BIN)
 	$(BIN_FILE) Ej test/bins/hbc/bespoke_eval.hbc | grep -q '"strict":false'
 	$(BIN_FILE) h test/bins/hbc/bespoke_eval.hbc | grep -q 'Source Locations: 13 bytes'
 	$(BIN_FILE) h test/bins/hbc/index.android.bundle | grep -q 'Source Locations: 0 bytes'
+	$(BIN_FILE) s test/bins/hbc/index.android.bundle 2959 | grep -q 'name=•'
 	$(BIN_FILE) libs test/bins/hbc/index.android.bundle | grep -q 'react-native'
 
 r2:
