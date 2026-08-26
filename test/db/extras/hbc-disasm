@@ -132,6 +132,17 @@ r1,r3,==,$z,!,?{,0x1003e637,pc,=,}
 EOF
 RUN
 
+NAME=hbc SwitchImm analysis exposes jump table metadata
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+af @ 0x1004d09a
+agfj @ 0x1004d09a~{[0].blocks[0].switchop}
+EOF
+EXPECT=<<EOF
+{"addr":268751010,"defval":268751197,"maxval":27,"minval":0,"daddr":268751204,"dsize":4,"amount":28,"cases":[{"addr":268751204,"value":0,"jump":268751078},{"addr":268751208,"value":1,"jump":268751028},{"addr":268751212,"value":2,"jump":268751078},{"addr":268751224,"value":5,"jump":268751172},{"addr":268751248,"value":11,"jump":268751050},{"addr":268751256,"value":13,"jump":268751124},{"addr":268751264,"value":15,"jump":268751078},{"addr":268751268,"value":16,"jump":268751148},{"addr":268751280,"value":19,"jump":268751100},{"addr":268751308,"value":26,"jump":268751172},{"addr":268751312,"value":27,"jump":268751172}]}
+EOF
+RUN
+
 NAME=hbc exception handlers are exposed through bin metadata
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF

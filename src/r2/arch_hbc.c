@@ -395,6 +395,68 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 	}
 }
 
+/* SwitchImm stores instruction-relative deltas in a 4-byte aligned table
+ * outside the instruction stream. Publish the decoded cases through the
+ * standard switch_op interface so r2 analysis and external decompilers receive
+ * the same control-flow facts as libhbc's built-in decompiler. */
+static bool decode_switch_op(RArchSession *s, RAnalOp *op) {
+	if (!s || !s->arch || !op || !op->bytes || op->size < 18) {
+		return false;
+	}
+	const ut32 table_delta = r_read_le32 (op->bytes + 2);
+	const st32 default_delta = (st32)r_read_le32 (op->bytes + 6);
+	const st32 min_val = (st32)r_read_le32 (op->bytes + 10);
+	const st32 max_val = (st32)r_read_le32 (op->bytes + 14);
+	const st64 amount64 = (st64)max_val - min_val + 1;
+	if (amount64 <= 0 || amount64 > UT16_MAX) {
+		return false;
+	}
+
+	const ut32 amount = (ut32)amount64;
+	const ut64 unaligned_table = op->addr + table_delta;
+	if (unaligned_table < op->addr) {
+		return false;
+	}
+	const ut64 table_addr = R_ROUND (unaligned_table, 4);
+	const ut64 default_target = op->addr + default_delta;
+	RBin *bin = s->arch->binb.bin;
+	if (!bin || !bin->iob.read_at) {
+		return false;
+	}
+
+	const int table_size = (int)amount * 4;
+	ut8 *table = malloc (table_size);
+	if (!table) {
+		return false;
+	}
+	if (!bin->iob.read_at (bin->iob.io, table_addr, table, table_size)) {
+		free (table);
+		return false;
+	}
+
+	op->switch_op = r_anal_switch_op_new (op->addr, (ut64) (st64)min_val, (ut64) (st64)max_val, default_target);
+	if (!op->switch_op) {
+		free (table);
+		return false;
+	}
+#if R2_ABIVERSION >= 33
+	op->switch_op->daddr = table_addr;
+	op->switch_op->dsize = 4;
+	op->switch_op->amount = amount;
+#endif
+	for (ut32 i = 0; i < amount; i++) {
+		const st32 delta = (st32)r_read_le32 (table + i * 4);
+		const ut64 target = op->addr + delta;
+		if (target != default_target) {
+			r_anal_switch_op_add_case (op->switch_op, table_addr + i * 4, (ut64) (st64)min_val + i, target);
+		}
+	}
+	free (table);
+	op->fail = default_target;
+	op->eob = true;
+	return true;
+}
+
 static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	R_RETURN_VAL_IF_FAIL (s && op, false);
 
@@ -687,6 +749,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	/* Switch operations */
 	case OP_SwitchImm:
 		op->type = R_ANAL_OP_TYPE_SWITCH;
+		decode_switch_op (s, op);
 		break;
 	/* Special operations */
 	case OP_Unreachable:
