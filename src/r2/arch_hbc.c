@@ -824,6 +824,48 @@ static bool fini(RArchSession *s) {
 	return true;
 }
 
+/* LoadParam reads a Hermes call-frame slot, not an architectural register.
+ * Keep the slot index as an ESIL operand and use a custom value-producing op
+ * so register-access analysis never invents arg0/arg1/... register names.
+ * Concrete emulation cannot recover the caller-owned frame value here; zero is
+ * the conventional unknown placeholder, while OPEX retains the exact slot. */
+static bool esil_hbc_load_param(REsil *esil) {
+	R_RETURN_VAL_IF_FAIL (esil, false);
+#if R2_ABIVERSION >= 87
+	const RStrs slot = r_esil_pop (esil);
+	if (r_strs_empty (slot)) {
+		return false;
+	}
+#else
+	char *slot = r_esil_pop (esil);
+	if (!slot) {
+		return false;
+	}
+	free (slot);
+#endif
+	return r_esil_pushnum (esil, 0);
+}
+
+#if R2_ABIVERSION >= 109
+static bool esilcb(RArchSession *s R_UNUSED, REsil *esil, RArchEsilAction action) {
+#else
+static bool esilcb(RArchSession *s, RArchEsilAction action) {
+	REsil *esil = s && s->arch? s->arch->esil: NULL;
+#endif
+	if (!esil) {
+		return false;
+	}
+	switch (action) {
+	case R_ARCH_ESIL_ACTION_INIT:
+		return r_esil_set_op (esil, "HBC_LOAD_PARAM", esil_hbc_load_param,
+			1, 1, R_ESIL_OP_TYPE_CUSTOM, NULL);
+	case R_ARCH_ESIL_ACTION_FINI:
+		return true;
+	default:
+		return false;
+	}
+}
+
 /* Register profile for ESIL emulation */
 static char *regs(RArchSession *s) {
 	(void)s;
@@ -863,6 +905,7 @@ const RArchPlugin r_arch_plugin_r2hermes = {
 	.regs = regs,
 	.info = archinfo,
 	.mnemonics = mnemonics,
+	.esilcb = esilcb,
 	.init = init,
 	.fini = fini,
 };

@@ -110,6 +110,17 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc LoadParam ESIL uses a frame slot instead of a fake register
+FILE=bins/hbc/index.android.bundle
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+aoj 1 @ 0x1003e3f7~{[0].esil}
+EOF
+EXPECT=<<EOF
+1,HBC_LOAD_PARAM,r8,=
+EOF
+RUN
+
 NAME=hbc entry point (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16

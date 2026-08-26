@@ -184,10 +184,10 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		r_strbuf_setf (&op->esil, "%u,r%u,=", r_read_le32 (bytes + 2), bytes[1]);
 		break;
 	case OP_LoadParam:
-		r_strbuf_setf (&op->esil, "arg%u,r%u,=", bytes[2], bytes[1]);
+		r_strbuf_setf (&op->esil, "%u,HBC_LOAD_PARAM,r%u,=", bytes[2], bytes[1]);
 		break;
 	case OP_LoadParamLong:
-		r_strbuf_setf (&op->esil, "arg%u,r%u,=", r_read_le32 (bytes + 2), bytes[1]);
+		r_strbuf_setf (&op->esil, "%u,HBC_LOAD_PARAM,r%u,=", r_read_le32 (bytes + 2), bytes[1]);
 		break;
 	case OP_NewArray:
 		r_strbuf_setf (&op->esil, "%u,NEWARR,r%u,=", r_read_le16 (bytes + 2), bytes[1]);
