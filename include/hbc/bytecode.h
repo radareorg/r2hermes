@@ -7,6 +7,9 @@
 #include <hbc/opcodes.h>
 #include <hbc/parser.h>
 
+/* Registers reserved by Hermes above an outgoing call's this/argument window. */
+#define HBC_CALL_FRAME_RESERVED 6
+
 /* Parsed instruction */
 typedef struct {
 	const Instruction *inst;

@@ -18,6 +18,9 @@ static int test_small_debug_info(const char *root) {
 
 	HBC *hbc = NULL;
 	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);
+	u32 frame_size = 0;
+	CHECK (hbc_get_function_frame_size (hbc, 0, &frame_size).code == RESULT_SUCCESS);
+	CHECK (frame_size == hbc->reader.function_headers[0].frameSize);
 
 	HBCDebugInfo di = { 0 };
 	CHECK (hbc_get_debug_info (hbc, &di).code == RESULT_SUCCESS);

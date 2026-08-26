@@ -234,8 +234,6 @@ static Result emit_call_fixed(HbcTokenString *out, const ParsedInstruction *insn
 
 /* Hermes reserves this many frame-header registers at the very top of a
  * function's register frame; an outgoing call's `this`+args sit just below. */
-#define HBC_CALL_FRAME_RESERVED 6
-
 /* Variable-arity Call/Construct. Hermes places the call's argument registers at
  * the top of the caller's frame, below the reserved header: `this` at
  * frame_size-1-RESERVED, the explicit arguments descending below it.

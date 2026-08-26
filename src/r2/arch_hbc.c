@@ -14,14 +14,28 @@
 #endif
 
 typedef struct {
+	u32 offset;
+	u32 size;
+	u32 frame_size;
+} HermesFunctionFrame;
+
+typedef struct {
 	ut32 bytecode_version; /* cached effective HBC bytecode version */
 	HBC *hbc; /* Hermes state for direct access */
+	HermesFunctionFrame *function_frames;
+	u32 function_frame_count;
 	u32 string_count;
 	u32 overflow_string_count;
 	const void *small_string_table;
 	const void *overflow_string_table;
 	u64 string_storage_offset;
 } HermesArchSession;
+
+static int function_frame_cmp(const void *a, const void *b) {
+	const HermesFunctionFrame *fa = (const HermesFunctionFrame *)a;
+	const HermesFunctionFrame *fb = (const HermesFunctionFrame *)b;
+	return fa->offset < fb->offset? -1: fa->offset > fb->offset;
+}
 
 static ut32 parse_cpu_version(const char *cpu) {
 	if (!cpu || !*cpu) {
@@ -87,6 +101,24 @@ static bool load_string_tables(HermesArchSession *hs, RArchSession *s) {
 	}
 	hs->bytecode_version = hh.version;
 
+	const u32 function_count = hbc_function_count (hs->hbc);
+	hs->function_frames = R_NEWS0 (HermesFunctionFrame, function_count);
+	if (function_count && !hs->function_frames) {
+		return false;
+	}
+	for (u32 i = 0; i < function_count; i++) {
+		HBCFunc fi = { 0 };
+		u32 frame_size = 0;
+		if (hbc_get_function_info (hs->hbc, i, &fi).code == RESULT_SUCCESS && fi.size &&
+			hbc_get_function_frame_size (hs->hbc, i, &frame_size).code == RESULT_SUCCESS) {
+			HermesFunctionFrame *frame = &hs->function_frames[hs->function_frame_count++];
+			frame->offset = fi.offset;
+			frame->size = fi.size;
+			frame->frame_size = frame_size;
+		}
+	}
+	qsort (hs->function_frames, hs->function_frame_count, sizeof (HermesFunctionFrame), function_frame_cmp);
+
 	/* Get string count */
 	hs->string_count = hbc_string_count (hs->hbc);
 
@@ -127,7 +159,94 @@ static bool opcode_is_conditional(u8 opcode) {
 	return false;
 }
 
-static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs, RArchDecodeMask mask) {
+/* Return the register-frame size for the function containing addr. The cached
+ * intervals are sorted by bytecode offset, so this stays logarithmic even for
+ * large React Native bundles with thousands of functions. */
+static bool function_frame_size(HermesArchSession *hs, ut64 addr, ut32 *frame_size) {
+	if (!hs || !hs->function_frames || !frame_size) {
+		return false;
+	}
+	const ut64 file_addr = addr >= HBC_VADDR_BASE? addr - HBC_VADDR_BASE: addr;
+	u32 lo = 0;
+	u32 hi = hs->function_frame_count;
+	while (lo < hi) {
+		const u32 mid = lo + (hi - lo) / 2;
+		if ((ut64)hs->function_frames[mid].offset <= file_addr) {
+			lo = mid + 1;
+		} else {
+			hi = mid;
+		}
+	}
+	if (!lo) {
+		return false;
+	}
+	/* Multiple deduplicated function-table entries may share the body. */
+	const u32 candidate_offset = hs->function_frames[lo - 1].offset;
+	u32 candidate_frame_size = 0;
+	for (u32 i = lo; i > 0; i--) {
+		const HermesFunctionFrame *frame = &hs->function_frames[i - 1];
+		if (frame->offset != candidate_offset) {
+			break;
+		}
+		if (file_addr < (ut64)frame->offset + frame->size) {
+			candidate_frame_size = R_MAX (candidate_frame_size, frame->frame_size);
+		}
+	}
+	*frame_size = candidate_frame_size;
+	return candidate_frame_size > 0;
+}
+
+static bool implicit_call_arg_count(ut8 opcode, const ut32 values[6], ut32 *argc) {
+	switch (opcode) {
+	case OP_Call:
+	case OP_CallLong:
+	case OP_Construct:
+	case OP_ConstructLong:
+		*argc = values[2];
+		return true;
+	case OP_CallDirect:
+	case OP_CallDirectLongIndex:
+		*argc = values[1];
+		return true;
+	case OP_CallBuiltin:
+	case OP_CallBuiltinLong:
+		*argc = values[2];
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* Append the implicit call-frame window after the encoded operands. Hermes
+ * counts `this` in argc and stores it plus source arguments immediately below
+ * the six reserved frame-header registers. */
+static void append_call_args(PJ *pj, HermesArchSession *hs, ut64 addr, ut8 opcode, const ut32 values[6]) {
+	ut32 argc = 0;
+	ut32 frame_size = 0;
+	if (!pj || !implicit_call_arg_count (opcode, values, &argc) || !argc ||
+		!function_frame_size (hs, addr, &frame_size)) {
+		return;
+	}
+	const st64 base = (st64)frame_size - 1 - HBC_CALL_FRAME_RESERVED;
+	if (base < 0 || argc > (ut32) (base + 1)) {
+		return;
+	}
+	for (ut32 i = 0; i < argc; i++) {
+		char reg[16];
+		snprintf (reg, sizeof (reg), "r%" PFMT64d, base - i);
+		pj_o (pj);
+		pj_ks (pj, "type", "reg");
+		pj_ks (pj, "value", reg);
+		pj_kb (pj, "implicit", true);
+		pj_ks (pj, "kind", i? "call_arg": "call_this");
+		if (i) {
+			pj_kn (pj, "index", i - 1);
+		}
+		pj_end (pj);
+	}
+}
+
+static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, ut8 canonical_opcode, HermesArchSession *hs, RArchDecodeMask mask) {
 	HBCISA isa = hbc_isa_getv (hs->bytecode_version);
 	const Instruction *inst_set = isa.instructions;
 	if (!inst_set || opcode >= isa.count) {
@@ -145,6 +264,7 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 	}
 
 	size_t pos = 1; /* Skip opcode byte */
+	ut32 values[6] = { 0 };
 
 	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
 		if (pos >= size) {
@@ -197,6 +317,7 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 		if (!valid) {
 			break;
 		}
+		values[i] = value;
 
 		ut64 ref_addr = UT64_MAX;
 		/* Resolve IDs without replacing their raw values in OPEX. */
@@ -259,6 +380,7 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 	}
 
 	if (pj) {
+		append_call_args (pj, hs, op->addr, canonical_opcode, values);
 		pj_end (pj); /* operands */
 		pj_end (pj);
 		r_strbuf_set (&op->opex, pj_string (pj));
@@ -332,7 +454,7 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	op->family = R_ANAL_OP_FAMILY_CPU;
 
 	/* Parse structured operands and set ptr for string/function references. */
-	parse_operands (op, op->bytes, op->size, sinfo.opcode, hs, mask);
+	parse_operands (op, op->bytes, op->size, sinfo.opcode, sinfo.canonical_opcode, hs, mask);
 
 	if (mask & R_ARCH_OP_MASK_ESIL && sinfo.text) {
 		set_esil (op, op->bytes, op->addr);
@@ -690,6 +812,8 @@ static bool fini(RArchSession *s) {
 	}
 	HermesArchSession *hs = (HermesArchSession *)s->data;
 	if (hs) {
+		R_FREE (hs->function_frames);
+		hs->function_frame_count = 0;
 		if (hs->hbc) {
 			hbc_close (hs->hbc);
 			hs->hbc = NULL;

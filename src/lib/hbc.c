@@ -176,6 +176,14 @@ Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	return SUCCESS_RESULT ();
 }
 
+Result hbc_get_function_frame_size(HBC *hbc, u32 function_id, u32 *out) {
+	if (!hbc || !out || !hbc->reader.function_headers || function_id >= hbc->reader.header.functionCount) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+	*out = hbc->reader.function_headers[function_id].frameSize;
+	return SUCCESS_RESULT ();
+}
+
 Result hbc_get_string(HBC *hbc, u32 index, const char **out_str) {
 	if (!hbc || !out_str) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");

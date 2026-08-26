@@ -254,6 +254,9 @@ HBC_API Result hbc_get_header(HBC *hbc, HBCHeader *out);
  */
 HBC_API Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out);
 
+/** Get the register-frame size for a function without exposing parser internals. */
+HBC_API Result hbc_get_function_frame_size(HBC *hbc, u32 function_id, u32 *out);
+
 /**
  * Get a string by index.
  */

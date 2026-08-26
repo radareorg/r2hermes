@@ -232,6 +232,16 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc implicit call frame operands
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+aoj 1 @ 0x100895ac~{0.opex}
+EOF
+EXPECT=<<EOF
+{"operands":[{"type":"reg","value":"r1"},{"type":"reg","value":"r5"},{"type":"imm","value":5},{"type":"reg","value":"r10","implicit":true,"kind":"call_this"},{"type":"reg","value":"r9","implicit":true,"kind":"call_arg","index":0},{"type":"reg","value":"r8","implicit":true,"kind":"call_arg","index":1},{"type":"reg","value":"r7","implicit":true,"kind":"call_arg","index":2},{"type":"reg","value":"r6","implicit":true,"kind":"call_arg","index":3}]}
+EOF
+RUN
+
 NAME=hbc sections (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
