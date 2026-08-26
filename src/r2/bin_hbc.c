@@ -251,6 +251,19 @@ static void set_symbol_size(RBinSymbol *symbol, ut32 size) {
 #endif
 }
 
+static void set_function_signature(RBinSymbol *symbol, const HBCFunc *func) {
+#if R2_ABIVERSION >= 100
+	/* LoadParam indexes the Hermes frame arguments; they are not registers. */
+	if (func->param_count <= UT16_MAX) {
+		symbol->cc_arg_count = func->param_count;
+	}
+	symbol->ret_count = 1;
+#else
+	(void)symbol;
+	(void)func;
+#endif
+}
+
 static void append_binding_symbols(RList *symbols, HBC *hbc) {
 	HBCBindings bindings = { 0 };
 	if (hbc_scan_bindings (hbc, &bindings).code != RESULT_SUCCESS) {
@@ -322,6 +335,7 @@ static RList *symbols(RBinFile *bf) {
 		symbol->paddr = fi.offset;
 		symbol->vaddr = HBC_VADDR_BASE + fi.offset;
 		set_symbol_size (symbol, fi.size);
+		set_function_signature (symbol, &fi);
 		symbol->ordinal = i;
 		symbol->type = R_BIN_TYPE_FUNC_STR;
 		symbol->bits = 32;

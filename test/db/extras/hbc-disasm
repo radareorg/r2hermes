@@ -84,6 +84,21 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc function signature metadata
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+isj~{[0].arg_count}
+isj~{[0].cc_arg_count}
+isj~{[0].ret_count}
+EOF
+EXPECT=<<EOF
+0
+1
+1
+EOF
+RUN
+
 NAME=hbc entry point (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
