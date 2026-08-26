@@ -243,6 +243,14 @@ static ut64 baddr(RBinFile *bf R_UNUSED) {
 	return HBC_VADDR_BASE;
 }
 
+static void set_symbol_size(RBinSymbol *symbol, ut32 size) {
+#if R2_ABIVERSION >= 134
+	symbol->attr.size = size;
+#else
+	symbol->size = size;
+#endif
+}
+
 static void append_binding_symbols(RList *symbols, HBC *hbc) {
 	HBCBindings bindings = { 0 };
 	if (hbc_scan_bindings (hbc, &bindings).code != RESULT_SUCCESS) {
@@ -259,7 +267,7 @@ static void append_binding_symbols(RList *symbols, HBC *hbc) {
 		r_bin_name_filtered (sym->name, nm);
 		sym->paddr = b->offset;
 		sym->vaddr = HBC_VADDR_BASE + b->offset;
-		sym->size = 1;
+		set_symbol_size (sym, 1);
 		sym->ordinal = b->string_id;
 		sym->type = R_BIN_TYPE_OBJECT_STR;
 		sym->bind = R_BIN_BIND_GLOBAL_STR;
@@ -313,7 +321,7 @@ static RList *symbols(RBinFile *bf) {
 
 		symbol->paddr = fi.offset;
 		symbol->vaddr = HBC_VADDR_BASE + fi.offset;
-		symbol->size = fi.size;
+		set_symbol_size (symbol, fi.size);
 		symbol->ordinal = i;
 		symbol->type = R_BIN_TYPE_FUNC_STR;
 		symbol->bits = 32;
@@ -342,7 +350,7 @@ static RList *symbols(RBinFile *bf) {
 			r_bin_name_filtered (sym->name, nm);
 			sym->paddr = groups[i].paddr;
 			sym->vaddr = HBC_VADDR_BASE + groups[i].paddr;
-			sym->size = 1;
+			set_symbol_size (sym, 1);
 			sym->type = R_BIN_TYPE_OBJECT_STR;
 			sym->bits = 32;
 			r_list_append (symbols, sym);
