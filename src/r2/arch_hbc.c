@@ -127,7 +127,7 @@ static bool opcode_is_conditional(u8 opcode) {
 	return false;
 }
 
-static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs) {
+static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode, HermesArchSession *hs, RArchDecodeMask mask) {
 	HBCISA isa = hbc_isa_getv (hs->bytecode_version);
 	const Instruction *inst_set = isa.instructions;
 	if (!inst_set || opcode >= isa.count) {
@@ -135,61 +135,79 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 	}
 
 	const Instruction *inst = &inst_set[opcode];
+	PJ *pj = NULL;
+	if (mask & R_ARCH_OP_MASK_OPEX) {
+		pj = pj_new ();
+		if (pj) {
+			pj_o (pj);
+			pj_ka (pj, "operands");
+		}
+	}
 
-	// Parse operands
-	ut32 operand_values[6] = { 0 };
-	size_t pos = 1; // Skip opcode byte
+	size_t pos = 1; /* Skip opcode byte */
 
 	for (int i = 0; i < 6 && inst->operands[i].operand_type != OPERAND_TYPE_NONE; i++) {
 		if (pos >= size) {
 			break;
 		}
 
+		const InstructionOperand *operand = &inst->operands[i];
+		ut32 value = 0;
+		double double_value = 0.0;
+		bool valid = false;
 		switch (inst->operands[i].operand_type) {
 		case OPERAND_TYPE_REG8:
 		case OPERAND_TYPE_UINT8:
 		case OPERAND_TYPE_ADDR8:
-			if (pos < size) {
-				operand_values[i] = bytes[pos];
+			if (pos + 1 <= size) {
+				value = bytes[pos];
 				pos += 1;
+				valid = true;
 			}
 			break;
 		case OPERAND_TYPE_UINT16:
-			if (pos + 1 < size) {
-				operand_values[i] = (bytes[pos + 1] << 8) | bytes[pos];
+			if (pos + 2 <= size) {
+				value = r_read_le16 (bytes + pos);
 				pos += 2;
+				valid = true;
 			}
 			break;
 		case OPERAND_TYPE_REG32:
 		case OPERAND_TYPE_UINT32:
 		case OPERAND_TYPE_ADDR32:
 		case OPERAND_TYPE_IMM32:
-			if (pos + 3 < size) {
-				operand_values[i] = (bytes[pos + 3] << 24) | (bytes[pos + 2] << 16) |
-					(bytes[pos + 1] << 8) | bytes[pos];
+			if (pos + 4 <= size) {
+				value = r_read_le32 (bytes + pos);
 				pos += 4;
+				valid = true;
 			}
 			break;
 		case OPERAND_TYPE_DOUBLE:
-			/* Double is 8 bytes - just advance position, value not used for ptr setting */
-			if (pos + 7 < size) {
+			if (pos + 8 <= size) {
+				ut64 bits = r_read_le64 (bytes + pos);
+				memcpy (&double_value, &bits, sizeof (double_value));
 				pos += 8;
+				valid = true;
 			}
 			break;
 		case OPERAND_TYPE_NONE:
 		default:
-			/* OPERAND_TYPE_NONE is never reached due to loop condition */
+			break;
+		}
+		if (!valid) {
 			break;
 		}
 
-		// Check if this operand is a string ID
-		if (inst->operands[i].operand_meaning == OPERAND_MEANING_STRING_ID) {
-			ut32 string_id = operand_values[i];
+		ut64 ref_addr = UT64_MAX;
+		/* Resolve IDs without replacing their raw values in OPEX. */
+		if (operand->operand_meaning == OPERAND_MEANING_STRING_ID) {
+			ut32 string_id = value;
 			if (string_id < hs->string_count && hs->hbc) {
 				HBCStringMeta meta;
 				Result meta_result = hbc_get_string_meta (hs->hbc, string_id, &meta);
 				if (meta_result.code == RESULT_SUCCESS) {
-					op->ptr = (st64) (HBC_VADDR_BASE + meta.offset);
+					ref_addr = HBC_VADDR_BASE + meta.offset;
+					op->ptr = (st64)ref_addr;
 					/* Expose the string byte length (size of the pointed
 					 * contents) so the disassembler caps r2's string read and
 					 * picks the right flag among overlapping, non-null-terminated
@@ -197,29 +215,59 @@ static void parse_operands_and_set_ptr(RAnalOp *op, const ut8 *bytes, ut32 size,
 					op->ptrsize = meta.isUTF16? (int) (meta.length * 2): (int)meta.length;
 				}
 			}
-		}
-		// Check if this operand is a function ID
-		else if (inst->operands[i].operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
-			ut32 function_id = operand_values[i];
+		} else if (operand->operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
+			ut32 function_id = value;
 			if (hs->hbc) {
-				ut32 offset = 0;
 				HBCFunc fi;
 				Result func_result = hbc_get_function_info (hs->hbc, function_id, &fi);
 				if (func_result.code == RESULT_SUCCESS) {
-					// name = fi.name;
-					offset = fi.offset;
-					(void)fi.size;
-					(void)fi.param_count;
-					op->ptr = (st64) (HBC_VADDR_BASE + offset);
+					ref_addr = HBC_VADDR_BASE + fi.offset;
+					op->ptr = (st64)ref_addr;
 				}
 			}
 		}
+
+		if (pj) {
+			pj_o (pj);
+			if (operand->operand_type == OPERAND_TYPE_REG8 || operand->operand_type == OPERAND_TYPE_REG32) {
+				char reg[16];
+				snprintf (reg, sizeof (reg), "r%u", value);
+				pj_ks (pj, "type", "reg");
+				pj_ks (pj, "value", reg);
+			} else {
+				pj_ks (pj, "type", "imm");
+				if (operand->operand_type == OPERAND_TYPE_DOUBLE) {
+					pj_kd (pj, "value", double_value);
+				} else if (operand->operand_meaning != OPERAND_MEANING_NONE) {
+					pj_kn (pj, "value", value);
+				} else if (operand->operand_type == OPERAND_TYPE_ADDR8) {
+					pj_kN (pj, "value", (st8)value);
+				} else if (operand->operand_type == OPERAND_TYPE_ADDR32 || operand->operand_type == OPERAND_TYPE_IMM32) {
+					pj_kN (pj, "value", (st32)value);
+				} else {
+					pj_kn (pj, "value", value);
+				}
+			}
+			if (operand->operand_meaning != OPERAND_MEANING_NONE) {
+				pj_ks (pj, "kind", hbc_operand_name (operand));
+			}
+			if (ref_addr != UT64_MAX) {
+				pj_kn (pj, "address", ref_addr);
+			}
+			pj_end (pj);
+		}
+	}
+
+	if (pj) {
+		pj_end (pj); /* operands */
+		pj_end (pj);
+		r_strbuf_set (&op->opex, pj_string (pj));
+		pj_free (pj);
 	}
 }
 
 static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	R_RETURN_VAL_IF_FAIL (s && op, false);
-	(void)mask;
 
 	if (!op->bytes) {
 		return false;
@@ -283,8 +331,8 @@ static bool decode(RArchSession *s, RAnalOp *op, RArchDecodeMask mask) {
 	op->type = R_ANAL_OP_TYPE_UNK;
 	op->family = R_ANAL_OP_FAMILY_CPU;
 
-	/* Parse operands and set ptr for string/function references */
-	parse_operands_and_set_ptr (op, op->bytes, op->size, sinfo.opcode, hs);
+	/* Parse structured operands and set ptr for string/function references. */
+	parse_operands (op, op->bytes, op->size, sinfo.opcode, hs, mask);
 
 	if (mask & R_ARCH_OP_MASK_ESIL && sinfo.text) {
 		set_esil (op, op->bytes, op->addr);

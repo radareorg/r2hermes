@@ -182,6 +182,30 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc structured operands
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+aoj 3 @ entry0~{0.opex}
+aoj 3 @ entry0~{1.opex}
+aoj 3 @ entry0~{2.opex}
+EOF
+EXPECT=<<EOF
+{"operands":[{"type":"reg","value":"r0"},{"type":"imm","value":1,"kind":"string_id","address":268435618}]}
+{"operands":[{"type":"reg","value":"r0"},{"type":"reg","value":"r0"},{"type":"imm","value":0}]}
+{"operands":[{"type":"reg","value":"r0"}]}
+EOF
+RUN
+
+NAME=hbc structured function operand
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+aoj 1 @ 0x1003a3bb~{0.opex}
+EOF
+EXPECT=<<EOF
+{"operands":[{"type":"reg","value":"r1"},{"type":"reg","value":"r3"},{"type":"imm","value":1,"kind":"function_id","address":268690421}]}
+EOF
+RUN
+
 NAME=hbc sections (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
