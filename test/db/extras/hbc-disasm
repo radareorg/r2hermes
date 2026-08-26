@@ -132,6 +132,18 @@ r1,r3,==,$z,!,?{,0x1003e637,pc,=,}
 EOF
 RUN
 
+NAME=hbc exception handlers are exposed through bin metadata
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+iw~try.0
+EOF
+EXPECT=<<EOF
+f try.0.1003e6dc.from=0x1003e703
+f try.0.1003e6dc.to=0x1003e713
+f try.0.1003e6dc.catch=0x1003e715
+EOF
+RUN
+
 NAME=hbc entry point (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16

@@ -77,6 +77,31 @@ static int test_empty_debug_info(const char *root) {
 	return 0;
 }
 
+static int test_exception_handlers(const char *root) {
+	char path[512];
+	snprintf (path, sizeof (path), "%s/test/bins/hbc/index.android.bundle", root);
+
+	HBC *hbc = NULL;
+	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);
+	u32 handler_count = 0;
+	for (u32 function_id = 0; function_id < hbc_function_count (hbc); function_id++) {
+		HBCFunc function;
+		CHECK (hbc_get_function_info (hbc, function_id, &function).code == RESULT_SUCCESS);
+		HBCExceptionHandlerArray handlers = { 0 };
+		CHECK (hbc_get_function_exception_handlers (hbc, function_id, &handlers).code == RESULT_SUCCESS);
+		for (u32 i = 0; i < handlers.count; i++) {
+			CHECK (handlers.handlers[i].start < handlers.handlers[i].end);
+			CHECK (handlers.handlers[i].end <= function.size);
+			CHECK (handlers.handlers[i].target < function.size);
+		}
+		handler_count += handlers.count;
+		hbc_free_exception_handlers (&handlers);
+	}
+	CHECK (handler_count > 0);
+	hbc_close (hbc);
+	return 0;
+}
+
 static int test_function_bytecode_bounds(const char *root) {
 	char path[512];
 	snprintf (path, sizeof (path), "%s/test/bins/hbc/bespoke_eval.hbc", root);
@@ -135,7 +160,7 @@ static int test_decode_rejects_bad_overflow_string_index(void) {
 
 int main(int argc, char **argv) {
 	const char *root = argc > 1? argv[1]: ".";
-	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index ()) {
+	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_exception_handlers (root) || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index ()) {
 		return 1;
 	}
 	return 0;

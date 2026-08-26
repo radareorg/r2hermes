@@ -65,6 +65,18 @@ typedef struct {
 	u32 param_count; // Number of parameters
 } HBCFunc;
 
+/* Function-relative exception-handler range. */
+typedef struct {
+	u32 start;
+	u32 end;
+	u32 target;
+} HBCExceptionHandler;
+
+typedef struct {
+	HBCExceptionHandler *handlers;
+	u32 count;
+} HBCExceptionHandlerArray;
+
 typedef struct {
 	u32 function_id;
 	u32 address; // File-absolute bytecode address
@@ -253,6 +265,10 @@ HBC_API Result hbc_get_header(HBC *hbc, HBCHeader *out);
  * Get metadata for a specific function.
  */
 HBC_API Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out);
+
+/** Get a copy of the exception handlers for one function. */
+HBC_API Result hbc_get_function_exception_handlers(HBC *hbc, u32 function_id, HBCExceptionHandlerArray *out);
+HBC_API void hbc_free_exception_handlers(HBCExceptionHandlerArray *arr);
 
 /** Get the register-frame size for a function without exposing parser internals. */
 HBC_API Result hbc_get_function_frame_size(HBC *hbc, u32 function_id, u32 *out);

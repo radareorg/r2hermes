@@ -239,6 +239,45 @@ static RList *entries(RBinFile *bf) {
 	return entries;
 }
 
+#if R2_ABIVERSION >= 14
+static RList *trycatch(RBinFile *bf) {
+	RList *ret = r_list_newf ((RListFree)r_bin_trycatch_free);
+	HBC *hbc = get_hbc (bf);
+	if (!ret || !hbc) {
+		return ret;
+	}
+
+	const u32 function_count = hbc_function_count (hbc);
+	for (u32 function_id = 0; function_id < function_count; function_id++) {
+		HBCFunc function;
+		if (hbc_get_function_info (hbc, function_id, &function).code != RESULT_SUCCESS) {
+			continue;
+		}
+		HBCExceptionHandlerArray handlers = { 0 };
+		if (hbc_get_function_exception_handlers (hbc, function_id, &handlers).code != RESULT_SUCCESS) {
+			continue;
+		}
+		const ut64 source = HBC_VADDR_BASE + function.offset;
+		for (u32 i = 0; i < handlers.count; i++) {
+			const HBCExceptionHandler *handler = &handlers.handlers[i];
+			if (handler->start >= handler->end || handler->end > function.size || handler->target >= function.size) {
+				continue;
+			}
+			RBinTrycatch *tc = r_bin_trycatch_new (source,
+				source + handler->start,
+				source + handler->end,
+				source + handler->target,
+				0);
+			if (tc) {
+				r_list_append (ret, tc);
+			}
+		}
+		hbc_free_exception_handlers (&handlers);
+	}
+	return ret;
+}
+#endif
+
 static ut64 baddr(RBinFile *bf R_UNUSED) {
 	return HBC_VADDR_BASE;
 }
@@ -1005,6 +1044,9 @@ const RBinPlugin r_bin_plugin_r2hermes = {
 	.baddr = &baddr,
 	.libs = &libs,
 	.lines = &lines,
+#if R2_ABIVERSION >= 14
+	.trycatch = &trycatch,
+#endif
 	.header = &header,
 	.fields = &fields,
 #if R2_ABIVERSION >= 121

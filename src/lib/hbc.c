@@ -176,6 +176,47 @@ Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	return SUCCESS_RESULT ();
 }
 
+Result hbc_get_function_exception_handlers(HBC *hbc, u32 function_id, HBCExceptionHandlerArray *out) {
+	if (!hbc || !out) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
+	}
+	out->handlers = NULL;
+	out->count = 0;
+	HBCReader *reader = &hbc->reader;
+	if (!reader->function_headers || function_id >= reader->header.functionCount) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Function ID out of range");
+	}
+	if (!reader->function_id_to_exc_handlers) {
+		return SUCCESS_RESULT ();
+	}
+	const ExceptionHandlerList *source = &reader->function_id_to_exc_handlers[function_id];
+	if (!source->count) {
+		return SUCCESS_RESULT ();
+	}
+	if (!source->handlers) {
+		return ERROR_RESULT (RESULT_ERROR_INVALID_DATA, "Invalid exception handler table");
+	}
+	HBCExceptionHandler *handlers = (HBCExceptionHandler *)calloc (source->count, sizeof (HBCExceptionHandler));
+	if (!handlers) {
+		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "Cannot allocate exception handlers");
+	}
+	for (u32 i = 0; i < source->count; i++) {
+		handlers[i].start = source->handlers[i].start;
+		handlers[i].end = source->handlers[i].end;
+		handlers[i].target = source->handlers[i].target;
+	}
+	out->handlers = handlers;
+	out->count = source->count;
+	return SUCCESS_RESULT ();
+}
+
+void hbc_free_exception_handlers(HBCExceptionHandlerArray *arr) {
+	if (arr) {
+		R_FREE (arr->handlers);
+		arr->count = 0;
+	}
+}
+
 Result hbc_get_function_frame_size(HBC *hbc, u32 function_id, u32 *out) {
 	if (!hbc || !out || !hbc->reader.function_headers || function_id >= hbc->reader.header.functionCount) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
