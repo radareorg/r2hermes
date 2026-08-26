@@ -320,6 +320,7 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 		values[i] = value;
 
 		ut64 ref_addr = UT64_MAX;
+		ut64 string_byte_length = UT64_MAX;
 		/* Resolve IDs without replacing their raw values in OPEX. */
 		if (operand->operand_meaning == OPERAND_MEANING_STRING_ID) {
 			ut32 string_id = value;
@@ -329,11 +330,12 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 				if (meta_result.code == RESULT_SUCCESS) {
 					ref_addr = HBC_VADDR_BASE + meta.offset;
 					op->ptr = (st64)ref_addr;
+					string_byte_length = meta.isUTF16? (ut64)meta.length * 2: meta.length;
 					/* Expose the string byte length (size of the pointed
 					 * contents) so the disassembler caps r2's string read and
 					 * picks the right flag among overlapping, non-null-terminated
 					 * Hermes strings that share this storage offset. */
-					op->ptrsize = meta.isUTF16? (int) (meta.length * 2): (int)meta.length;
+					op->ptrsize = (int)string_byte_length;
 				}
 			}
 		} else if (operand->operand_meaning == OPERAND_MEANING_FUNCTION_ID) {
@@ -374,6 +376,11 @@ static void parse_operands(RAnalOp *op, const ut8 *bytes, ut32 size, ut8 opcode,
 			}
 			if (ref_addr != UT64_MAX) {
 				pj_kn (pj, "address", ref_addr);
+			}
+			if (string_byte_length != UT64_MAX) {
+				/* Unlike RAnalOp.ptrsize, OPEX can represent a known empty
+				 * string without conflating its zero length with "unset". */
+				pj_kn (pj, "byte_length", string_byte_length);
 			}
 			pj_end (pj);
 		}
