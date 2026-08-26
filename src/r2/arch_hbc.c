@@ -708,14 +708,8 @@ static char *regs(RArchSession *s) {
 		return NULL;
 	}
 
-	/* Define special registers */
+	/* Hermes frame arguments and VM registers have no fixed ABI homes. */
 	r_strbuf_append (sb, "=PC\tpc\n");
-	r_strbuf_append (sb, "=SP\tr0\n");
-	r_strbuf_append (sb, "=BP\tr1\n");
-	r_strbuf_append (sb, "=A0\tr2\n");
-	r_strbuf_append (sb, "=A1\tr3\n");
-	r_strbuf_append (sb, "=A2\tr4\n");
-	r_strbuf_append (sb, "=A3\tr5\n");
 
 	/* Program counter - 64 bits at offset 0 */
 	r_strbuf_append (sb, "gpr\tpc\t.64\t0\t0\n");

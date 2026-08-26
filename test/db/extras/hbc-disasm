@@ -99,6 +99,17 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc register profile has no fake ABI roles
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+drpj~{alias_info}
+EOF
+EXPECT=<<EOF
+[{"role":0,"role_str":"PC","reg":"pc"}]
+EOF
+RUN
+
 NAME=hbc entry point (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
