@@ -84,9 +84,9 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_RShift: E3 (">>")
 	case OP_URshift: E3 ("0x1f,&,>>")
 	case OP_Eq:
-	case OP_StrictEq: E3 ("==")
+	case OP_StrictEq: E3 ("==,$z")
 	case OP_Neq:
-	case OP_StrictNeq: E3 ("==,!")
+	case OP_StrictNeq: E3 ("==,$z,!")
 	case OP_Less: E3 ("<")
 	case OP_Greater: E3 (">")
 	case OP_LessEq: E3 ("<=")
@@ -229,7 +229,7 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 		r_strbuf_setf (&op->esil, "r%u,THROW", bytes[1]);
 		break;
 	case OP_ThrowIfUndefinedInst:
-		r_strbuf_setf (&op->esil, "r%u,UNDEFINED,==,?{,THROW,}", bytes[1]);
+		r_strbuf_setf (&op->esil, "r%u,UNDEFINED,==,$z,?{,THROW,}", bytes[1]);
 		break;
 	case OP_IteratorClose:
 		r_strbuf_setf (&op->esil, "r%u,ITERCLOSE", bytes[1]);
@@ -276,14 +276,14 @@ static void set_esil(RAnalOp *op, const u8 *bytes, ut64 addr) {
 	case OP_JNotGreaterEqualN: JCC_S ("<")
 	case OP_JNotGreaterEqualLong:
 	case OP_JNotGreaterEqualNLong: JCC_L ("<")
-	case OP_JEqual: JCC_S ("==")
-	case OP_JEqualLong: JCC_L ("==")
-	case OP_JNotEqual: JCC_S ("==,!")
-	case OP_JNotEqualLong: JCC_L ("==,!")
-	case OP_JStrictEqual: JCC_S ("==")
-	case OP_JStrictEqualLong: JCC_L ("==")
-	case OP_JStrictNotEqual: JCC_S ("==,!")
-	case OP_JStrictNotEqualLong: JCC_L ("==,!")
+	case OP_JEqual: JCC_S ("==,$z")
+	case OP_JEqualLong: JCC_L ("==,$z")
+	case OP_JNotEqual: JCC_S ("==,$z,!")
+	case OP_JNotEqualLong: JCC_L ("==,$z,!")
+	case OP_JStrictEqual: JCC_S ("==,$z")
+	case OP_JStrictEqualLong: JCC_L ("==,$z")
+	case OP_JStrictNotEqual: JCC_S ("==,$z,!")
+	case OP_JStrictNotEqualLong: JCC_L ("==,$z,!")
 
 	/* aggregate / opaque ops with no precise ESIL model */
 	case OP_Unreachable:

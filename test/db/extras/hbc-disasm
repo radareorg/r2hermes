@@ -121,6 +121,17 @@ EXPECT=<<EOF
 EOF
 RUN
 
+NAME=hbc equality branch ESIL materializes the zero comparison
+FILE=bins/hbc/index.android.bundle
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+aoj 1 @ 0x1003e5fc~{[0].esil}
+EOF
+EXPECT=<<EOF
+r1,r3,==,$z,!,?{,0x1003e637,pc,=,}
+EOF
+RUN
+
 NAME=hbc entry point (va)
 FILE=bins/hbc/bespoke_eval.hbc
 ARGS=-e asm.sub.varmin=16
