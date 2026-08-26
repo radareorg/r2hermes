@@ -1,6 +1,7 @@
 /* r2hermes - BSD - Copyright 2025-2026 - pancake */
 
 #include "../src/lib/hbc_internal.h"
+#include <hbc/opcodes.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -84,9 +85,14 @@ static int test_exception_handlers(const char *root) {
 	HBC *hbc = NULL;
 	CHECK (hbc_open (path, &hbc).code == RESULT_SUCCESS);
 	u32 handler_count = 0;
+	u32 generator_count = 0;
 	for (u32 function_id = 0; function_id < hbc_function_count (hbc); function_id++) {
 		HBCFunc function;
 		CHECK (hbc_get_function_info (hbc, function_id, &function).code == RESULT_SUCCESS);
+		CHECK (!(function.flags & HBC_FUNCTION_ASYNC));
+		if (function.flags & HBC_FUNCTION_GENERATOR) {
+			generator_count++;
+		}
 		HBCExceptionHandlerArray handlers = { 0 };
 		CHECK (hbc_get_function_exception_handlers (hbc, function_id, &handlers).code == RESULT_SUCCESS);
 		for (u32 i = 0; i < handlers.count; i++) {
@@ -98,7 +104,52 @@ static int test_exception_handlers(const char *root) {
 		hbc_free_exception_handlers (&handlers);
 	}
 	CHECK (handler_count > 0);
+	CHECK (generator_count > 0);
 	hbc_close (hbc);
+	return 0;
+}
+
+static const Instruction *find_instruction(HBCISA isa, const char *name) {
+	for (u32 i = 0; i < isa.count; i++) {
+		if (isa.instructions[i].name && !strcmp (isa.instructions[i].name, name)) {
+			return &isa.instructions[i];
+		}
+	}
+	return NULL;
+}
+
+static int test_opcode_operand_meanings(void) {
+	static const int versions[] = {
+		51, 58, 59, 61, 62, 68, 69, 70, 72, 73, 76, 80, 81, 82,
+		83, 84, 85, 86, 87, 89, 90, 92, 93, 94, 95, 96, 97, 98, 99
+	};
+	static const char *function_ops[] = {
+		"call_direct", "call_direct_long_index",
+		"create_closure", "create_closure_long_index",
+		"create_generator_closure", "create_generator_closure_long_index",
+		"create_async_closure", "create_async_closure_long_index",
+		"create_generator", "create_generator_long_index"
+	};
+	static const char *builtin_ops[] = {
+		"call_builtin", "call_builtin_long", "get_builtin_closure",
+		"jmp_builtin_is", "jmp_builtin_is_long",
+		"jmp_builtin_is_not", "jmp_builtin_is_not_long"
+	};
+	for (size_t i = 0; i < sizeof (versions) / sizeof (versions[0]); i++) {
+		HBCISA isa = hbc_isa_getv (versions[i]);
+		for (size_t j = 0; j < sizeof (function_ops) / sizeof (function_ops[0]); j++) {
+			const Instruction *insn = find_instruction (isa, function_ops[j]);
+			if (insn) {
+				CHECK (insn->operands[2].operand_meaning == OPERAND_MEANING_FUNCTION_ID);
+			}
+		}
+		for (size_t j = 0; j < sizeof (builtin_ops) / sizeof (builtin_ops[0]); j++) {
+			const Instruction *insn = find_instruction (isa, builtin_ops[j]);
+			if (insn) {
+				CHECK (insn->operands[1].operand_meaning == OPERAND_MEANING_BUILTIN_ID);
+			}
+		}
+	}
 	return 0;
 }
 
@@ -160,7 +211,7 @@ static int test_decode_rejects_bad_overflow_string_index(void) {
 
 int main(int argc, char **argv) {
 	const char *root = argc > 1? argv[1]: ".";
-	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_exception_handlers (root) || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index ()) {
+	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_exception_handlers (root) || test_opcode_operand_meanings () || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index ()) {
 		return 1;
 	}
 	return 0;

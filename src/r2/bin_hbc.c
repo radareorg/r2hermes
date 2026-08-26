@@ -375,6 +375,14 @@ static RList *symbols(RBinFile *bf) {
 		symbol->vaddr = HBC_VADDR_BASE + fi.offset;
 		set_symbol_size (symbol, fi.size);
 		set_function_signature (symbol, &fi);
+#if R2_ABIVERSION >= 139
+		if (fi.flags & HBC_FUNCTION_ASYNC) {
+			symbol->attr.flags |= R_BIN_ATTR_ASYNC;
+		}
+		if (fi.flags & HBC_FUNCTION_GENERATOR) {
+			symbol->attr.flags |= R_BIN_ATTR_GENERATOR;
+		}
+#endif
 		symbol->ordinal = i;
 		symbol->type = R_BIN_TYPE_FUNC_STR;
 		symbol->bits = 32;

@@ -31,6 +31,8 @@ struct HBC {
 	u32 string_count;
 	const char **strings;
 	u32 function_count;
+	u32 *function_flags;
+	bool function_flags_ready;
 	HBCLiteralCache lit_cache;
 };
 

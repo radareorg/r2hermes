@@ -15,6 +15,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+typedef struct {
+	u32 source;
+	u32 target;
+} HBCFunctionEdge;
+
+R_VEC_TYPE(RVecHBCFunctionEdge, HBCFunctionEdge)
+
+static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t len, u32 values[6]);
+
 /* ============================================================================
  * HBC - Direct File Access API Implementation
  * ============================================================================ */
@@ -127,6 +136,7 @@ void hbc_close(HBC *hbc) {
 		return;
 	}
 	hbc_literals_reset (hbc);
+	free (hbc->function_flags);
 	_hbc_reader_cleanup (&hbc->reader);
 	free (hbc);
 }
@@ -153,6 +163,89 @@ Result hbc_get_header(HBC *hbc, HBCHeader *out) {
 	return SUCCESS_RESULT ();
 }
 
+static bool opcode_is(const Instruction *insn, const char *name, const char *long_name) {
+	const char *mnemonic = insn? insn->name: NULL;
+	return mnemonic && (!strcmp (mnemonic, name) || !strcmp (mnemonic, long_name));
+}
+
+static void add_function_edge(RVecHBCFunctionEdge *edges, u32 source, u32 target) {
+	HBCFunctionEdge edge = { .source = source, .target = target };
+	RVecHBCFunctionEdge_push_back (edges, &edge);
+}
+
+static void hbc_ensure_function_flags(HBC *hbc) {
+	if (!hbc || hbc->function_flags_ready) {
+		return;
+	}
+	hbc->function_flags_ready = true;
+	const u32 count = hbc->reader.header.functionCount;
+	if (!count) {
+		return;
+	}
+	hbc->function_flags = (u32 *)calloc (count, sizeof (u32));
+	if (!hbc->function_flags) {
+		return;
+	}
+
+	RVecHBCFunctionEdge edges;
+	RVecHBCFunctionEdge_init (&edges);
+	const HBCISA isa = hbc_isa_getv (hbc->reader.header.version);
+	for (u32 function_id = 0; function_id < count; function_id++) {
+		const u8 *code = NULL;
+		u32 size = 0;
+		if (hbc_get_function_bytecode (hbc, function_id, &code, &size).code != RESULT_SUCCESS || !code) {
+			continue;
+		}
+		for (u32 pc = 0; pc < size;) {
+			const u8 opcode = code[pc];
+			const Instruction *insn = opcode < isa.count? &isa.instructions[opcode]: NULL;
+			if (!insn || !insn->name || !insn->binary_size) {
+				break;
+			}
+			u32 values[6];
+			const size_t decoded_size = decode_operands (insn, code + pc, size - pc, values);
+			if (!decoded_size) {
+				break;
+			}
+			const u32 target = values[2];
+			if (target >= count) {
+				pc += (u32)decoded_size;
+				continue;
+			}
+			if (opcode_is (insn, "create_async_closure", "create_async_closure_long_index")) {
+				hbc->function_flags[target] |= HBC_FUNCTION_ASYNC;
+			} else if (opcode_is (insn, "create_generator_closure", "create_generator_closure_long_index")) {
+				hbc->function_flags[target] |= HBC_FUNCTION_GENERATOR;
+				add_function_edge (&edges, function_id, target);
+			} else if (opcode_is (insn, "create_generator", "create_generator_long_index")) {
+				hbc->function_flags[function_id] |= HBC_FUNCTION_GENERATOR;
+				hbc->function_flags[target] |= HBC_FUNCTION_GENERATOR;
+				add_function_edge (&edges, function_id, target);
+			}
+			pc += (u32)decoded_size;
+		}
+	}
+
+	bool changed;
+	do {
+		changed = false;
+		HBCFunctionEdge *edge;
+		R_VEC_FOREACH (&edges, edge) {
+			if ((hbc->function_flags[edge->source] & HBC_FUNCTION_ASYNC) &&
+				! (hbc->function_flags[edge->target] & HBC_FUNCTION_ASYNC)) {
+				hbc->function_flags[edge->target] |= HBC_FUNCTION_ASYNC;
+				changed = true;
+			}
+		}
+	} while (changed);
+	for (u32 i = 0; i < count; i++) {
+		if (hbc->function_flags[i] & HBC_FUNCTION_ASYNC) {
+			hbc->function_flags[i] &= ~HBC_FUNCTION_GENERATOR;
+		}
+	}
+	RVecHBCFunctionEdge_fini (&edges);
+}
+
 Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	if (!hbc || !out) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "Invalid arguments");
@@ -173,6 +266,8 @@ Result hbc_get_function_info(HBC *hbc, u32 function_id, HBCFunc *out) {
 	out->offset = fh->offset;
 	out->size = fh->bytecodeSizeInBytes;
 	out->param_count = fh->paramCount;
+	hbc_ensure_function_flags (hbc);
+	out->flags = hbc->function_flags? hbc->function_flags[function_id]: HBC_FUNCTION_NONE;
 	return SUCCESS_RESULT ();
 }
 
@@ -769,10 +864,6 @@ static char *build_literal_comment(HBCReader *reader, const char *mnemonic, cons
 	r_strbuf_fini (&sb);
 	return result;
 }
-
-/* Read each operand by type into values[6], little-endian with sign-extension
- * for relative addresses; returns total instruction size, or 0 if truncated. */
-static size_t decode_operands(const Instruction *inst, const u8 *bytes, size_t len, u32 values[6]);
 
 Result hbc_dec(const HBCDecodeCtx *ctx, HBCInsnInfo *out) {
 	if (!ctx || !out) {

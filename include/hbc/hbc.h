@@ -57,12 +57,19 @@ typedef struct HBCStringMeta {
 	HBCStringKind kind;
 } HBCStringMeta;
 
+typedef enum {
+	HBC_FUNCTION_NONE = 0,
+	HBC_FUNCTION_ASYNC = 1u << 0,
+	HBC_FUNCTION_GENERATOR = 1u << 1
+} HBCFunctionFlags;
+
 /* Function metadata structure */
 typedef struct {
 	const char *name; // Valid while provider is alive; caller must not free
 	u32 offset; // Bytecode offset in file
 	u32 size; // Size in bytes
 	u32 param_count; // Number of parameters
+	u32 flags; // HBCFunctionFlags
 } HBCFunc;
 
 /* Function-relative exception-handler range. */
