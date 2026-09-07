@@ -11,6 +11,10 @@
 
 typedef struct {
 	HBC *hbc;
+#if R2_ABIVERSION >= 142
+	RVecRBinTrycatch trycatch;
+	bool trycatch_loaded;
+#endif
 } HBCBinObj;
 
 static bool check(RBinFile *bf, RBuffer *b) {
@@ -29,6 +33,9 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 		if (hbc_open_from_buffer (buf, &hbc).code == RESULT_SUCCESS) {
 			HBCBinObj *bo = R_NEW0 (HBCBinObj);
 			bo->hbc = hbc;
+#if R2_ABIVERSION >= 142
+			RVecRBinTrycatch_init (&bo->trycatch);
+#endif
 			bf->bo->bin_obj = bo;
 			bf->buf = buf;
 			return true;
@@ -40,6 +47,9 @@ static bool load(RBinFile *bf, RBuffer *buf, ut64 R_UNUSED loadaddr) {
 static void destroy(RBinFile *bf) {
 	HBCBinObj *bo = bf->bo->bin_obj;
 	if (bo) {
+#if R2_ABIVERSION >= 142
+		RVecRBinTrycatch_fini (&bo->trycatch);
+#endif
 		hbc_safe_close (&bo->hbc);
 		free (bo);
 	}
@@ -239,7 +249,47 @@ static RList *entries(RBinFile *bf) {
 	return entries;
 }
 
-#if R2_ABIVERSION >= 14
+#if R2_ABIVERSION >= 142
+static RVecRBinTrycatch *trycatch(RBinFile *bf) {
+	HBCBinObj *bo = R_UNWRAP3 (bf, bo, bin_obj);
+	if (!bo || bo->trycatch_loaded) {
+		return bo? &bo->trycatch: NULL;
+	}
+
+	HBC *hbc = bo->hbc;
+	if (!hbc) {
+		return NULL;
+	}
+
+	const u32 function_count = hbc_function_count (hbc);
+	for (u32 function_id = 0; function_id < function_count; function_id++) {
+		HBCFunc function;
+		if (hbc_get_function_info (hbc, function_id, &function).code != RESULT_SUCCESS) {
+			continue;
+		}
+		HBCExceptionHandlerArray handlers = { 0 };
+		if (hbc_get_function_exception_handlers (hbc, function_id, &handlers).code != RESULT_SUCCESS) {
+			continue;
+		}
+		const ut64 source = HBC_VADDR_BASE + function.offset;
+		for (u32 i = 0; i < handlers.count; i++) {
+			const HBCExceptionHandler *handler = &handlers.handlers[i];
+			if (handler->start >= handler->end || handler->end > function.size || handler->target >= function.size) {
+				continue;
+			}
+			(void)r_bin_trycatch_add (&bo->trycatch,
+				source,
+				source + handler->start,
+				source + handler->end,
+				source + handler->target,
+				0);
+		}
+		hbc_free_exception_handlers (&handlers);
+	}
+	bo->trycatch_loaded = true;
+	return &bo->trycatch;
+}
+#elif R2_ABIVERSION >= 14
 static RList *trycatch(RBinFile *bf) {
 	RList *ret = r_list_newf ((RListFree)r_bin_trycatch_free);
 	HBC *hbc = get_hbc (bf);
