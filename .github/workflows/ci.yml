@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  R2V: 6.2.2
+
 permissions:
   contents: write
 
@@ -23,7 +26,9 @@ jobs:
         run: sudo apt-get update -y && sudo apt-get install -y build-essential autoconf automake libtool pkg-config
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v2
+        uses: radareorg/github-actions@v3
+        with:
+          version: ${{ env.R2V }}
       - name: Build library
         run: make
       - name: Build r2 plugin
@@ -61,7 +66,9 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v2
+        uses: radareorg/github-actions@v3
+        with:
+          version: ${{ env.R2V }}
 
       - name: Build Debian package
         run: make -C dist/debian SUDO=
@@ -93,7 +100,9 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v2
+        uses: radareorg/github-actions@v3
+        with:
+          version: ${{ env.R2V }}
 
       - name: Build and install with Meson
         shell: cmd

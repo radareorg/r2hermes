@@ -1,5 +1,8 @@
 name: Windows Build
 
+env:
+  R2V: 6.2.2
+
 on:
   push:
   workflow_dispatch: {}
@@ -25,7 +28,9 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v2
+        uses: radareorg/github-actions@v3
+        with:
+          version: ${{ env.R2V }}
 
       - name: Build and install with Meson
         shell: cmd
