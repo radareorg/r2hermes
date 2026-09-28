@@ -1080,7 +1080,8 @@ static void r2hermes_help(RCore *core) {
 		"r2hermes-E[jq]   - List direct eval instruction sites (j=JSON, q=addresses only)\n"
 		"r2hermes-H       - Show file information and hash status\n"
 		"r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle\n"
-		"r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)\n";
+		"r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)\n"
+		"r2hermes-V[j?]   - Show bytecode and React Native versions (HBC or libhermes.so)\n";
 	r_cons_print (core->cons, msg);
 }
 
@@ -1148,6 +1149,7 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 }
 
 #include "sbom.inc.c"
+#include "version.inc.c"
 
 static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 	arg = r_str_trim_head_ro (arg);
@@ -1164,6 +1166,9 @@ static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 			break;
 		case 'S':
 			cmd_sbom (ctx, core, arg + 2);
+			break;
+		case 'V':
+			cmd_version (ctx, core, arg + 2);
 			break;
 		case '?':
 		case 'h':
