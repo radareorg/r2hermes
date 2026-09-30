@@ -131,17 +131,51 @@ jobs:
         run: |
           Compress-Archive -Path install\* -DestinationPath r2hermes-windows-x64.zip -Force
 
+      - name: Package r2pm binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bindist\plugins,bindist\bin | Out-Null
+          Copy-Item install\lib\radare2\plugins\*.dll bindist\plugins
+          Copy-Item install\bin\r2hermes.exe bindist\bin
+          Compress-Archive -Path bindist\* -DestinationPath "r2hermes-$env:R2V-windows-x86-64.zip" -Force
+
       - name: Upload Windows package artifact
         uses: actions/upload-artifact@v7
         with:
           name: windows-package
-          path: r2hermes-windows-x64.zip
+          path: r2hermes-*.zip
+          if-no-files-found: error
+
+  bindist:
+    name: Build r2pm binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install radare2
+        uses: radareorg/github-actions@v3
+        with:
+          version: ${{ env.R2V }}
+
+      - name: Package r2pm binary
+        run: make bindist
+
+      - name: Upload r2pm binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bindist-${{ matrix.os }}
+          path: r2hermes-*.zip
           if-no-files-found: error
 
   release:
     name: Create release and upload artifacts
     runs-on: ubuntu-latest
-    needs: [build, debian, windows]
+    needs: [build, debian, windows, bindist]
     if: needs.build.outputs.tag != ''
 
     steps:
@@ -169,6 +203,13 @@ jobs:
           name: windows-package
           path: release-artifacts/windows
 
+      - name: Download r2pm binary artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: bindist-*
+          merge-multiple: true
+          path: release-artifacts/bindist
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3.0.1
         with:
@@ -177,6 +218,7 @@ jobs:
             ./libhbc-${{ needs.build.outputs.tag }}.tgz
             ./release-artifacts/*.deb
             ./release-artifacts/windows/*.zip
+            ./release-artifacts/bindist/*.zip
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

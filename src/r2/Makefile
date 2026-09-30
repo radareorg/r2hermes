@@ -17,6 +17,7 @@ LDFLAGS += $(shell pkg-config --libs r_core 2>/dev/null || echo "$(if $(R2PM_LIN
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	EXT_SO = dylib
+	CFLAGS += -D_DARWIN_C_SOURCE
 	LDFLAGS += -dynamiclib -undefined dynamic_lookup
 else ifeq ($(UNAME_S),Linux)
 	EXT_SO = so

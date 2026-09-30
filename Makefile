@@ -1,5 +1,9 @@
 CC?= gcc
 CFLAGS?=-Wall -Wextra -std=c11 -pedantic -O2 -fPIC -fvisibility=hidden -D_POSIX_C_SOURCE=200809L
+ifeq ($(shell uname),Darwin)
+# macOS hides memmem() (used by r_util headers) under strict _POSIX_C_SOURCE
+CFLAGS+=-D_DARWIN_C_SOURCE
+endif
 DEBUG_FLAGS?=-g -DDEBUG -DHBC_DEBUG_LOGGING=1
 
 VERSION=$(shell grep "^[[:space:]]*version:" meson.build | cut -d "'" -f 2)
@@ -114,6 +118,17 @@ user-install user-uninstall:
 	$(MAKE) -C src/r2
 	$(MAKE) -C src/r2 $@
 
+# Binary package for r2pm -bi: plugins/ and bin/ for this r2 version and platform
+BINDIST_ZIP=r2hermes-$(shell r2 -qv)-$(shell r2pm -H R2PM_OS)-$(shell r2pm -H R2PM_ARCH)-$(shell r2pm -H R2PM_BITS).zip
+
+bindist: all
+	$(MAKE) -C src/r2
+	rm -rf $(BUILD_DIR)/bindist $(BINDIST_ZIP)
+	$(MAKE) -C src/r2 user-install R2_PLUGDIR=$(CURDIR)/$(BUILD_DIR)/bindist/plugins
+	mkdir -p $(BUILD_DIR)/bindist/bin
+	cp -f $(BIN_FILE) $(BUILD_DIR)/bindist/bin/
+	cd $(BUILD_DIR)/bindist && zip -r $(CURDIR)/$(BINDIST_ZIP) plugins bin
+
 $(VH):
 	@mkdir -p $(dir $@)
 	echo '#ifndef LIBHBC_VERSION' > $@
@@ -123,4 +138,4 @@ $(VH):
 	echo '#define LIBHBC_VERSION_PATCH "$(shell echo $(VERSION) | cut -d . -f 3)"' >> $@
 	echo '#endif' >> $@
 
-.PHONY: r2 test test2 all clean debug asan
+.PHONY: r2 test test2 all clean debug asan bindist
