@@ -100,7 +100,7 @@ static Result u32set_init(U32Set *s, u32 max_addr) {
 	if (!s) {
 		return ERROR_RESULT (RESULT_ERROR_INVALID_ARGUMENT, "u32set init");
 	}
-	s->bitmap_size = (max_addr + 7) / 8;
+	s->bitmap_size = ((u64)max_addr + 7) / 8;
 	s->bitmap = (u8 *)calloc (s->bitmap_size, 1);
 	if (!s->bitmap) {
 		return ERROR_RESULT (RESULT_ERROR_MEMORY_ALLOCATION, "u32set bitmap");
