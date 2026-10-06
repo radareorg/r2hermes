@@ -1399,6 +1399,7 @@ R_API RLibStruct radare_plugin = {
 	.type = R_LIB_TYPE_CORE,
 	.data = (void *)&r_core_plugin_r2hermes,
 	.version = R2_VERSION,
-	.abiversion = R2_ABIVERSION
+	.abiversion = R2_ABIVERSION,
+	.pkgname = "r2hermes"
 };
 #endif
