@@ -1227,7 +1227,8 @@ static void cmd_analyze(RCore *core, HbcContext *ctx, const char *arg) {
 	if (!r_flag_space_push (core->flags, R_FLAGS_FS_SYMBOLS)) {
 		return;
 	}
-	if (!r_core_bin_info (core, R_CORE_BIN_ACC_SYMBOLS | R_CORE_BIN_ACC_ENTRIES, NULL, R_MODE_SET, va, NULL, NULL)) {
+	if (!r_core_bin_info (core, R_CORE_BIN_ACC_ENTRIES, NULL, R_MODE_SET, va, NULL, NULL) ||
+		r_core_cmd0 (core, ".is*") != 0) {
 		R_LOG_ERROR ("Failed to import HBC symbols and entrypoints");
 		goto done;
 	}

@@ -26,13 +26,13 @@ fs scratch
 s 0x100000b4
 r2hermes-A
 ?v $$
-fs*~# current
+fs~scratch[1]
 fs *
 f~global,entry,str.
 EOF
 EXPECT=<<EOF
 0x100000b4
-fs scratch # current
+*
 0x100000b0 1 entry0
 0x100000b0 10 sym.global_0x000000b0
 EOF
@@ -122,6 +122,7 @@ f~global,entry,str.print
 EOF
 EXPECT=<<EOF
 0xb0
+0x0000009c 6 str.global
 0x000000a2 11 str.print_123__
 0x000000b0 1 entry0
 0x000000b0 10 sym.global_0x000000b0
