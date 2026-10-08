@@ -87,6 +87,12 @@ Usage: r2hermes[-arg]  # see also pd:h for decompilation
   r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)
 ```
 
+`r2hermes-L` lists the constructor instruction addresses after `xrefs=`.
+Object literal addresses point to their serialized values; their keys or shapes
+can be shared by objects with different values. Pools can also share values, so
+`r2hermes-Lx <addr>` lists every matching entry. Use the constructor addresses
+on each row to navigate to that specific object. Text output follows `io.va`.
+
 ### Examples
 
 ```bash

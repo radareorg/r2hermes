@@ -133,9 +133,8 @@ static HBCLiteralEntry *cache_find(HBCLiteralCache *c, HBCLiteralKind kind, u32 
 	return NULL;
 }
 
-/* Compute paddr for an entry based on its kind/primary_id. For v97+ objects,
- * primary_id is a shape index — resolve via the shape table. */
-static u32 entry_paddr(HBC *hbc, HBCLiteralKind kind, u32 primary_id) {
+/* Anchor objects at their values, not their shared keys/shape. */
+static u32 entry_paddr(HBC *hbc, HBCLiteralKind kind, u32 primary_id, u32 secondary_id) {
 	const HBCReader *r = &hbc->reader;
 	if (kind == HBC_LIT_ARRAY) {
 		if (!r->arrays) {
@@ -146,18 +145,10 @@ static u32 entry_paddr(HBC *hbc, HBCLiteralKind kind, u32 primary_id) {
 		}
 		return r->arrays_paddr + primary_id;
 	}
-	/* object */
-	if (r->header.version >= 97 && r->object_shapes && primary_id < r->object_shape_count) {
-		u32 key_off = r->object_shapes[primary_id].key_buffer_offset;
-		if (r->object_keys && key_off < r->header.objKeyBufferSize) {
-			return r->object_keys_paddr + key_off;
-		}
+	if (!r->object_values || secondary_id >= r->header.objValueBufferSize) {
 		return 0;
 	}
-	if (!r->object_keys || primary_id >= r->header.objKeyBufferSize) {
-		return 0;
-	}
-	return r->object_keys_paddr + primary_id;
+	return r->object_values_paddr + secondary_id;
 }
 
 static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, u32 primary_id, u32 secondary_id, bool format, HBCLiteralEntry **out_entry) {
@@ -182,7 +173,7 @@ static Result cache_get_or_create(HBC *hbc, HBCLiteralKind kind, u32 num_items, 
 	e->num_items = num_items;
 	e->primary_id = primary_id;
 	e->secondary_id = secondary_id;
-	e->paddr = entry_paddr (hbc, kind, primary_id);
+	e->paddr = entry_paddr (hbc, kind, primary_id, secondary_id);
 	if (format) {
 		char *txt = NULL;
 		Result fr = format_raw_impl (&hbc->reader, kind, num_items, primary_id, secondary_id, &txt);

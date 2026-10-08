@@ -40,7 +40,7 @@ typedef struct {
 	u32 num_items;
 	u32 primary_id; /* array_id (array) or keys/shape id (object) */
 	u32 secondary_id; /* values_id for objects, 0 for arrays */
-	u32 paddr; /* absolute file offset of the literal data in the SLP pool (0 if unknown) */
+	u32 paddr; /* absolute file offset of array data or object values (0 if unknown) */
 	char *formatted; /* cached JS literal text; NULL if not yet formatted */
 	u32 *xref_addrs; /* instruction addresses that construct this literal */
 	u32 xref_count;

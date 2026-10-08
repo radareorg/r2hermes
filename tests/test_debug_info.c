@@ -209,9 +209,53 @@ static int test_decode_rejects_bad_overflow_string_index(void) {
 	return 0;
 }
 
+static int test_literal_addresses(void) {
+	u8 keys[] = { 0x71, 1, 0, 0, 0 };
+	u8 values[] = { 0x71, 20, 0, 0, 0, 0x71, 36, 0, 0, 0 };
+	ShapeTableEntry shape = { .key_buffer_offset = 0, .prop_count = 1 };
+	for (u32 version = 96; version <= 97; version++) {
+		HBC hbc = { 0 };
+		RVecHBCLiteralEntry_init (&hbc.lit_cache.entries);
+		hbc.reader.header.version = version;
+		hbc.reader.header.arrayBufferSize = sizeof (values);
+		hbc.reader.header.objKeyBufferSize = sizeof (keys);
+		hbc.reader.header.objValueBufferSize = sizeof (values);
+		hbc.reader.arrays = values;
+		hbc.reader.arrays_paddr = 0x100;
+		hbc.reader.object_keys = keys;
+		hbc.reader.object_keys_paddr = 0x200;
+		hbc.reader.object_values = values;
+		hbc.reader.object_values_paddr = version >= 97? 0x100: 0x300;
+		hbc.reader.object_shapes = &shape;
+		hbc.reader.object_shape_count = 1;
+		u32 num_items = version >= 97? 0: 1;
+		CHECK (hbc_literals_register (&hbc, HBC_LIT_OBJECT, num_items, 0, 0, 0x400).code == RESULT_SUCCESS);
+		CHECK (hbc_literals_register (&hbc, HBC_LIT_OBJECT, num_items, 0, 5, 0x410).code == RESULT_SUCCESS);
+		CHECK (hbc_literals_register (&hbc, HBC_LIT_OBJECT, num_items, 0, 5, 0x420).code == RESULT_SUCCESS);
+		CHECK (hbc_literals_register (&hbc, HBC_LIT_ARRAY, 1, 5, 0, 0x430).code == RESULT_SUCCESS);
+		CHECK (hbc_literals_register (&hbc, HBC_LIT_OBJECT, num_items, 0, sizeof (values), 0x440).code == RESULT_SUCCESS);
+		const HBCLiteralEntry *entries = NULL;
+		u32 count = 0;
+		CHECK (hbc_literals_list (&hbc, &entries, &count).code == RESULT_SUCCESS);
+		CHECK (count == 4);
+		CHECK (entries[0].paddr == hbc.reader.object_values_paddr);
+		CHECK (entries[1].paddr == hbc.reader.object_values_paddr + 5);
+		CHECK (entries[2].paddr == 0x105);
+		CHECK (entries[3].paddr == 0);
+		CHECK (!strcmp (entries[0].formatted, "{1: 20}"));
+		CHECK (!strcmp (entries[1].formatted, "{1: 36}"));
+		CHECK (!strcmp (entries[2].formatted, "[36]"));
+		CHECK (entries[1].xref_count == 2);
+		CHECK (entries[1].xref_addrs[0] == 0x410);
+		CHECK (entries[1].xref_addrs[1] == 0x420);
+		hbc_literals_reset (&hbc);
+	}
+	return 0;
+}
+
 int main(int argc, char **argv) {
 	const char *root = argc > 1? argv[1]: ".";
-	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_exception_handlers (root) || test_opcode_operand_meanings () || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index ()) {
+	if (test_small_debug_info (root) || test_empty_debug_info (root) || test_exception_handlers (root) || test_opcode_operand_meanings () || test_function_bytecode_bounds (root) || test_decode_rejects_bad_overflow_string_index () || test_literal_addresses ()) {
 		return 1;
 	}
 	return 0;

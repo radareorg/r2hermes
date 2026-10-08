@@ -741,7 +741,8 @@ static void register_r2_artifacts(RCore *core, const HBCLiteralEntry *e) {
 	if (!e->paddr) {
 		return;
 	}
-	ut64 vaddr = HBC_VADDR_BASE + (ut64)e->paddr;
+	ut64 base = r_config_get_b (core->config, "io.va")? HBC_VADDR_BASE: 0;
+	ut64 vaddr = base + e->paddr;
 	char flag_name[64];
 	snprintf (flag_name, sizeof (flag_name), "%s0x%x", lit_kind_prefix (e->kind), e->paddr);
 	r_flag_set (core->flags, flag_name, vaddr, 1);
@@ -749,7 +750,7 @@ static void register_r2_artifacts(RCore *core, const HBCLiteralEntry *e) {
 		r_meta_set_string (core->anal, R_META_TYPE_COMMENT, vaddr, e->formatted);
 	}
 	for (u32 i = 0; i < e->xref_count; i++) {
-		ut64 from = HBC_VADDR_BASE + (ut64)e->xref_addrs[i];
+		ut64 from = base + e->xref_addrs[i];
 		r_anal_xrefs_set (core->anal, from, vaddr, R_ANAL_REF_TYPE_DATA);
 	}
 }
@@ -812,9 +813,10 @@ static void cmd_lit_list_quiet(HbcContext *ctx, RCore *core) {
 	if (r.code != RESULT_SUCCESS) {
 		R_LOG_ERROR ("%s", safe_errmsg (r.error_message));
 	} else {
+		ut64 base = r_config_get_b (core->config, "io.va")? HBC_VADDR_BASE: 0;
 		for (u32 i = 0; i < n; i++) {
 			const HBCLiteralEntry *e = &arr[i];
-			const ut64 addr = (ut64)HBC_VADDR_BASE + e->paddr;
+			const ut64 addr = base + e->paddr;
 			const char *fmt = e->formatted? e->formatted: "";
 			r_cons_printf (core->cons, "0x%" PFMT64x " %s\n", addr, fmt);
 		}
@@ -845,18 +847,16 @@ static void cmd_lit_list_xrefs(HbcContext *ctx, RCore *core, const char *args) {
 		ut64 want = r_num_get (core->num, args);
 		ut64 base = va? (ut64)HBC_VADDR_BASE: 0;
 		ut64 target_paddr = (want >= base)? (want - base): want;
-		const HBCLiteralEntry *match = NULL;
+		bool found = false;
 		for (u32 i = 0; i < n; i++) {
 			if (arr[i].paddr == target_paddr) {
-				match = &arr[i];
-				break;
+				print_xref_line (core, &arr[i], va);
+				found = true;
 			}
 		}
-		if (!match) {
+		if (!found) {
 			R_LOG_ERROR ("no literal at that address");
-			return;
 		}
-		print_xref_line (core, match, va);
 		return;
 	}
 	for (u32 i = 0; i < n; i++) {
@@ -904,19 +904,23 @@ static void cmd_lit_list(HbcContext *ctx, RCore *core, bool as_json) {
 	}
 	r_cons_printf (core->cons, "literals: %u\n", n);
 	bool va = r_config_get_b (core->config, "io.va");
+	ut64 base = va? HBC_VADDR_BASE: 0;
 	for (u32 i = 0; i < n; i++) {
 		const HBCLiteralEntry *e = &arr[i];
 		const char *pavastr = va? "vaddr": "paddr";
 		r_cons_printf (core->cons,
-			"%-6s n=%-4u id=(%u,%u) %s=0x%08" PFMT64x " xrefs=%u  %s\n",
+			"%-6s n=%-4u id=(%u,%u) %s=0x%08" PFMT64x " xrefs=%u",
 			kind_label (e->kind),
 			e->num_items,
 			e->primary_id,
 			e->secondary_id,
 			pavastr,
-			(ut64)HBC_VADDR_BASE + e->paddr,
-			e->xref_count,
-			e->formatted? e->formatted: "");
+			base + e->paddr,
+			e->xref_count);
+		for (u32 j = 0; j < e->xref_count; j++) {
+			r_cons_printf (core->cons, " 0x%" PFMT64x, base + e->xref_addrs[j]);
+		}
+		r_cons_printf (core->cons, "  %s\n", e->formatted? e->formatted: "");
 	}
 }
 
@@ -957,18 +961,16 @@ static void print_r2_for_entry(RCore *core, const HBCLiteralEntry *e, bool va) {
 	r_cons_printf (core->cons, "f %s0x%x 1 @ 0x%" PFMT64x "\n", prefix, e->paddr, vaddr);
 	/* embed the formatted text as a comment at the literal vaddr */
 	if (e->formatted && *e->formatted) {
-		char *clean = r_str_sanitize_r2 (e->formatted);
-		if (clean) {
-			r_str_replace_char (clean, '\n', ' ');
-			r_str_replace_char (clean, '\r', ' ');
-			r_cons_printf (core->cons, "\" /* %s */ CC %s @ 0x%" PFMT64x "\n", prefix, clean, vaddr);
-			free (clean);
+		char *b64 = r_base64_encode_dyn ((const ut8 *)e->formatted, -1);
+		if (b64) {
+			r_cons_printf (core->cons, "CCu base64:%s @ 0x%" PFMT64x "\n", b64, vaddr);
+			free (b64);
 		}
 	}
 	/* xref from each call site to the literal */
 	for (u32 j = 0; j < e->xref_count; j++) {
 		ut64 from = base + (ut64)e->xref_addrs[j];
-		r_cons_printf (core->cons, "axd 0x%" PFMT64x " 0x%" PFMT64x "\n", from, vaddr);
+		r_cons_printf (core->cons, "axd 0x%" PFMT64x " 0x%" PFMT64x "\n", vaddr, from);
 	}
 }
 
@@ -990,18 +992,16 @@ static void cmd_lit_print_r2(HbcContext *ctx, RCore *core, const char *args) {
 		ut64 want = r_num_get (core->num, args);
 		ut64 base = va? (ut64)HBC_VADDR_BASE: 0;
 		ut64 target_paddr = (want >= base)? (want - base): want;
-		const HBCLiteralEntry *match = NULL;
+		bool found = false;
 		for (u32 i = 0; i < n; i++) {
 			if (arr[i].paddr == target_paddr) {
-				match = &arr[i];
-				break;
+				print_r2_for_entry (core, &arr[i], va);
+				found = true;
 			}
 		}
-		if (!match) {
+		if (!found) {
 			R_LOG_ERROR ("no literal at that address");
-			return;
 		}
-		print_r2_for_entry (core, match, va);
 		return;
 	}
 	for (u32 i = 0; i < n; i++) {
@@ -1058,20 +1058,19 @@ static void cmd_lit_toggle_inline(RCore *core) {
 /* Show help */
 static const char r2hermes_helpmsg[] =
 	"Usage: r2hermes-L[subcmd]\n"
-	" r2hermes-L            List cached literals (auto-scans code if cache is empty)\n"
+	" r2hermes-L            List cached literals and constructor addresses (auto-scans if empty)\n"
 	" r2hermes-Lj           List as JSON (auto-scans if needed)\n"
-	" r2hermes-Lq           List as `<vaddr> <formatted>` per line (one per literal)\n"
-	" r2hermes-Lx [addr]    List as `<vaddr> <xref1> <xref2> ...` (one per literal)\n"
-	"                  With addr: print xrefs for that single literal only\n"
+	" r2hermes-Lq           List as `<addr> <formatted>` per line (addresses use io.va)\n"
+	" r2hermes-Lx [addr]    List as `<addr> <xref1> <xref2> ...` (addresses use io.va)\n"
+	"                  With addr: print all literals sharing that pool address\n"
 	" r2hermes-Lp[ao]       Scan SLP pool (default: arrays; a=arrays, o=objects)\n"
 	" r2hermes-LR           Reset literal cache (does not remove r2 flags/comments)\n"
 	" r2hermes-Lr [addr]    Print r2 oneliners (f/CC/axd) to register flag+comment+xrefs\n"
-	"                  With addr: print oneliners for that single literal only\n"
+	"                  With addr: print all literals sharing that pool address\n"
 	" r2hermes-Lg <k> <n> <primary> [<sec>]\n"
 	"                  Format a literal from raw params (k=a|o)\n"
 	" r2hermes-Li           Toggle inline literal comments in disasm\n"
-	" r2hermes-L?           This help\n"
-	"\nDeprecated alias: pd:hL[subcmd]\n";
+	" r2hermes-L?           This help\n";
 
 static void r2hermes_help(RCore *core) {
 	const char msg[] =
@@ -1099,7 +1098,6 @@ static void cmd_help(RCore *core) {
 		"  pd:ho [id]     - Decompile with offsets (addresses) per statement\n"
 		"  pd:hoa         - Decompile all with offsets\n"
 		"  pd:hs [id]     - List source-line information\n"
-		"  pd:hL[?]       - Deprecated alias for r2hermes-L[?]\n"
 		"  pd:h?          - Show this help\n"
 		"\nNote: r2 comments (CC command) are automatically inlined in decompiler output.\n");
 }
@@ -1227,10 +1225,6 @@ static void cmd_pdh(RCore *core, HbcContext *ctx, const char *arg) {
 		}
 		break;
 	}
-	case 'L': /* pd:hL* — deprecated alias for r2hermes-L* */
-		R_LOG_WARN ("pd:hL is deprecated; use r2hermes-L instead");
-		cmd_literals (ctx, core, arg + 1);
-		break;
 	case 's': /* pd:hs [id] */
 		cmd_source_lines (ctx, core, arg + 1);
 		break;
