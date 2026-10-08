@@ -1076,6 +1076,10 @@ static void r2hermes_help(RCore *core) {
 	const char msg[] =
 		"Usage: r2hermes[-arg]  # see also pd:h for decompilation\n"
 		"r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)\n"
+		"r2hermes-A       - Import symbols and entrypoints\n"
+		"r2hermes-AA      - Also import strings and SLP literal comments/xrefs\n"
+		"r2hermes-AAA     - Also analyze bytecode references\n"
+		"r2hermes-AAAA    - Also perform full analysis (aaa)\n"
 		"r2hermes-E[jq]   - List direct eval instruction sites (j=JSON, q=addresses only)\n"
 		"r2hermes-H       - Show file information and hash status\n"
 		"r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle\n"
@@ -1149,10 +1153,124 @@ static void cmd_literals(HbcContext *ctx, RCore *core, const char *arg) {
 #include "sbom.inc.c"
 #include "version.inc.c"
 
+static void analysis_xref(RCore *core, ut64 from, ut64 target, RAnalRefType type, bool va) {
+	if (target == UT64_MAX || target < HBC_VADDR_BASE) {
+		return;
+	}
+	if (!va) {
+		target -= HBC_VADDR_BASE;
+	}
+	if (r_io_is_valid_offset (core->io, target, 0)) {
+		r_anal_xrefs_set (core->anal, from, target, type);
+	}
+}
+
+/* Decode complete functions, including tails shorter than the maximum opcode
+ * size that the generic aar scan skips. Decode at vaddrs so absolute function
+ * and string operands from the architecture plugin share one address space. */
+static void analyze_function_refs(RCore *core, HBC *hbc, u32 id, bool va) {
+	HBCFunc fi;
+	const u8 *code = NULL;
+	u32 size = 0;
+	if (hbc_get_function_info (hbc, id, &fi).code != RESULT_SUCCESS ||
+		hbc_get_function_bytecode (hbc, id, &code, &size).code != RESULT_SUCCESS || !code) {
+		return;
+	}
+	for (u32 pc = 0; pc < size && !r_cons_is_breaked (core->cons);) {
+		const ut64 vaddr = HBC_VADDR_BASE + fi.offset + pc;
+		const ut64 from = va? vaddr: (ut64)fi.offset + pc;
+		RAnalOp op = { 0 };
+		const int len = r_anal_op (core->anal, &op, vaddr, code + pc, R_MIN (size - pc, INT_MAX), R_ARCH_OP_MASK_BASIC);
+		if (len < 1 || (u32)len > size - pc) {
+			r_anal_op_fini (&op);
+			break;
+		}
+		analysis_xref (core, from, op.ptr, R_ANAL_REF_TYPE_DATA, va);
+		if (op.type == R_ANAL_OP_TYPE_CALL || op.type == R_ANAL_OP_TYPE_CCALL) {
+			analysis_xref (core, from, op.jump, R_ANAL_REF_TYPE_CALL, va);
+		} else if (op.type == R_ANAL_OP_TYPE_JMP || op.type == R_ANAL_OP_TYPE_CJMP) {
+			analysis_xref (core, from, op.jump, R_ANAL_REF_TYPE_CODE, va);
+		}
+		r_anal_op_fini (&op);
+		pc += len;
+	}
+}
+
+static void cmd_analyze(RCore *core, HbcContext *ctx, const char *arg) {
+	unsigned level = 0;
+	while (arg[level] == 'A') {
+		level++;
+	}
+	const char *rest = r_str_trim_head_ro (arg + level);
+	if (!strcmp (rest, "?")) {
+		r_cons_print (core->cons,
+			"Usage: r2hermes-A[AAA]\n"
+			" r2hermes-A       Import symbols and entrypoints\n"
+			" r2hermes-AA      Also import strings and SLP literal flags/comments/xrefs\n"
+			" r2hermes-AAA     Also analyze references in every bytecode function\n"
+			" r2hermes-AAAA    Also perform full analysis (aaa)\n"
+			"Levels are cumulative; addresses follow io.va.\n");
+		return;
+	}
+	if (level > 4 || *rest) {
+		R_LOG_ERROR ("Invalid analysis level. Use r2hermes-A? for help");
+		return;
+	}
+	HBC *hbc = NULL;
+	Result res = ensure_hbc_loaded (ctx, core, &hbc);
+	if (res.code != RESULT_SUCCESS) {
+		R_LOG_ERROR ("%s", safe_errmsg (res.error_message));
+		return;
+	}
+	const ut64 addr = core->addr;
+	const bool va = r_config_get_b (core->config, "io.va");
+	if (!r_flag_space_push (core->flags, R_FLAGS_FS_SYMBOLS)) {
+		return;
+	}
+	if (!r_core_bin_info (core, R_CORE_BIN_ACC_SYMBOLS | R_CORE_BIN_ACC_ENTRIES, NULL, R_MODE_SET, va, NULL, NULL)) {
+		R_LOG_ERROR ("Failed to import HBC symbols and entrypoints");
+		goto done;
+	}
+	if (level >= 2) {
+		if (!r_core_bin_info (core, R_CORE_BIN_ACC_STRINGS, NULL, R_MODE_SET, va, NULL, NULL)) {
+			R_LOG_ERROR ("Failed to import HBC strings");
+			goto done;
+		}
+		res = hbc_literals_scan_code (hbc, NULL);
+		if (res.code != RESULT_SUCCESS) {
+			R_LOG_ERROR ("Literal scan failed: %s", safe_errmsg (res.error_message));
+			goto done;
+		}
+		r_flag_space_set (core->flags, R_FLAGS_FS_SYMBOLS);
+		register_all_artifacts (core, hbc);
+	}
+	if (level >= 3) {
+		const u32 count = hbc_function_count (hbc);
+		r_cons_break_push (core->cons, NULL, NULL);
+		for (u32 i = 0; i < count && !r_cons_is_breaked (core->cons); i++) {
+			analyze_function_refs (core, hbc, i, va);
+		}
+		const bool interrupted = r_cons_is_breaked (core->cons);
+		r_cons_break_pop (core->cons);
+		if (interrupted) {
+			goto done;
+		}
+	}
+	if (level >= 4) {
+		r_core_cmd0 (core, "aaa");
+	}
+done:
+	r_flag_space_pop (core->flags);
+	r_core_seek (core, addr, true);
+}
+
 static void cmd_r2hermes(RCore *core, HbcContext *ctx, const char *arg) {
 	arg = r_str_trim_head_ro (arg);
 	if (*arg == '-') {
 		switch (arg[1]) {
+		case 'A':
+			cmd_analyze (core, ctx, arg + 1);
+			break;
 		case 'E':
 			cmd_list_eval_functions (ctx, core, arg + 2);
 			break;

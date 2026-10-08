@@ -1,0 +1,160 @@
+NAME=r2hermes analysis help
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+r2hermes-?~r2hermes-A
+r2hermes-A?
+EOF
+EXPECT=<<EOF
+r2hermes-A       - Import symbols and entrypoints
+r2hermes-AA      - Also import strings and SLP literal comments/xrefs
+r2hermes-AAA     - Also analyze bytecode references
+r2hermes-AAAA    - Also perform full analysis (aaa)
+Usage: r2hermes-A[AAA]
+ r2hermes-A       Import symbols and entrypoints
+ r2hermes-AA      Also import strings and SLP literal flags/comments/xrefs
+ r2hermes-AAA     Also analyze references in every bytecode function
+ r2hermes-AAAA    Also perform full analysis (aaa)
+Levels are cumulative; addresses follow io.va.
+EOF
+RUN
+
+NAME=r2hermes-A imports symbols and preserves session state
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+f-*
+fs scratch
+s 0x100000b4
+r2hermes-A
+?v $$
+fs*~# current
+fs *
+f~global,entry,str.
+EOF
+EXPECT=<<EOF
+0x100000b4
+fs scratch # current
+0x100000b0 1 entry0
+0x100000b0 10 sym.global_0x000000b0
+EOF
+RUN
+
+NAME=r2hermes-AA adds strings
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+f-*
+r2hermes-AA
+f~global,entry,str.
+EOF
+EXPECT=<<EOF
+0x1000009c 6 str.global
+0x100000a2 11 str.print_123__
+0x100000b0 1 entry0
+0x100000b0 10 sym.global_0x000000b0
+EOF
+RUN
+
+NAME=r2hermes-AA imports literals again from an existing cache
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+r2hermes-Lq~^0x10037b28
+ax-*
+f- lit.*
+CC- @ 0x10037b28
+r2hermes-AA
+f~lit.obj.0x37b28
+CC. @ 0x10037b28
+axtq @ 0x10037b28
+r2hermes-AA
+axtq @ 0x10037b28
+EOF
+EXPECT=<<EOF
+0x10037b28 {trace: 0, info: 1, warn: 2, error: 3}
+0x10037b28 1 lit.obj.0x37b28
+{trace: 0, info: 1, warn: 2, error: 3}
+0x1003e9f9
+0x1003e9f9
+EOF
+RUN
+
+NAME=r2hermes-AA imports literal physical addresses
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
+CMDS=<<EOF
+f-*
+r2hermes-AA
+f~lit.obj.0x37b28
+CC. @ 0x37b28
+axtq @ 0x37b28
+EOF
+EXPECT=<<EOF
+0x00037b28 1 lit.obj.0x37b28
+{trace: 0, info: 1, warn: 2, error: 3}
+0x3e9f9
+EOF
+RUN
+
+NAME=r2hermes-AAA finds short function references and remains additive
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+ax-*
+r2hermes-AA
+axtq @ 0x100000a2
+r2hermes-AAA
+axtq @ 0x100000a2
+r2hermes-AAA
+axtq @ 0x100000a2
+EOF
+EXPECT=<<EOF
+0x100000b0
+0x100000b0
+EOF
+RUN
+
+NAME=r2hermes-AAA uses physical addresses for code and data
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e io.va=false
+CMDS=<<EOF
+ax-*
+r2hermes-AAA
+axtq @ 0xa2
+axtq @ 0x100000a2
+f~global,entry,str.print
+EOF
+EXPECT=<<EOF
+0xb0
+0x000000a2 11 str.print_123__
+0x000000b0 1 entry0
+0x000000b0 10 sym.global_0x000000b0
+EOF
+RUN
+
+NAME=r2hermes-AAAA analyzes function control flow
+FILE=bins/hbc/bespoke_eval.hbc
+ARGS=-e log.level=0
+CMDS=<<EOF
+r2hermes-AAAA
+aflj~{[0].addr}
+aflj~{[0].size}
+EOF
+EXPECT=<<EOF
+268435632
+10
+EOF
+RUN
+
+NAME=r2hermes analysis rejects invalid levels before importing
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+f-*
+r2hermes-AAAAA
+r2hermes-AAj
+r2hermes-AA extra
+f
+EOF
+EXPECT=
+EXPECT_ERR=<<EOF
+ERROR: Invalid analysis level. Use r2hermes-A? for help
+ERROR: Invalid analysis level. Use r2hermes-A? for help
+ERROR: Invalid analysis level. Use r2hermes-A? for help
+EOF
+RUN

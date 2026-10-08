@@ -1,0 +1,59 @@
+NAME=hbc literal addresses and constructor refs
+FILE=bins/hbc/index.android.bundle
+CMDS=<<EOF
+r2hermes-L~trace:
+r2hermes-Lx 0x10037b3c
+r2hermes-Lr 0x10037b3c~^axd
+ax-*
+.r2hermes-Lr 0x10037b3c
+axtq @ 0x10037b3c
+EOF
+EXPECT=<<EOF
+object n=4    id=(0,0) vaddr=0x10037b28 xrefs=1 0x1003e9f9  {trace: 0, info: 1, warn: 2, error: 3}
+0x10037b3c 0x1003eb09 0x1003ebe7
+0x10037b3c 0x100c2cfb
+axd 0x10037b3c 0x1003eb09
+axd 0x10037b3c 0x1003ebe7
+axd 0x10037b3c 0x100c2cfb
+0x1003eb09
+0x1003ebe7
+0x100c2cfb
+EOF
+RUN
+
+NAME=hbc literal physical addresses and refs
+FILE=bins/hbc/index.android.bundle
+ARGS=-e io.va=false
+CMDS=<<EOF
+r2hermes-L~trace:
+r2hermes-Lq~^0x37b28
+r2hermes-Lx 0x37b3c
+r2hermes-Lr 0x37b3c~^axd
+axtq @ 0x37b3c
+EOF
+EXPECT=<<EOF
+object n=4    id=(0,0) paddr=0x00037b28 xrefs=1 0x3e9f9  {trace: 0, info: 1, warn: 2, error: 3}
+0x37b28 {trace: 0, info: 1, warn: 2, error: 3}
+0x37b3c 0x3eb09 0x3ebe7
+0x37b3c 0xc2cfb
+axd 0x37b3c 0x3eb09
+axd 0x37b3c 0x3ebe7
+axd 0x37b3c 0xc2cfb
+0x3eb09
+0x3ebe7
+0xc2cfb
+EOF
+RUN
+
+NAME=hbc literal help drops deprecated alias
+FILE=bins/hbc/bespoke_eval.hbc
+CMDS=<<EOF
+r2hermes-L?~pd:hL
+pd:h?~pd:hL
+pd:hL?
+EOF
+EXPECT=
+EXPECT_ERR=<<EOF
+ERROR: Unknown subcommand. Use pd:h? for help
+EOF
+RUN

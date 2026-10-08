@@ -81,11 +81,23 @@ Usage: pd:h[subcommand]
 [0x00000000]> r2hermes-?
 Usage: r2hermes[-arg]  # see also pd:h for decompilation
   r2hermes-h       - help message (same as r2hermes-?, see pd:h? too)
+  r2hermes-A       - Import symbols and entrypoints
+  r2hermes-AA      - Also import strings and SLP literal comments/xrefs
+  r2hermes-AAA     - Also analyze bytecode references
+  r2hermes-AAAA    - Also perform full analysis (aaa)
   r2hermes-E[jq]   - List direct eval instruction sites (j=JSON, q=addresses only)
   r2hermes-H       - Show file information and hash status
   r2hermes-L[?]    - SLP literal cache: list/scan/reset/format/toggle
   r2hermes-S[jr?]  - emit SBOM from SLP literals (j=CycloneDX JSON, r=raw input)
 ```
+
+The analysis levels are cumulative, like `r2flutter-A` and `r2unity-A`.
+Use `r2hermes-A` to import symbols and entrypoint flags, and `r2hermes-AA` to
+also import string flags and metadata, plus SLP literal flags, comments, and
+constructor references. `r2hermes-AAA` adds reference analysis over each
+function's bytecode range; `r2hermes-AAAA` additionally runs `aaa` to analyze
+functions and control flow. Addresses follow `io.va`, and the commands preserve
+the current seek and flagspace. Use `r2hermes-A?` for analysis help.
 
 `r2hermes-L` lists the constructor instruction addresses after `xrefs=`.
 Object literal addresses point to their serialized values; their keys or shapes
