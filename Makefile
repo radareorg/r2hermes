@@ -119,7 +119,33 @@ user-install user-uninstall:
 	$(MAKE) -C src/r2 $@
 
 # Binary package for r2pm -bi: plugins/ and bin/ for this r2 version and platform
-BINDIST_ZIP=r2hermes-$(shell r2 -qv)-$(shell r2pm -H R2PM_OS)-$(shell r2pm -H R2PM_ARCH)-$(shell r2pm -H R2PM_BITS).zip
+# Binary package for r2pm -bi: plugins/ and bin/ for this r2 version and platform
+# R2PM_OS/ARCH/BITS require a recent r2pm; fall back to uname when missing
+R2PM_OS_SH=$(shell r2pm -H R2PM_OS 2>/dev/null)
+R2PM_ARCH_SH=$(shell r2pm -H R2PM_ARCH 2>/dev/null)
+R2PM_BITS_SH=$(shell r2pm -H R2PM_BITS 2>/dev/null)
+ifeq ($(R2PM_OS_SH),)
+ifeq ($(shell uname -s),Darwin)
+R2PM_OS_SH=darwin
+else
+R2PM_OS_SH=linux
+endif
+endif
+ifeq ($(R2PM_ARCH_SH),)
+ifeq ($(shell uname -m),x86_64)
+R2PM_ARCH_SH=x86
+else ifeq ($(shell uname -m),aarch64)
+R2PM_ARCH_SH=arm
+else ifeq ($(shell uname -m),arm64)
+R2PM_ARCH_SH=arm
+else
+R2PM_ARCH_SH=$(shell uname -m)
+endif
+endif
+ifeq ($(R2PM_BITS_SH),)
+R2PM_BITS_SH=64
+endif
+BINDIST_ZIP=r2hermes-$(shell r2 -qv)-$(R2PM_OS_SH)-$(R2PM_ARCH_SH)-$(R2PM_BITS_SH).zip
 
 bindist: all
 	$(MAKE) -C src/r2

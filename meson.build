@@ -1,7 +1,7 @@
 project(
   'r2hermes',
   'c',
-  version: '1.5.2',
+  version: '1.5.3',
   license: 'MIT',
   default_options: [
     'c_std=c11',
