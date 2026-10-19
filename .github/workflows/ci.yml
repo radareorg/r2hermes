@@ -19,14 +19,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Install build deps
         run: sudo apt-get update -y && sudo apt-get install -y build-essential autoconf automake libtool pkg-config
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v3
+        uses: radareorg/github-actions@4ae27a8b29a049ac0fd5119f6eda37ecfc64ead8 # v3
         with:
           version: ${{ env.R2V }}
       - name: Build library
@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -66,7 +66,7 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v3
+        uses: radareorg/github-actions@4ae27a8b29a049ac0fd5119f6eda37ecfc64ead8 # v3
         with:
           version: ${{ env.R2V }}
 
@@ -74,7 +74,7 @@ jobs:
         run: make -C dist/debian SUDO=
 
       - name: Upload Debian package artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debian-package
           path: dist/debian/*.deb
@@ -86,10 +86,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.12.x
 
@@ -100,7 +100,7 @@ jobs:
 
       - name: Install radare2
         id: r2
-        uses: radareorg/github-actions@v3
+        uses: radareorg/github-actions@4ae27a8b29a049ac0fd5119f6eda37ecfc64ead8 # v3
         with:
           version: ${{ env.R2V }}
 
@@ -140,7 +140,7 @@ jobs:
           Compress-Archive -Path bindist\* -DestinationPath "r2hermes-$env:R2V-windows-x86-64.zip" -Force
 
       - name: Upload Windows package artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-package
           path: r2hermes-*.zip
@@ -155,10 +155,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install radare2
-        uses: radareorg/github-actions@v3
+        uses: radareorg/github-actions@4ae27a8b29a049ac0fd5119f6eda37ecfc64ead8 # v3
         with:
           version: ${{ env.R2V }}
 
@@ -166,7 +166,7 @@ jobs:
         run: make bindist
 
       - name: Upload r2pm binary artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bindist-${{ matrix.os }}
           path: r2hermes-*.zip
@@ -180,7 +180,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -192,26 +192,26 @@ jobs:
           ls -l libhbc*
 
       - name: Download Debian package artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: debian-package
           path: release-artifacts
 
       - name: Download Windows package artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: windows-package
           path: release-artifacts/windows
 
       - name: Download r2pm binary artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: bindist-*
           merge-multiple: true
           path: release-artifacts/bindist
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3.0.1
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           files: |
