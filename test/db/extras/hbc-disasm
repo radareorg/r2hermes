@@ -146,7 +146,7 @@ RUN
 NAME=hbc exception handlers are exposed through bin metadata
 FILE=bins/hbc/index.android.bundle
 CMDS=<<EOF
-iw~try.0
+iw*~try.0
 EOF
 EXPECT=<<EOF
 f try.0.1003e6dc.from=0x1003e703
