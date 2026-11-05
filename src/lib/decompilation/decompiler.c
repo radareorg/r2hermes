@@ -2962,7 +2962,7 @@ Result _hbc_output_code(HermesDecompiler *state, DecompiledFunctionBody *functio
 	for (HbcTokenString *si_iter = R_VEC_START_ITER (&function_body->statements); si_iter != R_VEC_END_ITER (&function_body->statements); si_iter++) {
 		size_t si = (size_t) (si_iter - R_VEC_START_ITER (&function_body->statements));
 		/* Stop when budget exhausted or earlier phase (pass2) flagged it. */
-		if (state->output_truncated || (state->options.max_output_bytes > 0 && r_strbuf_length (out) >= state->options.max_output_bytes)) {
+		if (state->output_truncated || (state->options.max_output_bytes > 0 && r_strbuf_length (out) >= (size_t)state->options.max_output_bytes)) {
 			state->output_truncated = true;
 			if (!state->truncation_marker_emitted) {
 				state->truncation_marker_emitted = true;
