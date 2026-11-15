@@ -388,7 +388,12 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 		reader->header.arrayBufferSize = reader->header.literalValueBufferSize;
 		reader->header.objShapeTableCount = 0;
 	}
-	reader->header.numStringSwitchImms = 0;
+	/* Present since Hermes f8c16f6083 (May 2025): every v98 release and v99 */
+	if (version >= 98) {
+		reader->header.numStringSwitchImms = r_buf_read_le32 (reader->file_buffer);
+	} else {
+		reader->header.numStringSwitchImms = 0;
+	}
 
 	/* Read the segment ID (or CJS module offset for older versions) */
 	reader->header.segmentID = r_buf_read_le32 (reader->file_buffer);
