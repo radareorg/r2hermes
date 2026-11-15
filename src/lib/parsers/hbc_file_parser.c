@@ -388,7 +388,12 @@ Result _hbc_reader_read_header(HBCReader *reader) {
 		reader->header.arrayBufferSize = reader->header.literalValueBufferSize;
 		reader->header.objShapeTableCount = 0;
 	}
-	reader->header.numStringSwitchImms = 0;
+	/* Present since Hermes f8c16f6083 (May 2025): every v98 release and v99 */
+	if (version >= 98) {
+		reader->header.numStringSwitchImms = r_buf_read_le32 (reader->file_buffer);
+	} else {
+		reader->header.numStringSwitchImms = 0;
+	}
 
 	/* Read the segment ID (or CJS module offset for older versions) */
 	reader->header.segmentID = r_buf_read_le32 (reader->file_buffer);
@@ -484,6 +489,14 @@ static Result read_modern_large_function_header(HBCReader *reader, FunctionHeade
 		u8 flags = 0;
 		flags = r_buf_read8 (reader->file_buffer);
 		unpack_function_flags (header, flags);
+		if (header->hasExceptionHandler) {
+			RETURN_IF_ERROR (align_over_padding (reader->file_buffer, 4));
+			RETURN_IF_ERROR (read_exception_handlers_current (reader, function_id, header->bytecodeSizeInBytes));
+		}
+		if (header->hasDebugInfo) {
+			RETURN_IF_ERROR (align_over_padding (reader->file_buffer, 4));
+			RETURN_IF_ERROR (read_function_debug_offset_current (reader, function_id));
+		}
 		return SUCCESS_RESULT ();
 	}
 	header->offset = r_buf_read_le32 (reader->file_buffer);
