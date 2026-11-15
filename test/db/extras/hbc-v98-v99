@@ -1,0 +1,106 @@
+NAME=hbc v99 header with numStringSwitchImms
+FILE=bins/hbc/v99-string-switch.hbc
+CMDS=<<EOF
+ih~objShapeTableCount,numStringSwitchImms,segmentID,cjsModuleCount,functionSourceCount,debugInfoOffset,flags
+EOF
+EXPECT=<<EOF
+0x00000058 0x00000058 0x00000000 objShapeTableCount
+0x0000005c 0x0000005c 0x00000001 numStringSwitchImms
+0x00000060 0x00000060 0x00000000 segmentID
+0x00000064 0x00000064 0x00000000 cjsModuleCount
+0x00000068 0x00000068 0x00000001 functionSourceCount
+0x0000006c 0x0000006c 0x000004c0 debugInfoOffset
+0x00000070 0x00000070 0x00000000 flags
+EOF
+RUN
+
+NAME=hbc v99 -O build with debug info opens
+FILE=bins/hbc/v99-try-catch.hbc
+CMDS=<<EOF
+i~^arch
+ih~debugInfoOffset
+pd:hf~?
+EOF
+EXPECT=<<EOF
+arch     hbc
+0x0000006c 0x0000006c 0x000006b4 debugInfoOffset
+7
+EOF
+RUN
+
+NAME=hbc v99 strict and loose equality jumps
+FILE=bins/hbc/v99-cmp-ops.hbc
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+pd 1 @ 0x100007ea
+pd 1 @ 0x10000816
+pd 1 @ 0x10000842
+pd 1 @ 0x1000086e
+EOF
+EXPECT=<<EOF
+            0x100007ea      d40a0001       j_strict_equal 10, r0, r1
+            0x10000816      d60a0001       j_strict_not_equal 10, r0, r1
+            0x10000842      d00a0001       j_equal 10, r0, r1
+            0x1000086e      d20a0001       j_not_equal 10, r0, r1
+EOF
+RUN
+
+NAME=hbc v99 jmp_builtin_is
+FILE=bins/hbc/v99-builtin-is.hbc
+ARGS=-e asm.sub.varmin=16
+CMDS=<<EOF
+pD 0x400 @ 0x10000000~jmp_builtin
+EOF
+EXPECT=<<EOF
+            0x10000250      d8183904       jmp_builtin_is 24, 57, r4
+            0x100002a0      d8133902       jmp_builtin_is 19, 57, r2
+            0x100002cd      d80e3804       jmp_builtin_is 14, 56, r4
+EOF
+RUN
+
+NAME=hbc v99 try/catch from the large function header
+FILE=bins/hbc/v99-try-catch.hbc
+CMDS=<<EOF
+pd:hc 1~try {,} catch
+pd:hc 2~try {,} catch
+EOF
+EXPECT=<<EOF
+  try {
+  } catch (r0) {
+  try {
+  } catch (r2) {
+EOF
+RUN
+
+NAME=hbc v98 header with numStringSwitchImms
+FILE=bins/hbc/v98-string-switch.hbc
+CMDS=<<EOF
+ih~objShapeTableCount,numStringSwitchImms,segmentID,cjsModuleCount,functionSourceCount,debugInfoOffset,flags
+EOF
+EXPECT=<<EOF
+0x00000058 0x00000058 0x00000000 objShapeTableCount
+0x0000005c 0x0000005c 0x00000001 numStringSwitchImms
+0x00000060 0x00000060 0x00000000 segmentID
+0x00000064 0x00000064 0x00000000 cjsModuleCount
+0x00000068 0x00000068 0x00000001 functionSourceCount
+0x0000006c 0x0000006c 0x000004c8 debugInfoOffset
+0x00000070 0x00000070 0x00000000 flags
+EOF
+RUN
+
+NAME=hbc v98 -O build with debug info opens
+FILE=bins/hbc/v98-try-catch.hbc
+CMDS=<<EOF
+i~^arch
+ih~debugInfoOffset
+pd:hf~?
+pd:hc 1~try {,} catch
+EOF
+EXPECT=<<EOF
+arch     hbc
+0x0000006c 0x0000006c 0x000006cc debugInfoOffset
+7
+  try {
+  } catch (r0) {
+EOF
+RUN
